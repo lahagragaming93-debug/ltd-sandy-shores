@@ -1,0 +1,17 @@
+{
+  "name": "ltd-sandy-shores-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord LTD Sandy Shores — relais des logs vers Firebase",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "node-fetch": "^3.3.2",
+    "dotenv":     "^16.4.5"
+  },
+  "engines": { "node": ">=20" }
+}

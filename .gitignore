@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Firebase
+firebase/functions/.runtimeconfig.json
+firebase/.firebaserc
+firebase/functions/lib/
+
+# Discord bot
+discord-bot/config.json
+discord-bot/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/

@@ -1,0 +1,136 @@
+rules_version = '2';
+
+// ============================================================
+// Règles Firestore — LTD Sandy Shores
+// ============================================================
+// Principes :
+//  - Toute lecture/écriture nécessite une authentification.
+//  - Le profil utilisateur (collection /users) porte le rôle.
+//  - Les écritures sensibles (config, prix, comptes) sont
+//    restreintes au Patron / Co-Patron.
+//  - Le bot Discord écrit via le SDK Admin (ignore les rules).
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // === Helpers ===
+    function isAuth() {
+      return request.auth != null;
+    }
+    function role() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function statut() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.statut;
+    }
+    function isActif()       { return statut() == 'actif'; }
+    function isDirection()   { return role() == 'patron' || role() == 'co-patron'; }
+    function isDRH()         { return role() == 'drh'; }
+    function isRespVente()   { return role() == 'responsable-vente'; }
+    function isRespPompiste(){ return role() == 'responsable-pompiste'; }
+    function isResponsable() { return isRespVente() || isRespPompiste(); }
+
+    // === Users ===
+    match /users/{uid} {
+      // Auto-inscription patron/co-patron OU lecture par soi-même OU direction
+      allow read: if isAuth();
+      allow create: if isAuth() && (
+        request.auth.uid == uid ||  // auto-création
+        isDirection()
+      );
+      // Soi-même peut maj certains champs ; direction peut tout maj
+      allow update: if isAuth() && (
+        isDirection() ||
+        (request.auth.uid == uid &&
+         request.resource.data.role == resource.data.role &&
+         request.resource.data.statut == resource.data.statut)
+      );
+      allow delete: if isDirection();
+    }
+
+    // === Produits ===
+    match /produits/{id} {
+      allow read:   if isAuth() && isActif();
+      allow write:  if isDirection() || isRespVente();
+    }
+
+    // === Stocks ===
+    match /stocks/{id} {
+      allow read:  if isAuth() && isActif();
+      // Écriture humaine : direction + responsable vente
+      // (le bot Discord passe par Admin SDK et n'est pas concerné)
+      allow write: if isDirection() || isRespVente();
+    }
+
+    // === Mouvements de stock (append-only depuis l'app) ===
+    match /mouvementsStock/{id} {
+      allow read:   if isAuth() && isActif();
+      allow create: if isDirection() || isRespVente();
+      allow update, delete: if isDirection();
+    }
+
+    // === Ventes ===
+    match /ventes/{id} {
+      allow read:   if isAuth() && isActif();
+      allow create: if isDirection();      // saisie manuelle exceptionnelle
+      allow update, delete: if isDirection();
+    }
+
+    // === Stations essence ===
+    match /stations/{id} {
+      allow read:  if isAuth() && isActif();
+      allow write: if isDirection() || isRespPompiste();
+    }
+    match /redistributions/{id} {
+      allow read:   if isAuth() && isActif();
+      allow create: if isDirection() || isRespPompiste();
+      allow update, delete: if isDirection();
+    }
+
+    // === Services / quotas pompistes ===
+    match /services/{id}        { allow read: if isAuth() && isActif();
+                                  allow write: if isDirection(); }
+    match /quotasPompiste/{id}  { allow read: if isAuth() && isActif();
+                                  allow write: if isDirection(); }
+
+    // === Dépenses ===
+    match /depenses/{id} {
+      allow read:   if isAuth() && (isDirection() || isDRH());
+      allow create: if isDirection();
+      allow update, delete: if isDirection();
+    }
+
+    // === Paies ===
+    match /paies/{id} {
+      allow read:  if isAuth() && (isDirection() || isDRH());
+      allow write: if isDirection();
+    }
+
+    // === Semaines (clôtures) ===
+    match /semaines/{id} {
+      allow read:  if isAuth() && (isDirection() || isDRH());
+      allow write: if isDirection();    // les Functions utilisent l'admin SDK
+    }
+
+    // === Alertes ===
+    match /alertes/{id} {
+      allow read:   if isAuth() && isActif();
+      allow create: if isDirection();
+      allow update: if isDirection() || isDRH() || isResponsable();
+      allow delete: if isDirection();
+    }
+
+    // === Configuration globale ===
+    match /config/{id} {
+      allow read:  if isAuth() && isActif();
+      allow write: if isDirection();
+    }
+
+    // === Logs bruts (canaux divers) — lecture direction uniquement ===
+    match /logsBruts/{id} {
+      allow read:  if isDirection();
+      allow write: if false;             // écrit uniquement par bot/Functions
+    }
+  }
+}

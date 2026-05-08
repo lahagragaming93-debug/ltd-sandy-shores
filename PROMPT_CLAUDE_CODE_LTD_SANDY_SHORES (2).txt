@@ -1,0 +1,394 @@
+================================================================================
+PROMPT CLAUDE CODE — PLATEFORME DE GESTION LTD SANDY SHORES
+================================================================================
+
+## CONTEXTE DU PROJET
+
+Tu dois créer une plateforme web complète de gestion pour le LTD Sandy Shores,
+une épicerie multisites avec franchise de stations-essence opérant sur un serveur
+FiveM (jeu de rôle GTA). Toutes les données financières sont en dollars RP ($).
+
+La plateforme doit :
+- Recevoir et parser automatiquement des données via un bot Discord (qui lit les
+  canaux de logs et relaie vers Firebase)
+- Gérer les stocks, les ventes, la comptabilité et les ressources humaines
+- Être accessible par rôles (patron, co-patron, DRH, responsables, employés)
+- S'afficher en FRANÇAIS uniquement
+- Clôturer la semaine automatiquement chaque dimanche à 00h00
+
+---
+
+## STACK TECHNIQUE
+
+- Frontend : HTML / CSS / JavaScript (vanilla ou React)
+- Base de données : Firebase Firestore
+- Authentification : Firebase Authentication
+- Réception des données : Bot Discord (lit les canaux de logs → envoie à Firebase)
+- Hébergement : GitHub Pages (frontend statique) + Firebase (Firestore + Auth + Functions)
+- Style visuel : Far-West / Western — couleurs rouge sang (#8B0000),
+  beige sable (#D2B48C), noir (#1a1a1a), blanc cassé (#F5F0E8)
+  Typographie robuste, style panneau de saloon, ambiance Sandy Shores
+
+---
+
+## ARCHITECTURE GÉNÉRALE
+
+Modules principaux :
+1. Dashboard Patron / Direction (vue globale)
+2. Gestion des Stocks (épicerie + essence)
+3. Gestion des Ventes (corrélation factures + logs inventaire)
+4. Comptabilité (CA, dépenses, bénéfice net, déclaration fiscale)
+5. Ressources Humaines (employés, services, paie)
+6. Gestion Stations-Essence (8 stations, commandes Murieta Oil)
+7. Dashboard Employé (vue limitée : ventes semaine + salaire estimé)
+8. Administration (création comptes, gestion des accès, prix d'achat produits)
+
+---
+
+## RÔLES ET PERMISSIONS
+
+| Rôle                    | Accès                                                          |
+|-------------------------|----------------------------------------------------------------|
+| Patron                  | Accès total à tout                                             |
+| Co-Patron               | Accès total à tout                                             |
+| DRH                     | RH complet + lecture comptabilité                              |
+| Responsable Vente       | Stocks épicerie, ventes, rapports vente                        |
+| Responsable Pompiste    | Stocks essence, stations, commandes Murieta Oil                |
+| Vendeur Expérimenté     | Dashboard employé uniquement                                   |
+| Vendeur Intermédiaire   | Dashboard employé uniquement                                   |
+| Vendeur Novice          | Dashboard employé uniquement                                   |
+| Pompiste Expérimenté    | Dashboard employé uniquement                                   |
+| Pompiste Intermédiaire  | Dashboard employé uniquement                                   |
+| Pompiste Novice         | Dashboard employé uniquement                                   |
+
+## GESTION DES COMPTES ET ACCÈS
+
+Flux de création des comptes :
+
+1. Le Patron ET le Co-Patron créent EUX-MÊMES leur propre compte directement
+   sur la page d inscription du site (première utilisation).
+   Ces deux comptes ont automatiquement tous les droits (accès total).
+
+2. Une fois connectés, le Patron ou le Co-Patron créent les comptes des autres
+   membres depuis le panneau Administration :
+   - Ils saisissent : prénom NOM RP, ID Discord, ID Perso, et choisissent le rôle.
+   - Le système génère un login + mot de passe provisoire à transmettre à l employé.
+   - L employé peut changer son mot de passe à sa première connexion.
+
+3. Les droits d accès sont attribués automatiquement selon le rôle attribué.
+   Aucune configuration manuelle des droits n est nécessaire.
+
+4. Le Patron ou Co-Patron peut à tout moment : modifier le rôle d un compte,
+   le suspendre (licenciement) ou le supprimer définitivement.
+
+---
+
+## HÉBERGEMENT
+
+- Frontend (interface web) : GitHub Pages
+  Le code source est sur un dépôt GitHub privé.
+  Déployé automatiquement via GitHub Actions à chaque mise à jour.
+
+- Backend : Firebase (Google)
+  Firebase Authentication : gestion des comptes et connexions.
+  Firebase Firestore : base de données temps réel.
+  Firebase Functions : traitement des données du bot Discord.
+
+Le frontend GitHub Pages appelle Firebase directement via le SDK Firebase.
+Les clés de configuration Firebase sont intégrées dans le frontend.
+
+---
+
+## DONNÉES PRODUITS ÉPICERIE
+
+Les prix d'ACHAT seront saisis manuellement par le patron depuis l'interface admin.
+Les prix de VENTE ci-dessous sont modifiables depuis l'interface.
+
+OUTILLAGE : Grosse Perceuse rouge 15$ | Forêt de Perceuse 600$ | Pince pour Plaque 25$ | Pince Coupante 20$ | Cisaille 1500$ | Batterie 10$
+
+DOCUMENT : Porte Document 8$ | Porte Feuille 8$ | Trousseau de Clefs 80$ | Colle 2$ | Encre 4$
+
+AGRICULTURE : Table 10$ | Pot de Fleur 10$ | Fertilisant 10$ | Tas de terre 14$ | Lumière Violette 20$ | Corde 10$ | Fillet 10$ | Sac en Jute (rupture possible)
+
+MÉCANIQUE : Huile 8$ | Huile Shell 12$ | Huile Noire 15$ | Batterie de Voiture 20$ | Solvant 25$ | Caoutchouc 6$
+
+NOURRITURE : Menu Burger ice tea 90$ | Barre chocolatée 18$ | Bonbon 7$ | Bonbon Cola 7$ | Bonbon Tada 7$ | Bonbon Drag 7$ | Crème Glacée 2$ | Tortilla 2$ | Coquille à Tacos 2$ | Moutarde 2$ | Cola Zero Sucre 4$ | Brique de citron 15$ | Pistache 8$ | Noix 8$ | Noix de Cajou 8$
+
+DIVERS : Eponge Nettoyage 1000$ | Bouteille D'eau 10$ | Bouteille D'eau purifié 2$ | Ticket à Gratter 25$ | Papier à Rouler 2$ | Spray à tag 2300$ | Skate Board 80$ | Ballon de Foot 40$ | Ballon de Basket 40$ | Canne à pêche 64$ | Appât de Grande Qualité 10$ | Bicarbonate de soude 2$ | Croquette 30$ | Hérisson 2$ | Elastique 20$ | Bidon de Peinture 4$
+
+---
+
+## STATIONS-ESSENCE (8 stations)
+
+Noms configurables depuis l'interface admin.
+Stock commun centralisé redistribué par le patron.
+Fournisseur : Murieta Oil (1-2 commandes/semaine max).
+Un seul type de carburant : "Essence".
+Prix au litre et seuil d'alerte (en litres) configurables par station.
+
+---
+
+## FORMAT DES LOGS DISCORD À PARSER (via Bot Discord)
+
+### 1. logs-ig (Inventaire)
+```
+Type: inventory-add OU inventory-remove
+Champs: discord, name, properName, characterId, source, count, item, metadata, owner
+```
+→ Stock en temps réel + comptage bidons/caoutchoucs pompistes
+
+### 2. logs-services (Heures de travail)
+```
+"Service commencé/terminé" + Prénom NOM + timestamp
+```
+→ Suivi RH (informatif, non bloquant pour la paie)
+
+### 3. suivi-facture (Ventes)
+```
+Facture #ID — Payée
+Émetteur: @Discord — Prénom NOM (vendeur)
+Destinataire: @Discord — Prénom NOM (client)
+Montant: X $
+Raison: description produits vendus
+Paiement: Espèces / Carte
+```
+→ CA hebdo + calcul commissions + corrélation logs-ig
+
+### 4. suivi-achat-essence (Redistribution essence)
+```
+Redistribution N°XXXXX — [Nom Station]
+Montant facturé / Prix du litre / Litres consommés
+Stock avant / Stock après / Niveau %
+```
+→ Stock par station + comptage bidons pompistes
+
+### 5. dépenses (Sorties d'argent)
+```
+SORTIE D'ARGENT
+Compte ID / Utilisateur / Montant / Solde avant / Solde après / Raison
+```
+→ Charges comptables (déductibles ou non)
+
+### 6. paie (Paiements employés)
+```
+PAIEMENT D'UN EMPLOYÉ
+Payeur: Prénom NOM + ID Discord + ID Perso
+Bénéficiaire: Prénom NOM + ID Discord + ID Perso
+Montant: XXXX $
+```
+→ Masse salariale + vérification conformité TTE
+
+### 7. suivi-coffre (Snapshot coffre)
+```
+PANEL COFFRE
+Coffre: action-XXXXX-0-X / Items distincts / MAJ
+Détail: nom_item → Quantité / Dernière maj / Par
+```
+→ Inventaire temps réel + alertes stock
+
+Canaux supplémentaires à surveiller (stockage brut) :
+suivi-coffre-secondaire, alerte-coffre, revenu, factures, statsbank,
+logs-licenciement, logs-avertissement
+
+---
+
+## CONFIGURATION BOT DISCORD
+
+Créer un bot Discord qui :
+1. Se connecte au serveur Discord LTD SandyShores
+2. Lit les nouveaux messages (embeds) en temps réel sur tous les canaux de logs
+3. Parse chaque embed selon son canal d'origine
+4. Envoie les données structurées à Firebase Firestore via l'API Firebase Admin SDK
+5. Fournir les instructions complètes : token, permissions, invitation, déploiement
+
+---
+
+## MODULE STOCKS
+
+Épicerie :
+- Tableau produits : quantité actuelle, prix achat, prix vente, marge unitaire
+- Seuils d'alerte configurables par produit
+- Historique entrées/sorties (logs-ig)
+- Alertes visuelles (rouge = rupture, orange = seuil bas)
+- Ajustement manuel possible avec justification obligatoire
+
+Essence :
+- Vue par station : stock litres, niveau %, dernière redistribution
+- Stock central visible
+- Alertes si niveau < seuil (en litres)
+- Historique redistributions par station
+- Prix au litre modifiable
+
+---
+
+## MODULE VENTES
+
+- Liste factures semaine (suivi-facture)
+- Filtrage par vendeur / produit / période
+- Corrélation automatique vente ↔ sortie de stock (alerte si discordance)
+- CA temps réel (semaine en cours vs précédente)
+- Graphiques : ventes par jour / par vendeur / par produit / top produits
+- Bénéfice par vente = prix vente - prix achat
+
+---
+
+## MODULE COMPTABILITÉ (conforme TTE Chapitre IV — Secteur 2)
+
+Postes hebdomadaires (lundi 00h00 → dimanche 23h59) :
+- CA : total ventes (suivi-facture)
+- Autres entrées : saisie manuelle
+- Charges déductibles : matières premières, frais avocat (max 30 000$), entretien véhicules
+- Charges non déductibles : toutes les autres
+- Salaires versés (paie)
+- Primes hebdomadaires et mensuelles
+- Résultat imposable = (CA + Autres entrées) - Charges déductibles
+- Bénéfice net = Résultat imposable - Impôts
+
+Règles TTE automatiques :
+- Masse salariale max = 90% du CA
+- Plafonds salaire : 19 000$/sem employés, 20 000$/sem direction/gestion
+- Primes hebdo selon tranches CA (Art. 4-1.10)
+- Primes mensuelles selon tranches bénéfice net (Art. 4-1.11)
+- Clôture automatique dimanche 00h00
+- Conservation données 6 semaines minimum
+
+Export : rapport PDF/CSV par semaine avec tous les postes comptables.
+
+---
+
+## MODULE RESSOURCES HUMAINES
+
+Fiche employé : Nom/Prénom RP, ID Discord, ID Perso, rôle, date entrée, statut,
+heures service semaine, ventes/bénéfice semaine, quota pompiste, salaire estimé,
+historique paies.
+
+---
+
+## CALCUL DE LA PAIE (au prorata du travail réel)
+
+### VENDEURS — Commission sur le BÉNÉFICE de vente
+Bénéfice = prix de vente - prix d'achat du produit
+
+Calcul au prorata du CA généré vs plafond CA :
+Si vendeur génère 50% du CA plafond → 50% du salaire max.
+
+| Grade          | Salaire max | Commission | CA plafond |
+|----------------|-------------|------------|------------|
+| Novice         | 13 000 $/sem| 32.5%      | 40 000 $   |
+| Intermédiaire  | 14 000 $/sem| 35%        | 40 000 $   |
+| Expérimenté    | 15 000 $/sem| 37.5%      | 40 000 $   |
+
+Formule :
+  Salaire = min(Bénéfice total × % commission, Salaire max)
+  Si CA généré > 40 000$ → seuls les 40 000 premiers $ comptent
+  Les 7h de service = indicateur RH uniquement, ne bloquent pas la paie
+
+### RESPONSABLES (Vente & Pompiste)
+Salaire fixe max : 17 000 $/sem
+Pas de CA obligatoire — évaluation manuelle par le patron.
+
+### POMPISTES — Quota bidons + caoutchoucs (au prorata)
+
+Quota hebdomadaire (modifiable depuis l'interface admin) :
+  - Bidons d'essence à ravitailler : 1 700 bidons/sem
+  - Caoutchoucs à produire : 800 unités/sem
+
+Calcul :
+  Score bidons     = bidons réalisés / 1 700 (max 100%)
+  Score caoutchouc = caoutchoucs réalisés / 800 (max 100%)
+  Score global     = (Score bidons + Score caoutchouc) / 2
+  Salaire          = Score global × Salaire max du grade
+
+| Grade          | Salaire max |
+|----------------|-------------|
+| Novice         | 13 000 $/sem|
+| Intermédiaire  | 14 000 $/sem|
+| Expérimenté    | 15 000 $/sem|
+
+Source : logs-ig (inventory-add sur items bidons et caoutchoucs)
+
+### DIRECTION (fixe, hors primes — plafond TTE Secteur 2)
+
+| Poste      | Salaire fixe max/sem |
+|------------|----------------------|
+| Patron     | 20 000 $             |
+| Co-Patron  | 20 000 $             |
+| DRH        | 20 000 $             |
+
+---
+
+## DASHBOARD EMPLOYÉ (reset dimanche 00h00, lecture seule)
+
+Vendeurs : ventes semaine, bénéfice généré, progression CA, salaire estimé
+Pompistes : bidons réalisés/quota, caoutchoucs réalisés/quota, score %, salaire estimé
+
+---
+
+## DASHBOARD PRINCIPAL (Patron / Co-Patron / DRH)
+
+- CA semaine en cours, bénéfice net estimé, ventes du jour
+- Stock global avec alertes, niveaux stations essence
+- Qui est en service maintenant
+- Graphiques : ventes/jour, top 5 produits, CA par vendeur,
+  évolution stock essence, répartition dépenses
+- Alertes actives
+- Historique 6 dernières semaines
+
+---
+
+## ALERTES (site uniquement)
+
+- ⚠️ Produit sous seuil d'alerte / 🔴 Rupture de stock
+- ⚠️ Station essence sous X litres
+- 🚨 Vente sans sortie de stock correspondante
+- 🚨 Sortie de stock sans facture associée
+- ⚠️ Masse salariale > 90% du CA
+- ⚠️ Salaire estimé proche du plafond légal
+- ℹ️ Employé < 7h de service cette semaine (info uniquement)
+- ⚠️ Entreprise ouverte < 4 fois cette semaine
+
+---
+
+## STRUCTURE FIRESTORE
+
+- /users (uid, nom, rôle, idDiscord, idPerso, dateEntree, statut)
+- /produits (nom, categorie, prixVente, prixAchat, seuilAlerte)
+- /stocks (produitId, quantite, derniereMaj, par)
+- /ventes (factureId, vendeurId, montant, benefice, raison, items, timestamp)
+- /mouvementsStock (type, item, quantite, par, timestamp, coffre)
+- /stations (nom, stockActuel, stockMax, seuilAlerte)
+- /redistributions (stationId, litres, montant, prixLitre, timestamp)
+- /services (employeId, debut, fin, duree)
+- /quotasPompiste (employeId, semaine, bidons, caoutchoucs, scoreGlobal)
+- /depenses (montant, raison, deductible, timestamp, utilisateur)
+- /paies (payeurId, beneficiaireId, montant, timestamp)
+- /semaines (numero, dateDebut, dateFin, ca, depenses, benefice, statut)
+- /alertes (type, message, timestamp, resolue)
+- /config (quotaBidons, quotaCaoutchoucs, prixEssence, seuilsAlerte)
+
+---
+
+## INSTRUCTIONS À GÉNÉRER EN FIN DE PROJET
+
+1. Guide configuration bot Discord (token, permissions, canaux, déploiement)
+2. Instructions déploiement Firebase (init, Firestore rules, Functions)
+3. Déploiement GitHub Pages
+4. Procédure création premier compte patron
+5. Guide utilisation rapide (patron + employé)
+
+---
+
+## CONTRAINTES IMPORTANTES
+
+- Interface 100% en FRANÇAIS
+- Responsive (tablette pour les employés)
+- Pas de logo pour l'instant (espace réservé prévu)
+- Données conservées minimum 6 semaines (TTE Art. 4-1.1)
+- Toutes transactions tracées et justifiables
+- Site privé : authentification obligatoire
+- Style western/far-west cohérent sur toutes les pages
+- Le bot Discord sera configuré séparément après création du site
+
+================================================================================
+FIN DU PROMPT
+================================================================================
