@@ -13,12 +13,14 @@ Bienvenue. Ce guide est organisé **par rôle** : chaque employé n'a besoin de 
 
 | Tu es… | Lis dans cet ordre |
 |--------|--------------------|
-| 👑 **Patron / Co-Patron** | 01 → 02 → 03 → 04 → 07 → 08 (tout) |
-| 📋 **DRH** | 02 → 07 → 08 |
+| 👑 **Patron / Co-Patron** | 01 → 02 → 03 → 04 → 07 → 08 → **09** (tout) |
+| 🛠 **Admin Technique** | **09** (compta) → 07 → 01 |
+| 📋 **DRH** | 02 → 07 → 08 → 09 |
 | 🛒 **Responsable Vente** | 03 → 07 → 08 |
 | ⛽ **Responsable Pompiste** | 04 → 07 → 08 |
 | 💵 **Vendeur** (novice / inter / exp) | 05 → 08 |
 | 🚗 **Pompiste** (novice / inter / exp) | 06 → 08 |
+| 🔎 **Contrôleur IRS RP** (audit ponctuel) | **09** uniquement (section 4-5 : lire le Dashboard + comprendre les onglets) |
 
 Tu peux aussi tout lire si tu veux comprendre comment marche l'entreprise.
 
@@ -36,6 +38,7 @@ Tu peux aussi tout lire si tu veux comprendre comment marche l'entreprise.
 | **[06-pompiste.md](06-pompiste.md)** | Ton espace, tes paies, comprendre les quotas | Pompistes |
 | **[07-automatismes.md](07-automatismes.md)** | Bot Discord, clôture hebdo, alertes — comment ça marche | Tout le monde |
 | **[08-faq-depannage.md](08-faq-depannage.md)** | « Je vois pas mes ventes », « Ma paie est fausse », etc. | Tout le monde |
+| **[09-comptabilite.md](09-comptabilite.md)** | Compta complète : accès Sheet, saisies, clôture, Dashboard, partage IRS | Direction, Admin Tech, audit IRS |
 
 ---
 
