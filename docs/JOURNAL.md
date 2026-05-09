@@ -1,7 +1,7 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-09**
+> Dernière mise à jour : **2026-05-09 (session de reprise — 14 commits supplémentaires)**
 
 ---
 
@@ -107,27 +107,118 @@ Plateforme web de gestion pour le LTD Sandy Shores (épicerie multisites + 8 sta
 
 ---
 
-## 📋 Ce qui reste à faire (TODO)
+## ✅ Session de reprise — 2026-05-09 (suite)
 
-### Priorité haute
-- [ ] **Compléter 4 prix d'achat** : Menu Burger ice tea, Canne à pêche, Croquette, Sac en Jute (Stocks → Modifier)
-- [ ] **Configurer le webhook Discord pour alertes** (Admin → Config → URL Webhook). Étapes :
-  1. Créer un canal `#🚨-alertes-app` sur Discord
-  2. Modifier le canal → Intégrations → Webhooks → Nouveau webhook → copier l'URL
-  3. Coller dans Admin → Configuration globale → Webhook Discord
+> **14 commits supplémentaires + 4 déploiements rules + 2 déploiements Cloud Functions.**
 
-### Priorité moyenne
-- [ ] **Liste produits complète à intégrer** (le user attend la liste finale de l'ancien patron)
-  - Produits identifiés à ajouter au catalogue : Pioche, Jerrican, Bac jardinage, Pain à burger, Crème fraîche, Outil, Baguette, Barre chocolat caramel, Perçeuse manuel, Bidon vide, Visserie, Bobine de cuivre
-  - Vérifier les écarts de prix avec mise à jour mars 2026 (acier 40$ → 60$)
-- [ ] **Créer les comptes employés** : Co-Patron (si Maxime en veut un), DRH, responsables (vente, pompiste), vendeurs, pompistes
-  - Pour chaque : prénom, NOM RP, email, **ID Discord**, **ID Perso** (in-game)
-  - Sans IDs Discord/Perso, les paies et ventes ne seront pas attribuées correctement
-- [ ] **Budget alerte Firebase** (5 €/mois, par sécurité) → console GCP → Billing
+### 12. Données catalogue
+- **53 prix** poussés via page d'init temporaire éditable (puis page supprimée)
+- **8 nouveaux produits** ajoutés : Menu simple/complet, Baguette, Barre choco caramel, Bac jardinage, Trottinette électrique, Pile, Éponge pour voiture
+- Catalogue final : 61 produits dans `public/js/data/produits.js`
 
-### Priorité basse (nice to have)
-- [ ] Page « Mon profil » pour que chaque utilisateur édite ses propres infos sans passer par Admin
-- [ ] Rapport PDF mensuel automatique (pour TTE / admin RP)
+### 13. Compatibilité tablette FiveM CEF in-game
+- Tous les `confirm()` / `alert()` / `prompt()` natifs **remplacés** par modaux dans le site (`utils/confirmation.js`)
+- Modal **CRITIQUE 3 secondes** pour les actions destructives + champ `requireType: SUPPRIMER` à taper
+- **Bouton retour ←** + **menu hamburger ☰** dans la topbar
+- Sidebar drawer + overlay sur petit écran
+- Aucun `target="_blank"` (la nav reste dans la même fenêtre)
+- 4 breakpoints responsive : 1280 (FiveM CEF) / 1024 / 600 / 380 px
+- Boutons tactiles 44 px min sur mobile
+
+### 14. Guide complet par rôle (~1 815 lignes)
+- 9 fichiers MD dans **`public/guide/`** (était `docs/guide/`, déplacé pour être servi par GitHub Pages)
+- Index + 1 par rôle (direction / DRH / resp vente / resp pompiste / vendeur / pompiste) + automatismes + FAQ
+- **Onglet « 📖 Guide » dans la sidebar** : page `guide.html` qui charge marked.js et rend les .md en HTML formaté, auto-sélection du chapitre selon rôle, deep-link `?guide=01-direction`, boutons Imprimer/PDF + GitHub
+
+### 15. Visuel
+- **Logo + favicon** intégrés (sidebar, page login, onglet navigateur) — assets dans `public/img/`
+- **Topbar refondue** :
+  - Avatar circulaire avec initiales, couleur selon famille de rôle
+  - Nom en font-heading + **11 badges de rôle distincts** colorés
+  - Bouton déconnexion en pastille ronde avec rotation au hover
+- **Cloche d'alertes Facebook-style** (🔔 + badge) :
+  - Dropdown 360 px avec animation `bellRing` au montage
+  - Liste des 30 dernières alertes (icône type + message + heure relative + flèche)
+  - Bordure gauche colorée selon gravité
+  - Click sur alerte → redirige vers la page concernée (stocks/stations/ventes)
+  - Fermeture click outside + Escape
+
+### 16. Hiérarchie Admin (DRH + Responsables gèrent leur équipe)
+- **DRH** : tous comptes sauf Patron / Co-Patron (peut gérer un autre DRH, mais PAS Admin Technique)
+- **Resp Vente** : uniquement vendeurs Novice/Inter/Exp (création + promotion entre grades + suspension + suppression)
+- **Resp Pompiste** : idem pour pompistes
+- Lignes hors périmètre **visibles mais grisées** (transparence)
+- Sécurité **côté serveur** (rules Firestore : helper `canManage(currentRole, targetRole)`)
+- Patron / Admin Tech peuvent **modifier leur propre rôle** (mais pas se suspendre / supprimer)
+
+### 17. Export Comptabilité Google Sheets temps réel
+- Cloud Function `comptaExport` (HTTP, region europe-west1) avec token sécurisé
+- 4 types : `?type=resume | depenses | ventes | paies`
+- Format CSV UTF-8 (BOM) avec dates `dd/MM/yyyy HHhmm:ss` (timezone Europe/Paris, non auto-converti par Sheets)
+- Résolution `<@discordId>` → nom réel via map précalculé
+- Token stocké dans `/config/secrets.comptaExportToken` (rule serveur : direction + super-admin uniquement)
+- UI dans Admin → bouton 📊 Export Google Sheets : modale qui affiche les 4 formules `=IMPORTDATA(...)` à coller dans le Sheet, boutons Copier
+- Secret Firebase `LTD_COMPTA_EXPORT_TOKEN` (32 bytes hex)
+
+### 18. Création produits depuis le site
+- Bouton **« + Ajouter un produit »** dans Stocks (visible Direction + DRH + Super-admin)
+- Modale : nom, ID auto-slug, catégorie, prix achat/vente, seuil, stock initial optionnel
+- Modal critique 3 sec si prix achat > prix vente (vente à perte)
+- Stock initial > 0 → mouvement « Création produit » tracé dans l'audit
+- Rules Firestore split create/update/delete sur /produits
+
+### 19. Refonte page Comptabilité
+- 4 KPIs colorés : CA (vert), Charges (rouge), Masse salariale (orange), Bénéfice (bleu / rouge si perte)
+- **Templates dépenses rapides** : 5 boutons (Matières premières / Avocat / Entretien véhicule / Loyer / Autre) qui pré-remplissent le formulaire
+- **Gauge masse salariale visuelle** avec marqueur 90 %, animation pulse rouge si HORS TTE
+- **Section "💰 Salaires & paies"** : tableau par groupe (Direction / Resp / Vendeurs / Pompistes) avec salaire estimé + versé + reste à verser par employé
+- **Bouton « 📋 Copier récap Discord »** : prépare un message formaté avec les montants à verser, à coller dans `#paie`
+
+### 20. Rôle « 🛠 Admin Technique » (super-admin invisible)
+- Tous les droits du Patron côté UI/Admin
+- **EXCLU** des calculs financiers : compta, masse salariale, salaires affichés, effectif RH (mention discrète "+N tech" dans le KPI Effectif)
+- Plafond salaire = 0 (rôle non rémunéré)
+- Badge violet `#6a3a8a` avec animation `techGlow` pulsante
+- Avatar violet aussi
+- **Hiérarchie** : Patron peut le créer/supprimer (sécurité). DRH et Co-Patron NE PEUVENT PAS le voir/gérer.
+- Helper `canAdmin()` = `isDirection() || isSuperAdmin()` utilisé partout dans rules + UI
+- Helper `compteEnFinance(role)` = `!isSuperAdmin(role)` utilisé pour filtrer compta/RH
+
+### 21. Bugfixes session
+- Stations : refresh visuel immédiat après save (mise à jour optimiste — listener Firestore peut avoir 1-2 s de latence)
+- Sheets dates : format `09/05/2026 14h30:25` non interprété comme date série numérique
+- Sheets utilisateurs : `<@undefined>` → `— (non résolu)`, ID Discord brut → nom réel
+- Doc vendeur : « le bot ne te paiera pas » → « la direction ne te paiera pas »
+- Patron + Admin Tech peuvent modifier leur propre rôle (avant : sélecteur grisé sur sa propre ligne)
+
+### 22. Documentation
+- `LIENS.md` à la racine : tous les liens utiles (site, guides, Firebase, Cloud Functions, comptes, etc.)
+- README mis à jour avec plan de docs (setup + utilisation par rôle)
+- Guides 01/02/03/04/07/08 mis à jour pour refléter hiérarchie + ajout produit + compta refonte
+
+---
+
+## 📋 Ce qui reste à faire (TODO mis à jour 2026-05-09)
+
+### ✅ Fait dans la session de reprise
+- ✅ ~~Compléter 4 prix d'achat~~ — intégrés dans la liste 53 finale
+- ✅ ~~Liste produits complète à intégrer~~ — fait via init-prix-v2.html
+
+### Priorité haute (à faire de ton côté en 5 min)
+- [ ] **Te basculer en Admin Technique** : Admin → ta ligne → sélecteur Rôle → 🛠 Admin Technique
+- [ ] **Configurer le Sheet Compta** : Admin → 📊 Export Google Sheets → coller token → créer Sheet sur sheets.new → coller les 4 formules
+- [ ] **Configurer le webhook Discord pour alertes** (Admin → ⚙ Configuration globale → URL Webhook)
+- [ ] **Budget alerte Firebase** (5 €/mois) → console GCP → Billing
+
+### Priorité moyenne (Maxime BLAKE quand il prendra la main)
+- [ ] **Créer les comptes employés** (DRH, responsables, vendeurs, pompistes) avec ID Discord + ID Perso obligatoires
+- [ ] Décider les salaires des direction/responsables dans RH
+
+### Priorité basse (nice to have, optionnel)
+- [ ] Page « Mon profil » pour que chaque utilisateur édite ses propres ID Discord/Perso
+- [ ] Bouton « Supprimer un produit » dans Stocks (UI manquante, contournable via console Firebase)
+- [ ] Filtrage des items parasites Discord (ex. `item:contrat`) — liste blanche/noire dans le parser
+- [ ] Rapport PDF mensuel automatique (l'export Sheets fait déjà le job)
 - [ ] Stats avancées : graphique 6 mois, comparaison N vs N-1
 - [ ] Conciliation bancaire (rapprochement entre `paie` Discord et `salaireDecide`)
 - [ ] Mode hors ligne renforcé (Service Worker)
@@ -135,7 +226,24 @@ Plateforme web de gestion pour le LTD Sandy Shores (épicerie multisites + 8 sta
 ### À l'arrivée du moment
 - [ ] **Transmission technique au vrai patron** → suivre `docs/07-transmission.md`
   - Firebase, GitHub, Railway, Discord Bot dans cet ordre
-  - Suppression du compte intendant en dernier
+  - Suppression du compte intendant en dernier (le rôle Admin Technique disparaîtra avec)
+
+---
+
+## 🐛 Comportements connus (pas des bugs)
+
+### Alertes pour items hors catalogue (ex. `item:contrat`)
+Le bot Discord crée automatiquement un stock pour TOUT item qui passe dans `#logs-ig`, même hors catalogue LTD. Conséquence : tu peux voir des alertes type `Rupture : item:contrat` pour des objets RP non commerciaux (uniformes, papiers, contrats).
+
+**3 options** :
+- Ignorer l'alerte
+- Supprimer le doc `/stocks/{id}` via console Firebase
+- Marquer l'alerte résolue dans `/alertes/{id}`
+
+Pour les éliminer définitivement, il faudrait ajouter une **liste blanche/noire** dans `discord-bot/parsers/inventory.js` (TODO priorité basse).
+
+### Sheets refresh ~1 h
+Google force `IMPORTDATA` à refresh ~1 fois par heure max. Pour un refresh immédiat, modifie temporairement la formule (espace + valider + retirer espace).
 
 ---
 
