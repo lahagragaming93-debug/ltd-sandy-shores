@@ -14,6 +14,7 @@
 | ⛽ Stations essence | https://lahagragaming93-debug.github.io/ltd-sandy-shores/stations.html |
 | 💵 Ventes | https://lahagragaming93-debug.github.io/ltd-sandy-shores/ventes.html |
 | 📋 Comptabilité | https://lahagragaming93-debug.github.io/ltd-sandy-shores/comptabilite.html |
+| 🏦 **Banque LTD** (mouvements + solde temps réel) | https://lahagragaming93-debug.github.io/ltd-sandy-shores/banque.html |
 | 🧑‍💼 Ressources humaines | https://lahagragaming93-debug.github.io/ltd-sandy-shores/rh.html |
 | ⚙ Administration | https://lahagragaming93-debug.github.io/ltd-sandy-shores/admin.html |
 | 📖 Guide intégré (tutoriel) | https://lahagragaming93-debug.github.io/ltd-sandy-shores/guide.html |
@@ -68,6 +69,7 @@
 | 🔑 Secrets Manager | https://console.firebase.google.com/project/ltd-sandy-shores-f3919/functions/secrets |
 | 💰 Billing GCP | https://console.cloud.google.com/billing/linkedaccount?project=ltd-sandy-shores-f3919 |
 | 🚂 Railway (bot Discord) | https://railway.com |
+| 🔍 **Découverte items FiveM** (outil de mapping) | https://lahagragaming93-debug.github.io/ltd-sandy-shores/decouverte-items.html |
 
 ---
 
@@ -100,7 +102,7 @@
 | Fonction | URL |
 |----------|-----|
 | `botIngest` (HTTP, bot Discord) | `https://botingest-tzkzzt4ckq-ew.a.run.app` |
-| `comptaExport` (HTTP, Sheets) | `https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/comptaExport` |
+| `comptaExport` (HTTP, Sheets — 5 types : `?type=resume\|depenses\|ventes\|paies\|banque`) | `https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/comptaExport` |
 | `clotureHebdo` (cron lundi 00h00 Europe/Paris) | scheduler interne |
 | `alerteStock`, `alerteStation`, `alerteVenteSansStock` | triggers Firestore |
 
