@@ -88,18 +88,30 @@ export const clotureHebdo = onSchedule({
 // ----------------------------------------------------------------
 
 // Stock bas / rupture
+// Le seuil et le nom sont stockés dans /produits/{id}, pas /stocks/{id}.
+// /stocks contient juste la quantité (mise à jour par le bot Discord ou les
+// ajustements manuels). On va donc lire le produit en parallèle.
 export const alerteStock = onDocumentWritten({
   document: 'stocks/{id}',
   region: 'europe-west1'
 }, async (event) => {
   const after = event.data?.after?.data();
   if (!after) return;
-  const seuil = after.seuilAlerte ?? 0;
-  const qte = after.quantite || 0;
+  const id = event.params.id;
+  const qte = after.quantite ?? 0;
+
+  // Récupère le seuil + nom depuis /produits/{id}
+  const prodSnap = await db.collection('produits').doc(id).get();
+  const prod = prodSnap.exists ? prodSnap.data() : {};
+  const seuil = prod.seuilAlerte ?? after.seuilAlerte ?? 0;
+  const nom   = prod.nom || after.nom || id;
+
+  console.log(`[alerteStock] ${id} qte=${qte} seuil=${seuil} (produit=${prodSnap.exists})`);
+
   if (qte === 0) {
-    await creerAlerte('stock-rupture', `Rupture : ${after.nom || event.params.id}`, 'danger', { stockId: event.params.id });
+    await creerAlerte('stock-rupture', `Rupture : ${nom}`, 'danger', { stockId: id });
   } else if (qte <= seuil && seuil > 0) {
-    await creerAlerte('stock-bas', `Stock bas : ${after.nom || event.params.id} (${qte}/${seuil})`, 'warn', { stockId: event.params.id });
+    await creerAlerte('stock-bas', `Stock bas : ${nom} (${qte}/${seuil})`, 'warn', { stockId: id });
   }
 });
 
@@ -139,13 +151,17 @@ async function creerAlerte(type, message, gravite = 'warn', metadata = {}) {
     .where('resolue', '==', false)
     .limit(20).get();
   const existe = dejaSnap.docs.find(d => d.data().message === message);
-  if (existe) return;
+  if (existe) {
+    console.log(`[creerAlerte] doublon ignoré : ${type} "${message}"`);
+    return;
+  }
 
   await db.collection('alertes').add({
     type, message, gravite, metadata,
     resolue: false,
     timestamp: FieldValue.serverTimestamp()
   });
+  console.log(`[creerAlerte] créée : ${type} "${message}" (gravite=${gravite})`);
 
   // Notification Discord (best effort, n'arrête pas le flow si échec)
   notifierDiscord(type, message, gravite).catch(e =>
@@ -156,7 +172,11 @@ async function creerAlerte(type, message, gravite = 'warn', metadata = {}) {
 async function notifierDiscord(type, message, gravite) {
   const cfg = await db.collection('config').doc('global').get();
   const url = cfg.exists ? cfg.data().discordWebhookAlertes : null;
-  if (!url) return;
+  if (!url) {
+    console.log('[notifierDiscord] aucun webhook configuré dans /config/global.discordWebhookAlertes');
+    return;
+  }
+  console.log(`[notifierDiscord] envoi vers webhook (${url.slice(0, 50)}…) — type=${type}`);
   const color = gravite === 'danger' ? 0xa02020 : (gravite === 'warn' ? 0xc97f1a : 0x4a6b8a);
   const emoji = gravite === 'danger' ? '🔴' : (gravite === 'warn' ? '⚠️' : 'ℹ️');
   await fetch(url, {
