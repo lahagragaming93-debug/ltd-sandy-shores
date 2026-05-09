@@ -135,6 +135,14 @@ service cloud.firestore {
       allow update, delete: if canAdmin();
     }
 
+    // === Banque LTD (mouvements bancaires xbankaccount sur iban LTDSANDY) ===
+    // Lecture : direction + DRH + super-admin (audit financier sensible)
+    // Écriture : interdite (le bot Discord écrit via Admin SDK qui ignore les rules)
+    match /banqueLtd/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+
     // === Paies ===
     match /paies/{id} {
       allow read:  if isAuth() && isActif() && (

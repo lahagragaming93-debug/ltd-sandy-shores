@@ -181,27 +181,50 @@ export async function ajouterDepense(data) {
   });
 }
 
-// Dernière dépense connue avec un solde apres > 0 (= snapshot du compte LTD)
-// Le bot Discord capte 'soldeApres' depuis les embeds #depenses FiveM.
-// Note : ce solde est à la date de cette dépense — peut être un peu obsolète
-// si des ventes/paies ont eu lieu après (parsers ventes/paies ne captent pas le solde).
+// Solde temps réel du compte bancaire LTD.
+// 2 sources combinées :
+//   1. /banqueLtd : transactions xbankaccount (entrées + sorties FiveM)
+//   2. /depenses  : sorties via #depenses (peut contenir aussi un soldeApres)
+// On retourne la plus récente des 2, car la vérité c'est "le dernier mouvement
+// quel qu'il soit". Avec banqueLtd actif, on aura la précision la plus fine.
 export async function getDernierSoldeBanque() {
-  // On lit les 5 dernières dépenses pour trouver la première qui a un soldeApres
-  // (certaines saisies manuelles depuis le site n'ont pas ce champ)
-  const q = query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(10));
-  const snap = await getDocs(q);
-  for (const d of snap.docs) {
-    const data = d.data();
-    if (data.soldeApres != null && data.soldeApres !== '' && Number.isFinite(Number(data.soldeApres))) {
-      return {
-        solde: Number(data.soldeApres),
-        timestamp: data.timestamp,
-        raison: data.raison || '',
-        utilisateur: data.utilisateur || ''
-      };
+  // Helper : extrait le doc le plus récent avec soldeApres valide
+  async function lireDerniereSource(coll) {
+    const q = query(collection(db, coll), orderBy('timestamp', 'desc'), limit(10));
+    const snap = await getDocs(q);
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (data.soldeApres != null && data.soldeApres !== '' && Number.isFinite(Number(data.soldeApres))) {
+        return {
+          solde: Number(data.soldeApres),
+          timestamp: data.timestamp,
+          raison: data.raison || '',
+          source: coll,
+          type: data.type || ''
+        };
+      }
     }
+    return null;
   }
-  return null;
+
+  const [banque, depense] = await Promise.all([
+    lireDerniereSource('banqueLtd').catch(() => null),
+    lireDerniereSource('depenses').catch(() => null)
+  ]);
+
+  // Garder la plus récente des 2
+  if (!banque) return depense;
+  if (!depense) return banque;
+  const tsBanque  = banque.timestamp?.toMillis ? banque.timestamp.toMillis() : 0;
+  const tsDepense = depense.timestamp?.toMillis ? depense.timestamp.toMillis() : 0;
+  return tsBanque >= tsDepense ? banque : depense;
+}
+
+// Historique complet des mouvements bancaires LTD (pour audit IRS)
+export async function listMouvementsBanqueRecents(n = 50) {
+  const q = query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(n));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 // ----- Paies -----

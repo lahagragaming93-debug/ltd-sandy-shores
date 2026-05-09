@@ -203,6 +203,7 @@ export const botIngest = onRequest({
       case 'depense':         await onDepense(payload); break;
       case 'paie':            await onPaie(payload); break;
       case 'coffre':          await onCoffre(payload); break;
+      case 'bankAccount':     await onBankAccount(payload); break;
       case 'logBrut':         await onLogBrut(payload); break;
       default:                return res.status(400).send('Unknown type');
     }
@@ -318,9 +319,15 @@ async function onRedistribution(p) {
 
 async function onDepense(p) {
   const deductible = !!(p.deductible ?? false);
+  // Fix bug "<@undefined>" : si le bot Discord n'a pas pu résoudre l'utilisateur
+  // (cas typique des dépenses automatiques type loyer), on substitue par un libellé clair.
+  let utilisateur = p.utilisateur || '';
+  if (/^<@!?undefined>$/i.test(utilisateur) || utilisateur === '') {
+    utilisateur = 'Système (auto)';
+  }
   await db.collection('depenses').add({
     compteId: p.compteId,
-    utilisateur: p.utilisateur,
+    utilisateur,
     montant: Number(p.montant) || 0,
     soldeAvant: p.soldeAvant,
     soldeApres: p.soldeApres,
@@ -328,6 +335,23 @@ async function onDepense(p) {
     type: p.type || 'autre',
     deductible,
     source: 'discord',
+    timestamp: FieldValue.serverTimestamp()
+  });
+}
+
+// === Banque LTD : transactions xbankaccount sur iban LTDSANDY ===
+// Stocke chaque mouvement (entrée ou sortie) avec le solde après transaction.
+// Utilisé pour afficher le solde temps réel + audit complet des mouvements.
+async function onBankAccount(p) {
+  await db.collection('banqueLtd').add({
+    type: p.type || 'add',          // 'add' (recette) | 'remove' (sortie)
+    iban: p.iban || '',
+    accountId: p.accountId || '',
+    montant: Number(p.montant) || 0,
+    soldeAvant: Number(p.soldeAvant) || 0,
+    soldeApres: Number(p.soldeApres) || 0,
+    raison: p.raison || '',
+    source: 'discord-xbankaccount',
     timestamp: FieldValue.serverTimestamp()
   });
 }

@@ -14,6 +14,7 @@ import { parseRedistributionEmbed } from './parsers/essence.js';
 import { parseDepenseEmbed }       from './parsers/depense.js';
 import { parsePaieEmbed }          from './parsers/paie.js';
 import { parseCoffreEmbed }        from './parsers/coffre.js';
+import { parseXbankaccountEmbed }  from './parsers/xbankaccount.js';
 
 const required = ['DISCORD_TOKEN', 'GUILD_ID', 'INGEST_URL', 'INGEST_TOKEN'];
 for (const k of required) {
@@ -23,8 +24,15 @@ for (const k of required) {
   }
 }
 
+// Un canal peut avoir SOIT un parser unique { type, parser },
+// SOIT une liste ordonnée de parsers à essayer dans l'ordre (premier qui retourne
+// un payload non-null gagne). Permet de gérer plusieurs types d'embeds sur le
+// même canal (ex. #logs-ig reçoit inventory + xbankaccount).
 const CHANNEL_MAP = {
-  [process.env.CH_LOGS_IG]:               { type: 'inventory',      parser: parseInventoryEmbed     },
+  [process.env.CH_LOGS_IG]: [
+    { type: 'bankAccount',    parser: parseXbankaccountEmbed }, // testé en 1er (filtre IBAN LTDSANDY)
+    { type: 'inventory',      parser: parseInventoryEmbed     }
+  ],
   [process.env.CH_LOGS_SERVICES]:         { type: 'service',        parser: parseServiceEmbed       },
   [process.env.CH_SUIVI_SERVICE_VENDEUR]: { type: 'service',        parser: parseServiceEmbed       },
   [process.env.CH_SUIVI_FACTURE]:         { type: 'facture',        parser: parseFactureEmbed       },
@@ -69,7 +77,10 @@ client.once(Events.ClientReady, async (c) => {
     let okCount = 0, koCount = 0;
     for (const id of allIds) {
       const ch = channels.get(id);
-      const role = CHANNEL_MAP[id]?.type || (RAW_CHANNELS[id] ? `raw:${RAW_CHANNELS[id]}` : '?');
+      const cfg = CHANNEL_MAP[id];
+      const role = Array.isArray(cfg)
+        ? cfg.map(c => c.type).join('|')
+        : (cfg?.type || (RAW_CHANNELS[id] ? `raw:${RAW_CHANNELS[id]}` : '?'));
       if (ch) {
         const me = guild.members.me;
         const perms = ch.permissionsFor(me);
@@ -106,18 +117,26 @@ client.on(Events.MessageCreate, async (msg) => {
   const nbEmbeds = msg.embeds?.length || 0;
   console.log(`[MSG] #${channelName} ${isBot}${author} embeds=${nbEmbeds} content="${(msg.content || '').slice(0, 60)}"`);
 
-  // Canaux structurés
+  // Canaux structurés (mono-parser ou liste de parsers)
   const cfg = CHANNEL_MAP[channelId];
   if (cfg) {
-    try {
-      const payload = cfg.parser(msg);
-      if (!payload) {
-        console.log(`  └─ parser=${cfg.type} → null (embed non reconnu)`);
-        return;
+    const candidates = Array.isArray(cfg) ? cfg : [cfg];
+    let matched = false;
+    for (const c of candidates) {
+      try {
+        const payload = c.parser(msg);
+        if (payload) {
+          await sendToFirebase(c.type, payload, msg);
+          matched = true;
+          break;
+        }
+      } catch (err) {
+        console.error(`Erreur parsing ${c.type} (msg ${msg.id}) :`, err.message);
       }
-      await sendToFirebase(cfg.type, payload, msg);
-    } catch (err) {
-      console.error(`Erreur parsing ${cfg.type} (msg ${msg.id}) :`, err.message);
+    }
+    if (!matched) {
+      const types = candidates.map(c => c.type).join('|');
+      console.log(`  └─ aucun parser n'a reconnu (essayés: ${types})`);
     }
     return;
   }
