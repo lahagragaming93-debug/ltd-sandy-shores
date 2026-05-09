@@ -6,7 +6,7 @@
 import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets } from '../api.js';
-import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection } from '../utils/permissions.js';
+import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { date, escapeHtml } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
@@ -175,9 +175,13 @@ function renderUsers() {
     tbody.innerHTML = `<tr><td colspan="8" class="muted text-center">Aucun compte.</td></tr>`;
     return;
   }
+  // Patron et Admin Technique peuvent éditer leur propre compte (changer leur rôle).
+  // Les autres rôles ne peuvent pas se gérer eux-mêmes (évite l'auto-élévation).
+  const canManageSelf = profile.role === 'patron' || isSuperAdmin(profile.role);
+
   tbody.innerHTML = users.map(u => {
     const isSelf       = u.id === profile.id;
-    const canManage    = canManageUser(profile.role, u.role) && !isSelf;
+    const canManage    = canManageUser(profile.role, u.role) && (!isSelf || canManageSelf);
     // Liste des rôles assignables : intersect avec ce que je peux gérer
     const roleOptions  = myAssignableRoles
       .map(k => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${ROLE_LABELS[k]}</option>`)
@@ -207,9 +211,9 @@ function renderUsers() {
       <td class="center">
         <button class="btn btn-sm btn-ghost" data-edit-user="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Modifier</button>
         ${u.statut !== 'suspendu'
-          ? `<button class="btn btn-sm" data-suspend="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Suspendre</button>`
+          ? `<button class="btn btn-sm" data-suspend="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} ${isSelf ? 'title="Tu ne peux pas te suspendre toi-même"' : tooltipHors}>Suspendre</button>`
           : `<button class="btn btn-sm" data-reactiver="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Réactiver</button>`}
-        <button class="btn btn-sm btn-danger" data-delete="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} ${tooltipHors}>×</button>
+        <button class="btn btn-sm btn-danger" data-delete="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} ${isSelf ? 'title="Tu ne peux pas te supprimer toi-même"' : tooltipHors}>×</button>
       </td>
     </tr>`;
   }).join('');
