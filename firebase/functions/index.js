@@ -445,12 +445,16 @@ export const comptaExport = onRequest({
   res.type('text/csv; charset=utf-8');
 
   try {
+    // Précharge le map idDiscord -> nom (utilisé pour résoudre les <@xxx>)
+    // Sauf pour "resume" qui n'en a pas besoin (perf).
+    const usersByDiscord = (type === 'resume') ? {} : await loadUsersByDiscordMap();
+
     let csv;
     switch (type) {
       case 'resume':   csv = await csvResume();   break;
-      case 'depenses': csv = await csvDepenses(); break;
-      case 'ventes':   csv = await csvVentes();   break;
-      case 'paies':    csv = await csvPaies();    break;
+      case 'depenses': csv = await csvDepenses(usersByDiscord); break;
+      case 'ventes':   csv = await csvVentes(usersByDiscord);   break;
+      case 'paies':    csv = await csvPaies(usersByDiscord);    break;
       default:
         return res.status(400).type('text/plain').send(
           'Type inconnu. Utilise ?type=resume | depenses | ventes | paies');
@@ -471,15 +475,76 @@ function csvEscape(v) {
 function csvRow(...cells) {
   return cells.map(csvEscape).join(',');
 }
-function dateIso(ts) {
-  if (!ts) return '';
+// Format français avec 'h' minuscule pour l'heure : Google Sheets ne le
+// reconnaît PAS comme date, donc l'affiche en texte lisible (au lieu de
+// le convertir en série numérique style 46151.29367).
+function pad(n) { return String(n).padStart(2, '0'); }
+function tsToDate(ts) {
+  if (!ts) return null;
   const d = ts.toDate ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts));
-  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 19).replace('T', ' ');
+  return isNaN(d.getTime()) ? null : d;
+}
+function dateIso(ts) {
+  const d = tsToDate(ts);
+  if (!d) return '';
+  // Format Europe/Paris (UTC+1/+2 selon DST). Approximation sans dépendance.
+  // Pour un export plus précis on utiliserait Intl.DateTimeFormat avec timeZone.
+  const fr = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).formatToParts(d);
+  const get = (t) => fr.find(p => p.type === t)?.value || '00';
+  return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}h${get('minute')}:${get('second')}`;
 }
 function dateOnly(ts) {
-  if (!ts) return '';
-  const d = ts.toDate ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts));
-  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  const d = tsToDate(ts);
+  if (!d) return '';
+  const fr = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(d);
+  const get = (t) => fr.find(p => p.type === t)?.value || '00';
+  // Format yyyy-MM-dd reste trié alphabétiquement et est lisible
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+// Résolution d'un libellé utilisateur depuis ce qui peut être :
+//  - une mention Discord '<@123456789>' ou '<@undefined>'
+//  - un ID Discord brut '123456789'
+//  - directement un nom 'Andrew BEAUCHAMP'
+// usersByDiscord : map { discordId -> 'Prénom NOM' }
+function resolveUserLabel(raw, usersByDiscord) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  // <@undefined> ou <@!undefined> : le bot n'a pas pu résoudre côté Discord
+  if (/^<@!?undefined>$/i.test(s)) return '— (non résolu)';
+  // <@123> ou <@!123> : extraire l'ID et chercher dans users
+  const m = s.match(/^<@!?(\d+)>$/);
+  if (m) {
+    const did = m[1];
+    return usersByDiscord[did] || `Discord #${did}`;
+  }
+  // ID Discord brut (15-21 chiffres)
+  if (/^\d{15,21}$/.test(s)) {
+    return usersByDiscord[s] || `Discord #${s}`;
+  }
+  // Sinon : nom déjà en clair
+  return s;
+}
+
+async function loadUsersByDiscordMap() {
+  const snap = await db.collection('users').limit(500).get();
+  const map = {};
+  for (const d of snap.docs) {
+    const u = d.data();
+    if (u.idDiscord) {
+      const label = `${u.prenom || ''} ${u.nom || ''}`.trim() || u.email || d.id;
+      map[String(u.idDiscord)] = label;
+    }
+  }
+  return map;
 }
 
 async function csvResume() {
@@ -509,7 +574,7 @@ async function csvResume() {
   return lines.join('\n');
 }
 
-async function csvDepenses() {
+async function csvDepenses(usersByDiscord) {
   const snap = await db.collection('depenses').orderBy('timestamp', 'desc').limit(2000).get();
   const lines = [csvRow('Date', 'Raison', 'Montant', 'Type', 'Déductible', 'Utilisateur')];
   for (const d of snap.docs) {
@@ -520,21 +585,23 @@ async function csvDepenses() {
       x.montant || 0,
       x.type || '',
       x.deductible !== false ? 'oui' : 'non',
-      x.utilisateur || ''
+      resolveUserLabel(x.utilisateur, usersByDiscord)
     ));
   }
   return lines.join('\n');
 }
 
-async function csvVentes() {
+async function csvVentes(usersByDiscord) {
   const snap = await db.collection('ventes').orderBy('timestamp', 'desc').limit(2000).get();
   const lines = [csvRow('Date', 'N° Facture', 'Vendeur', 'Client', 'Montant', 'Bénéfice', 'Paiement', 'Raison')];
   for (const d of snap.docs) {
     const v = d.data();
+    // Pour les ventes, on a souvent vendeurNom directement ; sinon fallback résolution
+    const vendeur = v.vendeurNom || resolveUserLabel(v.vendeurDiscord, usersByDiscord);
     lines.push(csvRow(
       dateIso(v.timestamp),
       v.factureId || '',
-      v.vendeurNom || '',
+      vendeur,
       v.clientNom || '',
       v.montant || 0,
       v.benefice || 0,
@@ -545,15 +612,17 @@ async function csvVentes() {
   return lines.join('\n');
 }
 
-async function csvPaies() {
+async function csvPaies(usersByDiscord) {
   const snap = await db.collection('paies').orderBy('timestamp', 'desc').limit(2000).get();
   const lines = [csvRow('Date', 'Payeur', 'Bénéficiaire', 'Montant', 'Période')];
   for (const d of snap.docs) {
     const p = d.data();
+    const payeur       = p.payeurNom       || resolveUserLabel(p.payeurDiscord,       usersByDiscord);
+    const beneficiaire = p.beneficiaireNom || resolveUserLabel(p.beneficiaireDiscord, usersByDiscord);
     lines.push(csvRow(
       dateIso(p.timestamp),
-      p.payeurNom || '',
-      p.beneficiaireNom || '',
+      payeur,
+      beneficiaire,
       p.montant || 0,
       p.periode || ''
     ));
