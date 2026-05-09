@@ -6,7 +6,8 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listenStocks, listenStations, listDepensesSemaine,
-  listPaiesSemaine, listSemaines, listenAlertesActives, getConfig
+  listPaiesSemaine, listSemaines, listenAlertesActives, getConfig,
+  getDernierSoldeBanque
 } from '../api.js';
 import { startOfWeekRP, endOfWeekRP, money, num, pct, datetime, escapeHtml } from '../utils/formatters.js';
 import { checkMasseSalariale } from '../utils/paie.js';
@@ -88,11 +89,12 @@ document.getElementById('periode-semaine').textContent =
 
 // === KPIs ===
 async function chargerKpis() {
-  const [ventes, depenses, paies, config] = await Promise.all([
+  const [ventes, depenses, paies, config, soldeBanque] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
-    getConfig().catch(() => ({}))
+    getConfig().catch(() => ({})),
+    getDernierSoldeBanque().catch(() => null)
   ]);
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
@@ -102,8 +104,26 @@ async function chargerKpis() {
   const beneficeNet = ca - totalDepenses - totalPaies;
   const masse = checkMasseSalariale(totalPaies, ca);
 
+  // Solde banque LTD (dernière dépense connue avec champ soldeApres)
+  let soldeKpi = `
+    <div class="kpi" title="Aucune donnée de solde encore enregistrée">
+      <div class="label">💰 Solde banque LTD</div>
+      <div class="value muted">—</div>
+      <div class="delta muted">en attente de dépense Discord</div>
+    </div>`;
+  if (soldeBanque) {
+    const dateSolde = datetime(soldeBanque.timestamp);
+    soldeKpi = `
+      <div class="kpi" title="Solde au moment de la dernière dépense Discord (${escapeHtml(dateSolde)} — « ${escapeHtml(soldeBanque.raison)} »)">
+        <div class="label">💰 Solde banque LTD</div>
+        <div class="value">${money(soldeBanque.solde)}</div>
+        <div class="delta">au ${escapeHtml(dateSolde)}</div>
+      </div>`;
+  }
+
   const kpis = document.getElementById('kpis');
   kpis.innerHTML = `
+    ${soldeKpi}
     <div class="kpi">
       <div class="label">CA semaine</div>
       <div class="value">${money(ca)}</div>

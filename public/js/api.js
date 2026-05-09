@@ -181,6 +181,29 @@ export async function ajouterDepense(data) {
   });
 }
 
+// Dernière dépense connue avec un solde apres > 0 (= snapshot du compte LTD)
+// Le bot Discord capte 'soldeApres' depuis les embeds #depenses FiveM.
+// Note : ce solde est à la date de cette dépense — peut être un peu obsolète
+// si des ventes/paies ont eu lieu après (parsers ventes/paies ne captent pas le solde).
+export async function getDernierSoldeBanque() {
+  // On lit les 5 dernières dépenses pour trouver la première qui a un soldeApres
+  // (certaines saisies manuelles depuis le site n'ont pas ce champ)
+  const q = query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(10));
+  const snap = await getDocs(q);
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.soldeApres != null && data.soldeApres !== '' && Number.isFinite(Number(data.soldeApres))) {
+      return {
+        solde: Number(data.soldeApres),
+        timestamp: data.timestamp,
+        raison: data.raison || '',
+        utilisateur: data.utilisateur || ''
+      };
+    }
+  }
+  return null;
+}
+
 // ----- Paies -----
 export async function listPaiesSemaine(dateDebut, dateFin) {
   const q = query(collection(db, 'paies'),
