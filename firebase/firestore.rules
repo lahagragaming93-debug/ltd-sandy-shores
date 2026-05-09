@@ -143,6 +143,24 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === Événements RH automatisés (#auto-rh embauches/exclusions) ===
+    match /rhEvenements/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+
+    // === Stats hebdo officielles FiveM (#statsbank) ===
+    match /statsHebdoOfficiels/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+
+    // === Rapports pompiste quotidiens (#pompiste) ===
+    match /rapportsPompisteQuotidien/{id} {
+      allow read:  if isAuth() && isActif();   // utile à direction, DRH, resp pompiste
+      allow write: if false;
+    }
+
     // === Paies ===
     match /paies/{id} {
       allow read:  if isAuth() && isActif() && (

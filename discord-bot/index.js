@@ -7,14 +7,19 @@ import 'dotenv/config';
 import { Client, GatewayIntentBits, Events, Partials } from 'discord.js';
 import fetch from 'node-fetch';
 
-import { parseInventoryEmbed }     from './parsers/inventory.js';
-import { parseServiceEmbed }       from './parsers/service.js';
-import { parseFactureEmbed }       from './parsers/facture.js';
-import { parseRedistributionEmbed } from './parsers/essence.js';
-import { parseDepenseEmbed }       from './parsers/depense.js';
-import { parsePaieEmbed }          from './parsers/paie.js';
-import { parseCoffreEmbed }        from './parsers/coffre.js';
-import { parseXbankaccountEmbed }  from './parsers/xbankaccount.js';
+import { parseInventoryEmbed }       from './parsers/inventory.js';
+import { parseServiceEmbed }         from './parsers/service.js';
+import { parseFactureEmbed }         from './parsers/facture.js';
+import { parseRedistributionEmbed }  from './parsers/essence.js';
+import { parseDepenseEmbed }         from './parsers/depense.js';
+import { parsePaieEmbed }            from './parsers/paie.js';
+import { parseCoffreEmbed }          from './parsers/coffre.js';
+import { parseXbankaccountEmbed }    from './parsers/xbankaccount.js';
+import { parseAutoRhEmbed }          from './parsers/autoRh.js';
+import { parseAutorankupEmbed }      from './parsers/autorankup.js';
+import { parseStatsbankEmbed }       from './parsers/statsbank.js';
+import { parseRapportPompisteEmbed } from './parsers/rapportPompiste.js';
+import { parseVenteAutoEmbed }       from './parsers/venteAuto.js';
 
 const required = ['DISCORD_TOKEN', 'GUILD_ID', 'INGEST_URL', 'INGEST_TOKEN'];
 for (const k of required) {
@@ -39,15 +44,21 @@ const CHANNEL_MAP = {
   [process.env.CH_SUIVI_ACHAT_ESSENCE]:   { type: 'redistribution', parser: parseRedistributionEmbed },
   [process.env.CH_DEPENSES]:              { type: 'depense',        parser: parseDepenseEmbed       },
   [process.env.CH_PAIE]:                  { type: 'paie',           parser: parsePaieEmbed          },
-  [process.env.CH_SUIVI_COFFRE]:          { type: 'coffre',         parser: parseCoffreEmbed        }
+  [process.env.CH_SUIVI_COFFRE]:          { type: 'coffre',         parser: parseCoffreEmbed        },
+  // Nouveaux canaux (à configurer dans Railway via variables d'env CH_*)
+  [process.env.CH_AUTO_RH]:               { type: 'autoRh',         parser: parseAutoRhEmbed        },
+  [process.env.CH_AUTORANKUP]:            { type: 'autorankup',     parser: parseAutorankupEmbed    },
+  [process.env.CH_STATSBANK]:             { type: 'statsbank',      parser: parseStatsbankEmbed     },
+  [process.env.CH_POMPISTE]:              { type: 'rapportPompiste',parser: parseRapportPompisteEmbed },
+  [process.env.CH_VENTES]:                { type: 'venteAuto',      parser: parseVenteAutoEmbed     }
 };
 
 const RAW_CHANNELS = {
   [process.env.CH_SUIVI_COFFRE_SECONDAIRE]: 'suivi-coffre-secondaire',
   [process.env.CH_ALERTE_COFFRE]:           'alerte-coffre',
-  [process.env.CH_REVENU]:                  'revenu',
+  [process.env.CH_REVENU]:                  'revenu',  // doublon xbankaccount, garde en raw pour audit
   [process.env.CH_FACTURES]:                'factures',
-  [process.env.CH_STATSBANK]:               'statsbank',
+  // CH_STATSBANK : déplacé en parser structuré (CHANNEL_MAP ci-dessus)
   [process.env.CH_LOGS_LICENCIEMENT]:       'logs-licenciement',
   [process.env.CH_LOGS_AVERTISSEMENT]:      'logs-avertissement'
 };

@@ -36,6 +36,7 @@ const html = `
     ${canCreate ? `<button class="btn btn-primary" id="btn-nouveau">+ Créer un compte</button>` : ''}
     ${canEditCfg ? `<button class="btn" id="btn-config-globale">⚙ Configuration globale</button>` : ''}
     ${canEditCfg ? `<button class="btn" id="btn-export-sheets">📊 Export Google Sheets</button>` : ''}
+    ${canEditCfg ? `<a href="decouverte-items.html" class="btn">🔍 Découverte items FiveM</a>` : ''}
   </div>
 
   <div class="panel framed">

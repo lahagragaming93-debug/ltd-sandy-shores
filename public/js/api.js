@@ -227,6 +227,47 @@ export async function listMouvementsBanqueRecents(n = 50) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Liste tous les noms d'items uniques vus dans /mouvementsStock (outil de découverte
+// pour aider au mapping nom FiveM → catalogue commercial). Les noms sont déjà
+// agrégés et comptés (combien de fois vu, premier passage, dernier passage).
+export async function listItemsFiveMUniques(maxLignes = 2000) {
+  const q = query(
+    collection(db, 'mouvementsStock'),
+    orderBy('timestamp', 'desc'),
+    limit(maxLignes)
+  );
+  const snap = await getDocs(q);
+  const map = {}; // nomBrut -> { count, premierVu, dernierVu, slug, exemple }
+  for (const d of snap.docs) {
+    const data = d.data();
+    const nomBrut = data.itemNom || data.item || '';
+    if (!nomBrut) continue;
+    if (!map[nomBrut]) {
+      map[nomBrut] = {
+        nomFivem: nomBrut,
+        slug: data.item || '',
+        count: 0,
+        premierVu: data.timestamp,
+        dernierVu: data.timestamp,
+        exempleSource: data.source || '',
+        exempleQuantite: data.quantite || 0
+      };
+    }
+    map[nomBrut].count++;
+    // Update bornes (timestamp desc → premier doc = plus récent)
+    if (data.timestamp) {
+      if (!map[nomBrut].dernierVu || data.timestamp.toMillis?.() > map[nomBrut].dernierVu.toMillis?.()) {
+        map[nomBrut].dernierVu = data.timestamp;
+      }
+      if (!map[nomBrut].premierVu || data.timestamp.toMillis?.() < map[nomBrut].premierVu.toMillis?.()) {
+        map[nomBrut].premierVu = data.timestamp;
+      }
+    }
+  }
+  // Convertit en array trié par fréquence décroissante
+  return Object.values(map).sort((a, b) => b.count - a.count);
+}
+
 // ----- Paies -----
 export async function listPaiesSemaine(dateDebut, dateFin) {
   const q = query(collection(db, 'paies'),

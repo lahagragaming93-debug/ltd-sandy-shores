@@ -204,6 +204,11 @@ export const botIngest = onRequest({
       case 'paie':            await onPaie(payload); break;
       case 'coffre':          await onCoffre(payload); break;
       case 'bankAccount':     await onBankAccount(payload); break;
+      case 'autoRh':          await onAutoRh(payload); break;
+      case 'autorankup':      await onAutorankup(payload); break;
+      case 'statsbank':       await onStatsbank(payload); break;
+      case 'rapportPompiste': await onRapportPompiste(payload); break;
+      case 'venteAuto':       await onVenteAuto(payload); break;
       case 'logBrut':         await onLogBrut(payload); break;
       default:                return res.status(400).send('Unknown type');
     }
@@ -353,6 +358,167 @@ async function onBankAccount(p) {
     raison: p.raison || '',
     source: 'discord-xbankaccount',
     timestamp: FieldValue.serverTimestamp()
+  });
+}
+
+// === RH automatisée : embauches + exclusions (#auto-rh) ===
+// Stratégie V1 :
+//  - Toujours logger l'événement dans /rhEvenements (audit complet)
+//  - EXCLUSION : tenter de retrouver l'utilisateur par idDiscord ou idPerso
+//    et basculer son statut à 'suspendu' automatiquement
+//  - EMBAUCHE : créer une alerte pour rappeler à l'admin de créer le compte
+//    (création Firebase Auth manuelle pour l'instant — sécurité)
+async function onAutoRh(p) {
+  await db.collection('rhEvenements').add({
+    type: p.type,
+    prenom: p.prenom || '',
+    nom: p.nom || '',
+    idDiscord: p.idDiscord || '',
+    idPerso: p.idPerso || '',
+    parQui: p.parQui || '',
+    timestamp: FieldValue.serverTimestamp()
+  });
+
+  if (p.type === 'exclusion') {
+    // Suspendre auto le compte
+    let userId = null;
+    if (p.idDiscord) {
+      const s = await db.collection('users').where('idDiscord', '==', p.idDiscord).limit(1).get();
+      if (!s.empty) userId = s.docs[0].id;
+    }
+    if (!userId && p.idPerso) {
+      const s = await db.collection('users').where('idPerso', '==', p.idPerso).limit(1).get();
+      if (!s.empty) userId = s.docs[0].id;
+    }
+    if (userId) {
+      await db.collection('users').doc(userId).set({
+        statut: 'suspendu',
+        suspenduAt: FieldValue.serverTimestamp(),
+        suspenduPar: p.parQui || 'auto-bot'
+      }, { merge: true });
+      console.log(`[autoRh] Compte ${userId} suspendu auto (idDiscord=${p.idDiscord})`);
+    } else {
+      console.log(`[autoRh] Exclusion : aucun compte trouvé pour idDiscord=${p.idDiscord} idPerso=${p.idPerso}`);
+    }
+  } else if (p.type === 'embauche') {
+    // Créer une alerte pour rappel à l'admin (création de compte manuel)
+    await creerAlerte(
+      'embauche-a-traiter',
+      `🆕 Nouvel employé à intégrer : ${p.prenom} ${p.nom} (Discord:${p.idDiscord}, Perso:${p.idPerso}). Crée son compte via Admin.`,
+      'info',
+      { idDiscord: p.idDiscord, idPerso: p.idPerso, prenom: p.prenom, nom: p.nom }
+    );
+  }
+}
+
+// === Promotion automatique (#autorankup) ===
+// Met à jour le rôle d'un employé existant si on le retrouve.
+async function onAutorankup(p) {
+  if (!p.nouveauRole) return;
+
+  // Cherche l'employé par idDiscord (le plus fiable) ou par nom complet
+  let userId = null;
+  if (p.idDiscord) {
+    const s = await db.collection('users').where('idDiscord', '==', p.idDiscord).limit(1).get();
+    if (!s.empty) userId = s.docs[0].id;
+  }
+  if (!userId && p.prenom && p.nom) {
+    const s = await db.collection('users')
+      .where('prenom', '==', p.prenom)
+      .where('nom', '==', p.nom)
+      .limit(1).get();
+    if (!s.empty) userId = s.docs[0].id;
+  }
+
+  if (!userId) {
+    console.log(`[autorankup] Aucun compte pour ${p.prenom} ${p.nom} (${p.idDiscord})`);
+    return;
+  }
+
+  await db.collection('users').doc(userId).set({
+    role: p.nouveauRole,
+    promuAt: FieldValue.serverTimestamp(),
+    promuPar: p.parQui || 'auto-bot',
+    ancienRole: p.ancienRole || null
+  }, { merge: true });
+  console.log(`[autorankup] ${p.prenom} ${p.nom} : ${p.ancienRole} → ${p.nouveauRole}`);
+}
+
+// === Statsbank (récap hebdo officiel FiveM) ===
+// Stockage pour comparaison avec nos calculs internes + import impôt estimé.
+async function onStatsbank(p) {
+  // Doc id = "S{numero}-{annee}" pour idempotence (1 doc par semaine)
+  const docId = `S${String(p.numeroSemaine).padStart(2, '0')}-${p.annee}`;
+  await db.collection('statsHebdoOfficiels').doc(docId).set({
+    numeroSemaine: p.numeroSemaine,
+    annee: p.annee,
+    periode: p.periode || '',
+    ca: p.ca || 0,
+    sorties: p.sorties || 0,
+    beneficeBrut: p.beneficeBrut || 0,
+    soldeActuel: p.soldeActuel || 0,
+    loyers: p.loyers || 0,
+    impotEstime: p.impotEstime || 0,
+    trancheImpot: p.trancheImpot || null,
+    tauxImpot: p.tauxImpot || null,
+    nbFactures: p.nbFactures || 0,
+    montantFactures: p.montantFactures || 0,
+    nbPayes: p.nbPayes || 0,
+    montantPayes: p.montantPayes || 0,
+    source: 'discord-statsbank',
+    derniereMaj: FieldValue.serverTimestamp()
+  }, { merge: true });
+  console.log(`[statsbank] Semaine ${docId} mise à jour (CA=${p.ca}, solde=${p.soldeActuel}, impôt=${p.impotEstime})`);
+}
+
+// === Rapport pompiste quotidien (#pompiste) ===
+// Met à jour le stockActuel de chaque station d'après le % du rapport.
+async function onRapportPompiste(p) {
+  // Sauvegarde brute pour audit
+  await db.collection('rapportsPompisteQuotidien').add({
+    dateRapport: p.dateRapport || '',
+    ca: p.ca || 0,
+    nbCommandes: p.nbCommandes || 0,
+    niveaux: p.niveaux || [],
+    timestamp: FieldValue.serverTimestamp()
+  });
+
+  // Mise à jour des stations dont on a un mapping connu
+  for (const niv of p.niveaux || []) {
+    if (!niv.stationId) {
+      console.log(`[pompiste] Station inconnue : "${niv.nomBrut}" — pas de mapping`);
+      continue;
+    }
+    const ref = db.collection('stations').doc(niv.stationId);
+    const snap = await ref.get();
+    if (!snap.exists) continue;
+    const stockMax = snap.data().stockMax || 0;
+    if (stockMax <= 0) continue;
+    const stockActuel = Math.round((niv.niveauPct / 100) * stockMax);
+    await ref.set({
+      stockActuel,
+      derniereMajAuto: FieldValue.serverTimestamp(),
+      sourceMajAuto: 'rapport-pompiste-quotidien'
+    }, { merge: true });
+  }
+}
+
+// === Vente-auto (#ventes — distributeur LTD automatique) ===
+// Stockée dans /ventes avec source='ventes-auto' pour distinguer.
+async function onVenteAuto(p) {
+  await db.collection('ventes').add({
+    factureId:  p.venteId || '',
+    vendeurNom: p.vendeurNom || 'LTD',
+    clientNom:  p.clientNom || '',
+    typeVente:  p.typeVente || '',
+    montant:    Number(p.montant) || 0,
+    benefice:   0, // pas calculable sans mapping noms FiveM ↔ catalogue
+    paiement:   '',
+    raison:     p.articlesBrut || '',
+    items:      p.items || [],
+    stockVerifie: null,
+    source:     'ventes-auto',
+    timestamp:  FieldValue.serverTimestamp()
   });
 }
 
