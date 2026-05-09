@@ -9,7 +9,7 @@ import {
   listPaiesSemaine, getConfig, updateUser
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isResponsable, isDirection,
-         PLAFOND_SALAIRE } from '../utils/permissions.js';
+         isSuperAdmin, compteEnFinance, PLAFOND_SALAIRE } from '../utils/permissions.js';
 import { salaireEstime, scorePompiste, checkMasseSalariale } from '../utils/paie.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
@@ -122,14 +122,17 @@ users.forEach(u => {
 });
 
 // === KPIs ===
+// On exclut les rôles techniques (admin-technique) des calculs financiers / masse salariale
+const usersFinance = users.filter(u => compteEnFinance(u.role));
 const totalCA = ventes.reduce((s, v) => s + (v.montant || 0), 0);
-const totalEstime = Object.values(metricsByUser).reduce((s, m) => s + m.salaireEstime, 0);
+const totalEstime = usersFinance.reduce((s, u) => s + (metricsByUser[u.id]?.salaireEstime || 0), 0);
 const totalVerse = paies.reduce((s, p) => s + (p.montant || 0), 0);
 const masse = checkMasseSalariale(totalEstime, totalCA);
-const actifs = users.filter(u => u.statut === 'actif').length;
+const actifs = usersFinance.filter(u => u.statut === 'actif').length;
+const technicians = users.filter(u => isSuperAdmin(u.role) && u.statut === 'actif').length;
 
 document.getElementById('kpis-rh').innerHTML = `
-  <div class="kpi"><div class="label">Effectif actif</div><div class="value">${actifs}</div><div class="delta">/ ${users.length} comptes</div></div>
+  <div class="kpi"><div class="label">Effectif actif</div><div class="value">${actifs}</div><div class="delta">/ ${usersFinance.length} comptes${technicians > 0 ? ` <span style="color:var(--color-gold);">+${technicians} tech</span>` : ''}</div></div>
   <div class="kpi"><div class="label">Salaires estimés</div><div class="value">${money(totalEstime)}</div><div class="delta">cette semaine</div></div>
   <div class="kpi"><div class="label">Salaires versés</div><div class="value">${money(totalVerse)}</div><div class="delta">via paie Discord</div></div>
   <div class="kpi"><div class="label">Masse salariale</div><div class="value">${pct(masse.ratio*100,1)}</div><div class="delta ${masse.ok ? 'up' : 'down'}">limite TTE: 90%</div></div>
@@ -141,7 +144,8 @@ function renderTable() {
   const fs = document.getElementById('filtre-statut').value;
   const fq = document.getElementById('filtre-recherche').value.toLowerCase().trim();
 
-  let rows = users;
+  // Exclut les rôles techniques (admin-technique) du tableau effectif
+  let rows = users.filter(u => compteEnFinance(u.role));
   if (fr) rows = rows.filter(u => u.role === fr);
   if (fs) rows = rows.filter(u => (u.statut || 'actif') === fs);
   if (fq) rows = rows.filter(u =>

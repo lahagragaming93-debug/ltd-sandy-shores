@@ -13,7 +13,7 @@ import {
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
 import { checkMasseSalariale, primeHebdo, primeMensuelle } from '../utils/paie.js';
-import { isDirection, isVendeur, isPompiste, isResponsable, ROLE_LABELS, PLAFOND_SALAIRE } from '../utils/permissions.js';
+import { isDirection, isVendeur, isPompiste, isResponsable, isSuperAdmin, compteEnFinance, ROLE_LABELS, PLAFOND_SALAIRE } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 
 const { profile } = await requireAuth('comptabilite');
@@ -262,8 +262,8 @@ function renderSalaires(users, paies) {
     if (p.beneficiaireNom) verseParUser[p.beneficiaireNom] = (verseParUser[p.beneficiaireNom] || 0) + (p.montant || 0);
   }
 
-  // Filtre les utilisateurs actifs
-  const actifs = users.filter(u => u.statut !== 'suspendu');
+  // Filtre les utilisateurs actifs ET exclut les rôles techniques (admin-technique)
+  const actifs = users.filter(u => u.statut !== 'suspendu' && compteEnFinance(u.role));
 
   // Catégorisation
   const direction  = actifs.filter(u => isDirection(u.role) || u.role === 'drh');
@@ -463,7 +463,7 @@ document.getElementById('btn-copy-recap').addEventListener('click', async () => 
     if (id) verseParUser[id] = (verseParUser[id] || 0) + (p.montant || 0);
   }
 
-  const actifs = users.filter(u => u.statut !== 'suspendu');
+  const actifs = users.filter(u => u.statut !== 'suspendu' && compteEnFinance(u.role));
   const direction = actifs.filter(u => isDirection(u.role) || u.role === 'drh');
   const respo     = actifs.filter(u => isResponsable(u.role));
 

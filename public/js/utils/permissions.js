@@ -13,7 +13,11 @@ export const ROLES = {
   VENDEUR_EXP:            'vendeur-experimente',
   POMPISTE_NOVICE:        'pompiste-novice',
   POMPISTE_INTER:         'pompiste-intermediaire',
-  POMPISTE_EXP:           'pompiste-experimente'
+  POMPISTE_EXP:           'pompiste-experimente',
+  // Rôle TECHNIQUE temporaire (passation, support assistant)
+  // Tous les droits du Patron côté UI/Admin, mais EXCLU des calculs financiers
+  // (compta, masse salariale, salaires, effectif RH).
+  ADMIN_TECHNIQUE:        'admin-technique'
 };
 
 export const ROLE_LABELS = {
@@ -27,35 +31,34 @@ export const ROLE_LABELS = {
   'vendeur-experimente':     'Vendeur Expérimenté',
   'pompiste-novice':         'Pompiste Novice',
   'pompiste-intermediaire':  'Pompiste Intermédiaire',
-  'pompiste-experimente':    'Pompiste Expérimenté'
+  'pompiste-experimente':    'Pompiste Expérimenté',
+  'admin-technique':         'Admin Technique'
 };
 
 const DIRECTION = ['patron', 'co-patron'];
-const LECTURE_COMPTA = [...DIRECTION, 'drh'];
-const RH_FULL = [...DIRECTION, 'drh'];
+const SUPER_ADMINS = ['admin-technique'];
+const LECTURE_COMPTA = [...DIRECTION, 'drh', ...SUPER_ADMINS];
+const RH_FULL = [...DIRECTION, 'drh', ...SUPER_ADMINS];
 const VENDEURS = ['vendeur-novice', 'vendeur-intermediaire', 'vendeur-experimente'];
 const POMPISTES = ['pompiste-novice', 'pompiste-intermediaire', 'pompiste-experimente'];
 
 export const ACCESS = {
-  dashboard:         [...DIRECTION, 'drh'],
-  stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente'],
-  stocks_essence:    [...DIRECTION, 'drh', 'responsable-pompiste'],
-  ventes:            [...DIRECTION, 'drh', 'responsable-vente'],
+  dashboard:         [...DIRECTION, 'drh', ...SUPER_ADMINS],
+  stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente', ...SUPER_ADMINS],
+  stocks_essence:    [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
+  ventes:            [...DIRECTION, 'drh', 'responsable-vente', ...SUPER_ADMINS],
   comptabilite:      LECTURE_COMPTA,
-  comptabilite_edit: DIRECTION,
+  comptabilite_edit: [...DIRECTION, ...SUPER_ADMINS],
   rh:                RH_FULL,
-  stations:          [...DIRECTION, 'responsable-pompiste'],
-  // Admin : accessible à direction, DRH et responsables.
-  // Le périmètre des actions (qui peut gérer qui) est contrôlé par canManageUser().
-  admin:             [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste'],
+  stations:          [...DIRECTION, 'responsable-pompiste', ...SUPER_ADMINS],
+  // Admin : direction + DRH + responsables + super-admins
+  admin:             [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
-                      'responsable-vente', 'responsable-pompiste'],
-  // Mes paies : tout employé connecté actif
+                      'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   paies:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
-                      'responsable-vente', 'responsable-pompiste'],
-  // Guide / Tutoriel : accessible à tous les rôles
+                      'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   guide:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
-                      'responsable-vente', 'responsable-pompiste']
+                      'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS]
 };
 
 export function canAccess(role, page) {
@@ -64,12 +67,20 @@ export function canAccess(role, page) {
   return allowed.includes(role);
 }
 
-export function isDirection(role)   { return DIRECTION.includes(role); }
-export function isVendeur(role)     { return VENDEURS.includes(role); }
-export function isPompiste(role)    { return POMPISTES.includes(role); }
-export function isResponsable(role) { return role === 'responsable-vente' || role === 'responsable-pompiste'; }
+export function isDirection(role)    { return DIRECTION.includes(role); }
+export function isVendeur(role)      { return VENDEURS.includes(role); }
+export function isPompiste(role)     { return POMPISTES.includes(role); }
+export function isResponsable(role)  { return role === 'responsable-vente' || role === 'responsable-pompiste'; }
+export function isSuperAdmin(role)   { return SUPER_ADMINS.includes(role); }
 export function isEmployeeView(role) {
   return isVendeur(role) || isPompiste(role);
+}
+
+// Le rôle est-il pris en compte dans les calculs financiers
+// (masse salariale, salaires affichés en compta, effectif RH facturable) ?
+// Les admin-technique sont EXCLUS — c'est leur raison d'être.
+export function compteEnFinance(role) {
+  return !isSuperAdmin(role);
 }
 
 // ============================================================
@@ -86,10 +97,15 @@ export function isEmployeeView(role) {
 //   Autres rôles  : aucun (les vendeurs/pompistes ne gèrent personne)
 export function canManageUser(currentRole, targetRole) {
   if (!currentRole || !targetRole) return false;
+  // Super-admin technique : tous les droits, peut tout gérer (lui-même inclus)
+  if (currentRole === 'admin-technique') return true;
+  // Patron : tout, y compris admin-technique (sécurité — peut le retirer)
   if (currentRole === 'patron') return true;
-  if (currentRole === 'co-patron') return targetRole !== 'patron';
+  // Co-Patron : tout sauf Patron et Admin Technique
+  if (currentRole === 'co-patron') return targetRole !== 'patron' && targetRole !== 'admin-technique';
+  // DRH : tout sauf direction et admin-technique
   if (currentRole === 'drh') {
-    return targetRole !== 'patron' && targetRole !== 'co-patron';
+    return targetRole !== 'patron' && targetRole !== 'co-patron' && targetRole !== 'admin-technique';
   }
   if (currentRole === 'responsable-vente')   return VENDEURS.includes(targetRole);
   if (currentRole === 'responsable-pompiste')return POMPISTES.includes(targetRole);
@@ -101,18 +117,19 @@ export function assignableRoles(currentRole) {
   return Object.values(ROLES).filter(r => canManageUser(currentRole, r));
 }
 
-// La configuration globale (quotas, prix essence, webhook) reste réservée à la direction
+// La configuration globale (quotas, prix essence, webhook) : direction + super-admin
 export function canEditConfig(role) {
-  return isDirection(role);
+  return isDirection(role) || isSuperAdmin(role);
 }
 
-// Création d'un nouveau produit dans le catalogue : direction + DRH uniquement
+// Création d'un nouveau produit dans le catalogue : direction + DRH + super-admin
 // (la modification des prix/seuils existants reste accessible au Resp Vente)
 export function canCreateProduit(role) {
-  return isDirection(role) || role === 'drh';
+  return isDirection(role) || role === 'drh' || isSuperAdmin(role);
 }
 
 export function defaultLandingPage(role) {
+  if (isSuperAdmin(role)) return 'dashboard.html';
   if (isDirection(role) || role === 'drh') return 'dashboard.html';
   if (role === 'responsable-vente') return 'ventes.html';
   if (role === 'responsable-pompiste') return 'stations.html';
@@ -120,6 +137,7 @@ export function defaultLandingPage(role) {
 }
 
 // Plafonds salaire (TTE Chap. IV - Secteur 2)
+// admin-technique : 0 — il ne perçoit aucun salaire (rôle technique non rémunéré)
 export const PLAFOND_SALAIRE = {
   'patron':                   20000,
   'co-patron':                20000,
@@ -131,7 +149,8 @@ export const PLAFOND_SALAIRE = {
   'vendeur-experimente':      15000,
   'pompiste-novice':          13000,
   'pompiste-intermediaire':   14000,
-  'pompiste-experimente':     15000
+  'pompiste-experimente':     15000,
+  'admin-technique':          0
 };
 
 export const COMMISSION_VENDEUR = {

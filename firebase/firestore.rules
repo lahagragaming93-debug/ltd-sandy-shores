@@ -30,28 +30,33 @@ service cloud.firestore {
     function isRespVente()   { return role() == 'responsable-vente'; }
     function isRespPompiste(){ return role() == 'responsable-pompiste'; }
     function isResponsable() { return isRespVente() || isRespPompiste(); }
+    function isSuperAdmin()  { return role() == 'admin-technique'; }
+    // Tous droits admin-équivalents : Direction OU super-admin technique
+    function canAdmin()      { return isDirection() || isSuperAdmin(); }
 
     // Hiérarchie de gestion : currentRole peut-il agir sur targetRole ?
-    //   Patron : tout
-    //   Co-Patron : tout sauf Patron
-    //   DRH : tout sauf Patron, Co-Patron (peut gérer un autre DRH)
+    //   admin-technique : tout (super-admin)
+    //   Patron : tout (y compris admin-technique, sécurité)
+    //   Co-Patron : tout sauf Patron + admin-technique
+    //   DRH : tout sauf direction + admin-technique
     //   Resp Vente : uniquement vendeur-*
     //   Resp Pompiste : uniquement pompiste-*
     function canManage(currentRole, targetRole) {
-      return currentRole == 'patron'
-        || (currentRole == 'co-patron' && targetRole != 'patron')
-        || (currentRole == 'drh' && targetRole != 'patron' && targetRole != 'co-patron')
+      return currentRole == 'admin-technique'
+        || currentRole == 'patron'
+        || (currentRole == 'co-patron' && targetRole != 'patron' && targetRole != 'admin-technique')
+        || (currentRole == 'drh' && targetRole != 'patron' && targetRole != 'co-patron' && targetRole != 'admin-technique')
         || (currentRole == 'responsable-vente'    && targetRole.matches('vendeur-.*'))
         || (currentRole == 'responsable-pompiste' && targetRole.matches('pompiste-.*'));
     }
 
     // === Users ===
-    // Lecture : soi-même, direction, DRH, responsables (pour filtres ventes/RH).
+    // Lecture : soi-même, direction, DRH, responsables, super-admin.
     // Vendeurs et pompistes ne peuvent lire QUE leur propre profil.
     match /users/{uid} {
       allow read: if isAuth() && (
         request.auth.uid == uid ||
-        isDirection() || isDRH() || isResponsable()
+        isDirection() || isDRH() || isResponsable() || isSuperAdmin()
       );
       // Création : le créateur doit pouvoir gérer le rôle créé
       // (Direction, DRH, Responsables — selon hiérarchie canManage).
@@ -72,109 +77,102 @@ service cloud.firestore {
     }
 
     // === Produits ===
-    // Lecture : tout employé actif
-    // Création / suppression d'un produit : direction + DRH uniquement (gestion catalogue)
-    // Modification des champs (prix, seuil…) : direction + DRH + Resp Vente (gestion quotidienne)
     match /produits/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if isDirection() || isDRH();
-      allow update: if isDirection() || isDRH() || isRespVente();
-      allow delete: if isDirection() || isDRH();
+      allow create: if canAdmin() || isDRH();
+      allow update: if canAdmin() || isDRH() || isRespVente();
+      allow delete: if canAdmin() || isDRH();
     }
 
     // === Historique des prix (audit trail, append-only) ===
     match /historiquePrix/{id} {
-      allow read:   if isDirection() || isDRH();
-      allow create: if isDirection() || isDRH() || isRespVente();
+      allow read:   if canAdmin() || isDRH();
+      allow create: if canAdmin() || isDRH() || isRespVente();
       allow update, delete: if false;
     }
 
     // === Stocks ===
     match /stocks/{id} {
       allow read:  if isAuth() && isActif();
-      // Écriture humaine : direction + responsable vente
-      // (le bot Discord passe par Admin SDK et n'est pas concerné)
-      allow write: if isDirection() || isRespVente();
+      allow write: if canAdmin() || isRespVente();
     }
 
     // === Mouvements de stock (append-only depuis l'app) ===
     match /mouvementsStock/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if isDirection() || isRespVente();
-      allow update, delete: if isDirection();
+      allow create: if canAdmin() || isRespVente();
+      allow update, delete: if canAdmin();
     }
 
     // === Ventes ===
     match /ventes/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if isDirection();      // saisie manuelle exceptionnelle
-      allow update, delete: if isDirection();
+      allow create: if canAdmin();
+      allow update, delete: if canAdmin();
     }
 
     // === Stations essence ===
     match /stations/{id} {
       allow read:  if isAuth() && isActif();
-      allow write: if isDirection() || isRespPompiste();
+      allow write: if canAdmin() || isRespPompiste();
     }
     match /redistributions/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if isDirection() || isRespPompiste();
-      allow update, delete: if isDirection();
+      allow create: if canAdmin() || isRespPompiste();
+      allow update, delete: if canAdmin();
     }
 
     // === Services / quotas pompistes ===
     match /services/{id}        { allow read: if isAuth() && isActif();
-                                  allow write: if isDirection(); }
+                                  allow write: if canAdmin(); }
     match /quotasPompiste/{id}  { allow read: if isAuth() && isActif();
-                                  allow write: if isDirection(); }
+                                  allow write: if canAdmin(); }
 
     // === Dépenses ===
     match /depenses/{id} {
-      allow read:   if isAuth() && (isDirection() || isDRH());
-      allow create: if isDirection();
-      allow update, delete: if isDirection();
+      allow read:   if isAuth() && (canAdmin() || isDRH());
+      allow create: if canAdmin();
+      allow update, delete: if canAdmin();
     }
 
     // === Paies ===
-    // Direction/DRH lisent tout. L'employé peut lire SES paies (filtre obligatoire
-    // côté client : where('beneficiaireId', '==', request.auth.uid)).
     match /paies/{id} {
       allow read:  if isAuth() && isActif() && (
-        isDirection() || isDRH() ||
+        canAdmin() || isDRH() ||
         resource.data.beneficiaireId == request.auth.uid
       );
-      allow write: if isDirection();
+      allow write: if canAdmin();
     }
 
     // === Semaines (clôtures) ===
     match /semaines/{id} {
-      allow read:  if isAuth() && (isDirection() || isDRH());
-      allow write: if isDirection();    // les Functions utilisent l'admin SDK
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if canAdmin();
     }
 
     // === Alertes ===
     match /alertes/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if isDirection();
-      allow update: if isDirection() || isDRH() || isResponsable();
-      allow delete: if isDirection();
+      allow create: if canAdmin();
+      allow update: if canAdmin() || isDRH() || isResponsable();
+      allow delete: if canAdmin();
     }
 
     // === Configuration globale ===
     // /config/main : config publique aux utilisateurs actifs (quotas, prix essence, etc.)
-    // /config/secrets : tokens et secrets sensibles, direction uniquement
+    // /config/secrets : tokens et secrets sensibles, direction + super-admin
     match /config/secrets {
-      allow read, write: if isDirection();
+      allow read, write: if canAdmin();
     }
     match /config/{id} {
       allow read:  if isAuth() && isActif();
-      allow write: if isDirection();
+      allow write: if canAdmin();
     }
 
-    // === Logs bruts (canaux divers) — lecture direction uniquement ===
+    // === Logs bruts ===
     match /logsBruts/{id} {
-      allow read:  if isDirection();
-      allow write: if false;             // écrit uniquement par bot/Functions
+      allow read:  if canAdmin();
+      allow write: if false;
     }
   }
 }

@@ -34,7 +34,8 @@ const ROLE_DISPLAY = {
   'vendeur-experimente':     { emoji: '⭐', label: 'EXPÉRIMENTÉ' },
   'pompiste-novice':         { emoji: '🌱', label: 'NOVICE' },
   'pompiste-intermediaire':  { emoji: '💼', label: 'INTERMÉDIAIRE' },
-  'pompiste-experimente':    { emoji: '⭐', label: 'EXPÉRIMENTÉ' }
+  'pompiste-experimente':    { emoji: '⭐', label: 'EXPÉRIMENTÉ' },
+  'admin-technique':         { emoji: '🛠', label: 'ADMIN TECH' }
 };
 
 export function roleBadgeHtml(role) {
