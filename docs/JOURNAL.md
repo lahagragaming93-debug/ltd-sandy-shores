@@ -1,7 +1,7 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-09 (session de reprise — 14 commits supplémentaires)**
+> Dernière mise à jour : **2026-05-09 (session de reprise partie 2 — parsers Discord avancés)**
 
 ---
 
@@ -198,29 +198,99 @@ Plateforme web de gestion pour le LTD Sandy Shores (épicerie multisites + 8 sta
 
 ---
 
-## 📋 Ce qui reste à faire (TODO mis à jour 2026-05-09)
+## ✅ Session de reprise — partie 2 (parsers Discord avancés)
 
-### ✅ Fait dans la session de reprise
+> **5 commits supplémentaires + 2 déploiements rules + 2 déploiements Cloud Functions + 1 release Apps Script (5e onglet).**
+>
+> Cette partie 2 finalise l'**ingestion Discord avancée** : on ne se contente plus des 7 parsers initiaux, on capte aussi les flux automatiques RP (banque officielle, RH auto, promotions auto, stats hebdo officielles FiveM, rapports pompiste quotidiens, ventes auto). Objectif : **rapprochement comptable IRS RP** entre nos calculs internes et les chiffres officiels FiveM, audit financier complet sur la banque LTD.
+
+### 23. Parsers Discord avancés (5 nouveaux + 1)
+
+#### Commits couverts
+| SHA | Sujet |
+|-----|-------|
+| `b158a52` | Banque LTD : parser **xbankaccount** + collection `/banqueLtd` + solde temps réel |
+| `60a7987` | **5 nouveaux parsers Discord** + outil **découverte items FiveM** |
+| `6dcbbdc` | Bouton **supprimer produit** dans Stocks (Direction + DRH) |
+| `d43a4a0` | **Cloud Function `?type=banque`** + Apps Script **5e onglet Banque LTD** |
+| `affc847` | **Page Banque LTD** (mouvements bancaires temps réel) |
+
+#### 23.1 Parser `xbankaccount` (banque officielle LTD)
+- Discord bot écoute le canal banque + filtre les transactions sur l'**iban LTDSANDY** (tout autre iban est ignoré)
+- Cloud Function handler `onBankAccount` → écrit dans `/banqueLtd` (champs : `type` add/remove, `montant`, `soldeAvant`, `soldeApres`, `raison`, `iban`, `accountId`, `source: 'discord-xbankaccount'`)
+- **Solde temps réel** = dernier `soldeApres` de la collection (ordré par timestamp desc, limit 1)
+- Rules : lecture `canAdmin() || isDRH()`, écriture interdite côté client (le bot écrit via Admin SDK)
+
+#### 23.2 KPI « Solde banque LTD » sur Dashboard
+- Tuile dédiée en haut du dashboard (v1 = source `depenses` puis migration vers `banqueLtd` quand le parser xbankaccount tourne)
+- Couleur dynamique : vert si > 100k $, jaune si > 0, rouge sinon
+- Mise à jour live (listener Firestore)
+
+#### 23.3 Page **Banque LTD** (`banque.html`)
+- Affiche le solde courant en gros + tableau chronologique de tous les mouvements
+- Filtre par type (entrée / sortie) + recherche texte sur la raison
+- Code couleur entrées/sorties (vert/rouge) + colonne « variation » avec ▲▼
+- Accès : `ACCESS.banque = direction + DRH + super-admin`
+- Entrée NAV groupe « Finance », icône 🏦
+
+#### 23.4 5 nouveaux parsers Discord (#commit `60a7987`)
+| Parser | Type ingest | Collection cible | Effet de bord |
+|--------|-------------|------------------|----------------|
+| `autoRh` | `auto-rh` (embauches/exclusions) | `/rhEvenements` | **Exclusion** : suspend auto le compte (statut → `suspendu`). **Embauche** : crée alerte info pour rappel admin |
+| `autorankup` | `autorankup` (promo auto) | met à jour `/users/{uid}.role` | Cherche par `idDiscord` → fallback nom complet, conserve `ancienRole` |
+| `statsbank` | `statsbank` (récap hebdo officiel FiveM) | `/statsHebdoOfficiels/{S{NN}-{annee}}` | Idempotent (1 doc/semaine). Champs : CA, sorties, bénéfice brut, solde actuel, loyers, **impôt estimé**, tranche, taux, nb factures/payés |
+| `rapportPompiste` | `rapport-pompiste` (#pompiste) | `/rapportsPompisteQuotidien` | **Met à jour `stockActuel` de chaque station** depuis le % de remplissage du rapport (mapping FiveM → stationId requis) |
+| `venteAuto` | `vente-auto` (distributeur auto) | `/ventes` (avec `source: 'ventes-auto'`) | Bénéfice = 0 (pas calculable sans mapping noms FiveM ↔ catalogue) |
+
+#### 23.5 Outil **Découverte items FiveM** (`decouverte-items.html`)
+- Page utilitaire (admin tech / dev) qui scanne `/mouvementsStock` et `/stocks` pour lister tous les `item` distincts captés par le bot
+- Aide à constituer la **whitelist/blacklist** items (futur filtre parser inventory) + le mapping FiveM ↔ catalogue produits
+- Affiche aussi les noms de stations FiveM bruts vus dans `/rapportsPompisteQuotidien` pour aider à construire le mapping `stationId`
+
+#### 23.6 Bouton supprimer produit (Stocks)
+- Sur chaque ligne du tableau Stocks : nouveau bouton 🗑 visible **Direction + DRH**
+- Modal critique 3 sec + champ `requireType: SUPPRIMER` (pattern destructif standard)
+- Suppression du doc `/produits/{id}` ET du doc `/stocks/{id}` associé + écriture d'un mouvement « Suppression produit » pour audit
+
+#### 23.7 Cloud Function `?type=banque` + Apps Script 5e onglet
+- Nouveau type d'export CSV : `?type=banque` qui combine `/banqueLtd` (entrées) + `/depenses` (sorties) en un seul tableau chronologique avec solde après chaque opération (limit 2000 lignes)
+- Apps Script Google Sheets : 5e onglet auto **« Banque LTD »** créé/migré, formules `IMPORTDATA(...?type=banque&token=...)` injectées, mise en forme (couleurs entrées/sorties)
+- Permet à l'auditeur IRS RP de voir TOUS les mouvements du compte LTD chronologiquement
+
+### Collections Firestore introduites
+- `/banqueLtd` — mouvements xbankaccount (audit + solde live)
+- `/rhEvenements` — embauches/exclusions auto (audit append-only)
+- `/statsHebdoOfficiels/{S{NN}-{annee}}` — stats officielles FiveM hebdomadaires (idempotent, 1 doc/semaine)
+- `/rapportsPompisteQuotidien` — rapports quotidiens du canal #pompiste (avec niveaux par station)
+
+---
+
+## 📋 Ce qui reste à faire (TODO mis à jour 2026-05-09 partie 2)
+
+### ✅ Fait dans la session de reprise (parties 1 + 2)
 - ✅ ~~Compléter 4 prix d'achat~~ — intégrés dans la liste 53 finale
 - ✅ ~~Liste produits complète à intégrer~~ — fait via init-prix-v2.html
+- ✅ ~~Bouton « Supprimer un produit » dans Stocks~~ — fait (commit `6dcbbdc`)
+- ✅ ~~Conciliation bancaire (rapprochement paie Discord et salaireDecide)~~ — préparé via `/banqueLtd` + page Banque LTD + export Sheets `?type=banque` (rapprochement manuel possible dans le 5e onglet Apps Script)
+- ✅ ~~Stats avancées : comparaison N vs N-1~~ — bases posées via `/statsHebdoOfficiels` (parser statsbank), reste à câbler la page comparative E (en cours)
 
 ### Priorité haute (à faire de ton côté en 5 min)
 - [ ] **Te basculer en Admin Technique** : Admin → ta ligne → sélecteur Rôle → 🛠 Admin Technique
-- [ ] **Configurer le Sheet Compta** : Admin → 📊 Export Google Sheets → coller token → créer Sheet sur sheets.new → coller les 4 formules
+- [ ] **Configurer le Sheet Compta** : Admin → 📊 Export Google Sheets → coller token → créer Sheet sur sheets.new → coller les 5 formules (résumé / dépenses / ventes / paies / banque)
 - [ ] **Configurer le webhook Discord pour alertes** (Admin → ⚙ Configuration globale → URL Webhook)
 - [ ] **Budget alerte Firebase** (5 €/mois) → console GCP → Billing
 
 ### Priorité moyenne (Maxime BLAKE quand il prendra la main)
 - [ ] **Créer les comptes employés** (DRH, responsables, vendeurs, pompistes) avec ID Discord + ID Perso obligatoires
 - [ ] Décider les salaires des direction/responsables dans RH
+- [ ] **Mapping FiveM → catalogue interne** (toujours en attente — bloquant pour `venteAuto` et `rapportPompiste`)
+  - **Items FiveM ↔ produits LTD** : utiliser l'outil `decouverte-items.html` pour lister les items distincts captés, puis ajouter une table de correspondance dans `discord-bot/parsers/inventory.js` (et `venteAuto`)
+  - **Noms stations FiveM ↔ stationId** : idem pour les rapports pompistes (lever le `[pompiste] Station inconnue` dans les logs Cloud Functions)
 
 ### Priorité basse (nice to have, optionnel)
 - [ ] Page « Mon profil » pour que chaque utilisateur édite ses propres ID Discord/Perso
-- [ ] Bouton « Supprimer un produit » dans Stocks (UI manquante, contournable via console Firebase)
-- [ ] Filtrage des items parasites Discord (ex. `item:contrat`) — liste blanche/noire dans le parser
+- [ ] Filtrage des items parasites Discord (ex. `item:contrat`) — liste blanche/noire dans le parser (s'appuyer sur la sortie de `decouverte-items.html`)
 - [ ] Rapport PDF mensuel automatique (l'export Sheets fait déjà le job)
-- [ ] Stats avancées : graphique 6 mois, comparaison N vs N-1
-- [ ] Conciliation bancaire (rapprochement entre `paie` Discord et `salaireDecide`)
 - [ ] Mode hors ligne renforcé (Service Worker)
 
 ### À l'arrivée du moment
