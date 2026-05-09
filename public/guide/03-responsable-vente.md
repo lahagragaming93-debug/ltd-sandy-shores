@@ -86,6 +86,9 @@ Bouton **« Modifier »** sur chaque ligne. Modale avec :
 - Un ajustement sans raison **ne passe pas** (validation bloquée)
 - Le stock se met à jour en temps réel sur tous les écrans (ordi, tablette, téléphone)
 
+#### ➕ Ajouter un nouveau produit au catalogue
+> 🔒 **Réservé à la direction et au DRH.** En tant que Responsable Vente, tu **ne vois pas** ce bouton. Si tu as besoin d'un nouveau produit (nouveau stock à référencer), demande à la direction ou au DRH de le créer.
+
 #### 🔄 Réinitialiser depuis catalogue (à manier avec précaution)
 Bouton **« Réinitialiser depuis catalogue »** — modal CRITIQUE 3 sec.
 - ⚠ **Écrase** : noms, catégories, prix de vente, seuils

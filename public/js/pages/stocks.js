@@ -7,14 +7,15 @@ import { renderShell } from '../layout.js';
 import {
   listProduits, setProduit, listenStocks, ajusterStock, listMouvementsRecents
 } from '../api.js';
-import { CATALOGUE, CATEGORY_LABELS } from '../data/produits.js';
+import { CATALOGUE, CATEGORIES, CATEGORY_LABELS } from '../data/produits.js';
 import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
-import { isDirection } from '../utils/permissions.js';
+import { isDirection, canCreateProduit } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
 
 const { profile } = await requireAuth('stocks_epicerie');
-const editable = isDirection(profile.role) || profile.role === 'responsable-vente';
+const editable = isDirection(profile.role) || profile.role === 'responsable-vente' || profile.role === 'drh';
+const canCreate = canCreateProduit(profile.role);
 
 const html = `
   <div class="row mb-2 wrap">
@@ -30,8 +31,11 @@ const html = `
       <option value="ok">OK</option>
     </select>
     <input type="text" id="filtre-recherche" placeholder="Rechercher un produit…" style="flex:1;min-width:200px;" />
+    ${canCreate ? `
+      <button class="btn btn-primary" id="btn-nouveau-produit">+ Ajouter un produit</button>
+    ` : ''}
     ${editable ? `
-      <button class="btn btn-primary" id="btn-init-catalogue">Réinitialiser depuis catalogue</button>
+      <button class="btn" id="btn-init-catalogue">Réinitialiser depuis catalogue</button>
     ` : ''}
   </div>
 
@@ -61,6 +65,36 @@ const html = `
   <div class="panel">
     <div class="panel-title"><span>Derniers mouvements de stock</span></div>
     <div id="mouvements">Chargement…</div>
+  </div>
+
+  <!-- Modale création produit -->
+  <div id="modal-nouveau" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:560px;">
+      <h3>+ Ajouter un produit au catalogue</h3>
+      <div class="alert info mb-2" style="font-size:0.82rem;">
+        <span class="icon">ℹ</span>
+        <span>L'<strong>identifiant</strong> du produit est généré automatiquement à partir du nom (slug). Il sert de clé technique : il ne sera plus modifiable après création. Le nom, lui, reste éditable.</span>
+      </div>
+      <label>Nom du produit *</label>
+      <input type="text" id="new-produit-nom" placeholder="Ex. Bouteille d'eau" />
+      <label>Identifiant technique (auto) <span class="muted" style="font-size:0.75rem;">— modifiable</span></label>
+      <input type="text" id="new-produit-id" placeholder="bouteille-eau" style="font-family:var(--font-mono);font-size:0.85rem;" />
+      <label>Catégorie</label>
+      <select id="new-produit-categorie">
+        ${Object.entries(CATEGORY_LABELS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}
+      </select>
+      <div class="field-row">
+        <div><label>Prix achat ($)</label><input type="number" id="new-produit-prix-achat" min="0" step="1" value="0" /></div>
+        <div><label>Prix vente ($)</label><input type="number" id="new-produit-prix-vente" min="0" step="1" value="0" /></div>
+        <div><label>Seuil alerte</label><input type="number" id="new-produit-seuil" min="0" step="1" value="5" /></div>
+      </div>
+      <label>Stock initial <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
+      <input type="number" id="new-produit-stock" min="0" step="1" value="0" />
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="btn-creer-produit">Créer le produit</button>
+        <button class="btn btn-ghost" id="btn-cancel-nouveau">Annuler</button>
+      </div>
+    </div>
   </div>
 
   <!-- Modale édition produit -->
@@ -280,3 +314,85 @@ async function chargerMouvements() {
   `;
 }
 chargerMouvements();
+
+// === Création d'un nouveau produit (direction + DRH) ===
+function slugify(s) {
+  return String(s || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+const btnNouveauProduit = document.getElementById('btn-nouveau-produit');
+if (btnNouveauProduit) {
+  const modalNouveau = document.getElementById('modal-nouveau');
+  const inputNom     = document.getElementById('new-produit-nom');
+  const inputId      = document.getElementById('new-produit-id');
+
+  // Auto-slug du nom vers l'ID tant que l'user n'a pas modifié l'ID manuellement
+  let idTouchedByUser = false;
+  inputNom.addEventListener('input', () => {
+    if (!idTouchedByUser) inputId.value = slugify(inputNom.value);
+  });
+  inputId.addEventListener('input', () => { idTouchedByUser = true; });
+
+  btnNouveauProduit.addEventListener('click', () => {
+    inputNom.value = '';
+    inputId.value = '';
+    idTouchedByUser = false;
+    document.getElementById('new-produit-categorie').value = 'divers';
+    document.getElementById('new-produit-prix-achat').value = 0;
+    document.getElementById('new-produit-prix-vente').value = 0;
+    document.getElementById('new-produit-seuil').value = 5;
+    document.getElementById('new-produit-stock').value = 0;
+    modalNouveau.classList.remove('hidden');
+    setTimeout(() => inputNom.focus(), 50);
+  });
+
+  document.getElementById('btn-cancel-nouveau').addEventListener('click', () => {
+    modalNouveau.classList.add('hidden');
+  });
+
+  document.getElementById('btn-creer-produit').addEventListener('click', async () => {
+    const nom        = inputNom.value.trim();
+    const id         = (inputId.value || '').trim() || slugify(nom);
+    const categorie  = document.getElementById('new-produit-categorie').value;
+    const prixAchat  = Number(document.getElementById('new-produit-prix-achat').value) || 0;
+    const prixVente  = Number(document.getElementById('new-produit-prix-vente').value) || 0;
+    const seuilAlerte= Number(document.getElementById('new-produit-seuil').value) || 0;
+    const stockInit  = Number(document.getElementById('new-produit-stock').value) || 0;
+
+    if (!nom)          return toastError("Nom obligatoire.");
+    if (!/^[a-z0-9-]+$/.test(id)) return toastError("Identifiant invalide (lettres minuscules, chiffres, tirets uniquement).");
+    if (produits.find(p => p.id === id)) {
+      return toastError(`Un produit avec l'ID "${id}" existe déjà — choisis un autre identifiant ou modifie le produit existant.`);
+    }
+    if (prixVente > 0 && prixAchat > prixVente) {
+      const ok = await confirmCritique({
+        titre: 'Marge négative',
+        message: `Le prix d'achat (<strong>${prixAchat} $</strong>) est supérieur au prix de vente (<strong>${prixVente} $</strong>). Le produit sera vendu à perte.<br><br>Confirmer quand même ?`,
+        btnConfirm: 'Créer quand même',
+        delaiSec: 3
+      });
+      if (!ok) return;
+    }
+
+    try {
+      await setProduit(id, { nom, categorie, prixAchat, prixVente, seuilAlerte });
+      // Stock initial : ajustement avec raison "création"
+      if (stockInit > 0) {
+        const me = getCurrentUser();
+        await ajusterStock(id, stockInit, 'Création produit (stock initial)', me?.uid || profile.id);
+      }
+      toastSuccess(`Produit "${nom}" créé.`);
+      modalNouveau.classList.add('hidden');
+      // Re-charge la liste + re-render pour refléter le nouveau produit
+      // (le listener listenStocks ne se déclenchera que si on a posé un stock initial)
+      await chargerProduits();
+      renderTable();
+    } catch (e) {
+      console.error(e);
+      toastError(e?.message || e?.code || "Erreur à la création.");
+    }
+  });
+}

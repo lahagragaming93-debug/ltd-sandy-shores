@@ -72,15 +72,20 @@ service cloud.firestore {
     }
 
     // === Produits ===
+    // Lecture : tout employé actif
+    // Création / suppression d'un produit : direction + DRH uniquement (gestion catalogue)
+    // Modification des champs (prix, seuil…) : direction + DRH + Resp Vente (gestion quotidienne)
     match /produits/{id} {
       allow read:   if isAuth() && isActif();
-      allow write:  if isDirection() || isRespVente();
+      allow create: if isDirection() || isDRH();
+      allow update: if isDirection() || isDRH() || isRespVente();
+      allow delete: if isDirection() || isDRH();
     }
 
     // === Historique des prix (audit trail, append-only) ===
     match /historiquePrix/{id} {
       allow read:   if isDirection() || isDRH();
-      allow create: if isDirection() || isRespVente();
+      allow create: if isDirection() || isDRH() || isRespVente();
       allow update, delete: if false;
     }
 

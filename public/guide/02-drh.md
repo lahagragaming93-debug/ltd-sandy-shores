@@ -11,7 +11,7 @@
 | Module | Accès | Rôle |
 |--------|-------|------|
 | 📊 Dashboard | Lecture | Vue d'ensemble (CA, masse, alertes) |
-| 🛒 Stocks épicerie | Lecture | Voir les stocks (pas modifier) |
+| 🛒 Stocks épicerie | Lecture + écriture | Voir, modifier, **et créer de nouveaux produits** au catalogue |
 | 💵 Ventes | Lecture | Voir les factures de la semaine |
 | 📋 Comptabilité | Lecture | Voir les comptes (pas modifier) |
 | 🧑‍💼 **Ressources humaines** | **Lecture + écriture** | Gérer effectif et salaires décidés |
@@ -76,9 +76,13 @@ Une ligne par employé avec :
 
 > ⚠ Tu peux décider **ton propre salaire** (DRH = 20 000 $ max). Logiquement ça doit être validé tacitement avec le Patron.
 
+### Ce que tu peux AUSSI faire (catalogue produits)
+- ✅ **Ajouter un nouveau produit** au catalogue (Stocks épicerie → « + Ajouter un produit »)
+- ✅ **Modifier** les fiches produits existantes (nom, prix achat/vente, seuil)
+- ✅ Les Responsables Vente peuvent modifier mais **pas créer** de nouveaux produits — c'est ton rôle (et celui de la direction)
+
 ### Ce que tu ne peux PAS faire
 
-- ❌ Modifier les prix produits (Stocks lecture seule)
 - ❌ Ajouter une dépense (Comptabilité lecture seule)
 - ❌ Modifier la **Configuration globale** dans Administration (quotas, prix essence, webhook — réservée à la direction)
 - ❌ Gérer les comptes **Patron** et **Co-Patron** (hors périmètre — apparaissent grisés dans Administration)

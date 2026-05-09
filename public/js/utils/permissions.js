@@ -106,6 +106,12 @@ export function canEditConfig(role) {
   return isDirection(role);
 }
 
+// Création d'un nouveau produit dans le catalogue : direction + DRH uniquement
+// (la modification des prix/seuils existants reste accessible au Resp Vente)
+export function canCreateProduit(role) {
+  return isDirection(role) || role === 'drh';
+}
+
 export function defaultLandingPage(role) {
   if (isDirection(role) || role === 'drh') return 'dashboard.html';
   if (role === 'responsable-vente') return 'ventes.html';

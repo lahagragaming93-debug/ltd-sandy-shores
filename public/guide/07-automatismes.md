@@ -178,7 +178,8 @@ Toutes les pages utilisent les **listeners Firebase** (`onSnapshot`). Ça veut d
 | Action | Qui peut faire | Qui ne peut PAS |
 |--------|----------------|------------------|
 | Voir le Dashboard | Patron, Co-Patron, DRH | Tous les autres |
-| Modifier les prix produits | Patron, Co-Patron, Resp Vente | Vendeurs, Pompistes |
+| Modifier les prix produits | Patron, Co-Patron, DRH, Resp Vente | Vendeurs, Pompistes |
+| Créer un nouveau produit au catalogue | Patron, Co-Patron, DRH | Resp Vente, Vendeurs, Pompistes |
 | Modifier les stations | Patron, Co-Patron, Resp Pompiste | Tous les autres |
 | Ajouter une dépense | Patron, Co-Patron | DRH (lecture), tous les autres |
 | Décider un salaire | Patron, Co-Patron, DRH | Responsables, employés |

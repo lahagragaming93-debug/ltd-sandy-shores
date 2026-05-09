@@ -76,12 +76,20 @@ Peut-être un **décalage** entre le stock système et le stock réel (oubli d'i
 4. Enregistre — l'audit retient la trace
 
 ### « Je veux ajouter un nouveau produit au catalogue »
-Actuellement, l'ajout de produits se fait soit :
-- Depuis la console Firebase (technique, direction uniquement)
-- Via une page d'init temporaire (cf historique : `init-prix-v2.html`)
-- Via la fonction `setProduit` (à créer une UI dédiée si besoin)
+Va dans **Stocks épicerie** → bouton **« + Ajouter un produit »** (en haut à côté des filtres).
 
-Pas d'UI « Ajouter un nouveau produit » directement accessible. Préviens la direction si tu en as besoin.
+> 🔒 Bouton visible uniquement pour **Patron, Co-Patron et DRH**. Les Responsables Vente peuvent modifier les prix/seuils existants mais pas créer de nouveau produit (gestion catalogue = gestion direction/DRH).
+
+Renseigne :
+- **Nom** (obligatoire) — l'identifiant technique se génère tout seul à partir du nom (slug). Tu peux le modifier si besoin (lettres minuscules / chiffres / tirets uniquement).
+- **Catégorie** (Outillage / Document / Agriculture / Mécanique / Nourriture / Divers)
+- **Prix achat / vente** (en $ RP)
+- **Seuil d'alerte** (défaut 5)
+- **Stock initial** (optionnel — un mouvement « Création produit (stock initial) » est alors tracé dans l'audit)
+
+Le produit apparaît immédiatement dans le tableau et est utilisable par toute l'équipe.
+
+> ⚠ Si tu mets un prix d'achat **supérieur** au prix de vente, un modal critique 3 secondes te prévient (vente à perte).
 
 ### « Pourquoi le seuil d'alerte ne se déclenche pas ? »
 Vérifie que le seuil est **strictement supérieur à 0** dans la fiche produit. Avec seuil = 0, l'alerte ne se déclenche qu'à rupture (qte = 0).
