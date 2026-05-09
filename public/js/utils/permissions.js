@@ -51,6 +51,8 @@ export const ACCESS = {
   comptabilite_edit: [...DIRECTION, ...SUPER_ADMINS],
   rh:                RH_FULL,
   stations:          [...DIRECTION, 'responsable-pompiste', ...SUPER_ADMINS],
+  // Banque LTD : direction + DRH + super-admin (audit financier sensible)
+  banque:            [...DIRECTION, 'drh', ...SUPER_ADMINS],
   // Admin : direction + DRH + responsables + super-admins
   admin:             [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,

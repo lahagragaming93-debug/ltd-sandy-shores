@@ -489,7 +489,8 @@ function renderSheetsZone(zone, token) {
     { type: 'resume',   label: '📊 Résumé hebdo',     hint: '1 ligne par semaine clôturée (52 max)' },
     { type: 'depenses', label: '💸 Dépenses',          hint: 'Toutes les dépenses (2 000 max)' },
     { type: 'ventes',   label: '💵 Ventes',            hint: 'Toutes les ventes (2 000 max)' },
-    { type: 'paies',    label: '💰 Paies',             hint: 'Toutes les paies versées (2 000 max)' }
+    { type: 'paies',    label: '💰 Paies',             hint: 'Toutes les paies versées (2 000 max)' },
+    { type: 'banque',   label: '🏦 Banque LTD',        hint: 'Tous mouvements (entrées + sorties) avec solde' }
   ];
 
   zone.innerHTML = `
