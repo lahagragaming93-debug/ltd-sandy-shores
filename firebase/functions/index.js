@@ -399,8 +399,8 @@ async function onAutoRh(p) {
     timestamp: FieldValue.serverTimestamp()
   });
 
-  if (p.type === 'exclusion') {
-    // Suspendre auto le compte
+  if (p.type === 'exclusion' || p.type === 'depart') {
+    // Suspendre auto le compte (exclusion = licenciement, depart = quitté volontairement)
     let userId = null;
     if (p.idDiscord) {
       const s = await db.collection('users').where('idDiscord', '==', p.idDiscord).limit(1).get();
@@ -411,14 +411,16 @@ async function onAutoRh(p) {
       if (!s.empty) userId = s.docs[0].id;
     }
     if (userId) {
+      const motif = p.type === 'depart' ? 'Départ volontaire' : (p.parQui || 'Exclusion');
       await db.collection('users').doc(userId).set({
         statut: 'suspendu',
         suspenduAt: FieldValue.serverTimestamp(),
-        suspenduPar: p.parQui || 'auto-bot'
+        suspenduPar: motif,
+        suspenduMotif: p.type
       }, { merge: true });
-      console.log(`[autoRh] Compte ${userId} suspendu auto (idDiscord=${p.idDiscord})`);
+      console.log(`[autoRh] Compte ${userId} suspendu auto (${p.type}, idDiscord=${p.idDiscord})`);
     } else {
-      console.log(`[autoRh] Exclusion : aucun compte trouvé pour idDiscord=${p.idDiscord} idPerso=${p.idPerso}`);
+      console.log(`[autoRh] ${p.type} : aucun compte trouvé pour idDiscord=${p.idDiscord} idPerso=${p.idPerso}`);
     }
   } else if (p.type === 'embauche') {
     // Créer une alerte pour rappel à l'admin (création de compte manuel)
@@ -436,10 +438,14 @@ async function onAutoRh(p) {
 async function onAutorankup(p) {
   if (!p.nouveauRole) return;
 
-  // Cherche l'employé par idDiscord (le plus fiable) ou par nom complet
+  // Cherche l'employé par idDiscord, puis idPerso, puis nom complet
   let userId = null;
   if (p.idDiscord) {
     const s = await db.collection('users').where('idDiscord', '==', p.idDiscord).limit(1).get();
+    if (!s.empty) userId = s.docs[0].id;
+  }
+  if (!userId && p.idPerso) {
+    const s = await db.collection('users').where('idPerso', '==', p.idPerso).limit(1).get();
     if (!s.empty) userId = s.docs[0].id;
   }
   if (!userId && p.prenom && p.nom) {
@@ -466,6 +472,7 @@ async function onAutorankup(p) {
 
 // === Statsbank (récap hebdo officiel FiveM) ===
 // Stockage pour comparaison avec nos calculs internes + import impôt estimé.
+// Capte aussi le top vendeurs (nouveauté V2).
 async function onStatsbank(p) {
   // Doc id = "S{numero}-{annee}" pour idempotence (1 doc par semaine)
   const docId = `S${String(p.numeroSemaine).padStart(2, '0')}-${p.annee}`;
@@ -475,7 +482,7 @@ async function onStatsbank(p) {
     periode: p.periode || '',
     ca: p.ca || 0,
     sorties: p.sorties || 0,
-    beneficeBrut: p.beneficeBrut || 0,
+    beneficeBrut: p.beneficeBrut || 0,    // peut être négatif (déficit)
     soldeActuel: p.soldeActuel || 0,
     loyers: p.loyers || 0,
     impotEstime: p.impotEstime || 0,
@@ -485,10 +492,11 @@ async function onStatsbank(p) {
     montantFactures: p.montantFactures || 0,
     nbPayes: p.nbPayes || 0,
     montantPayes: p.montantPayes || 0,
+    topVendeurs: p.topVendeurs || [],    // [{ nom, nbFactures, montant }, …]
     source: 'discord-statsbank',
     derniereMaj: FieldValue.serverTimestamp()
   }, { merge: true });
-  console.log(`[statsbank] Semaine ${docId} mise à jour (CA=${p.ca}, solde=${p.soldeActuel}, impôt=${p.impotEstime})`);
+  console.log(`[statsbank] ${docId} OK (CA=${p.ca}, bénéfice=${p.beneficeBrut}, ${p.topVendeurs?.length || 0} top vendeurs)`);
 }
 
 // === Rapport pompiste quotidien (#pompiste) ===

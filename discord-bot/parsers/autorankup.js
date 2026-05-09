@@ -64,15 +64,18 @@ export function parseAutorankupEmbed(msg) {
   const prenom = parts[0] || '';
   const nom = parts.slice(1).join(' ').toUpperCase() || '';
 
-  // ID Discord si présent
+  // ID Discord si présent (15-21 chiffres)
   const idDiscord = (texte.match(/discord\s*:?\s*(\d{15,21})/i) || [])[1] || '';
+
+  // ID Perso : format "(pseudo, ID:90262)" capté directement après le nom
+  const idPerso = (texte.match(/\(\s*[^,)]+\s*,\s*ID\s*:\s*(\d+)\s*\)/i) || [])[1] || '';
 
   // Par qui (Patron qui a fait la promotion)
   const matchPar = texte.match(/par\s*:?\s*([\p{L}\s]+?)(?:\s*\(|\s*\||$)/iu);
   const parQui = matchPar ? matchPar[1].trim() : '';
 
   return {
-    prenom, nom, idDiscord,
+    prenom, nom, idDiscord, idPerso,
     ancienRole, nouveauRole,
     parQui
   };
