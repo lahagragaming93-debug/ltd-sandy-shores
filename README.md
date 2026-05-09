@@ -44,17 +44,20 @@ LTD Sandy Shores/
 5. Lire `docs/06-architecture.md` — schéma de flux et collections Firestore
 
 ### Utilisation quotidienne (par rôle)
-👉 **`docs/guide/00-index.md`** — sommaire complet du guide pédagogique
+
+👉 **Le guide complet est intégré au site** : sur n'importe quelle page, onglet **« 📖 Guide »** dans la sidebar. Le bon guide se sélectionne automatiquement selon le rôle de l'utilisateur connecté.
+
+Sources des guides : **`public/guide/`** (servies par GitHub Pages, lisibles aussi sur GitHub).
 
 | Rôle | Doc à lire |
 |------|------------|
-| Patron / Co-Patron | `docs/guide/01-direction.md` |
-| DRH | `docs/guide/02-drh.md` |
-| Responsable Vente | `docs/guide/03-responsable-vente.md` |
-| Responsable Pompiste | `docs/guide/04-responsable-pompiste.md` |
-| Vendeur | `docs/guide/05-vendeur.md` |
-| Pompiste | `docs/guide/06-pompiste.md` |
-| Tout le monde | `docs/guide/07-automatismes.md` + `docs/guide/08-faq-depannage.md` |
+| Patron / Co-Patron | `public/guide/01-direction.md` |
+| DRH | `public/guide/02-drh.md` |
+| Responsable Vente | `public/guide/03-responsable-vente.md` |
+| Responsable Pompiste | `public/guide/04-responsable-pompiste.md` |
+| Vendeur | `public/guide/05-vendeur.md` |
+| Pompiste | `public/guide/06-pompiste.md` |
+| Tout le monde | `public/guide/07-automatismes.md` + `public/guide/08-faq-depannage.md` |
 
 ### Reprise de session
 - `docs/JOURNAL.md` — état des lieux, TODO, procédure de reprise

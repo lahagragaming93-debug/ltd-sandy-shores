@@ -50,6 +50,9 @@ export const ACCESS = {
                       'responsable-vente', 'responsable-pompiste'],
   // Mes paies : tout employé connecté actif
   paies:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
+                      'responsable-vente', 'responsable-pompiste'],
+  // Guide / Tutoriel : accessible à tous les rôles
+  guide:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
                       'responsable-vente', 'responsable-pompiste']
 };
 

@@ -5,6 +5,8 @@
 
 Bienvenue. Ce guide est organisé **par rôle** : chaque employé n'a besoin de lire que la partie qui le concerne. La direction lit tout.
 
+> 💡 **Astuce** : ce guide est intégré au site. Sur n'importe quelle page, clique l'onglet **« 📖 Guide »** dans la sidebar — le bon chapitre se sélectionne automatiquement selon ton rôle. Bouton **🖨 Imprimer / PDF** disponible en haut pour exporter.
+
 ---
 
 ## 🎯 Comment utiliser ce guide

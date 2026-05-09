@@ -16,7 +16,8 @@ const NAV_ITEMS = [
   { key: 'rh',              href: 'rh.html',            icon: '☆',  label: 'Ressources humaines',group: 'Personnel' },
   { key: 'admin',           href: 'admin.html',         icon: '⚙',  label: 'Administration',     group: 'Système' },
   { key: 'employee',        href: 'employee.html',      icon: '◉',  label: 'Mon espace',         group: 'Personnel' },
-  { key: 'paies',           href: 'paies.html',         icon: '$',  label: 'Mes paies',          group: 'Personnel' }
+  { key: 'paies',           href: 'paies.html',         icon: '$',  label: 'Mes paies',          group: 'Personnel' },
+  { key: 'guide',           href: 'guide.html',         icon: '📖', label: 'Guide',              group: 'Aide' }
 ];
 
 export function renderShell(profile, activePageKey, mainContentHtml) {
@@ -33,8 +34,11 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
   NAV_ITEMS
     .filter(item => canAccess(profile.role, item.key))
     .forEach(item => {
-      // Pour un employé pur, ne montrer que "Mon espace" et "Mes paies"
-      if (isEmployeeView(profile.role) && item.key !== 'employee' && item.key !== 'paies') return;
+      // Pour un employé pur, ne montrer que "Mon espace", "Mes paies" et "Guide"
+      if (isEmployeeView(profile.role)
+          && item.key !== 'employee'
+          && item.key !== 'paies'
+          && item.key !== 'guide') return;
       (navByGroup[item.group] ||= []).push(item);
     });
 
@@ -137,7 +141,8 @@ function getPageTitle(key) {
     rh: 'Ressources humaines',
     admin: 'Administration',
     employee: 'Mon espace',
-    paies: 'Mes paies'
+    paies: 'Mes paies',
+    guide: 'Guide d\'utilisation'
   };
   return map[key] || 'LTD Sandy Shores';
 }
