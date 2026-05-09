@@ -26,6 +26,7 @@ for (const k of required) {
 const CHANNEL_MAP = {
   [process.env.CH_LOGS_IG]:               { type: 'inventory',      parser: parseInventoryEmbed     },
   [process.env.CH_LOGS_SERVICES]:         { type: 'service',        parser: parseServiceEmbed       },
+  [process.env.CH_SUIVI_SERVICE_VENDEUR]: { type: 'service',        parser: parseServiceEmbed       },
   [process.env.CH_SUIVI_FACTURE]:         { type: 'facture',        parser: parseFactureEmbed       },
   [process.env.CH_SUIVI_ACHAT_ESSENCE]:   { type: 'redistribution', parser: parseRedistributionEmbed },
   [process.env.CH_DEPENSES]:              { type: 'depense',        parser: parseDepenseEmbed       },
@@ -52,29 +53,68 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel]
 });
 
-client.once(Events.ClientReady, c => {
+client.once(Events.ClientReady, async (c) => {
   console.log(`✅ Bot connecté : ${c.user.tag}`);
   const watched = Object.keys(CHANNEL_MAP).filter(Boolean);
+  const raw     = Object.keys(RAW_CHANNELS).filter(Boolean);
   console.log(`   Canaux surveillés : ${watched.length}`);
-  console.log(`   Canaux logs bruts : ${Object.keys(RAW_CHANNELS).filter(Boolean).length}`);
+  console.log(`   Canaux logs bruts : ${raw.length}`);
+
+  // Diagnostic : lister les canaux effectivement visibles
+  try {
+    const guild = await c.guilds.fetch(process.env.GUILD_ID);
+    console.log(`\n📡 Diagnostic accès canaux sur "${guild.name}":`);
+    const channels = await guild.channels.fetch();
+    const allIds = new Set([...watched, ...raw]);
+    let okCount = 0, koCount = 0;
+    for (const id of allIds) {
+      const ch = channels.get(id);
+      const role = CHANNEL_MAP[id]?.type || (RAW_CHANNELS[id] ? `raw:${RAW_CHANNELS[id]}` : '?');
+      if (ch) {
+        const me = guild.members.me;
+        const perms = ch.permissionsFor(me);
+        const canView = perms?.has('ViewChannel');
+        const canRead = perms?.has('ReadMessageHistory');
+        if (canView && canRead) {
+          console.log(`  ✓ #${ch.name.padEnd(28)} → ${role}`);
+          okCount++;
+        } else {
+          console.log(`  ⚠ #${ch.name.padEnd(28)} → ${role}  (View=${canView}, ReadHist=${canRead})`);
+          koCount++;
+        }
+      } else {
+        console.log(`  ✗ ${id} INTROUVABLE → ${role}`);
+        koCount++;
+      }
+    }
+    console.log(`\n   Résumé : ${okCount} OK / ${koCount} problématique(s)\n`);
+  } catch (e) {
+    console.error('Erreur diagnostic :', e.message);
+  }
 });
 
 client.on(Events.MessageCreate, async (msg) => {
   if (msg.guildId !== process.env.GUILD_ID) return;
   if (msg.author?.bot && !shouldProcessBotMessage(msg)) {
-    // On ne veut PAS ignorer les bots — la plupart des logs FiveM viennent d'un bot.
-    // Mais on évite la boucle si c'est notre propre bot.
     if (msg.author.id === client.user.id) return;
   }
 
   const channelId = msg.channelId;
+  const channelName = msg.channel?.name || channelId;
+  const author = msg.author?.username || 'inconnu';
+  const isBot = msg.author?.bot ? '🤖' : '👤';
+  const nbEmbeds = msg.embeds?.length || 0;
+  console.log(`[MSG] #${channelName} ${isBot}${author} embeds=${nbEmbeds} content="${(msg.content || '').slice(0, 60)}"`);
 
   // Canaux structurés
   const cfg = CHANNEL_MAP[channelId];
   if (cfg) {
     try {
       const payload = cfg.parser(msg);
-      if (!payload) return; // pas un embed reconnu
+      if (!payload) {
+        console.log(`  └─ parser=${cfg.type} → null (embed non reconnu)`);
+        return;
+      }
       await sendToFirebase(cfg.type, payload, msg);
     } catch (err) {
       console.error(`Erreur parsing ${cfg.type} (msg ${msg.id}) :`, err.message);
@@ -133,7 +173,9 @@ async function sendToFirebase(type, payload, msg) {
   });
   if (!res.ok) {
     const txt = await res.text();
-    console.error(`Firebase ${res.status} : ${txt}`);
+    console.error(`  └─ Firebase ${res.status} : ${txt.slice(0, 120)}`);
+  } else {
+    console.log(`  └─ Firebase ✓ (${type})`);
   }
 }
 

@@ -22,6 +22,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.claude/
 
 # Build artifacts
 dist/

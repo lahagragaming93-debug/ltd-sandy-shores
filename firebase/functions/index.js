@@ -161,6 +161,7 @@ async function creerAlerte(type, message, gravite = 'warn', metadata = {}) {
 export const botIngest = onRequest({
   region: 'europe-west1',
   cors: false,
+  invoker: 'public',          // webhook : invocation libre, sécurité par token x-bot-token
   secrets: [BOT_TOKEN]
 }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('Method not allowed');
