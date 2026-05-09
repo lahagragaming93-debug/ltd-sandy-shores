@@ -36,11 +36,29 @@ LTD Sandy Shores/
 
 ## Démarrage rapide
 
+### Setup technique (premier déploiement)
 1. Lire `docs/01-setup-firebase.md` — créer le projet Firebase
 2. Lire `docs/02-setup-discord-bot.md` — créer et déployer le bot
 3. Lire `docs/03-setup-github-pages.md` — déployer le frontend
 4. Lire `docs/04-premier-compte.md` — créer le premier compte patron
-5. Lire `docs/05-guide-utilisation.md` — utilisation quotidienne
+5. Lire `docs/06-architecture.md` — schéma de flux et collections Firestore
+
+### Utilisation quotidienne (par rôle)
+👉 **`docs/guide/00-index.md`** — sommaire complet du guide pédagogique
+
+| Rôle | Doc à lire |
+|------|------------|
+| Patron / Co-Patron | `docs/guide/01-direction.md` |
+| DRH | `docs/guide/02-drh.md` |
+| Responsable Vente | `docs/guide/03-responsable-vente.md` |
+| Responsable Pompiste | `docs/guide/04-responsable-pompiste.md` |
+| Vendeur | `docs/guide/05-vendeur.md` |
+| Pompiste | `docs/guide/06-pompiste.md` |
+| Tout le monde | `docs/guide/07-automatismes.md` + `docs/guide/08-faq-depannage.md` |
+
+### Reprise de session
+- `docs/JOURNAL.md` — état des lieux, TODO, procédure de reprise
+- `docs/07-transmission.md` — passation au vrai patron RP
 
 ## Conformité TTE
 

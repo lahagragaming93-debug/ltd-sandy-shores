@@ -1,0 +1,314 @@
+# 👑 Guide Direction — Patron / Co-Patron
+
+> Tu es le pivot de la plateforme. Tu vois TOUT, tu peux modifier TOUT. Avec ce pouvoir vient la responsabilité de ne pas tout casser.
+
+Ce guide couvre **les 9 modules** auxquels tu as accès, dans l'ordre où tu les utiliseras le plus souvent.
+
+---
+
+## 📊 1. Dashboard (Tableau de bord)
+
+> **Ta page d'accueil**. C'est la vue d'ensemble de la semaine en cours.
+
+### Ce que tu vois
+
+| Section | Contenu |
+|---------|---------|
+| **KPI semaine** | CA, bénéfice brut, bénéfice net, masse salariale (% + statut TTE) |
+| **Graphique ventes par jour** | Bar chart du lundi au dimanche |
+| **Top 5 produits** | Les 5 plus gros CA de la semaine |
+| **Historique 6 dernières semaines** | Tableau avec CA, dépenses, bénéfice net, statut |
+| **Alertes actives** | 8 dernières alertes (stock, station, vente sans stock, masse) |
+| **Stations mini-bloc** | Niveau de chaque station (barre de progression) |
+| **Stocks bas** | 8 produits en rupture ou sous seuil |
+
+### Ce que tu peux faire
+- **Lecture seule.** Aucune action sur cette page. C'est juste un dashboard.
+
+### À comprendre
+- **Bénéfice brut** = CA − coût d'achat des produits vendus
+- **Bénéfice net** = CA − dépenses − salaires versés (le vrai)
+- **Masse salariale** = total salaires / CA × 100 — si > 90 %, **tu es hors TTE**, alerte rouge.
+
+### ⚠ Ne pas faire
+- ❌ Ne pas paniquer si la masse salariale dépasse 85 % en début de semaine (les paies ne sont pas encore versées). Le calcul s'ajuste au fil de la semaine.
+- ❌ Si tu vois une alerte « vente sans stock » (🚨), **ne l'ignore pas** : ça veut dire qu'un vendeur a fait une facture sans avoir sorti la marchandise du stock — il y a un bug Discord, ou pire, un vol.
+
+---
+
+## 🛒 2. Stocks épicerie
+
+> Catalogue des **53+ produits**, leurs prix d'achat et de vente, et le stock en temps réel.
+
+### Ce que tu vois
+- **Filtres** : catégorie (Outillage, Document, Agriculture, Mécanique, Nourriture, Divers), niveau d'alerte (rupture / bas / OK), recherche libre.
+- **Tableau produits** : nom, catégorie, stock, prix achat, prix vente, marge, seuil alerte, statut.
+- **Stats** : nb de produits, ruptures, sous seuil.
+- **Mouvements récents** : 20 derniers ajustements (bot Discord ou manuels).
+
+### Ce que tu peux faire
+
+#### ✏ Modifier un produit (par ligne)
+- Clique sur **« Modifier »** sur la ligne du produit
+- Édite : **Nom**, **Prix achat**, **Prix vente**, **Seuil d'alerte**, **Catégorie**
+- Optionnel : **Ajustement de stock** (champ « delta » = +X ou -X) avec **raison obligatoire** (audit)
+- Enregistre
+
+> 💡 Chaque changement de prix est **automatiquement loggé** dans `historiquePrix` (audit trail) avec ancien prix → nouveau prix + qui a modifié + quand.
+
+#### 🔄 Réinitialiser depuis catalogue
+- Bouton **« Réinitialiser depuis catalogue »** en haut
+- Action **CRITIQUE** (timer 3 secondes) : écrase noms, catégories, prix de vente et seuils par les valeurs par défaut du catalogue
+- ✓ Préserve les **prix d'achat existants** (ne les touche pas)
+- ✓ Ne supprime aucun produit
+
+### À comprendre
+- Le **stock évolue automatiquement** quand un vendeur fait une facture (le bot Discord remonte la sortie de stock).
+- Le **prix d'achat** n'est jamais dans les logs FiveM — c'est à toi de le saisir manuellement (utilisé pour calculer la marge et la commission vendeur).
+- La **marge** = prix vente − prix achat. Si elle est rouge ou orange dans le tableau, le produit n'est pas rentable ou peu.
+
+### ⚠ Ne pas faire
+- ❌ Ne change pas un prix de vente sans prévenir tes vendeurs (ils risquent de facturer à l'ancien prix in-game).
+- ❌ Ne mets jamais un prix d'achat à 0 sauf si c'est volontaire (sinon la marge sera artificiellement énorme et fausse les commissions).
+- ❌ Pour les ajustements manuels de stock, **toujours mettre une raison claire** (« inventaire physique constaté », « casse », « erreur de saisie ») — ça reste tracé à vie dans l'audit.
+
+---
+
+## ⛽ 3. Stations essence
+
+> Vue des **8 stations** de la franchise avec niveaux en temps réel.
+
+### Ce que tu vois
+- **KPI** : nb de stations, stock total (litres + %), stations en alerte, quota bidons/sem.
+- **Grille des stations** : nom, badge OK/ALERTE, barre de progression (stock actuel/max), prix au litre, seuil.
+- **Redistributions de la semaine** : qui a redistribué, quand, où, combien de litres, montant.
+
+### Ce que tu peux faire
+
+#### ➕ Ajouter une station
+- Bouton **« + Ajouter une station »**
+- Champs : **Nom** (obligatoire), stock actuel, stock max (défaut 30 000 L), seuil alerte, prix au litre
+
+#### ✏ Modifier / redistribuer
+- Bouton **« Modifier / redistribuer »** sur une station
+- Modifie : nom, stock, capacité, seuil, prix
+- Bouton **Supprimer** disponible (action CRITIQUE 3 sec + tape `SUPPRIMER`)
+
+#### ⚙ Configuration globale essence
+- Bouton **« ⚙ Configuration »**
+- **Quota bidons/semaine** (défaut 1 700) — utilisé pour calcul paie pompiste
+- **Quota caoutchoucs/semaine** (défaut 800)
+- **Prix essence par défaut** (pour création de nouvelles stations)
+- **Seuil d'alerte essence** (en litres)
+
+### À comprendre
+- Le **stock essence évolue automatiquement** quand un pompiste redistribue (logs Discord `#suivi-achat-essence`).
+- Une station passe en **ALERTE** quand stock actuel < seuil → alerte créée + notification webhook Discord si configuré.
+- Les **8 stations initialisées** : Senora Way, Route 68 LTD, Route 68, Aérodrome Sandy Shores, Favélas, Vinewood, Cholla Springs, Algonquin Boulevard.
+
+### ⚠ Ne pas faire
+- ❌ Ne change pas le **quota bidons** sans en parler à tes pompistes (impact direct sur leur salaire).
+- ❌ Ne supprime jamais une station qui a de l'historique de redistribution sans bonne raison (les redistributions passées resteront orphelines).
+
+---
+
+## 💵 4. Ventes
+
+> Liste de **toutes les factures** de la semaine en cours avec discordances.
+
+### Ce que tu vois
+- **KPI** : CA semaine, bénéfice brut, panier moyen, paiements (espèces vs carte).
+- **Filtres** : par vendeur, par paiement, recherche libre.
+- **Tableau factures** : date, n°, vendeur, client, montant, bénéfice, paiement, raison, vérification stock.
+- **🚨 Discordances** : si une vente a été faite sans sortie de stock corrélée, alerte ici (vente fictive ? bug bot ? vol ?).
+
+### Ce que tu peux faire
+
+#### 📥 Exporter CSV
+- Bouton **« Exporter CSV »** → télécharge `ventes-semaine-YYYY-MM-DD.csv`
+- Utilisable pour audit RP, comptabilité externe, archivage perso.
+
+### À comprendre
+- Les ventes sont **créées automatiquement** par le bot Discord depuis le canal `#suivi-facture`.
+- Le **vendeur est résolu** depuis son ID Discord (champ `idDiscord` dans son compte).
+- ⚠ Si un vendeur n'apparaît pas dans la colonne « Vendeur » → c'est qu'il **manque son ID Discord** dans son profil. Va dans Admin → Modifier → renseigne-le.
+
+### ⚠ Ne pas faire
+- ❌ N'ignore JAMAIS une discordance (vente sans stock). Investigue toujours.
+- ❌ Ne te base pas sur le CA seul pour évaluer un vendeur — regarde aussi le **bénéfice** (un vendeur qui brade les prix fait beaucoup de CA mais peu de profit).
+
+---
+
+## 📋 5. Comptabilité
+
+> **Conformité TTE Chap. IV — Secteur 2.** C'est ta photo financière hebdomadaire officielle.
+
+### Ce que tu vois
+- **KPI semaine** : CA, charges déductibles, masse salariale (+ statut), bénéfice net.
+- **Sélecteur semaine** : « Semaine en cours » + 6 dernières semaines archivées.
+- **Recettes** : CA (ventes), autres entrées, total.
+- **Dépenses** : charges déductibles, charges non déductibles, salaires versés, prime hebdo (Art. 4-1.10), prime mensuelle (Art. 4-1.11), total.
+- **Charges détaillées** : tableau date, raison, type, montant, qui a saisi.
+- **Conformité TTE** : alerte rouge si masse > 90 %, orange si 85–90 %, OK sinon.
+
+### Ce que tu peux faire
+
+#### ➕ Ajouter une dépense
+- Bouton **« + Ajouter une dépense »**
+- Champs : **Raison** (obligatoire), **Montant** (obligatoire), **Type** :
+  - `matieres-premieres` (déductible)
+  - `frais-avocat` (déductible)
+  - `entretien-vehicules` (déductible)
+  - `autre-deductible`
+  - `non-deductible` (sortie cash sans bénéfice fiscal)
+
+> 💡 La plupart des dépenses arrivent **automatiquement** via le bot Discord (`#depenses`). N'utilise ce bouton que pour des dépenses non tracées dans Discord (ex. paiement en cash hors compte).
+
+#### 📥 Exporter CSV / 🖨 Exporter PDF
+- CSV : pour conserver une copie hors ligne ou la coller dans une feuille de calcul.
+- PDF : ouvre la fenêtre d'impression du navigateur → choisis « Enregistrer en PDF ».
+
+### À comprendre
+- Le calcul de la **masse salariale** = total salaires (estimés + versés) / CA. Doit rester **≤ 90 %** pour être TTE-compliant.
+- Les **primes** sont calculées automatiquement selon les tranches Art. 4-1.10 (hebdo, sur le CA) et Art. 4-1.11 (mensuel, sur le bénéfice net).
+- Une **semaine archivée** (statut `cloturee`) est figée — tu peux la consulter mais plus la modifier.
+
+### ⚠ Ne pas faire
+- ❌ Ne classe **jamais** une dépense en `matieres-premieres` si elle n'en est pas une. C'est de la fraude fiscale RP.
+- ❌ Ne modifie pas une semaine archivée même si tu le peux techniquement (l'audit verra l'incohérence).
+- ❌ Si la masse salariale dépasse 90 %, **réduis les salaires décidés** ou **augmente le CA** — ne triche pas en sous-déclarant.
+
+---
+
+## 🧑‍💼 6. Ressources humaines (RH)
+
+> **Tu vois tous les employés**, leurs heures, leur CA généré, et tu décides leurs salaires.
+
+Voir aussi : **[02-drh.md](02-drh.md)** pour le détail.
+
+### Ce que tu vois
+- **KPI** : effectif actif, salaires estimés, salaires versés, masse salariale %.
+- **Filtres** : par rôle, statut, recherche.
+- **Tableau effectif** : nom, rôle, ID Discord, heures de service, CA/quota, salaire estimé/plafond, statut, bouton « Détail ».
+
+### Ce que tu peux faire
+
+#### 🔍 Détail employé
+- Clique sur **« Détail »** sur n'importe quelle ligne
+- Modale : infos perso, heures, salaires, KPIs spécifiques au rôle
+- Si l'employé est **Direction / Responsable / DRH** : champ **« Salaire décidé »** avec validation plafond
+  - Direction (Patron/Co-Patron/DRH) : plafond **20 000 $**/semaine
+  - Responsable : plafond **17 000 $**/semaine
+- Bouton **« Décider salaire »** → met à jour le salaire fixe
+
+> Pour les **vendeurs et pompistes**, le salaire est **calculé automatiquement** à partir du CA / quota — pas de salaire à décider, le système le fait.
+
+### ⚠ Ne pas faire
+- ❌ Ne décide jamais un salaire **au-dessus du plafond** (le site bloque, mais ne tente pas de contourner).
+- ❌ Ne marque pas un employé comme suspendu sans en parler avec lui d'abord (suspendre = licencier en pratique).
+- ❌ Pour un employé avec **moins de 7h de service** dans la semaine, vérifie qu'il est bien actif (sinon paie quasi nulle est normale).
+
+---
+
+## ⚙ 7. Administration
+
+> **Création et gestion des comptes utilisateurs.** C'est là que tu fais entrer/sortir tes employés.
+
+> 🔒 **Accès strictement Patron / Co-Patron.** Pas même le DRH ne voit cette page.
+
+### Ce que tu vois
+- **Tableau de tous les comptes** : nom, email, rôle, ID Discord, ID Perso, date entrée, statut, actions.
+
+### Ce que tu peux faire
+
+#### ➕ Créer un compte
+- Bouton **« + Créer un compte »**
+- Champs : Prénom, NOM (uppercase auto), Email, ID Discord, ID Perso (in-game), Rôle, Mot de passe provisoire (bouton « Générer » dispo)
+- ⚠ Pour rôle **Patron / Co-Patron** : modal CRITIQUE 3 sec qui rappelle que ce compte aura tous les droits
+- ✓ Le site affiche les credentials à transmettre à l'employé (email + mdp)
+- À l'arrivée de l'employé sur le site avec ces credentials, il sera **forcé à changer son mot de passe**
+
+#### ✏ Modifier un compte
+- Bouton **« Modifier »** par ligne
+- Édite : prénom, NOM, ID Discord, ID Perso, date d'entrée
+- ⚠ L'**email n'est pas modifiable** ici (lecture seule, lié à Firebase Auth)
+
+#### 🔄 Changer le rôle
+- Sélecteur de rôle directement dans le tableau
+- ⚠ Si le changement implique un rôle **Patron/Co-Patron** : confirmation CRITIQUE 3 sec
+
+#### ⏸ Suspendre un compte (= licencier)
+- Bouton **« Suspendre »**
+- Modal CRITIQUE 3 sec
+- L'employé perd l'accès immédiatement à sa prochaine action (déconnexion forcée)
+- Le compte reste visible et **réactivable** (bouton « Réactiver »)
+
+#### 🗑 Supprimer DÉFINITIVEMENT
+- Bouton **« × »**
+- Modal CRITIQUE 3 sec **+ tape le mot `SUPPRIMER`** pour activer
+- Supprime le profil Firestore de l'employé
+- ⚠ **Le compte Firebase Auth (email/mdp) reste actif** ! Il faut aller le supprimer **manuellement** dans la console Firebase pour libérer l'email.
+- Tu ne peux pas supprimer ton propre compte (le bouton est désactivé)
+
+#### ⚙ Configuration globale
+- Bouton **« ⚙ Configuration globale »**
+- **Quota bidons/semaine** (défaut 1700)
+- **Quota caoutchoucs/semaine** (défaut 800)
+- **Prix essence par défaut** (utilisé pour créer de nouvelles stations)
+- **Seuil d'alerte essence** (en litres)
+- **URL Webhook Discord** : pour recevoir les alertes (rupture, masse > 90 %) sur un canal Discord
+
+### ⚠ Ne pas faire
+- ❌ Ne crée **jamais** un compte sans renseigner **ID Discord ET ID Perso** — sinon ses ventes/paies/services ne lui seront pas attribués.
+- ❌ Ne supprime pas un compte sans avoir d'abord récupéré ses derniers chiffres si besoin (toutes les ventes/paies passées restent dans la base, mais lui-même disparaît).
+- ❌ Ne mets jamais un quota bidons à 0 (division par zéro = paie pompiste cassée).
+
+---
+
+## 👤 8. Mon espace + 💰 Mes paies
+
+Tu as aussi accès à **ces deux pages employé** comme tout le monde, pour voir tes propres heures et tes propres paies versées. Voir [05-vendeur.md](05-vendeur.md) ou [06-pompiste.md](06-pompiste.md) si tu veux le détail (mais en tant que direction, ces pages sont moins utiles pour toi — tout est dans le Dashboard et la Comptabilité).
+
+---
+
+## 📅 La semaine type d'un Patron
+
+### Lundi matin
+1. Ouvre le **Dashboard** : la semaine précédente est clôturée et archivée. Vérifie le bénéfice net.
+2. Va dans **Comptabilité** → semaine en cours = nouvelle semaine vierge. Le compteur démarre.
+3. Si une alerte **masse salariale > 85 %** est apparue dimanche : c'est que la semaine s'est mal terminée → réfléchis à des ajustements (réduire un salaire décidé, augmenter les ventes).
+
+### Tous les jours
+- Coup d'œil rapide au **Dashboard** (10 secondes) :
+  - CA en croissance ? (vs jour précédent dans la barre par jour)
+  - Stations toutes au-dessus du seuil ?
+  - Alertes ?
+
+### Vendredi
+- **RH** : vérifie que tous les employés ont fait au moins **7h de service**. Sinon, contacte-les.
+
+### Dimanche soir (avant 23h59)
+- **Comptabilité** → exporte le PDF de la semaine pour archive perso.
+- Vérifie qu'aucune **discordance** dans Ventes n'a été oubliée.
+
+### Lundi 00h00
+- **Clôture automatique**. Tu n'as rien à faire — la Cloud Function `clotureHebdo` archive la semaine et démarre la suivante.
+
+---
+
+## 🚨 Les 5 erreurs à NE JAMAIS commettre
+
+1. **Supprimer un compte par accident.** Heureusement, le modal CRITIQUE + le mot `SUPPRIMER` à taper rendent l'erreur très improbable. Mais sois vigilant.
+2. **Mettre la masse salariale > 90 %** délibérément. C'est une violation TTE qui peut entraîner des sanctions RP.
+3. **Modifier des prix sans prévenir.** Tes vendeurs continueront avec l'ancien prix, créant des incohérences.
+4. **Ignorer une alerte « vente sans stock »**. C'est soit un bug bot (à corriger), soit une vente frauduleuse (à investiguer).
+5. **Diffuser ton mot de passe**. Si quelqu'un d'autre a accès à ton compte Patron, il a accès à TOUT (suppression de comptes, modification de prix, etc.). Change-le immédiatement si tu doutes.
+
+---
+
+## ➡ La suite
+
+Tu as fait le tour. Lis maintenant :
+- **[02-drh.md](02-drh.md)** : zoom sur la RH et la paie (utile aussi pour toi)
+- **[07-automatismes.md](07-automatismes.md)** : comprendre comment le bot Discord et la clôture marchent
+- **[08-faq-depannage.md](08-faq-depannage.md)** : les 20 questions courantes des employés
