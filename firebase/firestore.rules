@@ -32,11 +32,15 @@ service cloud.firestore {
     function isResponsable() { return isRespVente() || isRespPompiste(); }
 
     // === Users ===
+    // Lecture : soi-même, direction, DRH, responsables (pour filtres ventes/RH).
+    // Vendeurs et pompistes ne peuvent lire QUE leur propre profil.
     match /users/{uid} {
-      // Auto-inscription patron/co-patron OU lecture par soi-même OU direction
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        request.auth.uid == uid ||
+        isDirection() || isDRH() || isResponsable()
+      );
       allow create: if isAuth() && (
-        request.auth.uid == uid ||  // auto-création
+        request.auth.uid == uid ||  // auto-inscription patron/co-patron au démarrage
         isDirection()
       );
       // Soi-même peut maj certains champs ; direction peut tout maj
@@ -53,6 +57,13 @@ service cloud.firestore {
     match /produits/{id} {
       allow read:   if isAuth() && isActif();
       allow write:  if isDirection() || isRespVente();
+    }
+
+    // === Historique des prix (audit trail, append-only) ===
+    match /historiquePrix/{id} {
+      allow read:   if isDirection() || isDRH();
+      allow create: if isDirection() || isRespVente();
+      allow update, delete: if false;
     }
 
     // === Stocks ===

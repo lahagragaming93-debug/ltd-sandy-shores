@@ -249,7 +249,7 @@ document.getElementById('btn-save-depense').addEventListener('click', async () =
     toastSuccess("Dépense enregistrée.");
     document.getElementById('modal-depense').classList.add('hidden');
     chargerTout();
-  } catch (e) { toastError("Erreur."); console.error(e); }
+  } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); console.error(e); }
 });
 
 // === Exports ===

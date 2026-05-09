@@ -264,7 +264,7 @@ if (btnDecide) {
     try {
       await updateUser(uid, { salaireDecide: v });
       toastSuccess("Salaire décidé enregistré.");
-    } catch (e) { toastError("Erreur."); }
+    } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
   });
 }
 

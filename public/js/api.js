@@ -12,6 +12,7 @@ import {
 export { Timestamp, serverTimestamp };
 
 // ----- Utilisateurs -----
+const MAX_USERS = 200;
 export async function getUserDoc(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
@@ -20,11 +21,11 @@ export async function setUserDoc(uid, data) {
   await setDoc(doc(db, 'users', uid), data, { merge: true });
 }
 export async function listUsers() {
-  const snap = await getDocs(query(collection(db, 'users'), orderBy('nom')));
+  const snap = await getDocs(query(collection(db, 'users'), orderBy('nom'), limit(MAX_USERS)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export function listenUsers(cb) {
-  return onSnapshot(query(collection(db, 'users'), orderBy('nom')), s => {
+  return onSnapshot(query(collection(db, 'users'), orderBy('nom'), limit(MAX_USERS)), s => {
     cb(s.docs.map(d => ({ id: d.id, ...d.data() })));
   });
 }
@@ -36,11 +37,29 @@ export async function deleteUser(uid) {
 }
 
 // ----- Produits & stocks -----
+const MAX_PRODUITS = 500;
 export async function listProduits() {
-  const snap = await getDocs(query(collection(db, 'produits'), orderBy('nom')));
+  const snap = await getDocs(query(collection(db, 'produits'), orderBy('nom'), limit(MAX_PRODUITS)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function setProduit(id, data) {
+  // Audit trail : si prixAchat ou prixVente change, on log dans /historiquePrix
+  if (data.prixAchat != null || data.prixVente != null) {
+    const before = await getDoc(doc(db, 'produits', id));
+    const beforeData = before.exists() ? before.data() : {};
+    const ancien = { prixAchat: beforeData.prixAchat ?? null, prixVente: beforeData.prixVente ?? null };
+    const nouveau = {
+      prixAchat: data.prixAchat ?? beforeData.prixAchat ?? null,
+      prixVente: data.prixVente ?? beforeData.prixVente ?? null
+    };
+    if (ancien.prixAchat !== nouveau.prixAchat || ancien.prixVente !== nouveau.prixVente) {
+      await addDoc(collection(db, 'historiquePrix'), {
+        produitId: id,
+        ancien, nouveau,
+        timestamp: serverTimestamp()
+      });
+    }
+  }
   await setDoc(doc(db, 'produits', id), data, { merge: true });
 }
 export async function listStocks() {

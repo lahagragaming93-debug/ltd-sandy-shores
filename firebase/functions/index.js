@@ -20,21 +20,20 @@ const db = getFirestore();
 const BOT_TOKEN = defineSecret('LTD_BOT_INGEST_TOKEN');
 
 // ----------------------------------------------------------------
-// 1. Clôture hebdomadaire — Dimanche 00h00 Paris
+// 1. Clôture hebdomadaire — Lundi 00h00 Paris
 // ----------------------------------------------------------------
+// Cron déplacé du dim 00:00 au lundi 00:00 pour clôturer une semaine
+// RP COMPLÈTE (lundi 00:00 → dimanche 23:59:59) et non tronquée.
 export const clotureHebdo = onSchedule({
-  schedule: '0 0 * * 0',
+  schedule: '0 0 * * 1',
   timeZone: 'Europe/Paris',
   region:   'europe-west1'
 }, async () => {
   console.log('=== Début clôture hebdomadaire ===');
   const now = new Date();
 
-  // La semaine qui se termine = lundi précédent → dimanche 23:59:59 (de la veille)
-  const fin = new Date(now);
-  fin.setSeconds(fin.getSeconds() - 1); // dim 23:59:59
-  fin.setHours(23, 59, 59, 999);
-  fin.setDate(fin.getDate() - 1);
+  // À lundi 00:00, la semaine qui vient de finir = lundi précédent → dimanche 23:59:59
+  const fin = new Date(now.getTime() - 1); // lundi 00:00 - 1ms = dim 23:59:59.999
   const debut = new Date(fin);
   debut.setDate(debut.getDate() - 6);
   debut.setHours(0, 0, 0, 0);
@@ -341,8 +340,8 @@ async function onLogBrut(p) {
 }
 
 // === Quota pompiste ===
+// Atomique via FieldValue.increment() — résiste aux events parallèles.
 async function majQuotaPompiste(idPerso, item, qte) {
-  // Trouver l'employé via idPerso
   const usnap = await db.collection('users').where('idPerso', '==', idPerso).limit(1).get();
   if (usnap.empty) return;
   const employeId = usnap.docs[0].id;
@@ -350,13 +349,13 @@ async function majQuotaPompiste(idPerso, item, qte) {
   const wId = currentWeekId();
   const docId = `${wId}_${employeId}`;
   const ref = db.collection('quotasPompiste').doc(docId);
-  const snap = await ref.get();
-  const cur = snap.exists ? snap.data() : {
-    semaine: wId, employeId, bidons: 0, caoutchoucs: 0
-  };
   const champ = slug(item) === 'bidon-essence' ? 'bidons' : 'caoutchoucs';
-  cur[champ] = (cur[champ] || 0) + qte;
-  await ref.set(cur, { merge: true });
+
+  await ref.set({
+    semaine: wId,
+    employeId,
+    [champ]: FieldValue.increment(qte)
+  }, { merge: true });
 }
 
 // === Helpers ===

@@ -147,7 +147,7 @@ function renderUsers() {
         await updateUser(uid, { role: nouveau });
         sel.dataset.oldRole = nouveau;
         toastSuccess("Rôle mis à jour.");
-      } catch (e) { toastError("Erreur."); console.error(e); }
+      } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); console.error(e); }
     });
   });
   tbody.querySelectorAll('[data-suspend]').forEach(btn => {
@@ -156,7 +156,7 @@ function renderUsers() {
       try {
         await updateUser(btn.dataset.suspend, { statut: 'suspendu' });
         toastSuccess("Compte suspendu.");
-      } catch (e) { toastError("Erreur."); }
+      } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
     });
   });
   tbody.querySelectorAll('[data-reactiver]').forEach(btn => {
@@ -164,7 +164,7 @@ function renderUsers() {
       try {
         await updateUser(btn.dataset.reactiver, { statut: 'actif' });
         toastSuccess("Compte réactivé.");
-      } catch (e) { toastError("Erreur."); }
+      } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
     });
   });
   tbody.querySelectorAll('[data-delete]').forEach(btn => {
@@ -173,7 +173,7 @@ function renderUsers() {
       try {
         await deleteUser(btn.dataset.delete);
         toastSuccess("Compte supprimé. Pense à supprimer l'utilisateur depuis Firebase Auth.");
-      } catch (e) { toastError("Erreur."); }
+      } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
     });
   });
 }
@@ -238,14 +238,20 @@ document.getElementById('btn-cancel-cfg').addEventListener('click', () => {
   document.getElementById('modal-config').classList.add('hidden');
 });
 document.getElementById('btn-save-cfg').addEventListener('click', async () => {
+  const quotaBidons = Number(document.getElementById('cfg-bidons').value);
+  const quotaCaoutchoucs = Number(document.getElementById('cfg-caoutchoucs').value);
+  const prixEssence = Number(document.getElementById('cfg-prix').value);
+  const seuilAlerteEssence = Number(document.getElementById('cfg-seuil').value);
+
+  // Validation : tous strictement positifs (sinon division par zéro dans calcul paie)
+  if (!Number.isFinite(quotaBidons)      || quotaBidons <= 0)      return toastError("Quota bidons doit être > 0.");
+  if (!Number.isFinite(quotaCaoutchoucs) || quotaCaoutchoucs <= 0) return toastError("Quota caoutchoucs doit être > 0.");
+  if (!Number.isFinite(prixEssence)      || prixEssence < 0)       return toastError("Prix essence doit être ≥ 0.");
+  if (!Number.isFinite(seuilAlerteEssence)|| seuilAlerteEssence < 0) return toastError("Seuil doit être ≥ 0.");
+
   try {
-    await setConfig({
-      quotaBidons: Number(document.getElementById('cfg-bidons').value) || 1700,
-      quotaCaoutchoucs: Number(document.getElementById('cfg-caoutchoucs').value) || 800,
-      prixEssence: Number(document.getElementById('cfg-prix').value) || 5,
-      seuilAlerteEssence: Number(document.getElementById('cfg-seuil').value) || 1000
-    });
+    await setConfig({ quotaBidons, quotaCaoutchoucs, prixEssence, seuilAlerteEssence });
     toastSuccess("Configuration enregistrée.");
     document.getElementById('modal-config').classList.add('hidden');
-  } catch (e) { toastError("Erreur."); }
+  } catch (e) { toastError(e.message || "Erreur."); console.error(e); }
 });

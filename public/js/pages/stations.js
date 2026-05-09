@@ -192,7 +192,7 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
     await setStation(id, data);
     toastSuccess("Station enregistrée.");
     modal.classList.add('hidden');
-  } catch (e) { toastError("Erreur."); console.error(e); }
+  } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); console.error(e); }
 });
 
 const btnDel = document.getElementById('btn-delete-station');
@@ -205,7 +205,7 @@ if (btnDel) {
       await deleteDoc(doc(db, 'stations', id));
       toastSuccess("Station supprimée.");
       modal.classList.add('hidden');
-    } catch (e) { toastError("Erreur."); }
+    } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
   });
 }
 
@@ -234,7 +234,7 @@ document.getElementById('btn-save-config').addEventListener('click', async () =>
     toastSuccess("Configuration enregistrée.");
     document.getElementById('modal-config').classList.add('hidden');
     miseAJourKpis(stations);
-  } catch (e) { toastError("Erreur."); }
+  } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
 });
 
 // === Redistributions de la semaine ===
