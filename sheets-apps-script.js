@@ -7,6 +7,10 @@
  * Pas de mise en forme sur les data rows (trop coûteux pour Apps Script
  * sur 2000+ lignes — provoque timeout 30s).
  *
+ * IMPORTANT : les onglets cibles utilisent des noms SANS accents
+ * (Resume, Depenses, Ventes, Paies). Le script renomme automatiquement
+ * les anciens onglets (Résumé, Dépenses) au premier lancement.
+ *
  * Installation (5 min, à faire UNE FOIS) :
  *  1. Ouvre ton Sheet : https://docs.google.com/spreadsheets/d/1mD-N3e_JpcLceiLSzDgGe01VKVf4KoO5vedM0OsnwtY/edit
  *  2. Menu  Extensions  →  Apps Script
@@ -27,6 +31,16 @@ const COLOR_GOLD   = '#c9a961';
 const COLOR_GREEN  = '#4a7c2e';
 const COLOR_ORANGE = '#c97f1a';
 const COLOR_BLUE   = '#4a6b8a';
+
+// === Mapping ancien nom → nouveau nom (sans accents) ===
+const RENAMES = {
+  'Résumé':   'Resume',
+  'Dépenses': 'Depenses'
+  // Ventes / Paies : pas de changement
+};
+
+// Liste des onglets cibles (noms définitifs)
+const ONGLETS_CIBLES = ['Resume', 'Depenses', 'Ventes', 'Paies'];
 
 // ============================================================
 // MENU CUSTOM (apparaît à l'ouverture)
@@ -55,18 +69,40 @@ function formaterEtDashboard() {
 }
 
 // ============================================================
+// MIGRATION : renomme les anciens onglets accentués + supprime
+// l'ancien Dashboard si présent
+// ============================================================
+function migrerOnglets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Renomme Résumé → Resume, Dépenses → Depenses (si présents)
+  Object.keys(RENAMES).forEach(oldName => {
+    const newName = RENAMES[oldName];
+    const oldSheet = ss.getSheetByName(oldName);
+    const newSheet = ss.getSheetByName(newName);
+    if (oldSheet && !newSheet) {
+      oldSheet.setName(newName);
+    }
+  });
+
+  // Supprime l'ancien Dashboard s'il existe (sera recréé propre)
+  const oldDash = ss.getSheetByName('📊 Dashboard');
+  if (oldDash) {
+    ss.deleteSheet(oldDash);
+  }
+}
+
+// ============================================================
 // FORMATAGE DES EN-TÊTES (1 ligne par onglet, ultra rapide)
 // ============================================================
 function formaterEntetes() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const onglets = ['Résumé', 'Dépenses', 'Ventes', 'Paies'];
 
-  onglets.forEach(nom => {
+  ONGLETS_CIBLES.forEach(nom => {
     const sheet = ss.getSheetByName(nom);
     if (!sheet) return;
 
     const lastCol = Math.max(1, sheet.getLastColumn());
-    // Un seul appel setRange + chain de styles → 1 seule API call
     sheet.getRange(1, 1, 1, lastCol)
       .setBackground(COLOR_BLOOD)
       .setFontColor(COLOR_BONE)
@@ -85,12 +121,12 @@ function formaterEntetes() {
 // ============================================================
 function creerDashboard() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let dash = ss.getSheetByName('📊 Dashboard');
-  if (!dash) {
-    dash = ss.insertSheet('📊 Dashboard', 0);
-  } else {
-    dash.clear();
-  }
+
+  // 1) Migration : renomme onglets accentués + supprime ancien Dashboard
+  migrerOnglets();
+
+  // 2) Crée le Dashboard (toujours en première position)
+  const dash = ss.insertSheet('📊 Dashboard', 0);
 
   // === Titre ===
   dash.getRange('A1:F1').merge()
@@ -117,13 +153,13 @@ function creerDashboard() {
 
   // === 4 KPIs en 2x2 ===
   // Disposition :
-  //   A4:C7  = CA       |  D4:F7  = Dépenses
-  //   A8:C11 = Masse    |  D8:F11 = Bénéfice
+  //   A4:C7  = CA       |  D4:F7  = Depenses
+  //   A8:C11 = Masse    |  D8:F11 = Benefice
   const kpis = [
-    { row: 4,  colStart: 'A', colEnd: 'C', titre: '📈 CA SEMAINE',      formule: '=IFERROR(INDEX(Résumé!D:D, 2), 0)', color: COLOR_GREEN },
-    { row: 4,  colStart: 'D', colEnd: 'F', titre: '💸 DÉPENSES',         formule: '=IFERROR(INDEX(Résumé!F:F, 2), 0)', color: COLOR_BLOOD },
-    { row: 8,  colStart: 'A', colEnd: 'C', titre: '💰 MASSE SALARIALE',  formule: '=IFERROR(INDEX(Résumé!H:H, 2), 0)', color: COLOR_ORANGE },
-    { row: 8,  colStart: 'D', colEnd: 'F', titre: '🎯 BÉNÉFICE NET',     formule: '=IFERROR(INDEX(Résumé!I:I, 2), 0)', color: COLOR_BLUE }
+    { row: 4,  colStart: 'A', colEnd: 'C', titre: '📈 CA SEMAINE',      formule: '=IFERROR(INDEX(Resume!D:D, 2), 0)', color: COLOR_GREEN },
+    { row: 4,  colStart: 'D', colEnd: 'F', titre: '💸 DÉPENSES',         formule: '=IFERROR(INDEX(Resume!F:F, 2), 0)', color: COLOR_BLOOD },
+    { row: 8,  colStart: 'A', colEnd: 'C', titre: '💰 MASSE SALARIALE',  formule: '=IFERROR(INDEX(Resume!H:H, 2), 0)', color: COLOR_ORANGE },
+    { row: 8,  colStart: 'D', colEnd: 'F', titre: '🎯 BÉNÉFICE NET',     formule: '=IFERROR(INDEX(Resume!I:I, 2), 0)', color: COLOR_BLUE }
   ];
 
   kpis.forEach(kpi => {
@@ -180,9 +216,9 @@ function creerDashboard() {
       `=IFERROR(INDEX(Ventes!E:E, ${idx}), "")`
     ]);
     depensesFormules.push([
-      `=IFERROR(INDEX(Dépenses!A:A, ${idx}), "")`,
-      `=IFERROR(INDEX(Dépenses!B:B, ${idx}), "")`,
-      `=IFERROR(INDEX(Dépenses!C:C, ${idx}), "")`
+      `=IFERROR(INDEX(Depenses!A:A, ${idx}), "")`,
+      `=IFERROR(INDEX(Depenses!B:B, ${idx}), "")`,
+      `=IFERROR(INDEX(Depenses!C:C, ${idx}), "")`
     ]);
   }
 
@@ -213,7 +249,7 @@ function creerDashboard() {
 // ============================================================
 function forcerRefresh() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  ['Résumé', 'Dépenses', 'Ventes', 'Paies'].forEach(nom => {
+  ONGLETS_CIBLES.forEach(nom => {
     const sheet = ss.getSheetByName(nom);
     if (!sheet) return;
     const cell = sheet.getRange('A1');
