@@ -5,7 +5,7 @@
 
 import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets } from '../api.js';
+import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee } from '../api.js';
 import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { date, escapeHtml } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
@@ -38,6 +38,28 @@ const html = `
     ${canEditCfg ? `<button class="btn" id="btn-export-sheets">📊 Export Google Sheets</button>` : ''}
     ${canEditCfg ? `<a href="decouverte-items.html" class="btn">🔍 Découverte items FiveM</a>` : ''}
   </div>
+
+  <!-- Embauches à traiter (alimentées par #auto-rh) -->
+  ${canCreate ? `
+    <div class="panel framed" id="panel-embauches" style="border-color:var(--color-gold);display:none;">
+      <div class="panel-title">
+        <span>🆕 Embauches à traiter</span>
+        <span class="muted" style="font-size:0.75rem;" id="embauches-count">—</span>
+      </div>
+      <p class="muted" style="font-size:0.85rem;margin:4px 0 8px;">
+        Les embauches détectées dans <code>#auto-rh</code> sont listées ici.
+        Clique <strong>« Créer le compte »</strong> pour ouvrir le formulaire pré-rempli avec les IDs déjà capturés.
+      </p>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Date détection</th><th>Nom</th><th>ID Discord</th><th>ID Perso</th><th class="center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-embauches"><tr><td colspan="5" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
+  ` : ''}
 
   <div class="panel framed">
     <div class="panel-title"><span>Comptes utilisateurs</span></div>
@@ -562,3 +584,108 @@ function renderSheetsZone(zone, token) {
 document.getElementById('btn-cancel-sheets').addEventListener('click', () => {
   document.getElementById('modal-sheets').classList.add('hidden');
 });
+
+// === Embauches à traiter (alimentées par #auto-rh Discord) ===
+async function chargerEmbauches() {
+  const panel = document.getElementById('panel-embauches');
+  if (!panel) return;
+  let embauches = [];
+  try {
+    embauches = await listEmbauchesEnAttente();
+  } catch (e) {
+    console.error('embauches', e);
+    return;
+  }
+  // Filtrer : exclure celles déjà traitées + celles pour qui un user existe déjà
+  const usersById = users.reduce((m, u) => {
+    if (u.idDiscord) m[u.idDiscord] = u;
+    if (u.idPerso) m[u.idPerso] = u;
+    return m;
+  }, {});
+  const enAttente = embauches.filter(e => {
+    if (e.traitee) return false;
+    if (e.idDiscord && usersById[e.idDiscord]) return false;
+    if (e.idPerso && usersById[e.idPerso]) return false;
+    return true;
+  });
+
+  if (enAttente.length === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
+  document.getElementById('embauches-count').textContent =
+    `${enAttente.length} en attente`;
+
+  const tbody = document.getElementById('tbody-embauches');
+  tbody.innerHTML = enAttente.map(e => `
+    <tr>
+      <td class="mono" style="font-size:0.78rem;">${escapeHtml(date(e.timestamp) || '—')}</td>
+      <td><strong>${escapeHtml(e.prenom || '')} ${escapeHtml(e.nom || '')}</strong></td>
+      <td class="mono">${escapeHtml(e.idDiscord || '—')}</td>
+      <td class="mono">${escapeHtml(e.idPerso || '—')}</td>
+      <td class="center">
+        <button class="btn btn-sm btn-primary" data-creer-embauche="${e.id}">+ Créer le compte</button>
+        <button class="btn btn-sm btn-ghost" data-marquer-traitee="${e.id}" title="Marquer comme traité (sans créer le compte)">✓</button>
+      </td>
+    </tr>
+  `).join('');
+
+  // Bouton Créer le compte → ouvre la modale Nouveau compte avec champs pré-remplis
+  tbody.querySelectorAll('[data-creer-embauche]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const emb = enAttente.find(x => x.id === btn.dataset.creerEmbauche);
+      if (!emb) return;
+      // Reset puis pré-remplit
+      ['new-prenom','new-nom','new-email','new-id-discord','new-id-perso','new-mdp']
+        .forEach(id => document.getElementById(id).value = '');
+      document.getElementById('new-prenom').value = emb.prenom || '';
+      document.getElementById('new-nom').value = (emb.nom || '').toUpperCase();
+      document.getElementById('new-id-discord').value = emb.idDiscord || '';
+      document.getElementById('new-id-perso').value = emb.idPerso || '';
+      document.getElementById('new-role').value = 'vendeur-novice';
+      document.getElementById('new-mdp').value = genererMotDePasseProvisoire();
+      document.getElementById('alert-credentials').classList.add('hidden');
+      // Mémorise l'id de l'embauche pour la marquer traitée à la création
+      document.getElementById('modal-new').dataset.embaucheId = emb.id;
+      document.getElementById('modal-new').classList.remove('hidden');
+    });
+  });
+
+  // Bouton Marquer comme traité (sans créer le compte)
+  tbody.querySelectorAll('[data-marquer-traitee]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try {
+        await marquerEmbaucheTraitee(btn.dataset.marquerTraitee);
+        toastSuccess('Embauche marquée traitée.');
+        chargerEmbauches();
+      } catch (e) { toastError(e?.message || 'Erreur.'); }
+    });
+  });
+}
+
+// Recharge à chaque mise à jour de users (1er chargement + temps réel)
+const _chargerEmbauchesQuandUsersPrets = () => {
+  // attend que la liste users soit chargée (via listenUsers)
+  setTimeout(() => { if (users.length > 0) chargerEmbauches(); }, 800);
+};
+_chargerEmbauchesQuandUsersPrets();
+setInterval(_chargerEmbauchesQuandUsersPrets, 60000); // refresh chaque minute
+
+// Hook : à la création réussie d'un compte depuis l'embauche, marquer traitée
+const observer = new MutationObserver(async (mutations) => {
+  for (const m of mutations) {
+    if (m.target.id === 'alert-credentials' && !m.target.classList.contains('hidden')) {
+      const embId = document.getElementById('modal-new').dataset.embaucheId;
+      if (embId) {
+        try {
+          await marquerEmbaucheTraitee(embId);
+          delete document.getElementById('modal-new').dataset.embaucheId;
+          chargerEmbauches();
+        } catch (e) { console.error(e); }
+      }
+    }
+  }
+});
+const alertCred = document.getElementById('alert-credentials');
+if (alertCred) observer.observe(alertCred, { attributes: true, attributeFilter: ['class'] });

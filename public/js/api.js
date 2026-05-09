@@ -233,6 +233,23 @@ export async function listMouvementsBanqueRecents(n = 50) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// === RH événements (embauches/exclusions auto depuis #auto-rh) ===
+// Lecture des embauches non encore traitées (compte pas créé)
+export async function listEmbauchesEnAttente() {
+  const q = query(collection(db, 'rhEvenements'),
+    where('type', '==', 'embauche'),
+    orderBy('timestamp', 'desc'),
+    limit(50));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function marquerEmbaucheTraitee(id) {
+  await updateDoc(doc(db, 'rhEvenements', id), {
+    traitee: true,
+    traiteeAt: serverTimestamp()
+  });
+}
+
 // Liste tous les noms d'items uniques vus dans /mouvementsStock (outil de découverte
 // pour aider au mapping nom FiveM → catalogue commercial). Les noms sont déjà
 // agrégés et comptés (combien de fois vu, premier passage, dernier passage).
