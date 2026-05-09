@@ -94,7 +94,11 @@ renderShell(profile, 'stocks_essence', html);
 let stations = [];
 let config = await getConfig().catch(() => ({}));
 
-listenStations(s => { stations = s; renderStations(); });
+listenStations(s => {
+  console.log('[stations] listener fired —', s.length, 'stations');
+  stations = s;
+  renderStations();
+});
 
 function renderStations() {
   const grid = document.getElementById('stations-grid');
@@ -210,6 +214,17 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
   try {
     await setStation(id, data);
     console.log('[stations] save OK', id);
+
+    // Mise à jour optimiste du state local + re-render immédiat
+    // (le listener temps réel confirmera dans la seconde)
+    const idx = stations.findIndex(x => x.id === id);
+    if (idx >= 0) {
+      stations[idx] = { ...stations[idx], ...data };
+    } else {
+      stations.push({ id, ...data });
+    }
+    renderStations();
+
     toastSuccess(`Station "${data.nom}" enregistrée (prix ${data.prixLitre} $/L).`);
     modal.classList.add('hidden');
   } catch (e) {
@@ -294,12 +309,16 @@ if (btnApplyAll) {
     for (const s of stations) {
       try {
         await setStation(s.id, { prixLitre: prix, seuilAlerte: seuil });
+        // Mise à jour optimiste du state local
+        const idx = stations.findIndex(x => x.id === s.id);
+        if (idx >= 0) stations[idx] = { ...stations[idx], prixLitre: prix, seuilAlerte: seuil };
         nbOk++;
       } catch (e) {
         console.error('Échec station', s.id, e);
         nbFail++;
       }
     }
+    renderStations();
     btnApplyAll.disabled = false;
     btnApplyAll.textContent = 'Appliquer prix + seuil à TOUTES les stations';
     if (nbFail === 0) toastSuccess(`${nbOk} stations mises à jour.`);
