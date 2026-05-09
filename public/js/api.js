@@ -42,6 +42,12 @@ export async function listProduits() {
   const snap = await getDocs(query(collection(db, 'produits'), orderBy('nom'), limit(MAX_PRODUITS)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
+export async function deleteProduit(id) {
+  // Supprime juste le doc /produits/{id}. Le stock et les mouvements passés
+  // restent en base (audit). Si tu veux nettoyer aussi le stock :
+  // await deleteDoc(doc(db, 'stocks', id));
+  await deleteDoc(doc(db, 'produits', id));
+}
 export async function setProduit(id, data) {
   // Audit trail : si prixAchat ou prixVente change, on log dans /historiquePrix
   if (data.prixAchat != null || data.prixVente != null) {

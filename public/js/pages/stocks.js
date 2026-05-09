@@ -5,7 +5,7 @@
 import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
-  listProduits, setProduit, listenStocks, ajusterStock, listMouvementsRecents
+  listProduits, setProduit, deleteProduit, listenStocks, ajusterStock, listMouvementsRecents
 } from '../api.js';
 import { CATALOGUE, CATEGORIES, CATEGORY_LABELS } from '../data/produits.js';
 import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
@@ -180,6 +180,7 @@ function renderTable() {
           <td class="center">${badge}</td>
           ${editable ? `<td class="center">
             <button class="btn btn-sm btn-ghost" data-edit="${p.id}">Modifier</button>
+            ${canCreate ? `<button class="btn btn-sm btn-danger" data-delete-produit="${p.id}" title="Supprimer ce produit du catalogue">×</button>` : ''}
           </td>` : ''}
         </tr>
       `;
@@ -188,6 +189,36 @@ function renderTable() {
     // Wire edit buttons
     tbody.querySelectorAll('[data-edit]').forEach(btn => {
       btn.addEventListener('click', () => ouvrirEdition(btn.dataset.edit));
+    });
+
+    // Wire delete buttons (direction + DRH uniquement)
+    tbody.querySelectorAll('[data-delete-produit]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.deleteProduit;
+        const p = produits.find(x => x.id === id);
+        const stock = stocks[id]?.quantite || 0;
+        const ok = await confirmCritique({
+          titre: 'Supprimer un produit du catalogue',
+          message: `Le produit <strong>${escapeHtml(p?.nom || id)}</strong> sera supprimé du catalogue.<br><br>
+            • Stock actuel : <strong>${stock}</strong> unités (le stock est conservé en base mais ne sera plus visible)<br>
+            • Les ventes passées avec ce produit restent dans l'historique<br>
+            • L'historique des prix (audit) reste consultable<br><br>
+            ⚠ Si ce produit a encore des stocks ou apparaît dans les logs FiveM, il sera <strong>recréé automatiquement</strong> par le bot. Pour ça utilise plutôt le mapping des items.`,
+          btnConfirm: 'Supprimer le produit',
+          delaiSec: 3,
+          requireType: 'SUPPRIMER'
+        });
+        if (!ok) return;
+        try {
+          await deleteProduit(id);
+          toastSuccess(`Produit "${p?.nom || id}" supprimé.`);
+          await chargerProduits();
+          renderTable();
+        } catch (e) {
+          console.error(e);
+          toastError(e?.message || e?.code || "Erreur à la suppression.");
+        }
+      });
     });
   }
 
