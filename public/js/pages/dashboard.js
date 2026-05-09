@@ -10,6 +10,22 @@ import {
 } from '../api.js';
 import { startOfWeekRP, endOfWeekRP, money, num, pct, datetime, escapeHtml } from '../utils/formatters.js';
 import { checkMasseSalariale } from '../utils/paie.js';
+import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm';
+Chart.register(...registerables);
+
+// Couleurs western pour les graphiques
+const CH_COLORS = {
+  blood:    '#8B0000',
+  bloodLt:  '#b81b1b',
+  sand:     '#D2B48C',
+  sandLt:   '#e6d3b3',
+  gold:     '#c9a961',
+  bone:     '#F5F0E8',
+  grid:     'rgba(210, 180, 140, 0.12)'
+};
+Chart.defaults.color = CH_COLORS.sand;
+Chart.defaults.font.family = "'Special Elite', 'Courier New', monospace";
+Chart.defaults.borderColor = CH_COLORS.grid;
 
 const { user, profile } = await requireAuth('dashboard');
 
@@ -25,12 +41,16 @@ const html = `
           <span>Ventes — semaine en cours</span>
           <span class="muted mono" id="periode-semaine"></span>
         </div>
-        <div id="ventes-resume">Chargement…</div>
+        <div id="ventes-resume" style="position:relative;height:240px;">
+          <canvas id="chart-ventes"></canvas>
+        </div>
       </div>
 
       <div class="panel">
         <div class="panel-title"><span>Top produits (CA)</span></div>
-        <div id="top-produits">—</div>
+        <div id="top-produits" style="position:relative;height:240px;">
+          <canvas id="chart-top"></canvas>
+        </div>
       </div>
 
       <div class="panel">
@@ -110,58 +130,27 @@ async function chargerKpis() {
     </div>
   `;
 
-  // === Résumé ventes ===
-  const ventesParJour = {};
+  // === Chart 1 — Ventes par jour de la semaine ===
+  const joursOrder = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+  const ventesParJour = Object.fromEntries(joursOrder.map(j => [j, 0]));
   ventes.forEach(v => {
     const t = v.timestamp?.toDate?.() || new Date();
-    const j = t.toLocaleDateString('fr-FR', { weekday: 'long' });
-    ventesParJour[j] = (ventesParJour[j] || 0) + (v.montant || 0);
+    const j = t.toLocaleDateString('fr-FR', { weekday: 'long' }).toLowerCase();
+    if (ventesParJour[j] != null) ventesParJour[j] += (v.montant || 0);
   });
-  const maxJour = Math.max(...Object.values(ventesParJour), 1);
+  renderChartVentes(ventesParJour);
 
-  const ventesResume = document.getElementById('ventes-resume');
-  if (ventes.length === 0) {
-    ventesResume.innerHTML = `<p class="muted">Aucune vente cette semaine.</p>`;
-  } else {
-    ventesResume.innerHTML = `
-      <div style="display:grid;gap:6px;">
-        ${Object.entries(ventesParJour).map(([j, m]) => `
-          <div class="row">
-            <div style="width:90px;font-family:var(--font-heading);font-size:0.8rem;text-transform:capitalize;">${j}</div>
-            <div class="progress" style="flex:1;">
-              <div class="fill" style="width:${(m/maxJour)*100}%"></div>
-              <div class="label">${money(m)}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  // === Top produits ===
+  // === Chart 2 — Top produits ===
   const topMap = {};
   ventes.forEach(v => {
     (v.items || []).forEach(it => {
       const k = it.nom || it.produitId || 'Inconnu';
-      topMap[k] = (topMap[k] || 0) + (it.total || 0);
+      // Préférer it.total si dispo, sinon estimer à partir de quantite + prix
+      topMap[k] = (topMap[k] || 0) + (it.total || (it.quantite ?? 1) * (it.prixUnitaire || 0));
     });
   });
   const top = Object.entries(topMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const topDiv = document.getElementById('top-produits');
-  if (top.length === 0) {
-    topDiv.innerHTML = `<p class="muted">Aucune donnée produit (logs à venir).</p>`;
-  } else {
-    topDiv.innerHTML = `
-      <table class="data">
-        <thead><tr><th>Produit</th><th class="right">CA</th></tr></thead>
-        <tbody>
-          ${top.map(([n, m]) => `
-            <tr><td>${escapeHtml(n)}</td><td class="right">${money(m)}</td></tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-  }
+  renderChartTop(top);
 
   // === Historique 6 semaines ===
   const semaines = await listSemaines(6).catch(() => []);
@@ -241,6 +230,93 @@ listenStocks(stockMap => {
     </div>
   `).join('');
 });
+
+// ============ Charts ============
+let chartVentes = null;
+let chartTop    = null;
+
+function renderChartVentes(ventesParJour) {
+  const ctx = document.getElementById('chart-ventes')?.getContext('2d');
+  if (!ctx) return;
+  const data = Object.values(ventesParJour);
+  const total = data.reduce((s, v) => s + v, 0);
+  if (chartVentes) chartVentes.destroy();
+  if (total === 0) {
+    ctx.canvas.parentElement.innerHTML = '<p class="muted text-center" style="padding-top:80px;">Aucune vente cette semaine.</p>';
+    return;
+  }
+  chartVentes = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(ventesParJour).map(j => j.charAt(0).toUpperCase() + j.slice(1, 3)),
+      datasets: [{
+        data,
+        backgroundColor: CH_COLORS.blood,
+        borderColor: CH_COLORS.bloodLt,
+        borderWidth: 1,
+        hoverBackgroundColor: CH_COLORS.bloodLt
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a1a',
+          titleColor: CH_COLORS.gold,
+          bodyColor: CH_COLORS.bone,
+          borderColor: CH_COLORS.blood,
+          borderWidth: 1,
+          callbacks: { label: (ctx) => money(ctx.raw) }
+        }
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: CH_COLORS.grid }, ticks: { callback: v => money(v) } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderChartTop(topArr) {
+  const ctx = document.getElementById('chart-top')?.getContext('2d');
+  if (!ctx) return;
+  if (chartTop) chartTop.destroy();
+  if (topArr.length === 0) {
+    ctx.canvas.parentElement.innerHTML = '<p class="muted text-center" style="padding-top:80px;">Aucune donnée produit (logs à venir).</p>';
+    return;
+  }
+  chartTop = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: topArr.map(([n]) => n.length > 22 ? n.slice(0, 20) + '…' : n),
+      datasets: [{
+        data: topArr.map(([, m]) => m),
+        backgroundColor: [CH_COLORS.blood, CH_COLORS.bloodLt, CH_COLORS.gold, CH_COLORS.sand, CH_COLORS.sandLt],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a1a',
+          titleColor: CH_COLORS.gold,
+          bodyColor: CH_COLORS.bone,
+          callbacks: { label: (ctx) => money(ctx.raw) }
+        }
+      },
+      scales: {
+        x: { beginAtZero: true, grid: { color: CH_COLORS.grid }, ticks: { callback: v => money(v) } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
 
 // === Alertes ===
 listenAlertesActives(alertes => {

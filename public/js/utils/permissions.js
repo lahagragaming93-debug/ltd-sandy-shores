@@ -47,6 +47,9 @@ export const ACCESS = {
   stations:          [...DIRECTION, 'responsable-pompiste'],
   admin:             DIRECTION,
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
+                      'responsable-vente', 'responsable-pompiste'],
+  // Mes paies : tout employé connecté actif
+  paies:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
                       'responsable-vente', 'responsable-pompiste']
 };
 

@@ -71,7 +71,7 @@ const html = `
 
   <!-- Modal config globale -->
   <div id="modal-config" class="modal-backdrop hidden">
-    <div class="modal">
+    <div class="modal" style="max-width: 580px;">
       <h3>Configuration globale</h3>
       <div class="field-row">
         <div><label>Quota bidons / pompiste / sem</label><input type="number" id="cfg-bidons" /></div>
@@ -81,6 +81,12 @@ const html = `
         <div><label>Prix essence par défaut ($/L)</label><input type="number" id="cfg-prix" step="0.1" /></div>
         <div><label>Seuil alerte essence (L)</label><input type="number" id="cfg-seuil" /></div>
       </div>
+      <label>Webhook Discord pour alertes (optionnel)</label>
+      <input type="url" id="cfg-webhook" placeholder="https://discord.com/api/webhooks/..." />
+      <p class="muted" style="font-size:0.75rem;margin-top:4px;">
+        Crée un webhook Discord (paramètres canal → Intégrations → Webhooks) et colle l'URL ici.
+        Toutes les alertes (rupture stock, masse > 90 %, etc.) seront postées dans ce canal.
+      </p>
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-save-cfg">Enregistrer</button>
         <button class="btn btn-ghost" id="btn-cancel-cfg">Annuler</button>
@@ -232,6 +238,7 @@ document.getElementById('btn-config-globale').addEventListener('click', async ()
   document.getElementById('cfg-caoutchoucs').value = c.quotaCaoutchoucs ?? 800;
   document.getElementById('cfg-prix').value = c.prixEssence ?? 5;
   document.getElementById('cfg-seuil').value = c.seuilAlerteEssence ?? 1000;
+  document.getElementById('cfg-webhook').value = c.discordWebhookAlertes ?? '';
   document.getElementById('modal-config').classList.remove('hidden');
 });
 document.getElementById('btn-cancel-cfg').addEventListener('click', () => {
@@ -249,8 +256,13 @@ document.getElementById('btn-save-cfg').addEventListener('click', async () => {
   if (!Number.isFinite(prixEssence)      || prixEssence < 0)       return toastError("Prix essence doit être ≥ 0.");
   if (!Number.isFinite(seuilAlerteEssence)|| seuilAlerteEssence < 0) return toastError("Seuil doit être ≥ 0.");
 
+  const discordWebhookAlertes = document.getElementById('cfg-webhook').value.trim();
+  if (discordWebhookAlertes && !/^https:\/\/discord\.com\/api\/webhooks\//.test(discordWebhookAlertes)) {
+    return toastError("URL webhook invalide (doit commencer par https://discord.com/api/webhooks/).");
+  }
+
   try {
-    await setConfig({ quotaBidons, quotaCaoutchoucs, prixEssence, seuilAlerteEssence });
+    await setConfig({ quotaBidons, quotaCaoutchoucs, prixEssence, seuilAlerteEssence, discordWebhookAlertes });
     toastSuccess("Configuration enregistrée.");
     document.getElementById('modal-config').classList.add('hidden');
   } catch (e) { toastError(e.message || "Erreur."); console.error(e); }

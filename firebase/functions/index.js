@@ -77,11 +77,8 @@ export const clotureHebdo = onSchedule({
     dateCloture: FieldValue.serverTimestamp()
   });
 
-  // Purge des semaines > 6 (TTE Art. 4-1.1 — conservation min. 6 sem.)
-  const allSnap = await db.collection('semaines').orderBy('dateDebut', 'desc').get();
-  const aSupprimer = allSnap.docs.slice(6);
-  for (const d of aSupprimer) await d.ref.delete();
-
+  // Aucune purge : TTE exige MINIMUM 6 semaines, on garde tout l'historique.
+  // Le dashboard limite l'affichage à 6 mais la base conserve tout pour audit.
   console.log('Clôture OK', weekKey, { ca, masse, beneficeNet });
 });
 
@@ -147,6 +144,32 @@ async function creerAlerte(type, message, gravite = 'warn', metadata = {}) {
     type, message, gravite, metadata,
     resolue: false,
     timestamp: FieldValue.serverTimestamp()
+  });
+
+  // Notification Discord (best effort, n'arrête pas le flow si échec)
+  notifierDiscord(type, message, gravite).catch(e =>
+    console.error('Discord webhook error:', e.message));
+}
+
+// Envoie l'alerte sur le webhook Discord configuré dans /config/global.discordWebhookAlertes
+async function notifierDiscord(type, message, gravite) {
+  const cfg = await db.collection('config').doc('global').get();
+  const url = cfg.exists ? cfg.data().discordWebhookAlertes : null;
+  if (!url) return;
+  const color = gravite === 'danger' ? 0xa02020 : (gravite === 'warn' ? 0xc97f1a : 0x4a6b8a);
+  const emoji = gravite === 'danger' ? '🔴' : (gravite === 'warn' ? '⚠️' : 'ℹ️');
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      embeds: [{
+        title: `${emoji} LTD Sandy Shores — ${type}`,
+        description: message,
+        color,
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Plateforme LTD' }
+      }]
+    })
   });
 }
 
@@ -248,16 +271,20 @@ async function onService({ employeId, employeIdDiscord, employeNom, action, time
 }
 
 async function onFacture(p) {
-  // p = { factureId, vendeurDiscord, vendeurNom, clientNom, montant, raison, paiement, items? }
-  const benefice = p.benefice ?? null;
+  // Résolution automatique de l'uid Firebase du vendeur via son ID Discord
+  let vendeurId = p.vendeurId || null;
+  if (!vendeurId && p.vendeurDiscord) {
+    const usnap = await db.collection('users').where('idDiscord', '==', p.vendeurDiscord).limit(1).get();
+    if (!usnap.empty) vendeurId = usnap.docs[0].id;
+  }
   await db.collection('ventes').add({
     factureId: p.factureId,
     vendeurDiscord: p.vendeurDiscord || '',
     vendeurNom: p.vendeurNom || '',
-    vendeurId: p.vendeurId || null,    // résolu par le bot si possible
+    vendeurId,
     client: p.clientNom || '',
     montant: Number(p.montant) || 0,
-    benefice,
+    benefice: p.benefice ?? null,
     raison: p.raison || '',
     paiement: p.paiement || '',
     items: p.items || [],
@@ -305,14 +332,30 @@ async function onDepense(p) {
 }
 
 async function onPaie(p) {
+  // Résolution automatique de l'uid Firebase via idPerso ou idDiscord
+  const resolveUid = async (idPerso, idDiscord) => {
+    if (idPerso) {
+      const s = await db.collection('users').where('idPerso', '==', idPerso).limit(1).get();
+      if (!s.empty) return s.docs[0].id;
+    }
+    if (idDiscord) {
+      const s = await db.collection('users').where('idDiscord', '==', idDiscord).limit(1).get();
+      if (!s.empty) return s.docs[0].id;
+    }
+    return null;
+  };
+  const beneficiaireId = p.beneficiaireId || await resolveUid(p.beneficiaireIdPerso, p.beneficiaireDiscord);
+  const payeurId       = p.payeurId       || await resolveUid(p.payeurIdPerso,       p.payeurDiscord);
+
   await db.collection('paies').add({
     payeurDiscord: p.payeurDiscord,
     payeurNom: p.payeurNom,
     payeurIdPerso: p.payeurIdPerso,
+    payeurId,
     beneficiaireDiscord: p.beneficiaireDiscord,
     beneficiaireNom: p.beneficiaireNom,
     beneficiaireIdPerso: p.beneficiaireIdPerso,
-    beneficiaireId: p.beneficiaireId || null,
+    beneficiaireId,
     montant: Number(p.montant) || 0,
     timestamp: FieldValue.serverTimestamp()
   });

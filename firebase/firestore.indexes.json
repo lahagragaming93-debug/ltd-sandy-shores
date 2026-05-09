@@ -39,6 +39,14 @@
         { "fieldPath": "semaine",    "order": "ASCENDING" },
         { "fieldPath": "employeId",  "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "paies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "beneficiaireId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp",      "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

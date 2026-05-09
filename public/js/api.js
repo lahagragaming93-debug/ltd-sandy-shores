@@ -191,6 +191,16 @@ export async function listPaiesSemaine(dateDebut, dateFin) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Paies reçues par UN employé (utilisé par /paies.html)
+export async function listMesPaies(uid, n = 100) {
+  const q = query(collection(db, 'paies'),
+    where('beneficiaireId', '==', uid),
+    orderBy('timestamp', 'desc'),
+    limit(n));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // ----- Semaines (clôturées) -----
 export async function listSemaines(n = 6) {
   const q = query(collection(db, 'semaines'),

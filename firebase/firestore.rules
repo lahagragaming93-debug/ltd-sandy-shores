@@ -113,8 +113,13 @@ service cloud.firestore {
     }
 
     // === Paies ===
+    // Direction/DRH lisent tout. L'employé peut lire SES paies (filtre obligatoire
+    // côté client : where('beneficiaireId', '==', request.auth.uid)).
     match /paies/{id} {
-      allow read:  if isAuth() && (isDirection() || isDRH());
+      allow read:  if isAuth() && isActif() && (
+        isDirection() || isDRH() ||
+        resource.data.beneficiaireId == request.auth.uid
+      );
       allow write: if isDirection();
     }
 
