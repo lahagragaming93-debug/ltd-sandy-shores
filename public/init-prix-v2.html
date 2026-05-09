@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Init prix v2 — LTD Sandy Shores</title>
+  <link rel="stylesheet" href="css/western.css" />
+  <style>
+    .init-card { max-width: 1200px; margin: 1.5rem auto; padding: 1.5rem; }
+    .init-card table.data { font-size: 0.85rem; }
+    .init-card table.data th, .init-card table.data td { padding: 0.35rem 0.5rem; }
+    .init-card input[type="number"] { width: 90px; text-align: right; padding: 0.2rem 0.35rem; font-family: ui-monospace, monospace; }
+    .init-card input[type="text"]   { width: 100%; padding: 0.2rem 0.35rem; }
+    .init-card select { padding: 0.2rem 0.35rem; }
+    .marge-cell.warn { color: #b85c00; font-weight: bold; }
+    .marge-cell.bad  { color: #c0392b; font-weight: bold; }
+    .marge-cell.ok   { color: #2e7d32; }
+    .badge.new  { background: #e3f2fd; color: #1565c0; border: 1px solid #1565c0; }
+    .badge.upd  { background: #fff8e1; color: #6d4c00; border: 1px solid #b8860b; }
+    .badge.same { background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }
+    .row-removed td { opacity: 0.4; text-decoration: line-through; }
+    .actions-col { white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div class="login-screen" style="align-items:flex-start;">
+    <div class="login-card init-card">
+      <h1>Initialisation des prix — v2</h1>
+      <div class="subtitle">Page temporaire — Patron uniquement</div>
+
+      <div id="status" class="alert info">
+        <span class="icon">⏳</span>
+        <span>Vérification de la session…</span>
+      </div>
+
+      <div id="content" class="hidden">
+        <div class="alert info mb-2">
+          <span class="icon">ℹ</span>
+          <span>
+            53 produits préchargés depuis ta liste finale.<br>
+            <strong>Tu peux modifier prix d'achat, prix de vente, nom et catégorie</strong> avant de pousser.<br>
+            Le bouton « ✕ » exclut une ligne du push (elle ne sera pas envoyée). Les changements de prix sont loggés dans <code>historiquePrix</code>.
+          </span>
+        </div>
+
+        <div class="row mb-2">
+          <span class="badge upd">Update</span>
+          <span class="badge new">Nouveau</span>
+          <span class="badge same">Identique</span>
+          <span class="spacer"></span>
+          <button class="btn btn-sm btn-ghost" id="btn-reset">↺ Réinitialiser les valeurs</button>
+        </div>
+
+        <table class="data" id="preview-table">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Catégorie</th>
+              <th class="right">Achat ($)</th>
+              <th class="right">Vente ($)</th>
+              <th class="right">Marge</th>
+              <th class="center">Statut</th>
+              <th class="center actions-col">Action</th>
+            </tr>
+          </thead>
+          <tbody id="preview-body"></tbody>
+        </table>
+
+        <div class="row mt-3">
+          <button class="btn btn-primary" id="btn-init">Pousser <span id="count">…</span> produits</button>
+          <button class="btn btn-ghost" id="btn-cancel">Annuler</button>
+          <span class="spacer"></span>
+          <a href="stocks.html" class="btn btn-sm btn-ghost">→ Stocks</a>
+        </div>
+
+        <div id="result" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { auth } from './js/firebase-config.js';
+    import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+    import { getUserDoc, setProduit, listProduits } from './js/api.js';
+    import { isDirection } from './js/utils/permissions.js';
+    import { CATALOGUE, CATEGORIES, CATEGORY_LABELS } from './js/data/produits.js';
+    import { money, escapeHtml } from './js/utils/formatters.js';
+    import { toastSuccess, toastError } from './js/utils/toast.js';
+
+    // ============================================================
+    // 53 produits — liste finale du patron (mai 2026)
+    // ============================================================
+    const PRIX_DEFAUT = [
+      // Updates sur produits existants
+      { id: 'creme-glacee',           nom: 'Crème Glacée',             categorie: 'nourriture',  achat: 1,    vente: 2 },
+      { id: 'cola-zero',              nom: 'Cola Zero Sucre',          categorie: 'nourriture',  achat: 2,    vente: 4 },
+      { id: 'herisson',               nom: 'Hérisson',                 categorie: 'divers',      achat: 1,    vente: 2 },
+      { id: 'moutarde',               nom: 'Moutarde',                 categorie: 'nourriture',  achat: 1,    vente: 2 },
+      { id: 'solvant',                nom: 'Solvant',                  categorie: 'mecanique',   achat: 15,   vente: 25 },
+      { id: 'eponge-nettoyage',       nom: 'Éponge Nettoyage',         categorie: 'divers',      achat: 750,  vente: 1000 },
+      { id: 'bouteille-eau',          nom: "Bouteille d'eau",          categorie: 'divers',      achat: 5,    vente: 10 },
+      { id: 'trousseau-clefs',        nom: 'Trousseau de Clefs',       categorie: 'document',    achat: 50,   vente: 80 },
+      { id: 'porte-document',         nom: 'Porte Document',           categorie: 'document',    achat: 5,    vente: 8 },
+      { id: 'porte-feuille',          nom: 'Porte Feuille',            categorie: 'document',    achat: 5,    vente: 8 },
+      { id: 'skate-board',            nom: 'Skate Board',              categorie: 'divers',      achat: 50,   vente: 80 },
+      { id: 'papier-rouler',          nom: 'Papier à Rouler',          categorie: 'divers',      achat: 1,    vente: 2 },
+      { id: 'spray-tag',              nom: 'Spray à tag',              categorie: 'divers',      achat: 1250, vente: 2300 },
+      { id: 'ballon-foot',            nom: 'Ballon de Foot',           categorie: 'divers',      achat: 25,   vente: 40 },
+      { id: 'ballon-basket',          nom: 'Ballon de Basket',         categorie: 'divers',      achat: 25,   vente: 40 },
+      { id: 'ticket-gratter',         nom: 'Ticket à Gratter',         categorie: 'divers',      achat: 15,   vente: 25 },
+      { id: 'elastique',              nom: 'Élastique',                categorie: 'divers',      achat: 10,   vente: 20 },
+      { id: 'bicarbonate-soude',      nom: 'Bicarbonate de soude',     categorie: 'divers',      achat: 1,    vente: 2 },
+      { id: 'bonbon-cola',            nom: 'Bonbon Cola',              categorie: 'nourriture',  achat: 4,    vente: 7 },
+      { id: 'bonbon-tada',            nom: 'Bonbon Tada',              categorie: 'nourriture',  achat: 4,    vente: 7 },
+      { id: 'bonbon-drag',            nom: 'Bonbon Drag',              categorie: 'nourriture',  achat: 4,    vente: 7 },
+      { id: 'bonbon',                 nom: 'Bonbon',                   categorie: 'nourriture',  achat: 4,    vente: 7 },
+      { id: 'barre-choco-caramel',    nom: 'Barre chocolatée caramel', categorie: 'nourriture',  achat: 9,    vente: 18,   isNew: true },
+      { id: 'barre-chocolatee',       nom: 'Barre chocolatée',         categorie: 'nourriture',  achat: 9,    vente: 18 },
+      { id: 'baguette',               nom: 'Baguette',                 categorie: 'nourriture',  achat: 10,   vente: 15,   isNew: true },
+      { id: 'pistache',               nom: 'Pistache',                 categorie: 'nourriture',  achat: 4,    vente: 8 },
+      { id: 'noix-cajou',             nom: 'Noix de Cajou',            categorie: 'nourriture',  achat: 4,    vente: 8 },
+      { id: 'brique-citron',          nom: 'Brique de citron',         categorie: 'nourriture',  achat: 8,    vente: 15 },
+      { id: 'noix',                   nom: 'Noix',                     categorie: 'nourriture',  achat: 4,    vente: 8 },
+      { id: 'trottinette-electrique', nom: 'Trottinette électrique',   categorie: 'divers',      achat: 350,  vente: 500,  isNew: true },
+      { id: 'table',                  nom: 'Table',                    categorie: 'agriculture', achat: 5,    vente: 10 },
+      { id: 'grosse-perceuse-rouge',  nom: 'Grosse Perceuse rouge',    categorie: 'outillage',   achat: 7,    vente: 15 },
+      { id: 'pince-coupante',         nom: 'Pince Coupante',           categorie: 'outillage',   achat: 12,   vente: 20 },
+      { id: 'foret-perceuse',         nom: 'Forêt de Perceuse',        categorie: 'outillage',   achat: 400,  vente: 700 },
+      { id: 'cisaille',               nom: 'Cisaille',                 categorie: 'outillage',   achat: 750,  vente: 1500 },
+      { id: 'corde',                  nom: 'Corde',                    categorie: 'agriculture', achat: 5,    vente: 10 },
+      { id: 'colle',                  nom: 'Colle',                    categorie: 'document',    achat: 1,    vente: 2 },
+      { id: 'encre',                  nom: 'Encre',                    categorie: 'document',    achat: 3,    vente: 4 },
+      { id: 'batterie',               nom: 'Batterie',                 categorie: 'outillage',   achat: 5,    vente: 10 },
+      { id: 'huile',                  nom: 'Huile',                    categorie: 'mecanique',   achat: 4,    vente: 8 },
+      { id: 'huile-shell',            nom: 'Huile Shell',              categorie: 'mecanique',   achat: 6,    vente: 12 },
+      { id: 'huile-noire',            nom: 'Huile Noire',              categorie: 'mecanique',   achat: 8,    vente: 15 },
+      { id: 'batterie-voiture',       nom: 'Batterie de Voiture',      categorie: 'mecanique',   achat: 10,   vente: 20 },
+      { id: 'eponge-voiture',         nom: 'Éponge pour voiture',      categorie: 'mecanique',   achat: 1,    vente: 2,    isNew: true },
+      { id: 'fertilisant',            nom: 'Fertilisant',              categorie: 'agriculture', achat: 5,    vente: 10 },
+      { id: 'pot-fleur',              nom: 'Pot de Fleur',             categorie: 'agriculture', achat: 5,    vente: 10 },
+      { id: 'tas-terre',              nom: 'Tas de terre',             categorie: 'agriculture', achat: 7,    vente: 14 },
+      { id: 'bac-jardinage',          nom: 'Bac de jardinage',         categorie: 'agriculture', achat: 10,   vente: 20,   isNew: true },
+      { id: 'croquette',              nom: 'Croquette',                categorie: 'divers',      achat: 15,   vente: 30 },
+      { id: 'canne-peche',            nom: 'Canne à pêche',            categorie: 'divers',      achat: 32,   vente: 34 },
+      { id: 'pile',                   nom: 'Pile',                     categorie: 'divers',      achat: 1,    vente: 2,    isNew: true },
+      { id: 'menu-simple',            nom: 'Menu simple',              categorie: 'nourriture',  achat: 90,   vente: 110,  isNew: true },
+      { id: 'menu-complet',           nom: 'Menu complet',             categorie: 'nourriture',  achat: 100,  vente: 130,  isNew: true }
+    ];
+
+    const status      = document.getElementById('status');
+    const content     = document.getElementById('content');
+    const previewBody = document.getElementById('preview-body');
+    const result      = document.getElementById('result');
+    const countBadge  = document.getElementById('count');
+
+    // Stocke l'état actuel des produits Firestore (pour comparer avant/après)
+    let existById = {};
+    // Lignes exclues du push (cliquées sur ✕)
+    const exclues = new Set();
+
+    function classMarge(achat, vente) {
+      if (vente <= achat) return 'bad';
+      const ratio = (vente - achat) / Math.max(achat, 1);
+      if (ratio < 0.10) return 'warn';
+      return 'ok';
+    }
+
+    function statutBadge(p, ex) {
+      if (!ex) return '<span class="badge new">Nouveau</span>';
+      const sameAchat = (ex.prixAchat ?? null) === Number(p.achat);
+      const sameVente = (ex.prixVente ?? null) === Number(p.vente);
+      const sameNom   = (ex.nom ?? '') === p.nom;
+      const sameCat   = (ex.categorie ?? '') === p.categorie;
+      if (sameAchat && sameVente && sameNom && sameCat) return '<span class="badge same">Identique</span>';
+      return '<span class="badge upd">Update</span>';
+    }
+
+    function renderRows() {
+      previewBody.innerHTML = PRIX_DEFAUT.map((p, i) => {
+        const ex = existById[p.id];
+        const isExcluded = exclues.has(p.id);
+        const ancienAchat = ex?.prixAchat ?? '—';
+        const ancienVente = ex?.prixVente ?? '—';
+        const ancienInfo = ex
+          ? `<small class="muted">avant: A=${ancienAchat} V=${ancienVente}</small>`
+          : '<small class="muted">à créer</small>';
+        const catOptions = CATEGORIES.map(c =>
+          `<option value="${c}" ${c === p.categorie ? 'selected' : ''}>${CATEGORY_LABELS[c]}</option>`
+        ).join('');
+        return `
+          <tr data-idx="${i}" class="${isExcluded ? 'row-removed' : ''}">
+            <td>
+              <input type="text" class="cell-nom" value="${escapeHtml(p.nom)}" />
+              <div class="mono" style="font-size:0.7rem;color:#888;">${p.id}</div>
+            </td>
+            <td>
+              <select class="cell-categorie">${catOptions}</select>
+            </td>
+            <td class="right">
+              <input type="number" class="cell-achat" value="${p.achat}" min="0" step="0.01" />
+            </td>
+            <td class="right">
+              <input type="number" class="cell-vente" value="${p.vente}" min="0" step="0.01" />
+            </td>
+            <td class="right marge-cell">
+              <span class="marge-val"></span><br>
+              ${ancienInfo}
+            </td>
+            <td class="center cell-statut">${statutBadge(p, ex)}</td>
+            <td class="center actions-col">
+              <button class="btn btn-sm btn-ghost btn-toggle" data-idx="${i}">${isExcluded ? '↻' : '✕'}</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Recalculer marges
+      previewBody.querySelectorAll('tr').forEach(tr => updateRow(tr));
+      updateCount();
+    }
+
+    function readRow(tr) {
+      const idx = Number(tr.dataset.idx);
+      const p = PRIX_DEFAUT[idx];
+      p.nom       = tr.querySelector('.cell-nom').value.trim();
+      p.categorie = tr.querySelector('.cell-categorie').value;
+      p.achat     = Number(tr.querySelector('.cell-achat').value) || 0;
+      p.vente     = Number(tr.querySelector('.cell-vente').value) || 0;
+      return p;
+    }
+
+    function updateRow(tr) {
+      const p = readRow(tr);
+      const cell = tr.querySelector('.marge-cell');
+      const span = cell.querySelector('.marge-val');
+      const marge = p.vente - p.achat;
+      const cls = classMarge(p.achat, p.vente);
+      cell.classList.remove('ok', 'warn', 'bad');
+      cell.classList.add(cls);
+      span.textContent = `${marge >= 0 ? '+' : ''}${marge.toFixed(2)} $`;
+      tr.querySelector('.cell-statut').innerHTML = statutBadge(p, existById[p.id]);
+    }
+
+    function updateCount() {
+      const n = PRIX_DEFAUT.length - exclues.size;
+      countBadge.textContent = n;
+    }
+
+    // ----- Event delegation : recalcul live + toggle exclusion -----
+    previewBody.addEventListener('input', (e) => {
+      const tr = e.target.closest('tr');
+      if (tr) updateRow(tr);
+    });
+    previewBody.addEventListener('change', (e) => {
+      const tr = e.target.closest('tr');
+      if (tr) updateRow(tr);
+    });
+    previewBody.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-toggle');
+      if (!btn) return;
+      const idx = Number(btn.dataset.idx);
+      const p = PRIX_DEFAUT[idx];
+      const tr = btn.closest('tr');
+      if (exclues.has(p.id)) {
+        exclues.delete(p.id);
+        tr.classList.remove('row-removed');
+        btn.textContent = '✕';
+      } else {
+        exclues.add(p.id);
+        tr.classList.add('row-removed');
+        btn.textContent = '↻';
+      }
+      updateCount();
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      if (!confirm('Réinitialiser toutes les valeurs aux défauts ?')) return;
+      // Recharger PRIX_DEFAUT depuis le code (pas possible sans reload — on reload juste la page)
+      window.location.reload();
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        status.className = 'alert danger';
+        status.innerHTML = '<span class="icon">⛔</span><span>Pas connecté. <a href="index.html">Se connecter</a></span>';
+        return;
+      }
+      const profile = await getUserDoc(user.uid);
+      if (!profile || !isDirection(profile.role)) {
+        status.className = 'alert danger';
+        status.innerHTML = '<span class="icon">⛔</span><span>Réservé au Patron / Co-Patron.</span>';
+        return;
+      }
+      status.className = 'alert ok';
+      status.innerHTML = `<span class="icon">✓</span><span>Connecté : <strong>${escapeHtml(profile.prenom)} ${escapeHtml(profile.nom)}</strong></span>`;
+
+      const existants = await listProduits().catch(() => []);
+      existById = existants.reduce((m, p) => (m[p.id] = p, m), {});
+
+      renderRows();
+      content.classList.remove('hidden');
+    });
+
+    document.getElementById('btn-cancel').addEventListener('click', () => {
+      window.location.href = 'stocks.html';
+    });
+
+    document.getElementById('btn-init').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-init');
+      const aPousser = PRIX_DEFAUT.filter(p => !exclues.has(p.id));
+      if (aPousser.length === 0) {
+        toastError('Aucune ligne à pousser.');
+        return;
+      }
+      if (!confirm(`Pousser ${aPousser.length} produits en base ?`)) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Application…';
+      result.innerHTML = '';
+
+      let ok = 0, fail = 0;
+      const errs = [];
+      for (const p of aPousser) {
+        const tr = previewBody.querySelector(`tr[data-idx="${PRIX_DEFAUT.indexOf(p)}"]`);
+        const cellStatut = tr?.querySelector('.cell-statut');
+        try {
+          await setProduit(p.id, {
+            nom: p.nom,
+            categorie: p.categorie,
+            prixAchat: Number(p.achat),
+            prixVente: Number(p.vente)
+          });
+          if (cellStatut) cellStatut.innerHTML = '<span class="badge same">✓ OK</span>';
+          ok++;
+        } catch (err) {
+          console.error(p.id, err);
+          if (cellStatut) cellStatut.innerHTML = `<span class="badge danger">✗ ${escapeHtml(err.code || 'erreur')}</span>`;
+          errs.push(`${p.nom} (${p.id}) → ${err.code || err.message}`);
+          fail++;
+        }
+      }
+
+      result.className = fail === 0 ? 'alert ok' : 'alert warn';
+      result.innerHTML = fail === 0
+        ? `<span class="icon">🎉</span><span>${ok}/${aPousser.length} produits poussés. <a href="stocks.html">Voir les stocks →</a></span>`
+        : `<span class="icon">⚠</span><div>${ok} OK, ${fail} en erreur :<ul>${errs.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>`;
+
+      btn.style.display = 'none';
+      if (fail === 0) toastSuccess(`${ok} prix poussés !`);
+    });
+  </script>
+</body>
+</html>
