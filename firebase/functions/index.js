@@ -547,25 +547,44 @@ async function loadUsersByDiscordMap() {
   return map;
 }
 
+// Primes TTE — calculées à partir du CA et du bénéfice net (mêmes tranches que paie.js)
+function primeHebdoFromCa(ca) {
+  if (ca >= 600000) return 15000;
+  if (ca >= 400000) return 10000;
+  if (ca >= 200000) return 5000;
+  return 0;
+}
+function primeMensuelleFromBenefice(b) {
+  if (b >= 2000000) return 60000;
+  if (b >= 1000000) return 40000;
+  if (b >=  500000) return 20000;
+  return 0;
+}
+
 async function csvResume() {
   const snap = await db.collection('semaines').orderBy('numero', 'desc').limit(52).get();
   const lines = [csvRow(
     'Semaine', 'Date début', 'Date fin',
     'CA', 'Bénéfice brut', 'Dépenses totales', 'Charges déductibles',
-    'Masse salariale', 'Bénéfice net', 'Nb ventes', 'Nb dépenses', 'Statut'
+    'Masse salariale', 'Prime hebdo (Art. 4-1.10)', 'Prime mensuelle (Art. 4-1.11)',
+    'Bénéfice net', 'Nb ventes', 'Nb dépenses', 'Statut'
   )];
   for (const d of snap.docs) {
     const s = d.data();
+    const ca = s.ca || 0;
+    const beneficeNet = s.benefice || 0;
     lines.push(csvRow(
       s.numero,
       dateOnly(s.dateDebut),
       dateOnly(s.dateFin),
-      s.ca || 0,
+      ca,
       s.beneficeBrut || 0,
       s.depenses || 0,
       s.chargesDeductibles || 0,
       s.masseSalariale || 0,
-      s.benefice || 0,
+      primeHebdoFromCa(ca),
+      primeMensuelleFromBenefice(beneficeNet),
+      beneficeNet,
       s.nbVentes || 0,
       s.nbDepenses || 0,
       s.statut || ''
