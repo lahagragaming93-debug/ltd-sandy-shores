@@ -520,8 +520,8 @@ function renderSheetsZone(zone, token) {
 
     <h4 style="margin-top:12px;">Setup Google Sheets — pas à pas</h4>
     <ol style="font-size:0.88rem;line-height:1.55;">
-      <li>Crée un Google Sheet vierge sur <a href="https://sheets.new" target="_blank">sheets.new</a> (s'ouvre dans un nouvel onglet ⚠ depuis tablette FiveM préférable depuis ordi)</li>
-      <li>Crée 4 onglets : <code>Résumé</code>, <code>Dépenses</code>, <code>Ventes</code>, <code>Paies</code></li>
+      <li>Depuis <strong>ton ordinateur</strong> (pas la tablette FiveM) : ouvre <code>https://sheets.new</code> pour créer un Sheet vierge</li>
+      <li>Crée 5 onglets : <code>Resume</code>, <code>Depenses</code>, <code>Ventes</code>, <code>Paies</code>, <code>Banque</code> (sans accents — l'Apps Script renomme automatiquement les anciens si présents)</li>
       <li>Dans la cellule <code>A1</code> de chaque onglet, colle la formule correspondante ci-dessous</li>
       <li>Sheets remplit automatiquement — refresh ~1h (Google force, pas modifiable)</li>
       <li>Partage le Sheet avec qui tu veux (staff serveur, etc.) en lecture seule</li>

@@ -5,6 +5,7 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { isDirection } from '../utils/permissions.js';
+import { infoModal } from '../utils/confirmation.js';
 
 const { profile } = await requireAuth('guide');
 
@@ -58,7 +59,7 @@ const html = `
     <article class="guide-content panel">
       <div id="guide-toolbar" class="row mb-2" style="gap:8px; flex-wrap:wrap;">
         <button class="btn btn-sm btn-ghost" id="btn-print">🖨 Imprimer / PDF</button>
-        <a id="btn-github" class="btn btn-sm btn-ghost" target="_blank" rel="noopener">📂 Voir sur GitHub</a>
+        <button id="btn-github" class="btn btn-sm btn-ghost" type="button">📂 Voir sur GitHub</button>
         <span class="spacer"></span>
         <span class="muted" id="guide-lecture-info" style="font-size:0.8rem;"></span>
       </div>
@@ -102,9 +103,23 @@ function highlightActive(id) {
   tocLinks.forEach(a => a.classList.toggle('active', a.dataset.guideId === id));
 }
 
+// Stocke l'URL courante pour le clic (modal d'info, pas de navigation directe
+// pour rester compatible tablette FiveM CEF qui n'aime pas les nouveaux onglets)
+let currentGithubUrl = '';
 function updateGithubLink(file) {
-  btnGithub.href = REPO_BLOB + file;
+  currentGithubUrl = REPO_BLOB + file;
 }
+btnGithub.addEventListener('click', async () => {
+  if (!currentGithubUrl) return;
+  await infoModal({
+    titre: '📂 Lien GitHub',
+    message: `Le code source de ce guide se trouve sur GitHub. Ouvre cette URL <strong>depuis ton navigateur PC</strong> (les nouveaux onglets ne sont pas supportés sur tablette FiveM) :<br><br>
+      <input type="text" readonly value="${currentGithubUrl}" style="width:100%;padding:8px;font-family:monospace;font-size:0.8rem;background:#0c0c0c;color:var(--color-bone);border:1px solid var(--color-sand-dark);" onclick="this.select()" />
+      <br><br><small class="muted">Astuce : clique le champ pour sélectionner l'URL puis Ctrl+C.</small>`,
+    type: 'info',
+    btnOk: 'Fermer'
+  });
+});
 
 function estimerLecture(texte) {
   // ~200 mots/minute en lecture rapide

@@ -92,15 +92,17 @@ service cloud.firestore {
     }
 
     // === Stocks ===
+    // Le DRH peut écrire car il peut créer un produit avec stock initial
+    // (cf. UI Stocks → "+ Ajouter un produit" + champ "Stock initial")
     match /stocks/{id} {
       allow read:  if isAuth() && isActif();
-      allow write: if canAdmin() || isRespVente();
+      allow write: if canAdmin() || isRespVente() || isDRH();
     }
 
     // === Mouvements de stock (append-only depuis l'app) ===
     match /mouvementsStock/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || isRespVente();
+      allow create: if canAdmin() || isRespVente() || isDRH();
       allow update, delete: if canAdmin();
     }
 

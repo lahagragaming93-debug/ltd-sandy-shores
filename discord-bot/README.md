@@ -20,18 +20,42 @@ Voir `docs/02-setup-discord-bot.md` à la racine du projet pour le guide complet
 
 ```
 discord-bot/
-├── index.js              Connexion Discord + dispatch par canal
+├── index.js                Connexion Discord + dispatch par canal (multi-parser supporté)
 ├── parsers/
-│   ├── _helpers.js       Helpers communs aux parsers
-│   ├── inventory.js      logs-ig (inventory-add / -remove)
-│   ├── service.js        logs-services
-│   ├── facture.js        suivi-facture
-│   ├── essence.js        suivi-achat-essence
-│   ├── depense.js        dépenses
-│   ├── paie.js           paie
-│   └── coffre.js         suivi-coffre
+│   ├── _helpers.js         Helpers communs (firstEmbed, getField, getMoney…)
+│   │
+│   │ ── PHASE 1 (parsers initiaux) ──
+│   ├── inventory.js        #logs-ig — inventory-add / -remove
+│   ├── service.js          #logs-services + #suivi-service-vendeur
+│   ├── facture.js          #suivi-facture
+│   ├── essence.js          #suivi-achat-essence (redistributions)
+│   ├── depense.js          #depenses (avec soldeAvant/Apres)
+│   ├── paie.js             #paie
+│   ├── coffre.js           #suivi-coffre
+│   │
+│   │ ── PHASE 2 (parsers avancés ajoutés sur logs réels) ──
+│   ├── xbankaccount.js     #logs-ig (banque LTDSANDY) — entrées d'argent + solde temps réel
+│   ├── autoRh.js           #auto-rh — embauches / exclusions / DÉPARTS
+│   ├── autorankup.js       #autorankup — promotions de rôle
+│   ├── statsbank.js        #statsbank — récap hebdo officiel + impôt + top vendeurs
+│   ├── rapportPompiste.js  #pompiste — rapport quotidien stations
+│   └── venteAuto.js        #ventes — distributeur LTD automatique
+│
 ├── package.json
 └── .env.example
+```
+
+### Multi-parser par canal
+
+Le canal `#logs-ig` héberge 2 types d'embeds (inventory + xbankaccount). `index.js`
+gère ça via une **liste ordonnée de parsers** : chaque parser est essayé dans
+l'ordre, le premier qui retourne un payload non-null gagne.
+
+```js
+[process.env.CH_LOGS_IG]: [
+  { type: 'bankAccount', parser: parseXbankaccountEmbed }, // testé en 1er (filtre IBAN)
+  { type: 'inventory',   parser: parseInventoryEmbed     }
+]
 ```
 
 ## Hébergement recommandé

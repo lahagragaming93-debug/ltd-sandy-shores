@@ -19,19 +19,37 @@ Le bot tourne **24/7 sur Railway** (serveur cloud gratuit). Si tu ne vois rien a
 - Vérifie sur Railway que le bot est bien « Running »
 - Vérifie les permissions du bot sur les canaux Discord (View Channels + Read Message History)
 
-### Les 7 parsers et ce qu'ils font
+### Les 12 parsers et ce qu'ils font
+
+#### 🟢 Phase 1 — parsers initiaux (8)
 
 | Canal Discord | Parser | Ce qui est extrait | Où ça arrive sur le site |
 |---------------|--------|---------------------|--------------------------|
 | `#logs-ig` | inventory | Type (add/remove), item, quantité, qui | **Stocks épicerie** + quotas pompistes |
 | `#logs-services` | service | Action (start/end), employé, IDs | **RH → heures de service**, **Mon espace** |
+| `#suivi-service-vendeur` | service | Idem pour les vendeurs | **RH → heures de service** |
 | `#suivi-facture` | facture | N° facture, vendeur, client, montant, items, paiement | **Ventes** + Mon espace vendeur |
 | `#suivi-achat-essence` | redistribution | Station, litres, prix, stock après | **Stations essence → redistributions** |
-| `#depenses` | depense | Compte, utilisateur, montant, raison, type | **Comptabilité → charges** |
+| `#depenses` | depense | Compte, utilisateur, montant, raison, type | **Comptabilité → charges** + colonne `soldeApres` (sortie) |
 | `#paie` | paie | Payeur, bénéficiaire (IDs Discord + Perso), montant | **Mes paies** + RH salaires versés |
-| `#suivi-coffre` | coffre | (transactions coffre — non utilisé pour l'instant) | (interne) |
+| `#suivi-coffre` | coffre | Transactions coffre LTD | `/coffre` (audit) |
 
-> 💡 Tous les **canaux logs bruts** sont aussi archivés (sans parsing) pour audit, mais ne sont pas utilisés directement par l'app.
+#### 🟣 Phase 2 — parsers avancés (5 — ajoutés récemment)
+
+| Canal Discord | Parser | Ce qui est extrait | Où ça arrive |
+|---------------|--------|---------------------|--------------|
+| `#logs-ig` (en plus de inventory) | **xbankaccount** | Entrées d'argent (`addmoney` sur iban LTDSANDY) avec solde après | **Page Banque LTD** + KPI Dashboard 💰 Solde temps réel |
+| `#auto-rh` | **autoRh** | 3 events : `EMBAUCHE` / `EXCLUSION` / `DÉPART` (volontaire) avec IDs Discord + perso | **Admin → Embauches à traiter** (nouveau panneau) + suspension auto sur exclusion/départ |
+| `#autorankup` | **autorankup** | Promotion (Vendeur → Resp Vente, etc.) avec ancien + nouveau rôle | **MAJ rôle automatique** côté site (plafond salaire ajusté) |
+| `#statsbank` | **statsbank** | Récap hebdo officiel FiveM (CA, sorties, déficit/bénéfice, factures, **impôt estimé** + tranche TTE, top vendeurs) | **Comptabilité → Comparaison cross-source** |
+| `#pompiste` | **rapportPompiste** | Rapport quotidien : niveau % de chaque station | **MAJ stockActuel** des 8 stations en 1 seul log |
+| `#ventes` | **venteAuto** | Ventes du distributeur LTD (Vendeur=LTD), items + total | `/ventes` avec `source='ventes-auto'` (mapping items à venir) |
+
+> 💡 Le canal `#logs-ig` a maintenant **2 parsers en cascade** : xbankaccount (testé en 1er, filtre IBAN LTDSANDY) puis inventory (fallback). Permet de gérer les 2 types d'embeds (banque + inventaire) sur le même canal.
+
+> 🔍 **Outil de découverte** : Admin → bouton « 🔍 Découverte items FiveM » liste tous les noms d'items uniques observés pour aider au mapping nom commercial ↔ nom FiveM interne.
+
+> 📋 Tous les **canaux logs bruts** (#suivi-coffre-secondaire, #alerte-coffre, #revenu, #factures, #logs-licenciement, #logs-avertissement) sont archivés sans parsing pour audit.
 
 ### Ce qu'il faut absolument savoir
 
