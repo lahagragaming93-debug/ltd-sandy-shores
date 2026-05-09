@@ -144,17 +144,29 @@ Ce guide couvre **les 9 modules** auxquels tu as accès, dans l'ordre où tu les
 > **Conformité TTE Chap. IV — Secteur 2.** C'est ta photo financière hebdomadaire officielle.
 
 ### Ce que tu vois
-- **KPI semaine** : CA, charges déductibles, masse salariale (+ statut), bénéfice net.
+- **4 KPIs colorés** en haut : CA (vert), Charges déductibles (rouge), Masse salariale (orange + statut TTE), Bénéfice net (bleu si positif, rouge si perte).
 - **Sélecteur semaine** : « Semaine en cours » + 6 dernières semaines archivées.
-- **Recettes** : CA (ventes), autres entrées, total.
-- **Dépenses** : charges déductibles, charges non déductibles, salaires versés, prime hebdo (Art. 4-1.10), prime mensuelle (Art. 4-1.11), total.
-- **Charges détaillées** : tableau date, raison, type, montant, qui a saisi.
-- **Conformité TTE** : alerte rouge si masse > 90 %, orange si 85–90 %, OK sinon.
+- **⚡ Dépenses rapides** : 5 boutons templates (Matières premières / Avocat / Entretien véhicule / Loyer / Autre) qui pré-remplissent le formulaire en 1 clic.
+- **📜 Conformité TTE — gauge masse salariale** : barre de progression visuelle avec marqueur 90 %. Vert / orange / rouge clignotant selon le ratio.
+- **💚 Recettes / ❤ Dépenses** : 2 colonnes côte à côte avec totaux.
+- **💰 Salaires & paies de la semaine** : tableau récap par groupe (Direction / Responsables / Vendeurs / Pompistes) avec **salaire estimé / versé / reste à verser** par employé.
+- **📋 Bouton « Copier récap Discord »** : prépare un message formaté à coller dans `#paie` avec les montants à verser à la direction et aux responsables.
+- **📋 Charges détaillées** : tableau date, raison, type, montant, qui a saisi.
 
 ### Ce que tu peux faire
 
-#### ➕ Ajouter une dépense
-- Bouton **« + Ajouter une dépense »**
+#### ⚡ Dépenses rapides (recommandé pour les dépenses récurrentes)
+Au-dessus de la gauge, 5 boutons templates :
+- 🏭 Matières premières → pré-remplit raison « Achat matières premières » + type déductible
+- ⚖ Frais avocat → « Honoraires avocat » + déductible
+- 🚗 Entretien véhicule → « Entretien véhicule LTD » + déductible
+- 💰 Loyer / Charges → « Loyer hebdomadaire » + autre déductible
+- 📦 Autre → ouvre la modale vide
+
+Tu n'as plus qu'à saisir le **montant** et valider.
+
+#### ➕ Ajouter une dépense (manuel)
+- Bouton **« + Ajouter une dépense »** (en haut à droite)
 - Champs : **Raison** (obligatoire), **Montant** (obligatoire), **Type** :
   - `matieres-premieres` (déductible)
   - `frais-avocat` (déductible)
@@ -163,6 +175,16 @@ Ce guide couvre **les 9 modules** auxquels tu as accès, dans l'ordre où tu les
   - `non-deductible` (sortie cash sans bénéfice fiscal)
 
 > 💡 La plupart des dépenses arrivent **automatiquement** via le bot Discord (`#depenses`). N'utilise ce bouton que pour des dépenses non tracées dans Discord (ex. paiement en cash hors compte).
+
+#### 💰 Verser les salaires (workflow recommandé)
+1. Va en bas de page → section **« 💰 Salaires & paies de la semaine »**
+2. Vérifie la colonne **« Reste à verser »** pour chaque membre Direction et Responsable
+3. Clique **« 📋 Copier récap Discord »** en haut à droite de la section
+4. Colle le message dans le canal `#paie` Discord
+5. Verse les montants RP via la commande Discord ou in-game
+6. Le bot Discord enregistre automatiquement les paies (apparaissent dans la colonne **« Versé cette semaine »**)
+
+> Pour vendeurs et pompistes : les salaires sont **calculés automatiquement** selon CA / quotas. Va voir **Ressources humaines** pour le détail individuel.
 
 #### 📥 Exporter CSV / 🖨 Exporter PDF
 - CSV : pour conserver une copie hors ligne ou la coller dans une feuille de calcul.

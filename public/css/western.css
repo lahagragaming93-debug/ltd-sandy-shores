@@ -472,6 +472,180 @@ a.alert-item:hover .alert-arrow {
   transition: all 0.15s;
 }
 
+/* ============================================================
+   Page Comptabilité — KPIs colorés, gauge, salaires
+   ============================================================ */
+.compta-kpis .kpi { border-top-width: 4px; border-top-style: solid; }
+.kpi.kpi-recette {
+  background: linear-gradient(135deg, #1a2e1a 0%, #0c1a0c 100%);
+  border-color: var(--color-success);
+}
+.kpi.kpi-recette::before { background: var(--color-success); }
+.kpi.kpi-recette .label { color: #b3e5b3; }
+
+.kpi.kpi-depense {
+  background: linear-gradient(135deg, #2a1010 0%, #1a0808 100%);
+  border-color: var(--color-blood);
+}
+.kpi.kpi-depense::before { background: var(--color-blood); }
+
+.kpi.kpi-salaire {
+  background: linear-gradient(135deg, #2e2010 0%, #1a1208 100%);
+  border-color: var(--color-warning);
+}
+.kpi.kpi-salaire::before { background: var(--color-warning); }
+.kpi.kpi-salaire .label { color: #ffd699; }
+
+.kpi.kpi-benefice {
+  background: linear-gradient(135deg, #102030 0%, #08101a 100%);
+  border-color: var(--color-info);
+}
+.kpi.kpi-benefice::before { background: var(--color-info); }
+.kpi.kpi-benefice .label { color: #a3c8e8; }
+
+.kpi.kpi-perte {
+  background: linear-gradient(135deg, #3a0a0a 0%, #1a0303 100%);
+  border-color: var(--color-danger);
+}
+.kpi.kpi-perte::before { background: var(--color-danger); }
+.kpi.kpi-perte .label { color: #ffb3b3; }
+
+/* === Recettes / Dépenses : grille 2 colonnes responsive === */
+.compta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+@media (max-width: 900px) {
+  .compta-grid { grid-template-columns: 1fr; }
+}
+.panel.compta-recettes { border-color: var(--color-success); }
+.panel.compta-depenses { border-color: var(--color-blood); }
+.compta-recettes .panel-title { border-bottom-color: var(--color-success); color: #d4ffd4; }
+.compta-depenses .panel-title { border-bottom-color: var(--color-blood); color: #ffd4d4; }
+
+/* Ligne "Total" en bas des tableaux recettes/dépenses */
+.compta-recettes table tr.row-total,
+.compta-depenses table tr.row-total {
+  font-weight: bold;
+  border-top: 2px solid var(--color-blood);
+  background: rgba(0,0,0,0.3);
+}
+.compta-recettes table tr.row-total td:first-child { color: var(--color-sand-light); }
+.gold { color: var(--color-gold); }
+
+/* === Gauge masse salariale === */
+.gauge-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gauge-bar {
+  flex: 1;
+  position: relative;
+  height: 28px;
+  background: #0c0c0c;
+  border: 1px solid var(--color-sand-dark);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.gauge-fill {
+  height: 100%;
+  transition: width 0.6s ease, background 0.3s;
+  background: linear-gradient(90deg, var(--color-success) 0%, #6abe6a 100%);
+}
+.gauge-fill.gauge-warn {
+  background: linear-gradient(90deg, #b8860b 0%, var(--color-warning) 100%);
+}
+.gauge-fill.gauge-danger {
+  background: linear-gradient(90deg, #5a0e0e 0%, var(--color-danger) 100%);
+  animation: gaugePulse 1.5s ease-in-out infinite;
+}
+@keyframes gaugePulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.75; }
+}
+.gauge-marker {
+  position: absolute;
+  top: -4px; bottom: -4px;
+  width: 2px;
+  background: var(--color-gold);
+  z-index: 2;
+}
+.gauge-marker > span {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-gold);
+  white-space: nowrap;
+  background: var(--color-charcoal);
+  padding: 0 4px;
+  border-radius: 2px;
+}
+.gauge-value {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--color-sand-light);
+  min-width: 70px;
+  text-align: right;
+}
+.gauge-status {
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  color: var(--color-bone);
+}
+
+/* === Templates dépenses (boutons) === */
+#templates-panel .btn-sm {
+  border-color: var(--color-leather);
+}
+#templates-panel .btn-sm:hover {
+  background: linear-gradient(180deg, var(--color-leather) 0%, #4a2a10 100%);
+  border-color: var(--color-gold);
+  color: var(--color-bone);
+}
+
+/* === Tableau Salaires === */
+.salaires-group-title {
+  margin: 14px 0 6px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--color-sand-light);
+  border-bottom: 1px dashed var(--color-sand-dark);
+  padding-bottom: 4px;
+}
+.salaires-table { font-size: 0.85rem; }
+.salaires-table tfoot tr.row-total {
+  font-weight: bold;
+  border-top: 2px solid var(--color-blood);
+  background: rgba(0,0,0,0.4);
+  color: var(--color-sand-light);
+}
+.salaires-table .reste-a-verser {
+  color: var(--color-warning);
+  font-family: var(--font-mono);
+  font-weight: bold;
+}
+.salaires-table .reste-trop {
+  color: var(--color-danger);
+  font-family: var(--font-mono);
+}
+.salaires-table .reste-ok {
+  color: var(--color-success);
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+}
+.badge.neutral {
+  background: #2a2a2a;
+  color: var(--color-sand);
+  border: 1px solid var(--color-sand-dark);
+}
+
 .sidebar {
   grid-area: sidebar;
   background: linear-gradient(180deg, var(--color-charcoal-2) 0%, #0e0e0e 100%);
