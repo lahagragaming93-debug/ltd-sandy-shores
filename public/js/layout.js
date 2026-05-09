@@ -53,7 +53,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
         <div class="brand">
-          <div class="logo-placeholder">LTD</div>
+          <img src="img/logo.png" alt="LTD Sandy Shores" class="brand-logo" />
           <div class="name">SANDY SHORES</div>
           <div class="subname">Épicerie &amp; Stations</div>
         </div>

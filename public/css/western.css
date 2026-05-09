@@ -175,6 +175,31 @@ p { margin: 0 0 1em 0; }
   color: var(--color-sand-dark);
   font-size: 1.5rem;
 }
+.sidebar .brand .brand-logo {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 10px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+.login-logo {
+  display: block;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 12px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+}
+@media (max-width: 600px) {
+  .login-logo { width: 100px; height: 100px; }
+}
+@media (max-width: 1280px) {
+  .sidebar .brand .brand-logo { width: 72px; height: 72px; }
+}
+@media (max-width: 1024px) {
+  .sidebar .brand .brand-logo { width: 80px; height: 80px; }
+}
 .sidebar .brand .name {
   font-family: var(--font-display);
   color: var(--color-blood-light);
