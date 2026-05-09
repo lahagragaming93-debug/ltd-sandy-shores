@@ -1,18 +1,44 @@
 # ⛽ Guide Responsable Pompiste
 
 > Tu pilotes les **8 stations-essence** : tu fixes les prix, gères les capacités, suis les redistributions de ton équipe.
+> Tu **gères aussi tes pompistes** depuis Administration : créer, modifier, suspendre, supprimer, changer leur grade.
 
 ---
 
-## 🎯 Tes 2 modules principaux
+## 🎯 Tes modules
 
 | Module | Accès | Rôle |
 |--------|-------|------|
 | ⛽ **Stations essence** | **Lecture + écriture** | C'est ton outil principal |
 | 🧑‍💼 RH | Lecture | Voir l'effectif pompistes |
+| ⚙ **Administration** | **Lecture + écriture (pompistes uniquement)** | Gérer ton équipe |
 | 👤 Mon espace + 💰 Mes paies | Lecture | Tes infos perso |
 
-> 🔒 Tu **n'as pas accès** à : Dashboard, Stocks épicerie, Ventes, Comptabilité, Administration.
+> 🔒 Tu **n'as pas accès** à : Dashboard, Stocks épicerie, Ventes, Comptabilité, **Configuration globale** dans Administration.
+>
+> 🔐 **Périmètre Administration** : tu peux gérer **uniquement les pompistes** (Novice, Intermédiaire, Expérimenté). Tous les autres comptes apparaissent grisés (lecture seule).
+
+---
+
+## ⚙ Administration — Gestion de tes pompistes
+
+### Ce que tu peux faire
+- **Créer un compte pompiste** (Novice / Inter / Exp)
+  - Renseigne **ID Discord** + **ID Perso** systématiquement (sinon les bidons/caoutchoucs/paies ne lui seront pas attribués)
+- **Modifier** un pompiste (prénom, NOM, IDs Discord/Perso, date d'entrée)
+- **Changer son grade** (promouvoir Novice → Inter → Exp) via le sélecteur de rôle
+- **Suspendre** un pompiste (= licenciement) — confirmation 3 secondes
+- **Supprimer définitivement** — confirmation 3 secondes + tape `SUPPRIMER` pour activer le bouton
+
+### À ne pas faire
+- ❌ Ne supprime pas un pompiste sans avoir noté ses derniers chiffres (bidons réalisés, score, paies)
+- ❌ Ne donne **jamais** un mot de passe par téléphone vocal — toujours via DM Discord ou autre canal écrit traçable
+- ❌ Ne tente pas de promouvoir un pompiste en Responsable ou DRH — c'est hors de ton périmètre
+
+### Promotion d'un pompiste
+1. Dans Admin, ligne du pompiste → sélecteur **Rôle** → choisis le nouveau grade
+2. Le changement est immédiat
+3. Le **plafond salaire** s'ajuste : 13k → 14k → 15k
 
 ---
 

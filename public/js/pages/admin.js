@@ -1,21 +1,40 @@
 // ============================================================
-// Page : Administration (Patron / Co-Patron uniquement)
+// Page : Administration (Direction, DRH, Responsables)
+// Le périmètre des actions est filtré par canManageUser().
 // ============================================================
 
 import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenUsers, updateUser, deleteUser, getConfig, setConfig } from '../api.js';
-import { ROLE_LABELS, ROLES } from '../utils/permissions.js';
+import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection } from '../utils/permissions.js';
 import { date, escapeHtml } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
 
 const { profile } = await requireAuth('admin');
+const myAssignableRoles = assignableRoles(profile.role);
+const canCreate         = myAssignableRoles.length > 0;
+const canEditCfg        = canEditConfig(profile.role);
+
+// Périmètre lisible affiché à l'utilisateur
+function perimetreText(role) {
+  if (role === 'patron')                return 'Tu peux gérer TOUS les comptes.';
+  if (role === 'co-patron')             return 'Tu peux gérer tous les comptes sauf le Patron.';
+  if (role === 'drh')                   return 'Tu peux gérer tous les comptes sauf le Patron et le Co-Patron.';
+  if (role === 'responsable-vente')     return 'Tu peux gérer uniquement les vendeurs (Novice / Intermédiaire / Expérimenté).';
+  if (role === 'responsable-pompiste')  return 'Tu peux gérer uniquement les pompistes (Novice / Intermédiaire / Expérimenté).';
+  return 'Aucun périmètre de gestion.';
+}
 
 const html = `
+  <div class="alert info mb-2">
+    <span class="icon">ℹ</span>
+    <span>${perimetreText(profile.role)} Les comptes hors de ton périmètre sont visibles en lecture seule (actions grisées).</span>
+  </div>
+
   <div class="row mb-2">
-    <button class="btn btn-primary" id="btn-nouveau">+ Créer un compte</button>
-    <button class="btn" id="btn-config-globale">⚙ Configuration globale</button>
+    ${canCreate ? `<button class="btn btn-primary" id="btn-nouveau">+ Créer un compte</button>` : ''}
+    ${canEditCfg ? `<button class="btn" id="btn-config-globale">⚙ Configuration globale</button>` : ''}
   </div>
 
   <div class="panel framed">
@@ -48,7 +67,7 @@ const html = `
       </div>
       <label>Rôle</label>
       <select id="new-role">
-        ${Object.entries(ROLE_LABELS).map(([k,l]) => `<option value="${k}">${l}</option>`).join('')}
+        ${myAssignableRoles.map(k => `<option value="${k}">${ROLE_LABELS[k]}</option>`).join('')}
       </select>
       <label>Mot de passe provisoire</label>
       <div class="row">
@@ -132,14 +151,27 @@ function renderUsers() {
     tbody.innerHTML = `<tr><td colspan="8" class="muted text-center">Aucun compte.</td></tr>`;
     return;
   }
-  tbody.innerHTML = users.map(u => `
-    <tr>
+  tbody.innerHTML = users.map(u => {
+    const isSelf       = u.id === profile.id;
+    const canManage    = canManageUser(profile.role, u.role) && !isSelf;
+    // Liste des rôles assignables : intersect avec ce que je peux gérer
+    const roleOptions  = myAssignableRoles
+      .map(k => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${ROLE_LABELS[k]}</option>`)
+      .join('');
+    // Si le rôle actuel n'est pas dans mes assignables, l'ajouter en option désactivée
+    const currentRoleHtml = !myAssignableRoles.includes(u.role)
+      ? `<option value="${u.role}" selected disabled>${ROLE_LABELS[u.role] || u.role} (hors périmètre)</option>`
+      : '';
+    const roleSelectAttr = canManage ? '' : 'disabled';
+    const tooltipHors    = canManage ? '' : 'title="Hors de ton périmètre de gestion"';
+
+    return `
+    <tr ${canManage ? '' : 'class="row-readonly"'}>
       <td><strong>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</strong></td>
       <td class="mono">${escapeHtml(u.email || '—')}</td>
       <td>
-        <select data-role="${u.id}" data-old-role="${u.role}">
-          ${Object.entries(ROLE_LABELS).map(([k,l]) =>
-            `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}
+        <select data-role="${u.id}" data-old-role="${u.role}" ${roleSelectAttr} ${tooltipHors}>
+          ${currentRoleHtml}${roleOptions}
         </select>
       </td>
       <td class="mono">${escapeHtml(u.idDiscord || '—')}</td>
@@ -149,20 +181,26 @@ function renderUsers() {
         <span class="badge ${u.statut === 'actif' ? 'ok' : 'warn'}">${u.statut || 'actif'}</span>
       </td>
       <td class="center">
-        <button class="btn btn-sm btn-ghost" data-edit-user="${u.id}">Modifier</button>
+        <button class="btn btn-sm btn-ghost" data-edit-user="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Modifier</button>
         ${u.statut !== 'suspendu'
-          ? `<button class="btn btn-sm" data-suspend="${u.id}">Suspendre</button>`
-          : `<button class="btn btn-sm" data-reactiver="${u.id}">Réactiver</button>`}
-        <button class="btn btn-sm btn-danger" data-delete="${u.id}" ${u.id === profile.id ? 'disabled' : ''}>×</button>
+          ? `<button class="btn btn-sm" data-suspend="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Suspendre</button>`
+          : `<button class="btn btn-sm" data-reactiver="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Réactiver</button>`}
+        <button class="btn btn-sm btn-danger" data-delete="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} ${tooltipHors}>×</button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 
   tbody.querySelectorAll('[data-role]').forEach(sel => {
     sel.addEventListener('change', async () => {
       const uid = sel.dataset.role;
       const ancien = sel.dataset.oldRole;
       const nouveau = sel.value;
+      // Garde-fou : si quelqu'un bidouille le DOM, refuser un rôle hors périmètre
+      if (!canManageUser(profile.role, ancien) || !canManageUser(profile.role, nouveau)) {
+        sel.value = ancien;
+        toastError("Ce changement de rôle est hors de ton périmètre.");
+        return;
+      }
       const direction = (r) => r === 'patron' || r === 'co-patron';
       // Confirmation pour tout changement impliquant Patron/Co-Patron
       if (direction(ancien) || direction(nouveau)) {
@@ -298,6 +336,10 @@ document.getElementById('btn-creer').addEventListener('click', async () => {
   };
   if (!data.prenom || !data.nom || !data.email || !data.motDePasse) {
     return toastError("Champs prénom, nom, email et mot de passe obligatoires.");
+  }
+  // Garde-fou : refuser la création d'un rôle hors périmètre
+  if (!canManageUser(profile.role, data.role)) {
+    return toastError("Ce rôle est hors de ton périmètre de création.");
   }
   if (data.role === ROLES.PATRON || data.role === ROLES.CO_PATRON) {
     const ok = await confirmCritique({

@@ -1,10 +1,12 @@
 # 📋 Guide DRH — Ressources Humaines
 
-> Tu es le **garant des employés** : leurs heures, leurs paies, la conformité aux plafonds TTE. Tu n'as pas accès à l'Administration (création/suppression de comptes), mais tu peux décider les salaires des responsables et de la direction.
+> Tu es le **garant des employés** : leurs heures, leurs paies, la conformité aux plafonds TTE.
+> Tu **gères aussi les comptes** (création, modification, suspension, suppression) — sauf le Patron et le Co-Patron, qui restent hors de ton périmètre.
+> Tu peux décider les salaires des responsables et de la direction.
 
 ---
 
-## 🎯 Tes 4 modules
+## 🎯 Tes modules
 
 | Module | Accès | Rôle |
 |--------|-------|------|
@@ -13,9 +15,12 @@
 | 💵 Ventes | Lecture | Voir les factures de la semaine |
 | 📋 Comptabilité | Lecture | Voir les comptes (pas modifier) |
 | 🧑‍💼 **Ressources humaines** | **Lecture + écriture** | Gérer effectif et salaires décidés |
+| ⚙ **Administration** | **Lecture + écriture (sauf direction)** | Créer / modifier / suspendre / supprimer des comptes |
 | 👤 Mon espace + 💰 Mes paies | Lecture | Tes infos perso |
 
-> 🔒 Tu **n'as pas accès** à : Stations essence (privilège pompiste), Administration (privilège direction).
+> 🔒 Tu **n'as pas accès** à : Stations essence (privilège pompiste), **Configuration globale** dans Administration (réservée à la direction).
+>
+> 🔐 **Périmètre Administration** : tu peux gérer **tous les comptes sauf le Patron et le Co-Patron** (les comptes hors périmètre apparaissent en lecture seule, actions grisées). Tu peux gérer un autre DRH.
 
 ---
 
@@ -73,15 +78,40 @@ Une ligne par employé avec :
 
 ### Ce que tu ne peux PAS faire
 
-- ❌ Créer un compte (Admin = direction uniquement)
-- ❌ Supprimer un compte (Admin = direction uniquement)
-- ❌ Suspendre un compte (Admin = direction uniquement)
-- ❌ Changer le rôle d'un employé (Admin = direction uniquement)
-- ❌ Modifier les ID Discord / ID Perso d'un employé (Admin uniquement)
 - ❌ Modifier les prix produits (Stocks lecture seule)
 - ❌ Ajouter une dépense (Comptabilité lecture seule)
+- ❌ Modifier la **Configuration globale** dans Administration (quotas, prix essence, webhook — réservée à la direction)
+- ❌ Gérer les comptes **Patron** et **Co-Patron** (hors périmètre — apparaissent grisés dans Administration)
 
 > Si tu as besoin d'une de ces actions → demande au Patron ou Co-Patron.
+
+---
+
+## ⚙ Le module Administration (gestion des comptes)
+
+Tu y accèdes via la sidebar — **« ⚙ Administration »**.
+
+### Ton périmètre
+- ✅ Tu peux **créer / modifier / suspendre / supprimer** : DRH, Responsables, Vendeurs, Pompistes
+- ❌ Tu ne peux **pas** toucher à : Patron, Co-Patron (lignes grisées)
+- ✅ Tu peux changer le rôle d'un employé (ex. promouvoir un Vendeur Novice → Intermédiaire)
+
+### Créer un compte
+Bouton **« + Créer un compte »**. Remplis :
+- Prénom, NOM, Email
+- ID Discord, ID Perso (in-game) — **les deux sont indispensables** pour que ses ventes/paies/heures soient bien attribuées
+- Rôle (limité à ton périmètre)
+- Mot de passe provisoire (bouton « Générer » dispo)
+
+À la création, le site affiche les credentials (email + mot de passe) → transmets-les à l'employé. Au premier accès, il sera forcé à changer son mot de passe.
+
+### Suspendre / Supprimer
+- **Suspendre** = licenciement RP. L'employé perd l'accès immédiatement, le compte reste consultable et réactivable. Confirmation 3 secondes.
+- **Supprimer définitivement** : confirmation 3 secondes + **tape `SUPPRIMER`** pour activer le bouton. Supprime le profil Firestore. ⚠ Le compte Firebase Auth (login/email) doit être supprimé séparément depuis la console Firebase pour libérer l'email — demande à la direction.
+
+### À ne pas faire
+- ❌ Ne supprime pas un compte sans avoir noté ses derniers chiffres (les ventes/paies passées restent en base mais lui-même disparaît)
+- ❌ Ne donne **jamais** un mot de passe par téléphone vocal — toujours via DM Discord ou autre canal écrit traçable
 
 ---
 

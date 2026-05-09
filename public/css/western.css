@@ -425,6 +425,25 @@ table.data td.center, table.data th.center { text-align: center; }
   background: linear-gradient(180deg, var(--color-danger) 0%, #5a0e0e 100%);
   border-color: var(--color-blood-light);
 }
+.btn[disabled], .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.btn[disabled]:hover, .btn:disabled:hover {
+  background: linear-gradient(180deg, var(--color-charcoal-2) 0%, #181818 100%);
+  border-color: var(--color-sand-dark);
+  color: var(--color-bone);
+}
+/* Ligne tableau hors périmètre de gestion (lecture seule pour cet utilisateur) */
+table.data tr.row-readonly {
+  opacity: 0.6;
+}
+table.data tr.row-readonly select:disabled {
+  background: #0a0a0a;
+  color: var(--color-sand-dark);
+  cursor: not-allowed;
+}
 
 /* === Forms === */
 label {

@@ -182,9 +182,19 @@ Toutes les pages utilisent les **listeners Firebase** (`onSnapshot`). Ça veut d
 | Modifier les stations | Patron, Co-Patron, Resp Pompiste | Tous les autres |
 | Ajouter une dépense | Patron, Co-Patron | DRH (lecture), tous les autres |
 | Décider un salaire | Patron, Co-Patron, DRH | Responsables, employés |
-| Créer / supprimer un compte | Patron, Co-Patron uniquement | Même le DRH ne peut pas |
+| Créer / supprimer un compte | Patron (tous), Co-Patron (sauf Patron), DRH (sauf direction), Resp Vente (vendeurs), Resp Pompiste (pompistes) | Vendeurs, Pompistes |
+| Configuration globale (quotas, webhook) | Patron, Co-Patron uniquement | Tous les autres y compris DRH |
 
-Ces règles sont appliquées **côté serveur** (rules Firestore) — on ne peut pas les contourner en bidouillant le navigateur.
+### Hiérarchie de gestion des comptes
+| Tu es… | Tu peux gérer (créer/modifier/suspendre/supprimer) |
+|--------|---------------------------------------------------|
+| Patron | Tous (y compris autres Patron) |
+| Co-Patron | Tous sauf Patron |
+| DRH | Tous sauf Patron + Co-Patron (peut gérer un autre DRH) |
+| Responsable Vente | Vendeurs uniquement (Novice / Inter / Exp) |
+| Responsable Pompiste | Pompistes uniquement (Novice / Inter / Exp) |
+
+Ces règles sont appliquées **côté serveur** (rules Firestore) — on ne peut pas les contourner en bidouillant le navigateur. Si quelqu'un essaie d'agir hors de son périmètre, Firestore refuse l'écriture.
 
 ---
 

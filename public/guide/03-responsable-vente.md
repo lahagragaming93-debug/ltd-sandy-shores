@@ -1,19 +1,46 @@
 # 🛒 Guide Responsable Vente
 
-> Tu pilotes l'**épicerie** : tu gères le catalogue, les prix, les stocks. Tu vois les ventes faites par ton équipe mais tu ne décides pas leurs salaires (la direction et le DRH s'en occupent).
+> Tu pilotes l'**épicerie** : tu gères le catalogue, les prix, les stocks. Tu vois les ventes faites par ton équipe.
+> Tu **gères aussi tes vendeurs** depuis Administration : créer, modifier, suspendre, supprimer, changer leur grade.
+> Tu ne décides pas les salaires (DRH et direction).
 
 ---
 
-## 🎯 Tes 3 modules
+## 🎯 Tes modules
 
 | Module | Accès | Rôle |
 |--------|-------|------|
 | 🛒 **Stocks épicerie** | **Lecture + écriture** | C'est ton outil principal |
 | 💵 **Ventes** | Lecture | Suivre l'activité de l'équipe |
 | 🧑‍💼 RH | Lecture | Voir l'effectif (pas modifier) |
+| ⚙ **Administration** | **Lecture + écriture (vendeurs uniquement)** | Gérer ton équipe |
 | 👤 Mon espace + 💰 Mes paies | Lecture | Tes infos perso |
 
-> 🔒 Tu **n'as pas accès** à : Dashboard, Stations essence, Comptabilité, Administration.
+> 🔒 Tu **n'as pas accès** à : Dashboard, Stations essence, Comptabilité, **Configuration globale** dans Administration.
+>
+> 🔐 **Périmètre Administration** : tu peux gérer **uniquement les vendeurs** (Novice, Intermédiaire, Expérimenté). Tous les autres comptes apparaissent grisés (lecture seule).
+
+---
+
+## ⚙ Administration — Gestion de tes vendeurs
+
+### Ce que tu peux faire
+- **Créer un compte vendeur** (Novice / Inter / Exp)
+  - Renseigne **ID Discord** + **ID Perso** systématiquement (sinon les ventes/paies ne lui seront pas attribuées)
+- **Modifier** un vendeur (prénom, NOM, IDs Discord/Perso, date d'entrée)
+- **Changer son grade** (promouvoir Novice → Inter → Exp) via le sélecteur de rôle
+- **Suspendre** un vendeur (= licenciement) — confirmation 3 secondes
+- **Supprimer définitivement** — confirmation 3 secondes + tape `SUPPRIMER` pour activer le bouton
+
+### À ne pas faire
+- ❌ Ne supprime pas un vendeur sans avoir noté ses derniers chiffres
+- ❌ Ne donne **jamais** un mot de passe par téléphone vocal — toujours via DM Discord ou autre canal écrit traçable
+- ❌ Ne tente pas de promouvoir un vendeur en Responsable ou DRH — c'est hors de ton périmètre (le sélecteur ne le proposera pas)
+
+### Promotion d'un vendeur
+1. Dans Admin, ligne du vendeur → sélecteur **Rôle** → choisis le nouveau grade (Novice / Inter / Exp)
+2. Le changement est immédiat
+3. Le **plafond salaire** s'ajuste automatiquement : 13k → 14k → 15k
 
 ---
 

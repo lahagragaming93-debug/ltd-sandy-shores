@@ -214,7 +214,16 @@ Voir aussi : **[02-drh.md](02-drh.md)** pour le détail.
 
 > **Création et gestion des comptes utilisateurs.** C'est là que tu fais entrer/sortir tes employés.
 
-> 🔒 **Accès strictement Patron / Co-Patron.** Pas même le DRH ne voit cette page.
+> 🔒 **Hiérarchie de gestion** :
+> - **Patron** (toi) : peut gérer **tous** les comptes
+> - **Co-Patron** : tous sauf Patron
+> - **DRH** : tous sauf Patron, Co-Patron (peut gérer un autre DRH)
+> - **Responsable Vente** : uniquement vendeurs (Novice / Inter / Exp)
+> - **Responsable Pompiste** : uniquement pompistes
+>
+> Les autres rôles ne voient pas Administration.
+>
+> 🔒 **Configuration globale** (quotas, prix essence, webhook Discord) reste **exclusivement Patron / Co-Patron**, même si DRH/Responsables ont accès à Administration.
 
 ### Ce que tu vois
 - **Tableau de tous les comptes** : nom, email, rôle, ID Discord, ID Perso, date entrée, statut, actions.

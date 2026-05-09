@@ -61,19 +61,30 @@ const html = `
 
   <!-- Modal config essence -->
   <div id="modal-config" class="modal-backdrop hidden">
-    <div class="modal">
+    <div class="modal" style="max-width:560px;">
       <h3>Configuration essence</h3>
+
+      <div class="alert info mb-2" style="font-size:0.82rem;">
+        <span class="icon">ℹ</span>
+        <span>
+          <strong>Quotas</strong> : effet immédiat sur le calcul des paies pompistes.<br>
+          <strong>Prix par défaut / Seuil par défaut</strong> : utilisés <em>uniquement</em> à la création de NOUVELLES stations. N'affectent pas les stations existantes — pour ça, utilise le bouton « Appliquer à toutes les stations » ci-dessous, ou modifie chaque station individuellement.
+        </span>
+      </div>
+
       <label>Quota bidons / pompiste / semaine</label>
       <input type="number" id="cfg-quota-bidons" min="0" />
       <label>Quota caoutchoucs / pompiste / semaine</label>
       <input type="number" id="cfg-quota-caoutchoucs" min="0" />
-      <label>Prix essence par défaut ($/L)</label>
+      <label>Prix essence par défaut ($/L) <span class="muted" style="font-size:0.75rem;">— pour nouvelles stations</span></label>
       <input type="number" id="cfg-prix-essence" step="0.1" min="0" />
-      <label>Seuil alerte essence par défaut (L)</label>
+      <label>Seuil alerte essence par défaut (L) <span class="muted" style="font-size:0.75rem;">— pour nouvelles stations</span></label>
       <input type="number" id="cfg-seuil-essence" min="0" />
-      <div class="row mt-3">
-        <button class="btn btn-primary" id="btn-save-config">Enregistrer</button>
-        <button class="btn btn-ghost" id="btn-cancel-config">Annuler</button>
+
+      <div class="row mt-3" style="flex-wrap:wrap; gap:8px;">
+        <button class="btn btn-primary" id="btn-save-config">Enregistrer config</button>
+        ${editable ? '<button class="btn btn-danger" id="btn-apply-all">Appliquer prix + seuil à TOUTES les stations</button>' : ''}
+        <button class="btn btn-ghost" id="btn-cancel-config">Fermer</button>
       </div>
     </div>
   </div>
@@ -181,19 +192,30 @@ document.getElementById('btn-cancel-station').addEventListener('click', () => mo
 
 document.getElementById('btn-save-station').addEventListener('click', async () => {
   const id = document.getElementById('st-id').value || ('station_' + Date.now());
+  // Note : input type=number rejette les virgules dans certaines locales — on remplace
+  // ',' par '.' pour être tolérant aux saisies utilisateur (5,5 au lieu de 5.5).
+  const lirePrix = (sel) => {
+    const v = (document.getElementById(sel).value || '').toString().replace(',', '.');
+    return Number(v);
+  };
   const data = {
     nom: document.getElementById('st-nom').value.trim(),
     stockActuel: Number(document.getElementById('st-stock-actuel').value) || 0,
     stockMax: Number(document.getElementById('st-stock-max').value) || 0,
     seuilAlerte: Number(document.getElementById('st-seuil').value) || 0,
-    prixLitre: Number(document.getElementById('st-prix').value) || 0
+    prixLitre: lirePrix('st-prix') || 0
   };
   if (!data.nom) return toastError("Nom obligatoire.");
+  console.log('[stations] save', id, data);
   try {
     await setStation(id, data);
-    toastSuccess("Station enregistrée.");
+    console.log('[stations] save OK', id);
+    toastSuccess(`Station "${data.nom}" enregistrée (prix ${data.prixLitre} $/L).`);
     modal.classList.add('hidden');
-  } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); console.error(e); }
+  } catch (e) {
+    console.error('[stations] save FAIL', id, e);
+    toastError("Échec : " + (e?.message || e?.code || "erreur inattendue. Voir console F12."));
+  }
 });
 
 const btnDel = document.getElementById('btn-delete-station');
@@ -244,6 +266,46 @@ document.getElementById('btn-save-config').addEventListener('click', async () =>
     miseAJourKpis(stations);
   } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
 });
+
+// === Bouton "Appliquer prix + seuil à toutes les stations" ===
+const btnApplyAll = document.getElementById('btn-apply-all');
+if (btnApplyAll) {
+  btnApplyAll.addEventListener('click', async () => {
+    const prix  = Number(document.getElementById('cfg-prix-essence').value);
+    const seuil = Number(document.getElementById('cfg-seuil-essence').value);
+    if (!Number.isFinite(prix) || prix < 0) return toastError("Prix invalide.");
+    if (!Number.isFinite(seuil) || seuil < 0) return toastError("Seuil invalide.");
+
+    const ok = await confirmCritique({
+      titre: 'Appliquer à toutes les stations',
+      message: `Cette action va <strong>écraser le prix au litre et le seuil d'alerte</strong> de TOUTES les ${stations.length} stations existantes avec :<br><br>
+        • Prix : <strong>${prix} $/L</strong><br>
+        • Seuil : <strong>${seuil} L</strong><br><br>
+        Le stock actuel, la capacité et le nom restent inchangés.<br><br>
+        Cette action est <strong>irréversible</strong> (pas d'annulation).`,
+      btnConfirm: `Appliquer aux ${stations.length} stations`,
+      delaiSec: 3
+    });
+    if (!ok) return;
+
+    let nbOk = 0, nbFail = 0;
+    btnApplyAll.disabled = true;
+    btnApplyAll.textContent = 'Application…';
+    for (const s of stations) {
+      try {
+        await setStation(s.id, { prixLitre: prix, seuilAlerte: seuil });
+        nbOk++;
+      } catch (e) {
+        console.error('Échec station', s.id, e);
+        nbFail++;
+      }
+    }
+    btnApplyAll.disabled = false;
+    btnApplyAll.textContent = 'Appliquer prix + seuil à TOUTES les stations';
+    if (nbFail === 0) toastSuccess(`${nbOk} stations mises à jour.`);
+    else toastError(`${nbOk} OK / ${nbFail} en erreur. Voir console (F12).`);
+  });
+}
 
 // === Redistributions de la semaine ===
 const debut = startOfWeekRP();

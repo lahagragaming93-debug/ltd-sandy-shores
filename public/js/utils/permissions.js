@@ -45,7 +45,9 @@ export const ACCESS = {
   comptabilite_edit: DIRECTION,
   rh:                RH_FULL,
   stations:          [...DIRECTION, 'responsable-pompiste'],
-  admin:             DIRECTION,
+  // Admin : accessible à direction, DRH et responsables.
+  // Le périmètre des actions (qui peut gérer qui) est contrôlé par canManageUser().
+  admin:             [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste'],
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
                       'responsable-vente', 'responsable-pompiste'],
   // Mes paies : tout employé connecté actif
@@ -68,6 +70,40 @@ export function isPompiste(role)    { return POMPISTES.includes(role); }
 export function isResponsable(role) { return role === 'responsable-vente' || role === 'responsable-pompiste'; }
 export function isEmployeeView(role) {
   return isVendeur(role) || isPompiste(role);
+}
+
+// ============================================================
+// Hiérarchie de gestion des comptes
+// ============================================================
+// canManageUser(currentRole, targetRole) : currentRole peut-il créer/modifier/
+// suspendre/supprimer un compte ayant targetRole ?
+//
+//   Patron        : tout
+//   Co-Patron     : tout sauf Patron
+//   DRH           : tout sauf Patron, Co-Patron (peut gérer un autre DRH)
+//   Resp Vente    : uniquement vendeur-novice / vendeur-intermediaire / vendeur-experimente
+//   Resp Pompiste : uniquement pompiste-novice / pompiste-intermediaire / pompiste-experimente
+//   Autres rôles  : aucun (les vendeurs/pompistes ne gèrent personne)
+export function canManageUser(currentRole, targetRole) {
+  if (!currentRole || !targetRole) return false;
+  if (currentRole === 'patron') return true;
+  if (currentRole === 'co-patron') return targetRole !== 'patron';
+  if (currentRole === 'drh') {
+    return targetRole !== 'patron' && targetRole !== 'co-patron';
+  }
+  if (currentRole === 'responsable-vente')   return VENDEURS.includes(targetRole);
+  if (currentRole === 'responsable-pompiste')return POMPISTES.includes(targetRole);
+  return false;
+}
+
+// Liste des rôles qu'un utilisateur peut assigner (création + changement de rôle)
+export function assignableRoles(currentRole) {
+  return Object.values(ROLES).filter(r => canManageUser(currentRole, r));
+}
+
+// La configuration globale (quotas, prix essence, webhook) reste réservée à la direction
+export function canEditConfig(role) {
+  return isDirection(role);
 }
 
 export function defaultLandingPage(role) {

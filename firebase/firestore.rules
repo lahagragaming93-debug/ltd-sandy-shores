@@ -31,6 +31,20 @@ service cloud.firestore {
     function isRespPompiste(){ return role() == 'responsable-pompiste'; }
     function isResponsable() { return isRespVente() || isRespPompiste(); }
 
+    // Hiérarchie de gestion : currentRole peut-il agir sur targetRole ?
+    //   Patron : tout
+    //   Co-Patron : tout sauf Patron
+    //   DRH : tout sauf Patron, Co-Patron (peut gérer un autre DRH)
+    //   Resp Vente : uniquement vendeur-*
+    //   Resp Pompiste : uniquement pompiste-*
+    function canManage(currentRole, targetRole) {
+      return currentRole == 'patron'
+        || (currentRole == 'co-patron' && targetRole != 'patron')
+        || (currentRole == 'drh' && targetRole != 'patron' && targetRole != 'co-patron')
+        || (currentRole == 'responsable-vente'    && targetRole.matches('vendeur-.*'))
+        || (currentRole == 'responsable-pompiste' && targetRole.matches('pompiste-.*'));
+    }
+
     // === Users ===
     // Lecture : soi-même, direction, DRH, responsables (pour filtres ventes/RH).
     // Vendeurs et pompistes ne peuvent lire QUE leur propre profil.
@@ -39,18 +53,22 @@ service cloud.firestore {
         request.auth.uid == uid ||
         isDirection() || isDRH() || isResponsable()
       );
-      // Création : Direction crée n'importe quel compte (via Admin).
-      // L'auto-création (request.auth.uid == uid) n'est plus autorisée du tout :
-      // l'inscription publique est définitivement fermée.
-      allow create: if isAuth() && isDirection();
-      // Soi-même peut maj certains champs ; direction peut tout maj
+      // Création : le créateur doit pouvoir gérer le rôle créé
+      // (Direction, DRH, Responsables — selon hiérarchie canManage).
+      allow create: if isAuth() && canManage(role(), request.resource.data.role);
+      // Update :
+      //  - Soi-même peut maj ses propres infos (mais pas son rôle ni son statut)
+      //  - Sinon : le rôle ACTUEL et le NOUVEAU rôle doivent tous deux être dans
+      //    le périmètre de gestion du créateur (évite l'élévation hors périmètre)
       allow update: if isAuth() && (
-        isDirection() ||
         (request.auth.uid == uid &&
          request.resource.data.role == resource.data.role &&
-         request.resource.data.statut == resource.data.statut)
+         request.resource.data.statut == resource.data.statut) ||
+        (canManage(role(), resource.data.role) &&
+         canManage(role(), request.resource.data.role))
       );
-      allow delete: if isDirection();
+      // Delete : le rôle de la cible doit être dans mon périmètre
+      allow delete: if isAuth() && canManage(role(), resource.data.role);
     }
 
     // === Produits ===
