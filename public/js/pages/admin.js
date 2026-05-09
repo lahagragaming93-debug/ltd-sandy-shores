@@ -69,6 +69,29 @@ const html = `
     </div>
   </div>
 
+  <!-- Modal édition compte -->
+  <div id="modal-edit" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:520px;">
+      <h3>Modifier le compte</h3>
+      <input type="hidden" id="edit-uid" />
+      <p class="muted mono" style="font-size:0.75rem;">Email : <span id="edit-email-readonly">—</span> <em>(non modifiable ici)</em></p>
+      <div class="field-row">
+        <div><label>Prénom RP</label><input type="text" id="edit-prenom" /></div>
+        <div><label>NOM RP</label><input type="text" id="edit-nom" style="text-transform:uppercase;" /></div>
+      </div>
+      <div class="field-row">
+        <div><label>ID Discord</label><input type="text" id="edit-id-discord" /></div>
+        <div><label>ID Perso (in-game)</label><input type="text" id="edit-id-perso" /></div>
+      </div>
+      <label>Date d'entrée</label>
+      <input type="date" id="edit-date-entree" />
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="btn-save-edit">Enregistrer</button>
+        <button class="btn btn-ghost" id="btn-cancel-edit">Annuler</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal config globale -->
   <div id="modal-config" class="modal-backdrop hidden">
     <div class="modal" style="max-width: 580px;">
@@ -125,6 +148,7 @@ function renderUsers() {
         <span class="badge ${u.statut === 'actif' ? 'ok' : 'warn'}">${u.statut || 'actif'}</span>
       </td>
       <td class="center">
+        <button class="btn btn-sm btn-ghost" data-edit-user="${u.id}">Modifier</button>
         ${u.statut !== 'suspendu'
           ? `<button class="btn btn-sm" data-suspend="${u.id}">Suspendre</button>`
           : `<button class="btn btn-sm" data-reactiver="${u.id}">Réactiver</button>`}
@@ -182,7 +206,46 @@ function renderUsers() {
       } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
     });
   });
+
+  tbody.querySelectorAll('[data-edit-user]').forEach(btn => {
+    btn.addEventListener('click', () => ouvrirEdition(btn.dataset.editUser));
+  });
 }
+
+// === Édition d'un compte ===
+function ouvrirEdition(uid) {
+  const u = users.find(x => x.id === uid);
+  if (!u) return;
+  document.getElementById('edit-uid').value = uid;
+  document.getElementById('edit-email-readonly').textContent = u.email || '—';
+  document.getElementById('edit-prenom').value = u.prenom || '';
+  document.getElementById('edit-nom').value = u.nom || '';
+  document.getElementById('edit-id-discord').value = u.idDiscord || '';
+  document.getElementById('edit-id-perso').value = u.idPerso || '';
+  document.getElementById('edit-date-entree').value = u.dateEntree || '';
+  document.getElementById('modal-edit').classList.remove('hidden');
+}
+
+document.getElementById('btn-cancel-edit').addEventListener('click', () => {
+  document.getElementById('modal-edit').classList.add('hidden');
+});
+
+document.getElementById('btn-save-edit').addEventListener('click', async () => {
+  const uid = document.getElementById('edit-uid').value;
+  const patch = {
+    prenom:    document.getElementById('edit-prenom').value.trim(),
+    nom:       document.getElementById('edit-nom').value.trim().toUpperCase(),
+    idDiscord: document.getElementById('edit-id-discord').value.trim(),
+    idPerso:   document.getElementById('edit-id-perso').value.trim(),
+    dateEntree:document.getElementById('edit-date-entree').value || null
+  };
+  if (!patch.prenom || !patch.nom) return toastError("Prénom et NOM obligatoires.");
+  try {
+    await updateUser(uid, patch);
+    toastSuccess("Compte modifié.");
+    document.getElementById('modal-edit').classList.add('hidden');
+  } catch (e) { toastError(e?.message || e?.code || "Erreur."); console.error(e); }
+});
 
 // === Création de compte ===
 document.getElementById('btn-nouveau').addEventListener('click', () => {
