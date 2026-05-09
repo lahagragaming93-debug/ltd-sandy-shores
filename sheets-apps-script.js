@@ -38,7 +38,7 @@ const RENAMES = {
   'Dépenses': 'Depenses'
 };
 
-const ONGLETS_CIBLES = ['Resume', 'Depenses', 'Ventes', 'Paies'];
+const ONGLETS_CIBLES = ['Resume', 'Depenses', 'Ventes', 'Paies', 'Banque'];
 
 // ============================================================
 // MENU CUSTOM (apparaît à l'ouverture)
@@ -357,7 +357,8 @@ function creerDashboard() {
     ['📁 Onglet "Depenses"',  'Toutes les dépenses avec date, raison, montant, type (matières premières / avocat / véhicules / autre / non déductible), déductible oui/non, utilisateur qui a saisi'],
     ['📁 Onglet "Ventes"',     'Toutes les recettes avec date, n° facture, vendeur, client, montant, bénéfice, mode de paiement, raison'],
     ['📁 Onglet "Paies"',      'Tous les salaires versés avec date, payeur, bénéficiaire, montant, période concernée'],
-    ['📁 Onglet "Resume"',     'Récap par semaine clôturée : CA, charges déductibles, masse salariale, primes (Art. 4-1.10 hebdo + Art. 4-1.11 mensuel), bénéfice net']
+    ['📁 Onglet "Resume"',     'Récap par semaine clôturée : CA, charges déductibles, masse salariale, primes (Art. 4-1.10 hebdo + Art. 4-1.11 mensuel), bénéfice net'],
+    ['📁 Onglet "Banque"',     'TOUS les mouvements bancaires LTD chronologiques (entrées xbankaccount + sorties #depenses) avec solde après chaque opération. Audit financier complet.']
   ];
   const auditStart = auditRow + 1;
   auditLignes.forEach((ligne, i) => {

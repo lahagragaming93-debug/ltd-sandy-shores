@@ -645,9 +645,10 @@ export const comptaExport = onRequest({
       case 'depenses': csv = await csvDepenses(usersByDiscord); break;
       case 'ventes':   csv = await csvVentes(usersByDiscord);   break;
       case 'paies':    csv = await csvPaies(usersByDiscord);    break;
+      case 'banque':   csv = await csvBanque();   break;
       default:
         return res.status(400).type('text/plain').send(
-          'Type inconnu. Utilise ?type=resume | depenses | ventes | paies');
+          'Type inconnu. Utilise ?type=resume | depenses | ventes | paies | banque');
     }
     // BOM UTF-8 pour qu'Excel/Sheets gèrent les accents
     res.send('﻿' + csv);
@@ -816,6 +817,75 @@ async function csvVentes(usersByDiscord) {
       v.benefice || 0,
       v.paiement || '',
       v.raison || ''
+    ));
+  }
+  return lines.join('\n');
+}
+
+// === Mouvements bancaires LTD (entrées + sorties combinées) ===
+// Combine /banqueLtd (entrées xbankaccount) + /depenses (sorties #depenses)
+// Triées par timestamp décroissant. Permet à l'audit IRS de voir TOUS les
+// mouvements du compte LTD chronologiquement avec le solde après chaque op.
+async function csvBanque() {
+  const lines = [csvRow(
+    'Date', 'Type', 'Montant', 'Solde avant', 'Solde après', 'Raison', 'Utilisateur', 'Source'
+  )];
+
+  // Lire les 2 sources en parallèle
+  const [banqueSnap, depensesSnap] = await Promise.all([
+    db.collection('banqueLtd').orderBy('timestamp', 'desc').limit(1500).get(),
+    db.collection('depenses').orderBy('timestamp', 'desc').limit(500).get()
+  ]);
+
+  // Combine en un tableau unifié
+  const ops = [];
+  for (const d of banqueSnap.docs) {
+    const x = d.data();
+    if (!x.timestamp) continue;
+    ops.push({
+      timestamp: x.timestamp,
+      type: x.type === 'remove' ? 'Sortie' : 'Entrée',
+      montant: Number(x.montant) || 0,
+      soldeAvant: Number(x.soldeAvant) || 0,
+      soldeApres: Number(x.soldeApres) || 0,
+      raison: x.raison || '',
+      utilisateur: '',
+      source: 'xbankaccount'
+    });
+  }
+  for (const d of depensesSnap.docs) {
+    const x = d.data();
+    if (!x.timestamp) continue;
+    ops.push({
+      timestamp: x.timestamp,
+      type: 'Sortie',
+      montant: Number(x.montant) || 0,
+      soldeAvant: Number(x.soldeAvant) || 0,
+      soldeApres: Number(x.soldeApres) || 0,
+      raison: x.raison || '',
+      utilisateur: x.utilisateur || '',
+      source: 'depense'
+    });
+  }
+
+  // Tri chronologique décroissant
+  ops.sort((a, b) => {
+    const ta = a.timestamp.toMillis ? a.timestamp.toMillis() : 0;
+    const tb = b.timestamp.toMillis ? b.timestamp.toMillis() : 0;
+    return tb - ta;
+  });
+
+  // Génère le CSV (limite à 2000 pour la perf)
+  for (const op of ops.slice(0, 2000)) {
+    lines.push(csvRow(
+      dateIso(op.timestamp),
+      op.type,
+      op.montant,
+      op.soldeAvant,
+      op.soldeApres,
+      op.raison,
+      op.utilisateur,
+      op.source
     ));
   }
   return lines.join('\n');
