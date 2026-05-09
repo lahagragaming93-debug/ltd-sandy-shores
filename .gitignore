@@ -6,10 +6,17 @@ node_modules/
 firebase/functions/.runtimeconfig.json
 firebase/.firebaserc
 firebase/functions/lib/
+**/serviceAccountKey*.json
 
 # Discord bot
 discord-bot/config.json
 discord-bot/.env
+discord-bot/peek-*.json
+
+# Secrets (tokens, .env, credentials)
+*.token
+*.secret
+*.credentials.json
 
 # Logs
 *.log

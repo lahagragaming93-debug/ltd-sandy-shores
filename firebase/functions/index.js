@@ -115,18 +115,37 @@ export const alerteStock = onDocumentWritten({
   }
 });
 
-// Stations < seuil
+// Stations sous seuil — supporte seuil en L (seuilAlerte) ou en % (seuilAlertePct).
+// Anti-spam : creerAlerte dédoublonne par stationId tant que l'alerte est non résolue.
 export const alerteStation = onDocumentWritten({
   document: 'stations/{id}',
   region: 'europe-west1'
 }, async (event) => {
   const after = event.data?.after?.data();
   if (!after) return;
-  const seuil = after.seuilAlerte || 0;
-  if ((after.stockActuel || 0) < seuil && seuil > 0) {
+  const stationId = event.params.id;
+  const stockActuel = after.stockActuel || 0;
+  const stockMax    = after.stockMax    || 0;
+  const seuilL      = after.seuilAlerte    || 0;
+  const seuilPct    = after.seuilAlertePct || 0;
+  const nom = after.nom || stationId;
+
+  // Seuil en litres absolus (ancien comportement)
+  if (seuilL > 0 && stockActuel < seuilL) {
     await creerAlerte('station-bas',
-      `Station ${after.nom} sous ${seuil} L (actuel: ${after.stockActuel} L)`,
-      'warn', { stationId: event.params.id });
+      `Station ${nom} sous ${seuilL} L (actuel: ${stockActuel} L)`,
+      'warn', { stationId });
+    return;
+  }
+  // Seuil en pourcentage (nouveau, alimenté par stationsDashboard)
+  if (seuilPct > 0 && stockMax > 0) {
+    const pct = Math.round((stockActuel / stockMax) * 100);
+    if (pct < seuilPct) {
+      const gravite = pct < 5 ? 'danger' : 'warn';
+      await creerAlerte('station-bas',
+        `Station ${nom} à ${pct}% (seuil ${seuilPct}%) — ${stockActuel.toLocaleString('fr-FR')} / ${stockMax.toLocaleString('fr-FR')} L`,
+        gravite, { stationId });
+    }
   }
 });
 
@@ -145,14 +164,21 @@ export const alerteVenteSansStock = onDocumentCreated({
 });
 
 async function creerAlerte(type, message, gravite = 'warn', metadata = {}) {
-  // Anti-doublons : pas de nouvelle alerte si une identique non résolue existe.
+  // Anti-doublons : si metadata identifie une entité (stationId, stockId,
+  // venteId), on dédoublonne par entité tant que l'alerte est non résolue —
+  // évite le spam quand stockActuel fluctue. Sinon fallback sur le message.
+  const dedupKey = metadata.stationId || metadata.stockId || metadata.venteId || message;
   const dejaSnap = await db.collection('alertes')
     .where('type', '==', type)
     .where('resolue', '==', false)
-    .limit(20).get();
-  const existe = dejaSnap.docs.find(d => d.data().message === message);
+    .limit(50).get();
+  const existe = dejaSnap.docs.find(d => {
+    const m = d.data().metadata || {};
+    const k = m.stationId || m.stockId || m.venteId || d.data().message;
+    return k === dedupKey;
+  });
   if (existe) {
-    console.log(`[creerAlerte] doublon ignoré : ${type} "${message}"`);
+    console.log(`[creerAlerte] doublon ignoré : ${type} key=${dedupKey}`);
     return;
   }
 
@@ -228,6 +254,7 @@ export const botIngest = onRequest({
       case 'autorankup':      await onAutorankup(payload); break;
       case 'statsbank':       await onStatsbank(payload); break;
       case 'rapportPompiste': await onRapportPompiste(payload); break;
+      case 'stationsDashboard': await onStationsDashboard(payload); break;
       case 'venteAuto':       await onVenteAuto(payload); break;
       case 'logBrut':         await onLogBrut(payload); break;
       default:                return res.status(400).send('Unknown type');
@@ -531,6 +558,33 @@ async function onRapportPompiste(p) {
       sourceMajAuto: 'rapport-pompiste-quotidien'
     }, { merge: true });
   }
+}
+
+// === Dashboard stations (#⛽ Station — message édité en place) ===
+// Source de vérité temps réel pour stockActuel/stockMax/prixLitre/derniereRavit
+// par station. Initialise seuilAlertePct=20 par défaut (override via /admin).
+async function onStationsDashboard(p) {
+  const stations = Array.isArray(p.stations) ? p.stations : [];
+  for (const s of stations) {
+    if (!s.stationId) continue;
+    const ref = db.collection('stations').doc(s.stationId);
+    const snap = await ref.get();
+    const cur = snap.exists ? snap.data() : {};
+    const patch = {
+      nom:           s.nom || cur.nom || s.stationId,
+      stockActuel:   s.stockActuel,
+      stockMax:      s.stockMax,
+      niveauPct:     s.niveauPct,
+      prixLitre:     s.prixLitre,
+      derniereRavit: s.derniereRavit,
+      statut:        s.statut,
+      derniereMajAuto: FieldValue.serverTimestamp(),
+      sourceMajAuto:   'stations-dashboard'
+    };
+    if (!('seuilAlertePct' in cur)) patch.seuilAlertePct = 20;
+    await ref.set(patch, { merge: true });
+  }
+  console.log(`[stationsDashboard] ${stations.length} stations sync`);
 }
 
 // === Vente-auto (#ventes — distributeur LTD automatique) ===

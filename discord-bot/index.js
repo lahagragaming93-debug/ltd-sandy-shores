@@ -20,6 +20,7 @@ import { parseAutorankupEmbed }      from './parsers/autorankup.js';
 import { parseStatsbankEmbed }       from './parsers/statsbank.js';
 import { parseRapportPompisteEmbed } from './parsers/rapportPompiste.js';
 import { parseVenteAutoEmbed }       from './parsers/venteAuto.js';
+import { parseStationsDashboardMessage } from './parsers/stationsDashboard.js';
 
 const required = ['DISCORD_TOKEN', 'GUILD_ID', 'INGEST_URL', 'INGEST_TOKEN'];
 for (const k of required) {
@@ -50,7 +51,12 @@ const CHANNEL_MAP = {
   [process.env.CH_AUTORANKUP]:            { type: 'autorankup',     parser: parseAutorankupEmbed    },
   [process.env.CH_STATSBANK]:             { type: 'statsbank',      parser: parseStatsbankEmbed     },
   [process.env.CH_POMPISTE]:              { type: 'rapportPompiste',parser: parseRapportPompisteEmbed },
-  [process.env.CH_VENTES]:                { type: 'venteAuto',      parser: parseVenteAutoEmbed     }
+  [process.env.CH_VENTES]:                { type: 'venteAuto',      parser: parseVenteAutoEmbed     },
+  // Dashboard stations : 1 seul message édité en place → flag listenEdits
+  [process.env.CH_STATIONS_DASHBOARD]:    { type: 'stationsDashboard',
+                                            parser: parseStationsDashboardMessage,
+                                            listenEdits: true,
+                                            fetchOnStartup: true }
 };
 
 const RAW_CHANNELS = {
@@ -113,9 +119,25 @@ client.once(Events.ClientReady, async (c) => {
   } catch (e) {
     console.error('Erreur diagnostic :', e.message);
   }
+
+  // Fetch initial : pour les canaux marqués fetchOnStartup (dashboards édités
+  // en place), récupère le dernier message pour avoir l'état courant.
+  for (const [chanId, cfg] of Object.entries(CHANNEL_MAP)) {
+    const candidates = Array.isArray(cfg) ? cfg : [cfg];
+    if (!candidates.some(c => c.fetchOnStartup)) continue;
+    try {
+      const ch = await c.channels.fetch(chanId);
+      if (!ch) { console.log(`  fetchOnStartup ${chanId} : salon introuvable`); continue; }
+      const messages = await ch.messages.fetch({ limit: 1 });
+      for (const m of messages.values()) await handleMessage(m, 'startup');
+      console.log(`  fetchOnStartup #${ch.name} : OK`);
+    } catch (err) {
+      console.error(`  fetchOnStartup ${chanId} :`, err.message);
+    }
+  }
 });
 
-client.on(Events.MessageCreate, async (msg) => {
+async function handleMessage(msg, source = 'create') {
   if (msg.guildId !== process.env.GUILD_ID) return;
   if (msg.author?.bot && !shouldProcessBotMessage(msg)) {
     if (msg.author.id === client.user.id) return;
@@ -126,7 +148,7 @@ client.on(Events.MessageCreate, async (msg) => {
   const author = msg.author?.username || 'inconnu';
   const isBot = msg.author?.bot ? '🤖' : '👤';
   const nbEmbeds = msg.embeds?.length || 0;
-  console.log(`[MSG] #${channelName} ${isBot}${author} embeds=${nbEmbeds} content="${(msg.content || '').slice(0, 60)}"`);
+  console.log(`[${source.toUpperCase()}] #${channelName} ${isBot}${author} embeds=${nbEmbeds} content="${(msg.content || '').slice(0, 60)}"`);
 
   // Canaux structurés (mono-parser ou liste de parsers)
   const cfg = CHANNEL_MAP[channelId];
@@ -152,8 +174,8 @@ client.on(Events.MessageCreate, async (msg) => {
     return;
   }
 
-  // Canaux logs bruts
-  if (RAW_CHANNELS[channelId]) {
+  // Canaux logs bruts (uniquement sur create — pas sur edit pour éviter spam)
+  if (source === 'create' && RAW_CHANNELS[channelId]) {
     try {
       const contenu = embedsToText(msg);
       if (!contenu) return;
@@ -166,6 +188,23 @@ client.on(Events.MessageCreate, async (msg) => {
       console.error('logBrut error', err.message);
     }
   }
+}
+
+client.on(Events.MessageCreate, (msg) => handleMessage(msg, 'create'));
+
+// Edits : pour les canaux où le bot externe édite le même message en place
+// (ex. dashboard stations). On ne traite que les channels marqués listenEdits.
+client.on(Events.MessageUpdate, async (_oldMsg, newMsg) => {
+  const cfg = CHANNEL_MAP[newMsg.channelId];
+  const candidates = Array.isArray(cfg) ? cfg : (cfg ? [cfg] : []);
+  if (!candidates.some(c => c.listenEdits)) return;
+  try {
+    if (newMsg.partial) newMsg = await newMsg.fetch();
+  } catch (err) {
+    console.error('MessageUpdate fetch failed:', err.message);
+    return;
+  }
+  await handleMessage(newMsg, 'update');
 });
 
 function shouldProcessBotMessage(msg) {
