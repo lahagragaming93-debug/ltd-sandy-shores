@@ -233,6 +233,16 @@ export async function listMouvementsBanqueRecents(n = 50) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// === Stats hebdo officielles FiveM (depuis #statsbank) ===
+// Lit les N dernières semaines pour comparer avec nos /semaines
+export async function listStatsHebdoOfficielles(n = 10) {
+  const q = query(collection(db, 'statsHebdoOfficiels'),
+    orderBy('derniereMaj', 'desc'),
+    limit(n));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // === RH événements (embauches/exclusions auto depuis #auto-rh) ===
 // Lecture des embauches non encore traitées (compte pas créé)
 export async function listEmbauchesEnAttente() {

@@ -8,7 +8,7 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell, roleBadgeHtml } from '../layout.js';
 import {
   listVentesSemaine, listDepensesSemaine, listPaiesSemaine, listSemaines,
-  ajouterDepense, listUsers
+  ajouterDepense, listUsers, listStatsHebdoOfficielles
 } from '../api.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
@@ -87,6 +87,18 @@ const html = `
       <button class="btn btn-sm" id="btn-copy-recap" title="Copie un récap formaté pour le coller dans Discord">📋 Copier récap Discord</button>
     </div>
     <div id="salaires-zone"><p class="muted">Chargement…</p></div>
+  </div>
+
+  <!-- Comparaison Statsbank officiel vs nos calculs -->
+  <div class="panel framed" id="panel-statsbank" style="border-color:var(--color-info);">
+    <div class="panel-title">
+      <span>🔍 Comparaison cross-source — Officiel FiveM vs nos calculs</span>
+      <span class="muted" style="font-size:0.75rem;" id="statsbank-info">—</span>
+    </div>
+    <p class="muted" style="font-size:0.82rem;margin:4px 0 8px;">
+      Les chiffres calculés par <strong>le serveur FiveM lui-même</strong> (canal <code>#statsbank</code>) sont stockés dans <code>statsHebdoOfficiels</code> et comparés avec nos calculs internes (<code>/semaines</code>). Tout écart est mis en évidence — utile pour audit IRS et détection d'anomalies.
+    </p>
+    <div id="statsbank-zone"><p class="muted">Chargement…</p></div>
   </div>
 
   <!-- Charges détaillées -->
@@ -535,3 +547,92 @@ document.getElementById('btn-export-csv').addEventListener('click', async () => 
 document.getElementById('btn-export-pdf').addEventListener('click', () => {
   window.print();
 });
+
+// ============================================================
+// Comparaison Statsbank officiel vs nos calculs internes
+// ============================================================
+async function chargerStatsbank() {
+  const zone = document.getElementById('statsbank-zone');
+  const info = document.getElementById('statsbank-info');
+  let stats = [];
+  try {
+    stats = await listStatsHebdoOfficielles(10);
+  } catch (e) {
+    zone.innerHTML = `<p class="alert warn">Impossible de lire les stats officielles. Le bot doit avoir parsé au moins un récap dans #statsbank (1 par semaine).</p>`;
+    return;
+  }
+  if (stats.length === 0) {
+    zone.innerHTML = `<p class="muted">Aucune stat officielle reçue pour l'instant. Le canal <code>#statsbank</code> du serveur FiveM publie 1 récap par semaine — rendez-vous lundi prochain.</p>`;
+    info.textContent = '0 récap officiel';
+    return;
+  }
+  info.textContent = `${stats.length} récap${stats.length > 1 ? 's' : ''} reçu${stats.length > 1 ? 's' : ''}`;
+
+  // Charge nos /semaines pour comparaison
+  const nosSemaines = await listSemaines(20).catch(() => []);
+  const nosSemParId = nosSemaines.reduce((m, s) => {
+    m[s.numero || s.id] = s;
+    return m;
+  }, {});
+
+  // Pour chaque stat officielle, on essaie de matcher avec une /semaines
+  // Match par dateDebut ou par numéro de semaine ISO de l'année
+  const lignes = stats.map(off => {
+    // Cherche match par numéro ISO ou par recouvrement temporel
+    const match = nosSemaines.find(s => {
+      const num = s.numero || s.id || '';
+      return num.includes(`S${String(off.numeroSemaine).padStart(2, '0')}`) ||
+             num.includes(`-${off.annee}`);
+    }) || nosSemaines[0]; // fallback : la dernière semaine
+
+    const ecartCa = match ? (off.ca - (match.ca || 0)) : null;
+    const ecartSorties = match ? (off.sorties - (match.depenses || 0)) : null;
+    const ecartBenefice = match ? (off.beneficeBrut - (match.beneficeBrut || 0)) : null;
+
+    return { off, match, ecartCa, ecartSorties, ecartBenefice };
+  });
+
+  zone.innerHTML = `
+    <table class="data" style="font-size:0.85rem;">
+      <thead>
+        <tr>
+          <th>Semaine FiveM</th>
+          <th class="right">CA officiel</th>
+          <th class="right">Notre CA</th>
+          <th class="right">Écart CA</th>
+          <th class="right">Solde actuel</th>
+          <th class="right">Impôt estimé</th>
+          <th class="center">Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lignes.map(l => {
+          const ec = l.ecartCa;
+          const ecartCls = ec === null ? 'muted' :
+                           Math.abs(ec) < 100 ? '' :
+                           Math.abs(ec) < 1000 ? 'gold' : 'alerte-fort';
+          const statut = ec === null ? '<span class="badge neutral">Pas de match</span>' :
+                         Math.abs(ec) < 100 ? '<span class="badge ok">✓ Cohérent</span>' :
+                         Math.abs(ec) < 1000 ? '<span class="badge warn">⚠ Léger écart</span>' :
+                         '<span class="badge danger">🚨 Gros écart</span>';
+          return `
+            <tr>
+              <td><strong>S${String(l.off.numeroSemaine).padStart(2,'0')}-${l.off.annee}</strong>${l.off.periode ? `<br><small class="muted">${escapeHtml(l.off.periode)}</small>` : ''}</td>
+              <td class="right mono">${money(l.off.ca)}</td>
+              <td class="right mono ${l.match ? '' : 'muted'}">${l.match ? money(l.match.ca || 0) : '—'}</td>
+              <td class="right mono ${ecartCls}">${ec === null ? '—' : (ec >= 0 ? '+' : '') + money(ec)}</td>
+              <td class="right mono">${money(l.off.soldeActuel)}</td>
+              <td class="right mono" style="color:var(--color-warning);">${money(l.off.impotEstime)}<br><small class="muted">tr. ${l.off.trancheImpot || '?'} (${l.off.tauxImpot || '?'}%)</small></td>
+              <td class="center">${statut}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+    <p class="muted mt-2" style="font-size:0.78rem;">
+      💡 <strong>Si « Cohérent »</strong> partout : nos calculs internes sont validés par le serveur FiveM officiel. Audit IRS bétonné.<br>
+      ⚠ <strong>Si « Gros écart »</strong> : il y a un écart significatif (> 1 000 $). Investigue : ventes manquantes, dépenses non parsées, paies non versées, etc.
+    </p>
+  `;
+}
+chargerStatsbank();
