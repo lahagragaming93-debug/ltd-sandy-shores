@@ -120,7 +120,7 @@ Pour atteindre le plafond Novice, il faudrait :
 - Tu peux voir les marges en demandant à ton **Responsable Vente**
 
 ### 2. Optimise tes heures de service
-- Pas d'heures = pas de présence = pas de ventes attribuées (et le bot ne te paiera pas)
+- Pas d'heures = pas de présence = pas de ventes attribuées (et la direction ne te paiera pas)
 - Vise au moins **7h/semaine** pour que ton activité soit jugée régulière
 
 ### 3. Vérifie tes IDs
