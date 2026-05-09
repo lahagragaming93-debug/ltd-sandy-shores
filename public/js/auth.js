@@ -14,32 +14,16 @@ import { canAccess, defaultLandingPage, ROLES } from './utils/permissions.js';
 let currentUser = null;
 let currentProfile = null;
 
-// === Création du premier compte (patron / co-patron) ===
-// Seuls le patron et le co-patron peuvent s'inscrire eux-mêmes.
-// Une fois ces deux comptes créés, l'inscription publique est verrouillée.
+// === Inscription publique — DÉSACTIVÉE ===
+// L'inscription publique a été utilisée une seule fois pour bootstrapper le
+// premier patron. Depuis, tous les comptes (Co-Patron, DRH, employés) sont
+// créés exclusivement par un Patron via le module Administration.
+// Les rules Firestore renforcent cette restriction côté serveur (un
+// utilisateur authentifié ne peut pas s'auto-créer un profil avec rôle
+// patron ou co-patron).
 
-export async function inscrireDirection(email, password, prenom, nom, role) {
-  if (role !== ROLES.PATRON && role !== ROLES.CO_PATRON) {
-    throw new Error('Seuls le Patron et le Co-Patron peuvent s\'inscrire ici.');
-  }
-  // Vérifier qu'aucun compte avec ce rôle n'existe déjà
-  const existants = await listUsers().catch(() => []);
-  const dejaPresent = existants.some(u => u.role === role);
-  if (dejaPresent) {
-    throw new Error(`Un compte ${role} existe déjà. Demande au patron de te créer un compte.`);
-  }
-
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
-  await setUserDoc(cred.user.uid, {
-    email,
-    nom: nom.toUpperCase(),
-    prenom,
-    role,
-    statut: 'actif',
-    dateEntree: new Date().toISOString().slice(0, 10),
-    creePar: 'auto-inscription'
-  });
-  return cred.user;
+export async function inscrireDirection(/* email, password, prenom, nom, role */) {
+  throw new Error('Inscription publique fermée. Demande à un patron de créer ton compte depuis Administration.');
 }
 
 // === Création par admin (patron crée des comptes employés) ===

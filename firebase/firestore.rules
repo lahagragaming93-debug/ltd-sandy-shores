@@ -39,10 +39,10 @@ service cloud.firestore {
         request.auth.uid == uid ||
         isDirection() || isDRH() || isResponsable()
       );
-      allow create: if isAuth() && (
-        request.auth.uid == uid ||  // auto-inscription patron/co-patron au démarrage
-        isDirection()
-      );
+      // Création : Direction crée n'importe quel compte (via Admin).
+      // L'auto-création (request.auth.uid == uid) n'est plus autorisée du tout :
+      // l'inscription publique est définitivement fermée.
+      allow create: if isAuth() && isDirection();
       // Soi-même peut maj certains champs ; direction peut tout maj
       allow update: if isAuth() && (
         isDirection() ||

@@ -12,11 +12,6 @@
       <h1>LTD Sandy Shores</h1>
       <div class="subtitle">Plateforme de gestion</div>
 
-      <div class="login-tabs">
-        <button id="tab-connexion" class="active">Connexion</button>
-        <button id="tab-inscription">Inscription Direction</button>
-      </div>
-
       <!-- ===== Connexion ===== -->
       <form id="form-connexion">
         <label for="login-email">Email</label>
@@ -30,41 +25,10 @@
         <p class="muted mono mt-3" style="font-size: 0.78rem; text-align:center;">
           <a href="#" id="lien-reset">Mot de passe oublié ?</a>
         </p>
-      </form>
-
-      <!-- ===== Inscription Direction (Patron / Co-Patron uniquement) ===== -->
-      <form id="form-inscription" class="hidden">
-        <div class="alert info mb-2">
-          <span class="icon">ℹ</span>
-          <span>Réservé au <strong>Patron</strong> et <strong>Co-Patron</strong> lors
-          de la première installation. Les autres comptes sont créés depuis l'admin.</span>
-        </div>
-
-        <label for="reg-role">Rôle</label>
-        <select id="reg-role" required>
-          <option value="">— Sélectionner —</option>
-          <option value="patron">Patron</option>
-          <option value="co-patron">Co-Patron</option>
-        </select>
-
-        <div class="field-row">
-          <div>
-            <label for="reg-prenom">Prénom RP</label>
-            <input type="text" id="reg-prenom" required />
-          </div>
-          <div>
-            <label for="reg-nom">NOM RP</label>
-            <input type="text" id="reg-nom" required style="text-transform:uppercase;" />
-          </div>
-        </div>
-
-        <label for="reg-email">Email</label>
-        <input type="email" id="reg-email" required autocomplete="email" />
-
-        <label for="reg-password">Mot de passe (8+ caractères)</label>
-        <input type="password" id="reg-password" required minlength="8" autocomplete="new-password" />
-
-        <button type="submit" class="btn btn-primary mt-2" style="width:100%;">Créer mon compte</button>
+        <p class="muted mt-3" style="font-size: 0.72rem; text-align:center; border-top: 1px dashed var(--color-sand-dark); padding-top: 12px;">
+          Pas de compte ? Demande au <strong>Patron</strong> de te créer un accès<br>
+          depuis l'Administration de la plateforme.
+        </p>
       </form>
     </div>
   </div>
@@ -74,24 +38,12 @@
   <script type="module">
     import { auth } from './js/firebase-config.js';
     import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-    import { connecter, inscrireDirection, envoyerResetMotDePasse } from './js/auth.js';
+    import { connecter, envoyerResetMotDePasse } from './js/auth.js';
     import { getUserDoc } from './js/api.js';
     import { defaultLandingPage } from './js/utils/permissions.js';
     import { toast, toastError, toastSuccess } from './js/utils/toast.js';
 
-    // Onglets
-    const tabC = document.getElementById('tab-connexion');
-    const tabI = document.getElementById('tab-inscription');
     const formC = document.getElementById('form-connexion');
-    const formI = document.getElementById('form-inscription');
-    tabC.addEventListener('click', () => {
-      tabC.classList.add('active'); tabI.classList.remove('active');
-      formC.classList.remove('hidden'); formI.classList.add('hidden');
-    });
-    tabI.addEventListener('click', () => {
-      tabI.classList.add('active'); tabC.classList.remove('active');
-      formI.classList.remove('hidden'); formC.classList.add('hidden');
-    });
 
     // Auto-redirect si déjà connecté
     onAuthStateChanged(auth, async (user) => {
@@ -130,25 +82,6 @@
         window.location.href = defaultLandingPage(profile.role);
       } catch (err) {
         toastError("Email ou mot de passe incorrect.");
-        console.error(err);
-      }
-    });
-
-    // Inscription Direction
-    formI.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const role    = document.getElementById('reg-role').value;
-      const prenom  = document.getElementById('reg-prenom').value.trim();
-      const nom     = document.getElementById('reg-nom').value.trim();
-      const email   = document.getElementById('reg-email').value.trim();
-      const pwd     = document.getElementById('reg-password').value;
-      if (!role) return toastError("Choisis un rôle.");
-      try {
-        await inscrireDirection(email, pwd, prenom, nom, role);
-        toastSuccess("Compte créé. Redirection…");
-        setTimeout(() => window.location.href = 'dashboard.html', 800);
-      } catch (err) {
-        toastError(err.message || "Erreur lors de la création.");
         console.error(err);
       }
     });
