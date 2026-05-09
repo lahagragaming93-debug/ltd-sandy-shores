@@ -20,14 +20,94 @@ const NAV_ITEMS = [
   { key: 'guide',           href: 'guide.html',         icon: '📖', label: 'Guide',              group: 'Aide' }
 ];
 
+// ============================================================
+// Helpers d'affichage rôle (badge stylé + initiales)
+// ============================================================
+const ROLE_DISPLAY = {
+  'patron':                  { emoji: '⭐', label: 'PATRON' },
+  'co-patron':               { emoji: '★',  label: 'CO-PATRON' },
+  'drh':                     { emoji: '📋', label: 'DRH' },
+  'responsable-vente':       { emoji: '🛒', label: 'RESP. VENTE' },
+  'responsable-pompiste':    { emoji: '⛽', label: 'RESP. POMPISTE' },
+  'vendeur-novice':          { emoji: '🌱', label: 'NOVICE' },
+  'vendeur-intermediaire':   { emoji: '💼', label: 'INTERMÉDIAIRE' },
+  'vendeur-experimente':     { emoji: '⭐', label: 'EXPÉRIMENTÉ' },
+  'pompiste-novice':         { emoji: '🌱', label: 'NOVICE' },
+  'pompiste-intermediaire':  { emoji: '💼', label: 'INTERMÉDIAIRE' },
+  'pompiste-experimente':    { emoji: '⭐', label: 'EXPÉRIMENTÉ' }
+};
+
+export function roleBadgeHtml(role) {
+  const d = ROLE_DISPLAY[role] || { emoji: '?', label: (ROLE_LABELS[role] || role || 'INCONNU').toUpperCase() };
+  return `<span class="role-badge role-${role}">${d.emoji} ${d.label}</span>`;
+}
+
+function initiales(prenom, nom) {
+  const p = (prenom || '').trim();
+  const n = (nom || '').trim();
+  const i1 = p ? p[0] : '';
+  const i2 = n ? n[0] : '';
+  return (i1 + i2).toUpperCase() || '?';
+}
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ============================================================
+// Helpers alertes (icône, URL cible, heure relative)
+// ============================================================
+function alertIcon(type) {
+  if (type === 'stock-rupture')    return '🔴';
+  if (type === 'stock-bas')        return '📦';
+  if (type === 'station-bas')      return '⛽';
+  if (type === 'vente-sans-stock') return '🚨';
+  if (type && type.startsWith('masse')) return '💰';
+  return '⚠';
+}
+
+function alertHref(a) {
+  switch (a.type) {
+    case 'stock-rupture':
+    case 'stock-bas':         return 'stocks.html';
+    case 'station-bas':       return 'stations.html';
+    case 'vente-sans-stock':  return 'ventes.html';
+    default:                  return null; // pas de redirect
+  }
+}
+
+function relativeTime(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts));
+  if (isNaN(d.getTime())) return '';
+  const diff = Math.max(0, Date.now() - d.getTime());
+  const min  = Math.floor(diff / 60000);
+  if (min < 1) return 'à l\'instant';
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `il y a ${h} h`;
+  const j = Math.floor(h / 24);
+  if (j < 7) return `il y a ${j} j`;
+  return d.toLocaleDateString('fr-FR');
+}
+
+// ============================================================
+// renderShell — entrée publique
+// ============================================================
 export function renderShell(profile, activePageKey, mainContentHtml) {
+  const ini = initiales(profile.prenom, profile.nom);
   const userChip = `
-    <div class="user-chip">
-      <div>
-        <div>${profile.prenom} ${profile.nom}</div>
-        <div class="role">${ROLE_LABELS[profile.role] || profile.role}</div>
+    <div class="user-chip" id="user-chip">
+      <div class="user-avatar role-${profile.role}" title="${escapeHtml(profile.prenom)} ${escapeHtml(profile.nom)}">${ini}</div>
+      <div class="user-meta">
+        <div class="user-name">${escapeHtml(profile.prenom)} ${escapeHtml(profile.nom)}</div>
+        <div class="user-role">${roleBadgeHtml(profile.role)}</div>
       </div>
-      <button class="btn btn-sm btn-ghost" id="btn-logout" title="Déconnexion">⎋</button>
+      <button class="btn-logout" id="btn-logout" title="Déconnexion" aria-label="Déconnexion">
+        <span class="btn-logout-ico">⎋</span>
+      </button>
     </div>`;
 
   const navByGroup = {};
@@ -69,9 +149,24 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         <button class="btn-back" id="btn-back" title="Retour" aria-label="Page précédente" ${canGoBack ? '' : 'disabled'}>←</button>
         <h1 id="page-title">${getPageTitle(activePageKey)}</h1>
         <div class="spacer"></div>
-        <div class="alerts-pill" id="alerts-pill" style="display:none;cursor:pointer;">
-          <span class="badge danger">⚠ <span id="alerts-count">0</span></span>
+
+        <!-- Cloche d'alertes -->
+        <div class="alerts-wrapper" id="alerts-wrapper">
+          <button class="btn-alerts" id="btn-alerts" title="Alertes" aria-label="Voir les alertes">
+            <span class="btn-alerts-ico">🔔</span>
+            <span class="btn-alerts-badge" id="alerts-count" hidden>0</span>
+          </button>
+          <div class="alerts-dropdown hidden" id="alerts-dropdown" role="menu">
+            <div class="alerts-dropdown-header">
+              <strong>Alertes actives</strong>
+              <span class="muted" id="alerts-dropdown-count">—</span>
+            </div>
+            <ul class="alerts-dropdown-list" id="alerts-dropdown-list">
+              <li class="alerts-empty">Chargement…</li>
+            </ul>
+          </div>
         </div>
+
         ${userChip}
       </header>
       <main class="main">
@@ -104,30 +199,83 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
   });
   overlay.addEventListener('click', closeSidebar);
 
-  // Refermer le drawer après clic sur un lien (mobile/tablette)
   sidebar.querySelectorAll('[data-nav-link]').forEach(a => {
-    a.addEventListener('click', () => {
-      // Le navigateur va naviguer ; on ferme avant pour éviter le flash
-      closeSidebar();
-    });
+    a.addEventListener('click', () => closeSidebar());
   });
 
-  // Fermer avec Escape
+  // === Cloche d'alertes : ouverture/fermeture du dropdown ===
+  const btnAlerts      = document.getElementById('btn-alerts');
+  const alertsDropdown = document.getElementById('alerts-dropdown');
+  const alertsWrapper  = document.getElementById('alerts-wrapper');
+
+  const openAlerts  = () => alertsDropdown.classList.remove('hidden');
+  const closeAlerts = () => alertsDropdown.classList.add('hidden');
+
+  btnAlerts.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (alertsDropdown.classList.contains('hidden')) openAlerts(); else closeAlerts();
+  });
+  // Click outside ferme
+  document.addEventListener('click', (e) => {
+    if (!alertsWrapper.contains(e.target)) closeAlerts();
+  });
+
+  // Fermer Sidebar OU Alertes avec Escape
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) closeSidebar();
+    if (e.key !== 'Escape') return;
+    if (sidebar.classList.contains('open')) closeSidebar();
+    if (!alertsDropdown.classList.contains('hidden')) closeAlerts();
   });
 
-  // === Compteur d'alertes (top-right) — temps réel ===
+  // === Compteur + dropdown d'alertes — temps réel ===
+  const badge       = document.getElementById('alerts-count');
+  const dropList    = document.getElementById('alerts-dropdown-list');
+  const dropCount   = document.getElementById('alerts-dropdown-count');
+
   listenAlertesActives(alertes => {
-    const pill  = document.getElementById('alerts-pill');
-    const count = document.getElementById('alerts-count');
-    if (!pill || !count) return;
+    if (!badge) return;
     if (alertes.length > 0) {
-      count.textContent = alertes.length;
-      pill.style.display = 'block';
+      badge.textContent = alertes.length > 99 ? '99+' : alertes.length;
+      badge.hidden = false;
+      btnAlerts.classList.add('has-alerts');
     } else {
-      pill.style.display = 'none';
+      badge.hidden = true;
+      btnAlerts.classList.remove('has-alerts');
     }
+    dropCount.textContent = `${alertes.length} alerte${alertes.length > 1 ? 's' : ''}`;
+
+    if (alertes.length === 0) {
+      dropList.innerHTML = `<li class="alerts-empty">✓ Aucune alerte active. Tout va bien.</li>`;
+      return;
+    }
+
+    // Limiter à 30 alertes affichées (le scroll se fera dans le dropdown)
+    const items = alertes.slice(0, 30);
+    dropList.innerHTML = items.map(a => {
+      const href  = alertHref(a);
+      const ico   = alertIcon(a.type);
+      const grav  = a.gravite || 'warn';
+      const heure = relativeTime(a.timestamp);
+      const inner = `
+        <span class="alert-ico">${ico}</span>
+        <div class="alert-body">
+          <div class="alert-msg">${escapeHtml(a.message || a.type)}</div>
+          <div class="alert-meta">
+            <span class="alert-type alert-type-${escapeHtml(grav)}">${escapeHtml(a.type)}</span>
+            <span class="alert-time">${heure}</span>
+          </div>
+        </div>
+        ${href ? '<span class="alert-arrow">→</span>' : ''}
+      `;
+      return href
+        ? `<li><a class="alert-item alert-grav-${escapeHtml(grav)}" href="${href}" data-alert-link>${inner}</a></li>`
+        : `<li><div class="alert-item alert-grav-${escapeHtml(grav)}">${inner}</div></li>`;
+    }).join('');
+
+    // Fermer le dropdown au clic sur une alerte (avant la navigation)
+    dropList.querySelectorAll('[data-alert-link]').forEach(a => {
+      a.addEventListener('click', () => closeAlerts());
+    });
   });
 }
 

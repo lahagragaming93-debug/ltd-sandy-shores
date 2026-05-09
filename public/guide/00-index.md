@@ -71,7 +71,7 @@ Aucune application à installer. Juste l'URL.
 
 ### Sur ordinateur
 - **Sidebar à gauche** : tous les modules accessibles à ton rôle.
-- **Topbar en haut** : titre de la page + cloche d'alertes + ton nom + bouton de déconnexion (`⎋`).
+- **Topbar en haut** : titre de la page + 🔔 **cloche d'alertes** (cliquable, ouvre la liste des alertes actives — chaque alerte est cliquable et te redirige vers la page concernée) + ton avatar (initiales) + ton nom + **badge de rôle coloré** (différent par grade) + bouton de déconnexion (`⎋`).
 
 ### Sur tablette FiveM ou téléphone
 La sidebar disparaît automatiquement et est remplacée par :
