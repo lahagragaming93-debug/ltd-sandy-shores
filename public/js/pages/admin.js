@@ -47,9 +47,7 @@ const html = `
       </div>
       <label>Rôle</label>
       <select id="new-role">
-        ${Object.entries(ROLE_LABELS)
-          .filter(([k]) => k !== 'patron' && k !== 'co-patron')
-          .map(([k,l]) => `<option value="${k}">${l}</option>`).join('')}
+        ${Object.entries(ROLE_LABELS).map(([k,l]) => `<option value="${k}">${l}</option>`).join('')}
       </select>
       <label>Mot de passe provisoire</label>
       <div class="row">
@@ -109,7 +107,7 @@ function renderUsers() {
       <td><strong>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</strong></td>
       <td class="mono">${escapeHtml(u.email || '—')}</td>
       <td>
-        <select data-role="${u.id}" ${u.role === 'patron' || u.role === 'co-patron' ? 'disabled' : ''}>
+        <select data-role="${u.id}" data-old-role="${u.role}">
           ${Object.entries(ROLE_LABELS).map(([k,l]) =>
             `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}
         </select>
@@ -132,10 +130,24 @@ function renderUsers() {
   tbody.querySelectorAll('[data-role]').forEach(sel => {
     sel.addEventListener('change', async () => {
       const uid = sel.dataset.role;
+      const ancien = sel.dataset.oldRole;
+      const nouveau = sel.value;
+      const direction = (r) => r === 'patron' || r === 'co-patron';
+      // Confirmation pour tout changement impliquant Patron/Co-Patron
+      if (direction(ancien) || direction(nouveau)) {
+        const sens = direction(nouveau) && !direction(ancien) ? 'PROMOTION direction'
+                   : direction(ancien) && !direction(nouveau) ? 'rétrogradation depuis direction'
+                   : 'changement entre rôles direction';
+        if (!confirm(`${sens} : ${ancien} → ${nouveau}\n\nCe changement modifie les droits d'accès complets de cet utilisateur. Confirmer ?`)) {
+          sel.value = ancien;
+          return;
+        }
+      }
       try {
-        await updateUser(uid, { role: sel.value });
+        await updateUser(uid, { role: nouveau });
+        sel.dataset.oldRole = nouveau;
         toastSuccess("Rôle mis à jour.");
-      } catch (e) { toastError("Erreur."); }
+      } catch (e) { toastError("Erreur."); console.error(e); }
     });
   });
   tbody.querySelectorAll('[data-suspend]').forEach(btn => {
@@ -196,7 +208,9 @@ document.getElementById('btn-creer').addEventListener('click', async () => {
     return toastError("Champs prénom, nom, email et mot de passe obligatoires.");
   }
   if (data.role === ROLES.PATRON || data.role === ROLES.CO_PATRON) {
-    return toastError("Patron/Co-Patron : utiliser l'inscription publique.");
+    if (!confirm(`Créer un compte ${data.role.toUpperCase()} ?\n\nCe compte aura TOUS les droits sur la plateforme (admin, comptabilité, suppression de comptes, configuration globale).\n\nCe choix est irréversible sans intervention technique.`)) {
+      return;
+    }
   }
   if (data.motDePasse.length < 8) return toastError("Mot de passe ≥ 8 caractères.");
   try {
