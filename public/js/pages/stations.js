@@ -10,6 +10,7 @@ import { db } from '../firebase-config.js';
 import { money, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
 import { isDirection } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
+import { confirmCritique } from '../utils/confirmation.js';
 
 const { profile } = await requireAuth('stocks_essence');
 const editable = isDirection(profile.role) || profile.role === 'responsable-pompiste';
@@ -200,7 +201,14 @@ if (btnDel) {
   btnDel.addEventListener('click', async () => {
     const id = document.getElementById('st-id').value;
     if (!id) return;
-    if (!confirm("Supprimer cette station ?")) return;
+    const ok = await confirmCritique({
+      titre: 'Supprimer cette station',
+      message: `La station <strong>${escapeHtml(id)}</strong> sera définitivement retirée du site.<br><br>L'historique de redistributions associé reste consultable mais aucune nouvelle redistribution n'y sera attachée.`,
+      btnConfirm: 'Supprimer la station',
+      delaiSec: 3,
+      requireType: 'SUPPRIMER'
+    });
+    if (!ok) return;
     try {
       await deleteDoc(doc(db, 'stations', id));
       toastSuccess("Station supprimée.");

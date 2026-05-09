@@ -10,6 +10,7 @@ import {
 
 import { getUserDoc, setUserDoc, listUsers } from './api.js';
 import { canAccess, defaultLandingPage, ROLES } from './utils/permissions.js';
+import { infoModal } from './utils/confirmation.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -104,8 +105,12 @@ export function requireAuth(pageKey) {
         return;
       }
       if (profile.statut === 'suspendu') {
-        alert('Votre compte est suspendu. Contactez la direction.');
         await signOut(auth);
+        await infoModal({
+          titre: 'Compte suspendu',
+          message: 'Votre compte a été suspendu. Contactez la direction du LTD pour plus d\'informations.',
+          type: 'danger'
+        });
         window.location.href = 'index.html';
         return;
       }
@@ -113,7 +118,11 @@ export function requireAuth(pageKey) {
       currentProfile = profile;
 
       if (pageKey && !canAccess(profile.role, pageKey)) {
-        alert("Accès refusé pour ce module.");
+        await infoModal({
+          titre: 'Accès refusé',
+          message: 'Ton rôle ne te permet pas d\'accéder à ce module.\nTu vas être redirigé vers ta page d\'accueil.',
+          type: 'warn'
+        });
         window.location.href = defaultLandingPage(profile.role);
         return;
       }

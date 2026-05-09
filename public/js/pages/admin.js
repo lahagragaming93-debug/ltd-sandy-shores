@@ -8,6 +8,7 @@ import { listenUsers, updateUser, deleteUser, getConfig, setConfig } from '../ap
 import { ROLE_LABELS, ROLES } from '../utils/permissions.js';
 import { date, escapeHtml } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
+import { confirmCritique } from '../utils/confirmation.js';
 
 const { profile } = await requireAuth('admin');
 
@@ -168,7 +169,16 @@ function renderUsers() {
         const sens = direction(nouveau) && !direction(ancien) ? 'PROMOTION direction'
                    : direction(ancien) && !direction(nouveau) ? 'rétrogradation depuis direction'
                    : 'changement entre rôles direction';
-        if (!confirm(`${sens} : ${ancien} → ${nouveau}\n\nCe changement modifie les droits d'accès complets de cet utilisateur. Confirmer ?`)) {
+        const ok = await confirmCritique({
+          titre: 'Changement de rôle direction',
+          message: `<strong>${sens}</strong><br><br>
+            Ancien rôle : <strong>${escapeHtml(ROLE_LABELS[ancien] || ancien)}</strong><br>
+            Nouveau rôle : <strong>${escapeHtml(ROLE_LABELS[nouveau] || nouveau)}</strong><br><br>
+            Ce changement modifie les <strong>droits d'accès complets</strong> de cet utilisateur (admin, comptabilité, configuration globale, suppression de comptes).`,
+          btnConfirm: 'Appliquer le changement',
+          delaiSec: 3
+        });
+        if (!ok) {
           sel.value = ancien;
           return;
         }
@@ -182,7 +192,13 @@ function renderUsers() {
   });
   tbody.querySelectorAll('[data-suspend]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm("Suspendre ce compte (équivalent licenciement) ?")) return;
+      const ok = await confirmCritique({
+        titre: 'Suspendre le compte',
+        message: 'La suspension d\'un compte équivaut à un <strong>licenciement</strong>.<br><br>L\'employé perdra immédiatement l\'accès au site (déconnexion forcée à sa prochaine action). Le compte reste consultable et peut être réactivé.',
+        btnConfirm: 'Suspendre le compte',
+        delaiSec: 3
+      });
+      if (!ok) return;
       try {
         await updateUser(btn.dataset.suspend, { statut: 'suspendu' });
         toastSuccess("Compte suspendu.");
@@ -199,7 +215,14 @@ function renderUsers() {
   });
   tbody.querySelectorAll('[data-delete]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm("Supprimer DÉFINITIVEMENT ce compte ?\n(Le compte Firebase Auth doit être supprimé séparément depuis la console.)")) return;
+      const ok = await confirmCritique({
+        titre: 'Supprimer définitivement',
+        message: 'Cette action <strong>supprime définitivement</strong> le compte de l\'utilisateur du site.<br><br>⚠ Le compte Firebase Auth (login/email) doit être supprimé <strong>séparément</strong> depuis la console Firebase pour libérer l\'email.<br><br>Les données déjà enregistrées (ventes, paies, services) ne sont PAS supprimées (audit TTE).',
+        btnConfirm: 'Supprimer le compte',
+        delaiSec: 3,
+        requireType: 'SUPPRIMER'
+      });
+      if (!ok) return;
       try {
         await deleteUser(btn.dataset.delete);
         toastSuccess("Compte supprimé. Pense à supprimer l'utilisateur depuis Firebase Auth.");
@@ -277,9 +300,21 @@ document.getElementById('btn-creer').addEventListener('click', async () => {
     return toastError("Champs prénom, nom, email et mot de passe obligatoires.");
   }
   if (data.role === ROLES.PATRON || data.role === ROLES.CO_PATRON) {
-    if (!confirm(`Créer un compte ${data.role.toUpperCase()} ?\n\nCe compte aura TOUS les droits sur la plateforme (admin, comptabilité, suppression de comptes, configuration globale).\n\nCe choix est irréversible sans intervention technique.`)) {
-      return;
-    }
+    const ok = await confirmCritique({
+      titre: `Créer un compte ${ROLE_LABELS[data.role]}`,
+      message: `Tu vas créer un compte avec le rôle <strong>${escapeHtml(ROLE_LABELS[data.role])}</strong>.<br><br>
+        Ce compte aura <strong>TOUS les droits</strong> sur la plateforme :
+        <ul style="margin:8px 0 8px 20px;">
+          <li>Administration (créer, modifier, supprimer des comptes)</li>
+          <li>Comptabilité (ajout de dépenses, conformité TTE)</li>
+          <li>Configuration globale (quotas, prix essence, webhook)</li>
+          <li>Suppression d'autres comptes direction</li>
+        </ul>
+        Ce choix est <strong>irréversible</strong> sans intervention technique.`,
+      btnConfirm: 'Créer ce compte direction',
+      delaiSec: 3
+    });
+    if (!ok) return;
   }
   if (data.motDePasse.length < 8) return toastError("Mot de passe ≥ 8 caractères.");
   try {

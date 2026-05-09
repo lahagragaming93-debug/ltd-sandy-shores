@@ -545,18 +545,124 @@ input:focus, select:focus, textarea:focus {
 .mb-3 { margin-bottom: 24px; }
 .hidden { display: none !important; }
 
-/* === Responsive (tablette pour employés) === */
-@media (max-width: 900px) {
+/* === Bouton retour + menu hamburger (topbar) === */
+.topbar .btn-back,
+.topbar .btn-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--color-sand-dark);
+  border-radius: var(--radius-sm);
+  color: var(--color-sand-light);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.topbar .btn-back:hover,
+.topbar .btn-menu:hover {
+  background: var(--color-blood-dark);
+  border-color: var(--color-blood-light);
+  color: var(--color-bone);
+}
+.topbar .btn-back[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.topbar .btn-menu { display: none; } /* Affiché en responsive */
+
+/* Sidebar overlay (mobile/tablette) */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 49;
+}
+.sidebar-overlay.open { display: block; }
+
+/* === Responsive : tablette FiveM CEF (cible ~1280×720) === */
+@media (max-width: 1280px) {
+  .app-shell { grid-template-columns: 200px 1fr; }
+  .main { padding: 18px 22px 36px; }
+  .sidebar nav a { font-size: 0.82rem; padding: 8px 10px; }
+  .sidebar .brand .logo-placeholder { width: 60px; height: 60px; font-size: 1.1rem; }
+  .topbar { padding: 0 16px; gap: 12px; }
+  .topbar h1 { font-size: 1.15rem; letter-spacing: 1px; }
+  .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .kpi .value { font-size: 1.6rem; }
+}
+
+/* === Responsive : tablette / petit laptop === */
+@media (max-width: 1024px) {
+  .topbar .btn-menu { display: inline-flex; } /* Affiche hamburger */
+
   .app-shell {
     grid-template-columns: 1fr;
-    grid-template-areas: "topbar" "sidebar" "main";
-    grid-template-rows: 64px auto 1fr;
+    grid-template-areas: "topbar" "main";
+    grid-template-rows: 60px 1fr;
   }
-  .sidebar { border-right: none; border-bottom: 3px solid var(--color-blood); padding: 12px 0; }
-  .sidebar nav { display: flex; flex-wrap: wrap; gap: 4px; }
-  .sidebar nav a { flex: 1 0 auto; }
-  .main { padding: 16px; }
-  h1 { font-size: 1.7rem; }
+  /* Sidebar devient un drawer latéral */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 250px;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease-out;
+    border-right: 3px solid var(--color-blood);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar.open { transform: translateX(0); box-shadow: 8px 0 20px rgba(0,0,0,0.6); }
+  .topbar { padding: 0 12px; }
+  .topbar h1 { font-size: 1.05rem; }
+  .main { padding: 14px; }
+  /* Tables scrollables horizontalement */
+  table.data { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  table.data thead, table.data tbody, table.data tr { display: table; width: 100%; table-layout: auto; }
+}
+
+/* === Responsive : mobile / téléphone === */
+@media (max-width: 600px) {
+  html, body { font-size: 15px; }
+  .topbar { padding: 0 8px; gap: 8px; height: 56px; }
+  .topbar h1 { font-size: 0.95rem; letter-spacing: 0.5px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar .user-chip { padding: 4px 8px; font-size: 0.72rem; gap: 6px; }
+  .topbar .user-chip .role { font-size: 0.6rem; }
+  .topbar .user-chip > div:first-child > div:first-child {
+    max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .topbar .alerts-pill { font-size: 0.75rem; }
+  .main { padding: 10px 8px 32px; }
+  h1 { font-size: 1.4rem; }
+  .panel { padding: 14px 12px; margin-bottom: 14px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kpi { padding: 10px 12px; }
+  .kpi .label { font-size: 0.65rem; }
+  .kpi .value { font-size: 1.3rem; }
+  .btn { padding: 11px 18px; font-size: 0.8rem; min-height: 44px; } /* Tactile */
+  .btn-sm { min-height: 36px; padding: 7px 12px; font-size: 0.7rem; }
+  .row { gap: 6px; flex-wrap: wrap; }
+  .field-row { grid-template-columns: 1fr; }
+  /* Inputs plus grands pour le tactile */
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="number"], input[type="date"], select, textarea {
+    padding: 11px 12px; font-size: 0.95rem; min-height: 44px;
+  }
+  .modal { padding: 16px; max-height: 90vh; overflow-y: auto; }
+  #toast-container { top: 64px; right: 8px; left: 8px; }
+  .toast { min-width: auto; }
+}
+
+/* === Très petits écrans (≤ 380px) === */
+@media (max-width: 380px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .topbar h1 { display: none; }
 }
 
 /* === Progress bar === */
@@ -631,4 +737,155 @@ input:focus, select:focus, textarea:focus {
 @keyframes slideIn {
   from { transform: translateX(40px); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }
+}
+
+/* ============================================================
+   Modaux de confirmation universels (utils/confirmation.js)
+   Compatibles tablette FiveM CEF — pas de popup natif
+   ============================================================ */
+.confirm-modal {
+  z-index: 300; /* au-dessus des modales métier */
+  animation: fadeBackdrop 0.18s ease-out;
+}
+@keyframes fadeBackdrop { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-confirm {
+  max-width: 480px;
+  width: 100%;
+  animation: popIn 0.18s ease-out;
+}
+@keyframes popIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.modal-confirm.modal-danger { border-color: var(--color-danger); }
+.modal-confirm.modal-warn   { border-color: var(--color-warning); }
+.modal-confirm.modal-info   { border-color: var(--color-info); }
+.modal-confirm.modal-success{ border-color: var(--color-success); }
+
+.modal-confirm .confirm-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-size: 1.2rem;
+  font-family: var(--font-display);
+  color: var(--color-sand-light);
+}
+.modal-confirm .confirm-ico {
+  font-size: 1.4rem;
+}
+.modal-danger .confirm-ico { color: var(--color-danger); }
+.modal-warn   .confirm-ico { color: var(--color-warning); }
+
+.modal-confirm .confirm-message {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-bone);
+  margin-bottom: 18px;
+  white-space: pre-wrap;
+}
+.modal-confirm .confirm-message strong { color: var(--color-sand-light); }
+
+.modal-confirm .confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.modal-confirm .confirm-hint {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-sand-dark);
+  text-align: center;
+}
+
+/* === Modale critique (timer 3s + bandeau) === */
+.modal-critique {
+  border-width: 3px;
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 1px rgba(160,32,32,0.6), var(--shadow-saloon);
+}
+.critique-band {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-danger) 0, var(--color-danger) 12px,
+    #5a0e0e 12px, #5a0e0e 24px
+  );
+  color: var(--color-bone);
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 6px 0;
+  margin: -24px -24px 14px;
+}
+.modal-critique .btn-danger[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+.modal-critique .btn-timer {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  margin-left: 4px;
+  color: var(--color-sand-light);
+}
+
+/* === Champ "tape XXXX pour confirmer" === */
+.confirm-type-block {
+  background: rgba(0,0,0,0.4);
+  border: 1px dashed var(--color-sand-dark);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.confirm-type-block label {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  color: var(--color-sand);
+}
+.confirm-type-word {
+  font-family: var(--font-mono);
+  background: var(--color-charcoal);
+  color: var(--color-blood-light);
+  padding: 1px 6px;
+  border-radius: 2px;
+  letter-spacing: 1px;
+}
+.confirm-type-input {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--color-charcoal);
+  border: 1px solid var(--color-sand-dark);
+  color: var(--color-bone);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  border-radius: var(--radius-sm);
+}
+
+/* === Prompt input === */
+.prompt-label { margin: 0 0 6px; }
+.prompt-input {
+  margin-bottom: 6px;
+}
+.prompt-error {
+  color: var(--color-danger);
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+/* === Modal critique sur mobile : full screen plus lisible === */
+@media (max-width: 600px) {
+  .modal-confirm { max-width: 100%; padding: 18px; }
+  .critique-band { margin: -18px -18px 12px; padding: 8px 0; font-size: 0.72rem; }
+  .modal-confirm .confirm-actions { flex-direction: column-reverse; }
+  .modal-confirm .confirm-actions .btn { width: 100%; }
 }

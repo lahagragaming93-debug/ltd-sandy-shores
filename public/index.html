@@ -42,6 +42,7 @@
     import { getUserDoc } from './js/api.js';
     import { defaultLandingPage } from './js/utils/permissions.js';
     import { toast, toastError, toastSuccess } from './js/utils/toast.js';
+    import { promptModal, infoModal } from './js/utils/confirmation.js';
 
     const formC = document.getElementById('form-connexion');
 
@@ -71,12 +72,31 @@
           return;
         }
         if (profile.motDePasseProvisoire) {
-          // forcer changement
-          const nouveau = prompt("Premier accès — choisis un nouveau mot de passe (8+ caractères) :");
-          if (nouveau && nouveau.length >= 8) {
+          // forcer changement (modal compatible tablette FiveM)
+          const nouveau = await promptModal({
+            titre: 'Premier accès',
+            message: 'Tu utilises un mot de passe provisoire. Choisis un nouveau mot de passe pour ton compte.',
+            label: 'Nouveau mot de passe (8 caractères minimum)',
+            placeholder: '••••••••',
+            type: 'password',
+            btnOk: 'Définir',
+            validate: (v) => {
+              if (!v || v.length < 8) return 'Le mot de passe doit faire au moins 8 caractères.';
+              return null;
+            }
+          });
+          if (nouveau) {
             const { changerMotDePasse } = await import('./js/auth.js');
-            await changerMotDePasse(nouveau);
-            toastSuccess("Mot de passe mis à jour.");
+            try {
+              await changerMotDePasse(nouveau);
+              toastSuccess("Mot de passe mis à jour.");
+            } catch (err) {
+              await infoModal({
+                titre: 'Erreur',
+                message: 'Impossible de mettre à jour le mot de passe : ' + (err?.message || err),
+                type: 'danger'
+              });
+            }
           }
         }
         window.location.href = defaultLandingPage(profile.role);

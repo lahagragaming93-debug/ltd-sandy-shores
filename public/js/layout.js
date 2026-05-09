@@ -1,5 +1,6 @@
 // ============================================================
 // Layout commun — sidebar + topbar
+// Compatible tablette FiveM CEF (responsive + bouton retour)
 // ============================================================
 
 import { ROLE_LABELS, canAccess, isEmployeeView } from './utils/permissions.js';
@@ -25,7 +26,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         <div>${profile.prenom} ${profile.nom}</div>
         <div class="role">${ROLE_LABELS[profile.role] || profile.role}</div>
       </div>
-      <button class="btn btn-sm btn-ghost" id="btn-logout">Déconnexion</button>
+      <button class="btn btn-sm btn-ghost" id="btn-logout" title="Déconnexion">⎋</button>
     </div>`;
 
   const navByGroup = {};
@@ -40,14 +41,17 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
   const navHtml = Object.entries(navByGroup).map(([group, items]) => `
     <div class="group-title">${group}</div>
     ${items.map(it => `
-      <a href="${it.href}" class="${it.key === activePageKey ? 'active' : ''}">
+      <a href="${it.href}" class="${it.key === activePageKey ? 'active' : ''}" data-nav-link>
         <span class="nav-icon">${it.icon}</span><span>${it.label}</span>
       </a>`).join('')}
   `).join('');
 
+  // Bouton retour : désactivé si pas d'historique navigable (page d'entrée)
+  const canGoBack = window.history.length > 1;
+
   document.body.innerHTML = `
     <div class="app-shell">
-      <aside class="sidebar">
+      <aside class="sidebar" id="sidebar">
         <div class="brand">
           <div class="logo-placeholder">LTD</div>
           <div class="name">SANDY SHORES</div>
@@ -55,7 +59,10 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         </div>
         <nav>${navHtml}</nav>
       </aside>
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
       <header class="topbar">
+        <button class="btn-menu" id="btn-menu" title="Menu" aria-label="Ouvrir le menu">☰</button>
+        <button class="btn-back" id="btn-back" title="Retour" aria-label="Page précédente" ${canGoBack ? '' : 'disabled'}>←</button>
         <h1 id="page-title">${getPageTitle(activePageKey)}</h1>
         <div class="spacer"></div>
         <div class="alerts-pill" id="alerts-pill" style="display:none;cursor:pointer;">
@@ -70,9 +77,43 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
     <div id="toast-container"></div>
   `;
 
+  // === Déconnexion ===
   document.getElementById('btn-logout').addEventListener('click', deconnecter);
 
-  // Compteur d'alertes (top-right)
+  // === Bouton retour ===
+  document.getElementById('btn-back').addEventListener('click', () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    }
+  });
+
+  // === Menu hamburger (responsive : ouvre/ferme sidebar) ===
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const btnMenu = document.getElementById('btn-menu');
+
+  const openSidebar  = () => { sidebar.classList.add('open'); overlay.classList.add('open'); };
+  const closeSidebar = () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); };
+
+  btnMenu.addEventListener('click', () => {
+    if (sidebar.classList.contains('open')) closeSidebar(); else openSidebar();
+  });
+  overlay.addEventListener('click', closeSidebar);
+
+  // Refermer le drawer après clic sur un lien (mobile/tablette)
+  sidebar.querySelectorAll('[data-nav-link]').forEach(a => {
+    a.addEventListener('click', () => {
+      // Le navigateur va naviguer ; on ferme avant pour éviter le flash
+      closeSidebar();
+    });
+  });
+
+  // Fermer avec Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) closeSidebar();
+  });
+
+  // === Compteur d'alertes (top-right) — temps réel ===
   listenAlertesActives(alertes => {
     const pill  = document.getElementById('alerts-pill');
     const count = document.getElementById('alerts-count');

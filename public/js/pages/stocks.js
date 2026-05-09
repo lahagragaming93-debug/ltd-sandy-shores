@@ -11,6 +11,7 @@ import { CATALOGUE, CATEGORY_LABELS } from '../data/produits.js';
 import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
+import { confirmCritique } from '../utils/confirmation.js';
 
 const { profile } = await requireAuth('stocks_epicerie');
 const editable = isDirection(profile.role) || profile.role === 'responsable-vente';
@@ -220,7 +221,13 @@ document.getElementById('btn-save').addEventListener('click', async () => {
 const btnInit = document.getElementById('btn-init-catalogue');
 if (btnInit) {
   btnInit.addEventListener('click', async () => {
-    if (!confirm("Pré-remplir/écraser le catalogue avec les valeurs par défaut ?\n(Les prix d'achat existants ne seront pas écrasés.)")) return;
+    const ok = await confirmCritique({
+      titre: 'Réinitialiser depuis le catalogue',
+      message: 'Cette action va <strong>écraser les noms, catégories, prix de vente et seuils</strong> de tous les produits existants avec les valeurs par défaut du catalogue.<br><br>✓ Les prix d\'achat existants seront <strong>préservés</strong>.<br>⚠ Les produits hors catalogue ne seront pas supprimés.',
+      btnConfirm: 'Réinitialiser le catalogue',
+      delaiSec: 3
+    });
+    if (!ok) return;
     try {
       const existants = produits.reduce((m, p) => (m[p.id] = p, m), {});
       for (const item of CATALOGUE) {
