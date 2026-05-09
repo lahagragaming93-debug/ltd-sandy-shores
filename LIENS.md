@@ -26,11 +26,14 @@
 
 | Quoi | URL |
 |------|-----|
-| 🆕 Créer un Sheet vierge | https://sheets.new |
+| 📊 **Sheet compta LTD (en place)** | https://docs.google.com/spreadsheets/d/1mD-N3e_JpcLceiLSzDgGe01VKVf4KoO5vedM0OsnwtY/edit |
+| 🆕 Créer un autre Sheet vierge | https://sheets.new |
 | ⚙ Bouton « Export Google Sheets » | dans Admin → en haut |
 | 🔑 Token compta export | `eddd7ef237c1386bb41981583df6eb94baa95379e5268c123b733fca4d833ad4` |
 
-> 📝 **Procédure setup** : Admin → « 📊 Export Google Sheets » → colle le token → Sauvegarder → copie les 4 formules dans 4 onglets de ton Sheet (`Résumé`, `Dépenses`, `Ventes`, `Paies`).
+> 📝 **Procédure setup** (si tu refais un Sheet) : Admin → « 📊 Export Google Sheets » → colle le token → Sauvegarder → copie les 4 formules dans 4 onglets (`Résumé`, `Dépenses`, `Ventes`, `Paies`).
+>
+> 🔗 **Pour partager** au staff serveur : ouvre le Sheet → bouton **Partager** en haut à droite → mode « Lecteur » → copie le lien.
 
 ---
 
