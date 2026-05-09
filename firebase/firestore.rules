@@ -156,6 +156,11 @@ service cloud.firestore {
     }
 
     // === Configuration globale ===
+    // /config/main : config publique aux utilisateurs actifs (quotas, prix essence, etc.)
+    // /config/secrets : tokens et secrets sensibles, direction uniquement
+    match /config/secrets {
+      allow read, write: if isDirection();
+    }
     match /config/{id} {
       allow read:  if isAuth() && isActif();
       allow write: if isDirection();

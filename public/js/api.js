@@ -237,6 +237,15 @@ export async function setConfig(patch) {
   await setDoc(doc(db, 'config', 'global'), patch, { merge: true });
 }
 
+// ----- Secrets (tokens, accessibles direction uniquement via rules) -----
+export async function getSecrets() {
+  const snap = await getDoc(doc(db, 'config', 'secrets'));
+  return snap.exists() ? snap.data() : {};
+}
+export async function setSecrets(patch) {
+  await setDoc(doc(db, 'config', 'secrets'), patch, { merge: true });
+}
+
 // ----- Helpers d'écriture brute -----
 export {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,

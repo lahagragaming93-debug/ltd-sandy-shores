@@ -17,7 +17,8 @@ import { defineSecret } from 'firebase-functions/params';
 initializeApp();
 const db = getFirestore();
 
-const BOT_TOKEN = defineSecret('LTD_BOT_INGEST_TOKEN');
+const BOT_TOKEN     = defineSecret('LTD_BOT_INGEST_TOKEN');
+const COMPTA_TOKEN  = defineSecret('LTD_COMPTA_EXPORT_TOKEN');
 
 // ----------------------------------------------------------------
 // 1. Clôture hebdomadaire — Lundi 00h00 Paris
@@ -415,4 +416,147 @@ function currentWeekId() {
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
+}
+
+// ----------------------------------------------------------------
+// 4. Export comptabilité CSV pour Google Sheets (IMPORTDATA)
+// ----------------------------------------------------------------
+// Endpoint HTTP public, protégé par token query param (?token=xxx).
+// Retourne du CSV utilisable directement par =IMPORTDATA(URL) dans Sheets.
+// 4 types : ?type=resume | depenses | ventes | paies
+// ----------------------------------------------------------------
+
+export const comptaExport = onRequest({
+  region: 'europe-west1',
+  cors: true,                  // Sheets fait des requêtes cross-origin
+  invoker: 'public',           // accès public, sécurité par token
+  secrets: [COMPTA_TOKEN]
+}, async (req, res) => {
+  // Auth via query param
+  const token = req.query.token;
+  if (!token || token !== COMPTA_TOKEN.value()) {
+    return res.status(401).type('text/plain').send('Unauthorized');
+  }
+
+  const type = (req.query.type || 'resume').toString();
+
+  // Headers utiles pour Sheets
+  res.set('Cache-Control', 'no-cache, max-age=0');
+  res.type('text/csv; charset=utf-8');
+
+  try {
+    let csv;
+    switch (type) {
+      case 'resume':   csv = await csvResume();   break;
+      case 'depenses': csv = await csvDepenses(); break;
+      case 'ventes':   csv = await csvVentes();   break;
+      case 'paies':    csv = await csvPaies();    break;
+      default:
+        return res.status(400).type('text/plain').send(
+          'Type inconnu. Utilise ?type=resume | depenses | ventes | paies');
+    }
+    // BOM UTF-8 pour qu'Excel/Sheets gèrent les accents
+    res.send('﻿' + csv);
+  } catch (err) {
+    console.error('comptaExport error', type, err);
+    res.status(500).type('text/plain').send('Erreur : ' + err.message);
+  }
+});
+
+function csvEscape(v) {
+  const s = String(v ?? '');
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function csvRow(...cells) {
+  return cells.map(csvEscape).join(',');
+}
+function dateIso(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts));
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 19).replace('T', ' ');
+}
+function dateOnly(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts));
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+
+async function csvResume() {
+  const snap = await db.collection('semaines').orderBy('numero', 'desc').limit(52).get();
+  const lines = [csvRow(
+    'Semaine', 'Date début', 'Date fin',
+    'CA', 'Bénéfice brut', 'Dépenses totales', 'Charges déductibles',
+    'Masse salariale', 'Bénéfice net', 'Nb ventes', 'Nb dépenses', 'Statut'
+  )];
+  for (const d of snap.docs) {
+    const s = d.data();
+    lines.push(csvRow(
+      s.numero,
+      dateOnly(s.dateDebut),
+      dateOnly(s.dateFin),
+      s.ca || 0,
+      s.beneficeBrut || 0,
+      s.depenses || 0,
+      s.chargesDeductibles || 0,
+      s.masseSalariale || 0,
+      s.benefice || 0,
+      s.nbVentes || 0,
+      s.nbDepenses || 0,
+      s.statut || ''
+    ));
+  }
+  return lines.join('\n');
+}
+
+async function csvDepenses() {
+  const snap = await db.collection('depenses').orderBy('timestamp', 'desc').limit(2000).get();
+  const lines = [csvRow('Date', 'Raison', 'Montant', 'Type', 'Déductible', 'Utilisateur')];
+  for (const d of snap.docs) {
+    const x = d.data();
+    lines.push(csvRow(
+      dateIso(x.timestamp),
+      x.raison || '',
+      x.montant || 0,
+      x.type || '',
+      x.deductible !== false ? 'oui' : 'non',
+      x.utilisateur || ''
+    ));
+  }
+  return lines.join('\n');
+}
+
+async function csvVentes() {
+  const snap = await db.collection('ventes').orderBy('timestamp', 'desc').limit(2000).get();
+  const lines = [csvRow('Date', 'N° Facture', 'Vendeur', 'Client', 'Montant', 'Bénéfice', 'Paiement', 'Raison')];
+  for (const d of snap.docs) {
+    const v = d.data();
+    lines.push(csvRow(
+      dateIso(v.timestamp),
+      v.factureId || '',
+      v.vendeurNom || '',
+      v.clientNom || '',
+      v.montant || 0,
+      v.benefice || 0,
+      v.paiement || '',
+      v.raison || ''
+    ));
+  }
+  return lines.join('\n');
+}
+
+async function csvPaies() {
+  const snap = await db.collection('paies').orderBy('timestamp', 'desc').limit(2000).get();
+  const lines = [csvRow('Date', 'Payeur', 'Bénéficiaire', 'Montant', 'Période')];
+  for (const d of snap.docs) {
+    const p = d.data();
+    lines.push(csvRow(
+      dateIso(p.timestamp),
+      p.payeurNom || '',
+      p.beneficiaireNom || '',
+      p.montant || 0,
+      p.periode || ''
+    ));
+  }
+  return lines.join('\n');
 }

@@ -5,7 +5,7 @@
 
 import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listenUsers, updateUser, deleteUser, getConfig, setConfig } from '../api.js';
+import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets } from '../api.js';
 import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection } from '../utils/permissions.js';
 import { date, escapeHtml } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
@@ -32,9 +32,10 @@ const html = `
     <span>${perimetreText(profile.role)} Les comptes hors de ton périmètre sont visibles en lecture seule (actions grisées).</span>
   </div>
 
-  <div class="row mb-2">
+  <div class="row mb-2" style="flex-wrap:wrap;gap:8px;">
     ${canCreate ? `<button class="btn btn-primary" id="btn-nouveau">+ Créer un compte</button>` : ''}
     ${canEditCfg ? `<button class="btn" id="btn-config-globale">⚙ Configuration globale</button>` : ''}
+    ${canEditCfg ? `<button class="btn" id="btn-export-sheets">📊 Export Google Sheets</button>` : ''}
   </div>
 
   <div class="panel framed">
@@ -108,6 +109,29 @@ const html = `
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-save-edit">Enregistrer</button>
         <button class="btn btn-ghost" id="btn-cancel-edit">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal export Google Sheets -->
+  <div id="modal-sheets" class="modal-backdrop hidden">
+    <div class="modal" style="max-width: 720px;">
+      <h3>📊 Export Google Sheets — Comptabilité temps réel</h3>
+
+      <div class="alert info mb-2" style="font-size:0.85rem;">
+        <span class="icon">ℹ</span>
+        <div>
+          La fonction <code>comptaExport</code> sert un CSV temps réel. Tu colles une formule <code>=IMPORTDATA(URL)</code> dans Google Sheets, et le Sheet se met à jour tout seul.<br><br>
+          <strong>Le Sheet est en lecture seule</strong> — la modification reste sur le site (autorité de référence).
+        </div>
+      </div>
+
+      <div id="sheets-token-zone">
+        <p class="muted">Chargement…</p>
+      </div>
+
+      <div class="row mt-3">
+        <button class="btn btn-ghost" id="btn-cancel-sheets">Fermer</button>
       </div>
     </div>
   </div>
@@ -406,4 +430,129 @@ document.getElementById('btn-save-cfg').addEventListener('click', async () => {
     toastSuccess("Configuration enregistrée.");
     document.getElementById('modal-config').classList.add('hidden');
   } catch (e) { toastError(e.message || "Erreur."); console.error(e); }
+});
+
+// === Export Google Sheets (modale dédiée, direction uniquement) ===
+const COMPTA_EXPORT_URL = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/comptaExport';
+
+const btnExportSheets = document.getElementById('btn-export-sheets');
+if (btnExportSheets) {
+  btnExportSheets.addEventListener('click', async () => {
+    const zone = document.getElementById('sheets-token-zone');
+    zone.innerHTML = '<p class="muted">Lecture du token…</p>';
+    document.getElementById('modal-sheets').classList.remove('hidden');
+
+    let secrets = {};
+    try { secrets = await getSecrets(); }
+    catch (e) {
+      console.error(e);
+      zone.innerHTML = `<div class="alert danger">Impossible de lire les secrets : ${escapeHtml(e.message || e.code)}</div>`;
+      return;
+    }
+    renderSheetsZone(zone, secrets.comptaExportToken || null);
+  });
+}
+
+function renderSheetsZone(zone, token) {
+  if (!token) {
+    zone.innerHTML = `
+      <div class="alert warn mb-2">
+        <span class="icon">⚠</span>
+        <span>Aucun token configuré. Colle ci-dessous le token généré côté serveur (donné par la direction technique).</span>
+      </div>
+      <label>Token <code>LTD_COMPTA_EXPORT_TOKEN</code></label>
+      <input type="text" id="sheets-token-input" placeholder="64 caractères hexadécimaux" style="font-family:monospace;" />
+      <div class="row mt-2">
+        <button class="btn btn-primary" id="btn-save-sheets-token">Sauvegarder le token</button>
+      </div>
+    `;
+    document.getElementById('btn-save-sheets-token').addEventListener('click', async () => {
+      const v = document.getElementById('sheets-token-input').value.trim();
+      if (!/^[a-f0-9]{32,128}$/i.test(v)) return toastError("Token invalide (doit être hex, 32-128 chars).");
+      try {
+        await setSecrets({ comptaExportToken: v });
+        toastSuccess("Token enregistré.");
+        renderSheetsZone(zone, v);
+      } catch (e) { toastError(e.message || "Erreur."); console.error(e); }
+    });
+    return;
+  }
+
+  // Token présent : afficher les 4 formules à coller dans Google Sheets
+  const masque = token.slice(0, 6) + '…' + token.slice(-4);
+  const types = [
+    { type: 'resume',   label: '📊 Résumé hebdo',     hint: '1 ligne par semaine clôturée (52 max)' },
+    { type: 'depenses', label: '💸 Dépenses',          hint: 'Toutes les dépenses (2 000 max)' },
+    { type: 'ventes',   label: '💵 Ventes',            hint: 'Toutes les ventes (2 000 max)' },
+    { type: 'paies',    label: '💰 Paies',             hint: 'Toutes les paies versées (2 000 max)' }
+  ];
+
+  zone.innerHTML = `
+    <div class="alert ok mb-2"><span class="icon">✓</span><span>Token configuré (<code>${masque}</code>)</span></div>
+
+    <h4 style="margin-top:12px;">Setup Google Sheets — pas à pas</h4>
+    <ol style="font-size:0.88rem;line-height:1.55;">
+      <li>Crée un Google Sheet vierge sur <a href="https://sheets.new" target="_blank">sheets.new</a> (s'ouvre dans un nouvel onglet ⚠ depuis tablette FiveM préférable depuis ordi)</li>
+      <li>Crée 4 onglets : <code>Résumé</code>, <code>Dépenses</code>, <code>Ventes</code>, <code>Paies</code></li>
+      <li>Dans la cellule <code>A1</code> de chaque onglet, colle la formule correspondante ci-dessous</li>
+      <li>Sheets remplit automatiquement — refresh ~1h (Google force, pas modifiable)</li>
+      <li>Partage le Sheet avec qui tu veux (staff serveur, etc.) en lecture seule</li>
+    </ol>
+
+    <div class="alert warn mb-2" style="font-size:0.78rem;">
+      <span class="icon">⚠</span>
+      <span><strong>Sécurité</strong> : ne diffuse pas le token. Le Sheet final (lecture seule) peut être partagé sans risque, mais quiconque a le token peut télécharger toutes les données compta. Garde-le confidentiel comme un mot de passe.</span>
+    </div>
+
+    <h4>Formules à copier-coller</h4>
+    ${types.map(t => `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <strong>${t.label}</strong>
+          <span class="muted" style="font-size:0.75rem;">${t.hint}</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:stretch;">
+          <input type="text" readonly value='=IMPORTDATA("${COMPTA_EXPORT_URL}?type=${t.type}&token=${token}")'
+                 class="mono sheets-formula" style="flex:1;font-size:0.78rem;" />
+          <button class="btn btn-sm" data-copy="${t.type}">Copier</button>
+        </div>
+      </div>
+    `).join('')}
+
+    <details style="margin-top:14px;">
+      <summary style="cursor:pointer;font-family:var(--font-heading);font-size:0.85rem;">🔄 Régénérer le token (en cas de fuite)</summary>
+      <div class="alert info mt-2" style="font-size:0.78rem;">
+        <span class="icon">ℹ</span>
+        <div>
+          La régénération passe par Firebase CLI (côté serveur, pas depuis l'app). Procédure :
+          <ol style="margin:6px 0 0 18px;padding:0;">
+            <li><code>node -e "require('fs').writeFileSync('t.tmp', require('crypto').randomBytes(32).toString('hex'),'utf8')"</code></li>
+            <li><code>firebase functions:secrets:set LTD_COMPTA_EXPORT_TOKEN --data-file t.tmp</code></li>
+            <li><code>firebase deploy --only functions:comptaExport</code></li>
+            <li>Lis le contenu de <code>t.tmp</code>, copie-le ici dans le champ ci-dessus, supprime le fichier</li>
+          </ol>
+          Toutes les anciennes formules dans Google Sheets cesseront de fonctionner — il faudra les mettre à jour.
+        </div>
+      </div>
+    </details>
+  `;
+
+  // Boutons "Copier"
+  zone.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const formula = btn.previousElementSibling.value;
+      try {
+        await navigator.clipboard.writeText(formula);
+        toastSuccess("Formule copiée dans le presse-papiers.");
+      } catch (e) {
+        // Fallback : sélection manuelle
+        btn.previousElementSibling.select();
+        toastError("Copie auto refusée (vieux navigateur). Sélection faite — fais Ctrl+C.");
+      }
+    });
+  });
+}
+
+document.getElementById('btn-cancel-sheets').addEventListener('click', () => {
+  document.getElementById('modal-sheets').classList.add('hidden');
 });
