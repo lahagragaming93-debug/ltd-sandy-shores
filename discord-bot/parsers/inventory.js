@@ -9,6 +9,7 @@
 // ============================================================
 
 import { firstEmbed, getField } from './_helpers.js';
+import { resolveItemId, isLtdSource } from './items-mapping.js';
 
 export function parseInventoryEmbed(msg) {
   const embed = firstEmbed(msg);
@@ -23,15 +24,26 @@ export function parseInventoryEmbed(msg) {
   else if (haystack.includes('inventory-remove') || haystack.includes('remove')) type = 'inventory-remove';
   else return null;
 
+  const source  = getField(embed, 'source');
+  const rawItem = getField(embed, 'item');
+
+  // Skip silencieux : tout ce qui ne vient pas d'un coffre LTD légitime.
+  if (!isLtdSource(source)) return null;
+
+  // Skip silencieux : item inconnu du catalogue (parasites, items persos…).
+  const itemId = resolveItemId(rawItem);
+  if (!itemId) return null;
+
   return {
     type,
     discord:     getField(embed, 'discord'),
     name:        getField(embed, 'name'),
     properName:  getField(embed, 'properName') || getField(embed, 'proper_name'),
     characterId: getField(embed, 'characterId') || getField(embed, 'character_id') || getField(embed, 'idPerso'),
-    source:      getField(embed, 'source'),
+    source,
     count:       Number(getField(embed, 'count')) || 0,
-    item:        getField(embed, 'item'),
+    item:        itemId,            // ID catalogue résolu (slug stable)
+    itemNomBrut: rawItem,           // nom FiveM original conservé pour debug
     metadata:    getField(embed, 'metadata') || '',
     owner:       getField(embed, 'owner') || ''
   };

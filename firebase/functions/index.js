@@ -241,24 +241,27 @@ export const botIngest = onRequest({
 
 // === Handlers ===
 
-async function onInventory({ type, item, count, source, owner, characterId, properName, name }) {
-  // Mise à jour du stock
-  if (item) {
-    const ref = db.collection('stocks').doc(slug(item));
-    const snap = await ref.get();
-    const cur = snap.exists ? (snap.data().quantite || 0) : 0;
-    const delta = type === 'inventory-add' ? count : -count;
-    await ref.set({
-      quantite: cur + delta,
-      nom: item,
-      derniereMaj: FieldValue.serverTimestamp(),
-      par: properName || name || 'bot'
-    }, { merge: true });
-  }
+async function onInventory({ type, item, itemNomBrut, count, source, owner, characterId, properName, name }) {
+  // Le parser bot envoie déjà l'ID catalogue résolu dans `item` (ex: "bouteille-eau")
+  // et le nom FiveM affiché dans `itemNomBrut`. Filtrage source + whitelist déjà faits.
+  if (!item) return;
+  const itemId  = slug(item); // idempotent si item est déjà un slug
+  const itemNom = itemNomBrut || item;
+
+  const ref = db.collection('stocks').doc(itemId);
+  const snap = await ref.get();
+  const cur = snap.exists ? (snap.data().quantite || 0) : 0;
+  const delta = type === 'inventory-add' ? count : -count;
+  await ref.set({
+    quantite: cur + delta,
+    nom: itemNom,
+    derniereMaj: FieldValue.serverTimestamp(),
+    par: properName || name || 'bot'
+  }, { merge: true });
 
   await db.collection('mouvementsStock').add({
-    type, item: slug(item || ''), itemNom: item,
-    quantite: type === 'inventory-add' ? count : -count,
+    type, item: itemId, itemNom,
+    quantite: delta,
     par: properName || name || '',
     source: source || '',
     discord: name || '',
@@ -267,10 +270,9 @@ async function onInventory({ type, item, count, source, owner, characterId, prop
     timestamp: FieldValue.serverTimestamp()
   });
 
-  // Comptage quota pompiste si bidon ou caoutchouc et ajout
   if (type === 'inventory-add' && characterId &&
-      (slug(item) === 'bidon-essence' || slug(item) === 'caoutchouc')) {
-    await majQuotaPompiste(characterId, item, count);
+      (itemId === 'bidon-essence' || itemId === 'caoutchouc')) {
+    await majQuotaPompiste(characterId, itemNom, count);
   }
 }
 
