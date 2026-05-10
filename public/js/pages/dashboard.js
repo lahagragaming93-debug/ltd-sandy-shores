@@ -7,7 +7,7 @@ import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listenStocks, listenStations, listDepensesSemaine,
   listPaiesSemaine, listSemaines, listenAlertesActives, getConfig,
-  getDernierSoldeBanque
+  getDernierSoldeBanque, listRedistributionsSemaine
 } from '../api.js';
 import { startOfWeekRP, endOfWeekRP, money, num, pct, datetime, escapeHtml } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -90,20 +90,25 @@ document.getElementById('periode-semaine').textContent =
 
 // === KPIs ===
 async function chargerKpis() {
-  const [ventes, depenses, paies, config, soldeBanque] = await Promise.all([
+  const [ventes, depenses, paies, config, soldeBanque, redistributions] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
     getConfig().catch(() => ({})),
-    getDernierSoldeBanque().catch(() => null)
+    getDernierSoldeBanque().catch(() => null),
+    listRedistributionsSemaine(debut, fin).catch(() => [])
   ]);
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const caTotal = ca + caCarburant;
   const benefice = ventes.reduce((s, v) => s + (v.benefice || 0), 0);
   const totalDepenses = depenses.reduce((s, d) => s + (d.montant || 0), 0);
   const totalPaies = paies.reduce((s, p) => s + (p.montant || 0), 0);
-  const beneficeNet = ca - totalDepenses - totalPaies;
-  const masse = checkMasseSalariale(totalPaies, ca);
+  const beneficeNet = caTotal - totalDepenses - totalPaies;
+  // Masse salariale TTE : rapport sur le CA TOTAL (produits + carburant) pour
+  // refleter la realite economique de l'entreprise.
+  const masse = checkMasseSalariale(totalPaies, caTotal);
 
   // Solde banque LTD (dernière dépense connue avec champ soldeApres)
   let soldeKpi = `
@@ -128,7 +133,12 @@ async function chargerKpis() {
     <div class="kpi">
       <div class="label">CA semaine</div>
       <div class="value">${money(ca)}</div>
-      <div class="delta">${ventes.length} factures</div>
+      <div class="delta">${ventes.length} factures produits</div>
+    </div>
+    <div class="kpi">
+      <div class="label">⛽ CA carburant</div>
+      <div class="value">${money(caCarburant)}</div>
+      <div class="delta">${redistributions.length} ventes essence</div>
     </div>
     <div class="kpi">
       <div class="label">Bénéfice brut</div>

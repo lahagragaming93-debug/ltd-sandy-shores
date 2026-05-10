@@ -6,7 +6,7 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listUsers, listVentesSemaine, listServicesSemaine, listQuotasSemaine,
-  listPaiesSemaine, getConfig, updateUser
+  listPaiesSemaine, getConfig, updateUser, listRedistributionsSemaine
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isResponsable, isDirection,
          isSuperAdmin, compteEnFinance, PLAFOND_SALAIRE } from '../utils/permissions.js';
@@ -83,13 +83,14 @@ const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
 const wId   = weekId();
 
-const [users, ventes, services, quotas, paies, config] = await Promise.all([
+const [users, ventes, services, quotas, paies, config, redistributions] = await Promise.all([
   listUsers().catch(() => []),
   listVentesSemaine(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
   listQuotasSemaine(wId).catch(() => []),
   listPaiesSemaine(debut, fin).catch(() => []),
-  getConfig().catch(() => ({}))
+  getConfig().catch(() => ({})),
+  listRedistributionsSemaine(debut, fin).catch(() => [])
 ]);
 
 // === Calculer les métriques par employé ===
@@ -129,7 +130,11 @@ users.forEach(u => {
 // === KPIs ===
 // On exclut les rôles techniques (admin-technique) des calculs financiers / masse salariale
 const usersFinance = users.filter(u => compteEnFinance(u.role));
-const totalCA = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+const caProduits   = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+const caCarburant  = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+// TTE : ratio masse salariale sur CA TOTAL (produits + carburant), pour refleter
+// la realite economique et eviter de declarer hors-TTE artificiellement.
+const totalCA = caProduits + caCarburant;
 const totalEstime = usersFinance.reduce((s, u) => s + (metricsByUser[u.id]?.salaireEstime || 0), 0);
 const totalVerse = paies.reduce((s, p) => s + (p.montant || 0), 0);
 const masse = checkMasseSalariale(totalEstime, totalCA);

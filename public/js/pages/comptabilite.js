@@ -8,7 +8,7 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell, roleBadgeHtml } from '../layout.js';
 import {
   listVentesSemaine, listDepensesSemaine, listPaiesSemaine, listSemaines,
-  ajouterDepense, listUsers, listStatsHebdoOfficielles
+  ajouterDepense, listUsers, listStatsHebdoOfficielles, listRedistributionsSemaine
 } from '../api.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
@@ -174,35 +174,43 @@ async function chargerTout() {
     return;
   }
 
-  const [ventes, depenses, paies, u] = await Promise.all([
+  const [ventes, depenses, paies, u, redistributions] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
-    listUsers().catch(() => [])
+    listUsers().catch(() => []),
+    listRedistributionsSemaine(debut, fin).catch(() => [])
   ]);
   users = u;
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const caTotal = ca + caCarburant;
   const totalDepenses = depenses.reduce((s, d) => s + (d.montant || 0), 0);
   const deductibles = depenses.filter(d => d.deductible !== false)
     .reduce((s, d) => s + (d.montant || 0), 0);
   const nonDeductibles = totalDepenses - deductibles;
   const masseSalariale = paies.reduce((s, p) => s + (p.montant || 0), 0);
-  const resultatImposable = ca - deductibles;
-  const beneficeNet = ca - totalDepenses - masseSalariale;
-  const masse = checkMasseSalariale(masseSalariale, ca);
+  const resultatImposable = caTotal - deductibles;
+  const beneficeNet = caTotal - totalDepenses - masseSalariale;
+  const masse = checkMasseSalariale(masseSalariale, caTotal);
 
-  const pHebdo = primeHebdo(ca);
+  const pHebdo = primeHebdo(caTotal);
   const pMensuel = primeMensuelle(beneficeNet);
 
-  dataCache = { ca, deductibles, nonDeductibles, masseSalariale, beneficeNet, paies, debut, fin };
+  dataCache = { ca, caCarburant, caTotal, deductibles, nonDeductibles, masseSalariale, beneficeNet, paies, debut, fin };
 
   // === KPIs colorés ===
   document.getElementById('kpis-compta').innerHTML = `
     <div class="kpi kpi-recette">
-      <div class="label">💚 Chiffre d'affaires</div>
+      <div class="label">💚 CA produits</div>
       <div class="value">${money(ca)}</div>
       <div class="delta">${ventes.length} factures</div>
+    </div>
+    <div class="kpi kpi-recette">
+      <div class="label">⛽ CA carburant</div>
+      <div class="value">${money(caCarburant)}</div>
+      <div class="delta">${redistributions.length} ventes essence</div>
     </div>
     <div class="kpi kpi-depense">
       <div class="label">❤ Charges déductibles</div>
@@ -223,9 +231,9 @@ async function chargerTout() {
 
   // === Recettes ===
   document.getElementById('tbody-recettes').innerHTML = `
-    <tr><td>Chiffre d'affaires (ventes)</td><td class="right mono">${money(ca)}</td></tr>
-    <tr><td class="muted">Autres entrées</td><td class="right mono muted">à saisir si besoin</td></tr>
-    <tr class="row-total"><td>Total recettes</td><td class="right mono">${money(ca)}</td></tr>
+    <tr><td>Chiffre d'affaires (ventes produits)</td><td class="right mono">${money(ca)}</td></tr>
+    <tr><td>Chiffre d'affaires (ventes carburant)</td><td class="right mono">${money(caCarburant)}</td></tr>
+    <tr class="row-total"><td>Total recettes</td><td class="right mono">${money(caTotal)}</td></tr>
   `;
 
   // === Dépenses ===
@@ -265,7 +273,7 @@ async function chargerTout() {
   }
 
   // === Conformité (gauge) ===
-  renderGaugeMasse(masse, masseSalariale, ca);
+  renderGaugeMasse(masse, masseSalariale, caTotal);
 }
 
 // ============================================================
@@ -528,22 +536,27 @@ _Source : LTD Sandy Shores — Comptabilité_`;
 
 // === Exports ===
 document.getElementById('btn-export-csv').addEventListener('click', async () => {
-  const [ventes, depenses, paies] = await Promise.all([
-    listVentesSemaine(debut, fin), listDepensesSemaine(debut, fin), listPaiesSemaine(debut, fin)
+  const [ventes, depenses, paies, redistributions] = await Promise.all([
+    listVentesSemaine(debut, fin), listDepensesSemaine(debut, fin), listPaiesSemaine(debut, fin),
+    listRedistributionsSemaine(debut, fin).catch(() => [])
   ]);
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const caTotal = ca + caCarburant;
   const dep = depenses.reduce((s, d) => s + (d.montant || 0), 0);
   const dedu = depenses.filter(d => d.deductible !== false).reduce((s, d) => s + (d.montant || 0), 0);
   const masse = paies.reduce((s, p) => s + (p.montant || 0), 0);
 
   const lines = [
     'Poste;Montant',
-    `CA;${ca}`,
+    `CA produits;${ca}`,
+    `CA carburant;${caCarburant}`,
+    `CA total;${caTotal}`,
     `Charges deductibles;${dedu}`,
     `Charges non deductibles;${dep - dedu}`,
     `Masse salariale;${masse}`,
-    `Resultat imposable;${ca - dedu}`,
-    `Benefice net;${ca - dep - masse}`
+    `Resultat imposable;${caTotal - dedu}`,
+    `Benefice net;${caTotal - dep - masse}`
   ];
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
