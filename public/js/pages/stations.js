@@ -52,6 +52,8 @@ const html = `
       </div>
       <label>Prix au litre ($)</label>
       <input type="number" id="st-prix" step="0.1" min="0" />
+      <label>N° pompe FiveM <span class="muted" style="font-size:0.75rem;">— identifiant in-game qui apparaît dans "Redistribution N°XXXXX" (#logs-ig)</span></label>
+      <input type="text" id="st-fivem-pompe" placeholder="ex: 16060" />
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-save-station">Enregistrer</button>
         ${editable ? '<button class="btn btn-danger" id="btn-delete-station" style="display:none;">Supprimer</button>' : ''}
@@ -171,6 +173,7 @@ if (editable) {
     document.getElementById('st-stock-max').value = 30000;
     document.getElementById('st-seuil').value = config.seuilAlerteEssence || 1000;
     document.getElementById('st-prix').value = config.prixEssence || 5;
+    document.getElementById('st-fivem-pompe').value = '';
     document.getElementById('modal-station-title').textContent = 'Nouvelle station';
     const delBtn = document.getElementById('btn-delete-station');
     if (delBtn) delBtn.style.display = 'none';
@@ -187,6 +190,7 @@ function ouvrirStation(id) {
   document.getElementById('st-stock-max').value = s.stockMax || 0;
   document.getElementById('st-seuil').value = s.seuilAlerte || 0;
   document.getElementById('st-prix').value = s.prixLitre || 0;
+  document.getElementById('st-fivem-pompe').value = s.fivemPompeId || '';
   document.getElementById('modal-station-title').textContent = s.nom;
   const delBtn = document.getElementById('btn-delete-station');
   if (delBtn) delBtn.style.display = 'inline-block';
@@ -203,17 +207,26 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
     const v = (document.getElementById(sel).value || '').toString().replace(',', '.');
     return Number(v);
   };
+  const fivemPompeId = (document.getElementById('st-fivem-pompe').value || '').trim();
   const data = {
     nom: document.getElementById('st-nom').value.trim(),
     stockActuel: Number(document.getElementById('st-stock-actuel').value) || 0,
     stockMax: Number(document.getElementById('st-stock-max').value) || 0,
     seuilAlerte: Number(document.getElementById('st-seuil').value) || 0,
-    prixLitre: lirePrix('st-prix') || 0
+    prixLitre: lirePrix('st-prix') || 0,
+    fivemPompeId
   };
   if (!data.nom) return toastError("Nom obligatoire.");
   console.log('[stations] save', id, data);
   try {
     await setStation(id, data);
+    // Maintient le reverse-mapping global (fivemPompeId → stationId) utilisé par
+    // onBankAccount pour matcher "Redistribution N°XXXXX" sur la bonne station.
+    if (fivemPompeId) {
+      // merge:true en Firestore fait un merge récursif des objets imbriqués,
+      // donc les autres entrées de fivemPompesMap sont préservées.
+      await setConfig({ fivemPompesMap: { [fivemPompeId]: id } });
+    }
     console.log('[stations] save OK', id);
 
     // Mise à jour optimiste du state local + re-render immédiat
@@ -226,7 +239,7 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
     }
     renderStations();
 
-    toastSuccess(`Station "${data.nom}" enregistrée (prix ${data.prixLitre} $/L).`);
+    toastSuccess(`Station "${data.nom}" enregistrée${fivemPompeId ? ` (N°pompe ${fivemPompeId})` : ''}.`);
     modal.classList.add('hidden');
   } catch (e) {
     console.error('[stations] save FAIL', id, e);
@@ -345,7 +358,8 @@ async function chargerRedistributions() {
         <th class="right" data-sort="litres">Litres</th>
         <th class="right" data-sort="prix">Prix/L</th>
         <th class="right" data-sort="montant">Montant</th>
-        <th class="right" data-sort="stock">Stock après</th>
+        <th class="right" data-sort="stockAvant">Stock avant</th>
+        <th class="right" data-sort="stockApres">Stock après</th>
       </tr></thead>
       <tbody>
         ${list.map(r => `
@@ -355,7 +369,8 @@ async function chargerRedistributions() {
             <td class="right mono">${num(r.litres)}</td>
             <td class="right mono">${moneyPrecis(r.prixLitre)}</td>
             <td class="right mono">${money(r.montant)}</td>
-            <td class="right mono">${num(r.stockApres)} L</td>
+            <td class="right mono muted">${r.stockAvant != null ? num(r.stockAvant) + ' L' : '—'}</td>
+            <td class="right mono">${r.stockApres != null ? num(r.stockApres) + ' L' : '—'}</td>
           </tr>
         `).join('')}
       </tbody>

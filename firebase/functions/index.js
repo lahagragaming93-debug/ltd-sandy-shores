@@ -405,6 +405,11 @@ async function onDepense(p) {
 // === Banque LTD : transactions xbankaccount sur iban LTDSANDY ===
 // Stocke chaque mouvement (entrée ou sortie) avec le solde après transaction.
 // Utilisé pour afficher le solde temps réel + audit complet des mouvements.
+//
+// Cas spécial : si la raison est "Redistribution N°XXXXX" sur une entrée d'argent,
+// c'est une VENTE CARBURANT (depuis la migration FiveM de 2026-05). Le N° = ID
+// de la pompe côté FiveM. On crée aussi un doc /redistributions pour qu'elle
+// apparaisse dans /revenus-carburant. Mapping N° → station via /config.fivemPompesMap.
 async function onBankAccount(p) {
   await db.collection('banqueLtd').add({
     type: p.type || 'add',          // 'add' (recette) | 'remove' (sortie)
@@ -415,6 +420,42 @@ async function onBankAccount(p) {
     soldeApres: Number(p.soldeApres) || 0,
     raison: p.raison || '',
     source: 'discord-xbankaccount',
+    timestamp: FieldValue.serverTimestamp()
+  });
+
+  // Détection vente carburant (raison "Redistribution N°XXXXX" sur entrée)
+  if ((p.type || 'add') !== 'add') return;
+  const matchRedis = String(p.raison || '').match(/Redistribution\s*N[°º]?\s*(\d+)/i);
+  if (!matchRedis) return;
+  const fivemPompeId = matchRedis[1];
+
+  // Lookup mapping pompe FiveM → station dans config
+  const cfgSnap = await db.collection('config').doc('global').get();
+  const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+  const mapping = cfg.fivemPompesMap || {};
+  const stationId = mapping[fivemPompeId] || '';
+  let stationNom = `Station #${fivemPompeId}`;
+  if (stationId) {
+    const sSnap = await db.collection('stations').doc(stationId).get();
+    if (sSnap.exists) stationNom = sSnap.data().nom || stationNom;
+  }
+
+  // Dedupe : si on a déjà un redistribution avec ce fivemPompeId + ce timestamp,
+  // on n'écrit pas. Sinon on ajoute. La granularité utilisée est la seconde,
+  // suffisante pour différencier deux ventes successives sur la même pompe.
+  await db.collection('redistributions').add({
+    redistributionId: fivemPompeId,        // N° pompe FiveM (pas un id unique de vente)
+    fivemPompeId,                          // explicite pour mapping/admin
+    station: stationNom,
+    stationId: stationId || '',
+    montant: Number(p.montant) || 0,
+    soldeAvant: Number(p.soldeAvant) || 0,
+    soldeApres: Number(p.soldeApres) || 0,
+    litres: null,                          // inconnu via xbankaccount
+    prixLitre: null,
+    stockAvant: null,
+    stockApres: null,
+    source: 'banqueLtd-redistribution',
     timestamp: FieldValue.serverTimestamp()
   });
 }

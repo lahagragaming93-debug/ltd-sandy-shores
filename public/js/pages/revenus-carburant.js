@@ -98,11 +98,12 @@ const html = `
             <th class="right" data-sort="litres">Litres</th>
             <th class="right" data-sort="prixL">Prix / L</th>
             <th class="right" data-sort="montant">Montant</th>
+            <th class="right" data-sort="stockAvant">Stock avant</th>
             <th class="right" data-sort="stockApres">Stock après</th>
             <th data-sort="redistribution">N° lot</th>
           </tr>
         </thead>
-        <tbody id="tbody-transactions"><tr><td colspan="7" class="muted text-center">Chargement…</td></tr></tbody>
+        <tbody id="tbody-transactions"><tr><td colspan="8" class="muted text-center">Chargement…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -240,7 +241,7 @@ function rendre() {
   // === Détail transactions ===
   const tbodyTrans = document.getElementById('tbody-transactions');
   if (rows.length === 0) {
-    tbodyTrans.innerHTML = `<tr><td colspan="7" class="muted text-center">Aucune transaction sur la période.</td></tr>`;
+    tbodyTrans.innerHTML = `<tr><td colspan="8" class="muted text-center">Aucune transaction sur la période.</td></tr>`;
   } else {
     const cellOuTiret = (val, formatter) =>
       (Number(val) || 0) > 0 ? formatter(val) : '<span class="muted">—</span>';
@@ -251,6 +252,7 @@ function rendre() {
         <td class="right mono">${cellOuTiret(r.litres, v => num(v) + ' L')}</td>
         <td class="right mono">${cellOuTiret(r.prixLitre, moneyPrecis)}</td>
         <td class="right mono">${moneyPrecis(r.montant || 0)}</td>
+        <td class="right mono muted">${cellOuTiret(r.stockAvant, v => num(v) + ' L')}</td>
         <td class="right mono">${cellOuTiret(r.stockApres, v => num(v) + ' L')}</td>
         <td class="mono">#${escapeHtml(String(r.id || r.redistributionId || '—'))}</td>
       </tr>
@@ -328,7 +330,7 @@ document.getElementById('btn-export-csv').addEventListener('click', () => {
   let rows = dataCache;
   if (stationFilter) rows = rows.filter(r => (r.station || r.stationId) === stationFilter);
 
-  const lines = ['Date;Station;Litres;Prix/L;Montant;Stock apres;N° lot'];
+  const lines = ['Date;Station;Litres;Prix/L;Montant;Stock avant;Stock apres;N° lot'];
   for (const r of rows) {
     lines.push([
       datetime(r.timestamp),
@@ -336,7 +338,8 @@ document.getElementById('btn-export-csv').addEventListener('click', () => {
       r.litres || 0,
       r.prixLitre || 0,
       r.montant || 0,
-      r.stockApres || 0,
+      r.stockAvant ?? '',
+      r.stockApres ?? '',
       r.id || r.redistributionId || ''
     ].join(';'));
   }
