@@ -120,6 +120,7 @@ const RAW_MAPPING = {
   "Eponge":                'eponge-nettoyage',
   "Papier à rouler":       'papier-rouler',
   "Spray pour tag":        'spray-tag',
+  "spray":                 'spray-tag', // nom interne FiveM (logs-ig)
   "Balle de basket":       'ballon-basket',
   "Balle de football":     'ballon-foot',
   "Croquettes":            'croquette',
