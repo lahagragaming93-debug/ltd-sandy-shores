@@ -44,22 +44,24 @@ const html = `
       <span>Inventaire épicerie</span>
       <span class="muted mono" id="stats-stock">—</span>
     </div>
-    <table class="data" id="table-stocks">
-      <thead>
-        <tr>
-          <th>Produit</th>
-          <th>Catégorie</th>
-          <th class="right">Stock</th>
-          <th class="right">Prix achat</th>
-          <th class="right">Prix vente</th>
-          <th class="right">Marge</th>
-          <th class="right">Seuil alerte</th>
-          <th class="center">Statut</th>
-          ${editable ? '<th class="center">Actions</th>' : ''}
-        </tr>
-      </thead>
-      <tbody id="tbody-stocks"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll" id="table-scroll-stocks">
+      <table class="data sortable" id="table-stocks">
+        <thead>
+          <tr>
+            <th data-sort="nom">Produit <span class="sort-arrow"></span></th>
+            <th data-sort="categorie">Catégorie <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="qte">Stock <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="prixAchat">Prix achat <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="prixVente">Prix vente <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="marge">Marge <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="seuil">Seuil alerte <span class="sort-arrow"></span></th>
+            <th class="center" data-sort="statut">Statut <span class="sort-arrow"></span></th>
+            ${editable ? '<th class="center">Actions</th>' : ''}
+          </tr>
+        </thead>
+        <tbody id="tbody-stocks"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <div class="panel">
@@ -125,6 +127,47 @@ renderShell(profile, 'stocks_epicerie', html);
 
 let produits = [];
 let stocks = {};
+let sortState = { key: 'nom', dir: 'asc' };
+
+const STATUT_ORDER = { rupture: 0, bas: 1, ok: 2 };
+
+function sortRows(rows) {
+  const { key, dir } = sortState;
+  const sign = dir === 'asc' ? 1 : -1;
+  const cmpStr = (a, b) => String(a || '').localeCompare(String(b || ''), 'fr', { sensitivity: 'base' });
+  const cmpNum = (a, b) => (a || 0) - (b || 0);
+
+  return [...rows].sort((r1, r2) => {
+    let res;
+    switch (key) {
+      case 'nom':       res = cmpStr(r1.p.nom, r2.p.nom); break;
+      case 'categorie': res = cmpStr(CATEGORY_LABELS[r1.p.categorie] || r1.p.categorie, CATEGORY_LABELS[r2.p.categorie] || r2.p.categorie); break;
+      case 'qte':       res = cmpNum(r1.qte, r2.qte); break;
+      case 'prixAchat': res = cmpNum(r1.p.prixAchat, r2.p.prixAchat); break;
+      case 'prixVente': res = cmpNum(r1.p.prixVente, r2.p.prixVente); break;
+      case 'marge':     res = cmpNum((r1.p.prixVente || 0) - (r1.p.prixAchat || 0), (r2.p.prixVente || 0) - (r2.p.prixAchat || 0)); break;
+      case 'seuil':     res = cmpNum(r1.seuil, r2.seuil); break;
+      case 'statut':    res = STATUT_ORDER[r1.statut] - STATUT_ORDER[r2.statut]; break;
+      default:          res = 0;
+    }
+    if (res === 0) res = cmpStr(r1.p.nom, r2.p.nom); // tie-breaker stable par nom
+    return res * sign;
+  });
+}
+
+function updateSortArrows() {
+  document.querySelectorAll('#table-stocks thead th[data-sort]').forEach(th => {
+    const arrow = th.querySelector('.sort-arrow');
+    if (!arrow) return;
+    if (th.dataset.sort === sortState.key) {
+      arrow.textContent = sortState.dir === 'asc' ? ' ▲' : ' ▼';
+      th.classList.add('sorted');
+    } else {
+      arrow.textContent = '';
+      th.classList.remove('sorted');
+    }
+  });
+}
 
 async function chargerProduits() {
   produits = await listProduits().catch(() => []);
@@ -157,6 +200,9 @@ function renderTable() {
   if (cat) rows = rows.filter(r => r.p.categorie === cat);
   if (niveau) rows = rows.filter(r => r.statut === niveau);
   if (recherche) rows = rows.filter(r => r.p.nom.toLowerCase().includes(recherche));
+
+  rows = sortRows(rows);
+  updateSortArrows();
 
   const tbody = document.getElementById('tbody-stocks');
   if (rows.length === 0) {
@@ -232,6 +278,19 @@ function renderTable() {
 document.getElementById('filtre-categorie').addEventListener('change', renderTable);
 document.getElementById('filtre-alerte').addEventListener('change', renderTable);
 document.getElementById('filtre-recherche').addEventListener('input', renderTable);
+
+// Tri par colonne (click sur en-tête)
+document.querySelectorAll('#table-stocks thead th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (sortState.key === key) {
+      sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortState = { key, dir: 'asc' };
+    }
+    renderTable();
+  });
+});
 
 // === Édition produit ===
 function ouvrirEdition(id) {
