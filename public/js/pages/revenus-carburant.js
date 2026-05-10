@@ -15,8 +15,7 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listRedistributionsSemaine } from '../api.js';
-import { money, moneyPrecis, num, datetime, escapeHtml,
-         startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
+import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm';
 Chart.register(...registerables);
@@ -42,8 +41,7 @@ const html = `
 
   <div class="row mb-2 wrap">
     <select id="filtre-periode">
-      <option value="semaine">📅 Semaine en cours</option>
-      <option value="7j">7 derniers jours</option>
+      <option value="7j">📅 7 derniers jours (glissant)</option>
       <option value="30j">30 derniers jours</option>
     </select>
     <select id="filtre-station">
@@ -115,18 +113,11 @@ let chartCarb = null;
 let dataCache = []; // pour l'export CSV
 
 function periodeRange(key) {
-  const fin = endOfWeekRP();
-  if (key === 'semaine') return { debut: startOfWeekRP(), fin };
+  // Periodes glissantes : aujourd'hui inclus, fin = maintenant.
   const now = new Date();
-  if (key === '7j') {
-    const debut = new Date(now);
-    debut.setDate(debut.getDate() - 7);
-    debut.setHours(0, 0, 0, 0);
-    return { debut, fin: now };
-  }
-  // 30j
+  const days = key === '30j' ? 30 : 7;
   const debut = new Date(now);
-  debut.setDate(debut.getDate() - 30);
+  debut.setDate(debut.getDate() - days);
   debut.setHours(0, 0, 0, 0);
   return { debut, fin: now };
 }
