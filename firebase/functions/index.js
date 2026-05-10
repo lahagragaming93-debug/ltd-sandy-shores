@@ -259,6 +259,9 @@ export const botIngest = onRequest({
       case 'statsbank':       await onStatsbank(payload); break;
       case 'rapportPompiste': await onRapportPompiste(payload); break;
       case 'stationsDashboard': await onStationsDashboard(payload); break;
+      case 'dossierEmploye':  await onDossierEmploye(payload); break;
+      case 'avertissement':   await onAvertissement(payload); break;
+      case 'licenciement':    await onLicenciement(payload); break;
       case 'venteAuto':       await onVenteAuto(payload); break;
       case 'logBrut':         await onLogBrut(payload); break;
       default:                return res.status(400).send('Unknown type');
@@ -590,6 +593,127 @@ async function onStationsDashboard(p) {
     await ref.set(patch, { merge: true });
   }
   console.log(`[stationsDashboard] ${stations.length} stations sync`);
+}
+
+// === Dossier employe (forum #Dossiers-Employers, threads) ===
+// Stocke chaque fiche dans /dossiersEmployes/{threadId} (audit complet).
+// Tente d'enrichir le user matchant /users (nom + prenom) en y ajoutant
+// telephone, IBAN, pole. NE TOUCHE PAS aux champs critiques (email,
+// idDiscord, idPerso) car la fiche ne les contient pas.
+async function onDossierEmploye(p) {
+  if (!p?.threadId) return;
+  await db.collection('dossiersEmployes').doc(p.threadId).set({
+    threadId:        p.threadId,
+    threadName:      p.threadName || '',
+    parentForumId:   p.parentForumId || '',
+    auteurDiscordId: p.auteurDiscordId || '',
+    auteurUsername:  p.auteurUsername || '',
+    nomPrenom:       p.nomPrenom,
+    prenom:          p.prenom,
+    nom:             p.nom,
+    telephone:       p.telephone || '',
+    iban:            p.iban || '',
+    cni:             p.cni || '',
+    permis:          p.permis || '',
+    pole:            p.pole || '',
+    derniereMaj:     FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  // Enrichissement /users : match exact nom (UPPER) + prenom (Title).
+  // Si plusieurs matches, on skip (risque famille — Williams, Mars, etc.).
+  if (!p.nom || !p.prenom) return;
+  const usersSnap = await db.collection('users')
+    .where('nom', '==', p.nom)
+    .where('prenom', '==', p.prenom)
+    .get();
+  if (usersSnap.size === 0) {
+    console.log(`[dossierEmploye] aucun user matche ${p.prenom} ${p.nom} — fiche stockee dans /dossiersEmployes seulement`);
+    return;
+  }
+  if (usersSnap.size > 1) {
+    console.log(`[dossierEmploye] ${usersSnap.size} users matchent ${p.prenom} ${p.nom} — skip enrichissement (ambigu)`);
+    return;
+  }
+  const userRef = usersSnap.docs[0].ref;
+  const enrichPatch = {};
+  if (p.telephone) enrichPatch.telephone = p.telephone;
+  if (p.iban)      enrichPatch.iban      = p.iban;
+  if (p.pole)      enrichPatch.pole      = p.pole;
+  if (p.cni)       enrichPatch.cni       = p.cni;
+  if (p.permis)    enrichPatch.permis    = p.permis;
+  if (Object.keys(enrichPatch).length > 0) {
+    enrichPatch.enrichiDepuisDossierAt = FieldValue.serverTimestamp();
+    enrichPatch.enrichiDepuisDossierThread = p.threadId;
+    await userRef.set(enrichPatch, { merge: true });
+    console.log(`[dossierEmploye] /users/${userRef.id} enrichi avec ${Object.keys(enrichPatch).join(', ')}`);
+  }
+}
+
+// === Avertissement (#logs-avertissement, bot Jessica) ===
+// Logge dans /rhEvenements (type='avertissement'). Ne modifie PAS le user
+// (c'est juste un signal pour le patron, pas une sanction definitive).
+async function onAvertissement(p) {
+  await db.collection('rhEvenements').add({
+    type:             'avertissement',
+    sousType:         p.sousType || 'avertissement',
+    memberDiscordId:  p.memberDiscordId || '',
+    dureeMinutes:     p.dureeMinutes ?? null,
+    debut:            p.debut || '',
+    fin:              p.fin || '',
+    rawDescription:   p.rawDescription || '',
+    timestamp:        FieldValue.serverTimestamp(),
+    traitee:          false
+  });
+  console.log(`[avertissement] ${p.sousType} pour <@${p.memberDiscordId}> (duree=${p.dureeMinutes}min)`);
+}
+
+// === Licenciement (#logs-licenciement, bot Jessica) ===
+// 1. Logge dans /rhEvenements (type='licenciement') — audit complet.
+// 2. Met a jour le user correspondant en statut='exclu' si on le trouve
+//    (match par idDiscord d'abord, fallback idPerso). Stocke la date de fin.
+async function onLicenciement(p) {
+  await db.collection('rhEvenements').add({
+    type:             'licenciement',
+    sousType:         p.typeLicenciement || 'licenciement',
+    memberDiscordId:  p.memberDiscordId || '',
+    discordId:        p.discordId || '',
+    idPerso:          p.idPerso || '',
+    nom:              p.nom || '',
+    prenom:           p.prenom || '',
+    telephone:        p.telephone || '',
+    iban:             p.iban || '',
+    dateEmbauche:     p.dateEmbauche || '',
+    dateFin:          p.dateFin || '',
+    parQui:           p.parQui || '',
+    raison:           p.raison || '',
+    casierLibere:     p.casierLibere || '',
+    rawDescription:   p.rawDescription || '',
+    timestamp:        FieldValue.serverTimestamp(),
+    traitee:          false
+  });
+
+  // Tente de retrouver et suspendre le user
+  let userDoc = null;
+  if (p.memberDiscordId) {
+    const s = await db.collection('users').where('idDiscord', '==', p.memberDiscordId).limit(1).get();
+    if (!s.empty) userDoc = s.docs[0];
+  }
+  if (!userDoc && p.idPerso) {
+    const s = await db.collection('users').where('idPerso', '==', p.idPerso).limit(1).get();
+    if (!s.empty) userDoc = s.docs[0];
+  }
+  if (userDoc) {
+    await userDoc.ref.set({
+      statut:        'exclu',
+      dateExclusion: p.dateFin || '',
+      raisonExclusion: p.raison || '',
+      typeExclusion: p.typeLicenciement || '',
+      excluPar:      p.parQui || ''
+    }, { merge: true });
+    console.log(`[licenciement] /users/${userDoc.id} marque exclu (type=${p.typeLicenciement})`);
+  } else {
+    console.log(`[licenciement] aucun user matche pour ${p.prenom} ${p.nom} (discord=${p.memberDiscordId} idPerso=${p.idPerso}) — log uniquement`);
+  }
 }
 
 // === Vente-auto (#ventes — distributeur LTD automatique) ===

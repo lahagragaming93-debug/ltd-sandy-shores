@@ -21,6 +21,9 @@ import { parseStatsbankEmbed }       from './parsers/statsbank.js';
 import { parseRapportPompisteEmbed } from './parsers/rapportPompiste.js';
 import { parseVenteAutoEmbed }       from './parsers/venteAuto.js';
 import { parseStationsDashboardMessage } from './parsers/stationsDashboard.js';
+import { parseDossierEmployeMessage }  from './parsers/dossierEmploye.js';
+import { parseAvertissementEmbed }     from './parsers/avertissement.js';
+import { parseLicenciementEmbed }      from './parsers/licenciement.js';
 
 const required = ['DISCORD_TOKEN', 'GUILD_ID', 'INGEST_URL', 'INGEST_TOKEN'];
 for (const k of required) {
@@ -56,17 +59,24 @@ const CHANNEL_MAP = {
   [process.env.CH_STATIONS_DASHBOARD]:    { type: 'stationsDashboard',
                                             parser: parseStationsDashboardMessage,
                                             listenEdits: true,
-                                            fetchOnStartup: true }
+                                            fetchOnStartup: true },
+  // Forum dossiers RH : routing par parentId du thread
+  // (les fiches sont dans les threads enfants, pas dans le forum lui-meme).
+  [process.env.CH_DOSSIERS_EMPLOYES]:     { type: 'dossierEmploye',
+                                            parser: parseDossierEmployeMessage,
+                                            listenEdits: true },
+  // Logs RH structures (deplaces depuis RAW_CHANNELS)
+  [process.env.CH_LOGS_AVERTISSEMENT]:    { type: 'avertissement', parser: parseAvertissementEmbed },
+  [process.env.CH_LOGS_LICENCIEMENT]:     { type: 'licenciement',  parser: parseLicenciementEmbed }
 };
 
 const RAW_CHANNELS = {
   [process.env.CH_SUIVI_COFFRE_SECONDAIRE]: 'suivi-coffre-secondaire',
   [process.env.CH_ALERTE_COFFRE]:           'alerte-coffre',
   [process.env.CH_REVENU]:                  'revenu',  // doublon xbankaccount, garde en raw pour audit
-  [process.env.CH_FACTURES]:                'factures',
-  // CH_STATSBANK : déplacé en parser structuré (CHANNEL_MAP ci-dessus)
-  [process.env.CH_LOGS_LICENCIEMENT]:       'logs-licenciement',
-  [process.env.CH_LOGS_AVERTISSEMENT]:      'logs-avertissement'
+  [process.env.CH_FACTURES]:                'factures'
+  // CH_STATSBANK / CH_LOGS_LICENCIEMENT / CH_LOGS_AVERTISSEMENT :
+  // deplaces en parsers structures (CHANNEL_MAP ci-dessus)
 };
 
 const client = new Client({
@@ -150,8 +160,12 @@ async function handleMessage(msg, source = 'create') {
   const nbEmbeds = msg.embeds?.length || 0;
   console.log(`[${source.toUpperCase()}] #${channelName} ${isBot}${author} embeds=${nbEmbeds} content="${(msg.content || '').slice(0, 60)}"`);
 
-  // Canaux structurés (mono-parser ou liste de parsers)
-  const cfg = CHANNEL_MAP[channelId];
+  // Canaux structurés (mono-parser ou liste de parsers).
+  // Si le message est dans un thread (forum / fil), on retombe sur le parent
+  // pour le routing — la config est definie sur le forum, pas sur chaque thread.
+  const isThread = typeof msg.channel?.isThread === 'function' && msg.channel.isThread();
+  const parentId = isThread ? msg.channel.parentId : null;
+  const cfg = CHANNEL_MAP[channelId] || (parentId ? CHANNEL_MAP[parentId] : null);
   if (cfg) {
     const candidates = Array.isArray(cfg) ? cfg : [cfg];
     let matched = false;
@@ -195,7 +209,10 @@ client.on(Events.MessageCreate, (msg) => handleMessage(msg, 'create'));
 // Edits : pour les canaux où le bot externe édite le même message en place
 // (ex. dashboard stations). On ne traite que les channels marqués listenEdits.
 client.on(Events.MessageUpdate, async (_oldMsg, newMsg) => {
-  const cfg = CHANNEL_MAP[newMsg.channelId];
+  // Pour les threads, fallback sur la config du parent (forum / fil enfant).
+  const isThread = typeof newMsg.channel?.isThread === 'function' && newMsg.channel.isThread();
+  const parentId = isThread ? newMsg.channel.parentId : null;
+  const cfg = CHANNEL_MAP[newMsg.channelId] || (parentId ? CHANNEL_MAP[parentId] : null);
   const candidates = Array.isArray(cfg) ? cfg : (cfg ? [cfg] : []);
   if (!candidates.some(c => c.listenEdits)) return;
   try {
