@@ -164,6 +164,10 @@ function rendre() {
   const caAvecDetail = rowsAvecDetail.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const prixMoyen = litres > 0 ? caAvecDetail / litres : 0;
 
+  // Stations actives : ne compte QUE les vraies stations (avec litres > 0),
+  // exclut le placeholder "Station inconnue (rattrapage revenu)".
+  const vraiesStations = new Set(rowsAvecDetail.map(r => r.station || r.stationId).filter(Boolean));
+
   document.getElementById('kpis-carb').innerHTML = `
     <div class="kpi kpi-recette">
       <div class="label">💚 CA carburant</div>
@@ -172,18 +176,18 @@ function rendre() {
     </div>
     <div class="kpi">
       <div class="label">⛽ Litres vendus</div>
-      <div class="value">${num(litres)} L</div>
-      <div class="delta">total période</div>
+      <div class="value">${litres > 0 ? num(litres) + ' L' : '<span class="muted">—</span>'}</div>
+      <div class="delta">${litres > 0 ? 'total période' : 'pas de détail'}</div>
     </div>
     <div class="kpi">
       <div class="label">💵 Prix moyen / L</div>
-      <div class="value">${moneyPrecis(prixMoyen)}</div>
-      <div class="delta">pondéré</div>
+      <div class="value">${litres > 0 ? moneyPrecis(prixMoyen) : '<span class="muted">—</span>'}</div>
+      <div class="delta">${litres > 0 ? 'pondéré' : 'pas de détail'}</div>
     </div>
     <div class="kpi">
       <div class="label">🏪 Stations actives</div>
-      <div class="value">${new Set(rows.map(r => r.station || r.stationId).filter(Boolean)).size}</div>
-      <div class="delta">avec ventes</div>
+      <div class="value">${vraiesStations.size > 0 ? vraiesStations.size : '<span class="muted">—</span>'}</div>
+      <div class="delta">${vraiesStations.size > 0 ? 'avec détail' : 'pas de détail'}</div>
     </div>
   `;
 
@@ -204,21 +208,33 @@ function rendre() {
   if (parStation.size === 0) {
     tbodyStations.innerHTML = `<tr><td colspan="5" class="muted text-center">Aucune transaction sur la période.</td></tr>`;
   } else {
-    tbodyStations.innerHTML = [...parStation.entries()]
-      .sort((a, b) => b[1].ca - a[1].ca)
-      .map(([nom, s]) => {
-        const prixM = s.litres > 0 ? s.ca / s.litres : 0;
-        const litresAffiche = s.litres > 0 ? num(s.litres) + ' L' : '<span class="muted">—</span>';
-        const prixAffiche   = s.litres > 0 ? moneyPrecis(prixM)  : '<span class="muted">—</span>';
-        return `
-          <tr>
-            <td><strong>${escapeHtml(nom)}</strong></td>
-            <td class="right mono">${num(s.transactions)}</td>
-            <td class="right mono">${litresAffiche}</td>
-            <td class="right mono">${money(s.ca)}</td>
-            <td class="right mono">${prixAffiche}</td>
-          </tr>`;
-      }).join('');
+    // Tri : vraies stations d'abord (par CA decroissant), placeholders
+    // ("Station inconnue ...", litres=0) tout en bas avec note muted.
+    const isPlaceholder = (s) => s.litres === 0;
+    const entries = [...parStation.entries()];
+    const reelles = entries.filter(([, s]) => !isPlaceholder(s)).sort((a, b) => b[1].ca - a[1].ca);
+    const placeholders = entries.filter(([, s]) =>  isPlaceholder(s)).sort((a, b) => b[1].ca - a[1].ca);
+
+    const renderRow = ([nom, s], placeholder = false) => {
+      const prixM = s.litres > 0 ? s.ca / s.litres : 0;
+      const litresAffiche = s.litres > 0 ? num(s.litres) + ' L' : '<span class="muted">—</span>';
+      const prixAffiche   = s.litres > 0 ? moneyPrecis(prixM)  : '<span class="muted">—</span>';
+      const cls = placeholder ? ' class="muted"' : '';
+      const note = placeholder
+        ? ' <span class="badge neutral" style="font-size:0.65rem;">migration</span>'
+        : '';
+      return `
+        <tr${cls}>
+          <td><strong>${escapeHtml(nom)}</strong>${note}</td>
+          <td class="right mono">${num(s.transactions)}</td>
+          <td class="right mono">${litresAffiche}</td>
+          <td class="right mono">${money(s.ca)}</td>
+          <td class="right mono">${prixAffiche}</td>
+        </tr>`;
+    };
+    tbodyStations.innerHTML =
+      reelles.map(e => renderRow(e, false)).join('') +
+      placeholders.map(e => renderRow(e, true)).join('');
   }
 
   // === Détail transactions ===
