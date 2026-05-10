@@ -1,7 +1,86 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-11 (suite 4 : pipeline ventes carburant post-migration FiveM + décrément stockActuel auto)**
+> Dernière mise à jour : **2026-05-11 (suite 5 : factures #factures, permissions pompiste, mentions GitHub retirées)**
+
+---
+
+## 🎯 À FAIRE PROCHAINE SESSION — Auth sans email (immersion RP)
+
+**Demande du patron 2026-05-11** : retirer complètement les emails du flow auth. Argument : "c'est intrusif pour l'immersion". Spec détaillée :
+
+### Comportement cible
+1. **Création compte** (admin uniquement) :
+   - Le patron / co-patronne ouvre `/admin` → bouton "Créer un compte"
+   - Modal : champs `prénom`, `nom`, `rôle`, `username` (string libre). **Pas de champ email.**
+   - Le système génère un **mot de passe aléatoire** (8-10 char alphanumeric)
+   - Le mot de passe est affiché dans un toast/modal au patron (à transmettre au RP via Discord)
+   - Le compte est créé avec `mustChangePassword: true`
+
+2. **Connexion** :
+   - Formulaire : `username` + `password` (plus d'email visible)
+   - Si `mustChangePassword === true` → écran forcé "Choisis ton mot de passe permanent" (≥8 char)
+   - Une fois changé : `mustChangePassword: false` + redirect vers la page d'accueil par rôle
+
+3. **Reset password** (admin uniquement) :
+   - Le patron ouvre la fiche d'un employé dans `/admin` → bouton "Régénérer mot de passe"
+   - Nouveau MDP aléatoire affiché au patron + `mustChangePassword: true` reset à true
+   - Au prochain login de l'employé, il devra à nouveau choisir un MDP
+
+### Implémentation technique
+**Firebase Auth a besoin d'un email**. Solution : email "interne" fabriqué = `${username}@ltd-sandy-shores.local`. Jamais affiché à l'utilisateur. Le username est l'identifiant visible partout.
+
+**Fichiers à modifier** :
+- `public/index.html` ou `signin.html` : remplacer input email par username, ajouter écran "force password change"
+- `public/js/auth.js` : `signIn(username, password)` qui appelle `signInWithEmailAndPassword(auth, ${username}@ltd-sandy-shores.local, password)`. Lire profile, si `mustChangePassword` → redirect vers screen change-password (bloquant)
+- `public/js/pages/admin.js` : formulaire création/edition utilisateur — retirer email, ajouter username, ajouter bouton "Régénérer MDP"
+- `firebase/functions/index.js` : nouvelles Cloud Functions HTTP `createUserWithUsername(payload)` et `regeneratePassword(uid)` callable depuis le client admin. Utilise Admin SDK (auth.createUser + auth.updateUser). Vérifie le caller est isDirection.
+- `public/js/api.js` : wrappers pour les 2 nouvelles Cloud Functions
+- `firestore.rules` : `mustChangePassword` accessible uniquement à l'admin + au user lui-même
+- `users` schema : ajouter `username` (string, unique), `mustChangePassword` (boolean), retirer affichage `email` partout
+- Migration utilisateurs existants : script one-shot qui ajoute `username` (= prefix avant @ dans current email) + `mustChangePassword: false`
+
+**Pièges identifiés** :
+- Username unicity : check côté admin avant création + index Firestore
+- Firebase Auth ne permet pas de changer l'email associé sans reauth → si on veut un username post-creation, c'est OK car l'email interne est `${username}@ltd-sandy-shores.local` figé
+- Le password change flow doit être bloquant (pas de skip via fermeture modal). Implémenter via redirection forcée au lieu de modal
+- L'admin Firebase Auth peut updatePassword sans reauth → utiliser ça pour le reset
+
+**Estimation effort** : 3-4h de dev. Tester en local avant push.
+
+---
+
+## ✅ Session 2026-05-10/11 (partie 5) — Factures #factures + permissions Pompiste + retrait GitHub
+
+### 1. Factures Jessica via #factures (symetrique aux ventes carburant)
+Comme `#suivi-achat-essence`, le canal `#suivi-facture` est silencieux post-migration. Les factures arrivent maintenant via **`#factures`** (id 1441586772403294359) en RAW logsBruts seulement → aucune n'apparaissait dans `/ventes`.
+
+Fix (commit `0e481c1`) :
+- `discord-bot/index.js` : `#factures` déplacé de RAW_CHANNELS vers CHANNEL_MAP avec `parseFactureEmbed` (même format que `#suivi-facture`)
+- `onFacture` Firebase Function : remplace `add()` par `setDoc('fac-${factureId}')` → **idempotent**. Dédupe automatique si même facture émise via les 2 canaux.
+- Script `rattraper-factures.js` exécuté : 2 factures backfillées (N°1907650 + N°1906893).
+
+### 2. Permission Pompiste sur modal /stations (commit `b17720b`)
+**Avant** : `editable = isDirection || responsable-pompiste` → ces 2 rôles avaient accès total (changer prix, capacité, supprimer station, N° pompe).
+
+**Maintenant** :
+- **fullEdit** = `isDirection || isSuperAdmin` (Patron, Co-Patron, Admin Technique) → tout modifiable + Ajouter + Configuration + Supprimer
+- **stockOnly** = `responsable-pompiste || isPompiste` → **uniquement `stockActuel`** dans la modal (les autres champs : Nom, capacité, seuil, prix, N° pompe sont `disabled`). Bouton Supprimer + Ajouter + Configuration cachés. Alert info dans la modal explique le verrouillage.
+
+Use case : un pompiste qui ravitaille une station peut maintenant ajuster le stockActuel via le site (puisque le canal `#suivi-déclaration-quota-essence` n'est pas accessible au bot pour détecter les refills auto).
+
+### 3. Suppression toutes mentions GitHub côté site public (commit `b17720b`)
+**Argument du patron** : les employés auront seulement l'URL du site sur leur tablette in-game, ils n'auront jamais accès au code source. Retirer les liens GitHub évite le vol du projet par un employé curieux.
+
+Fichiers nettoyés :
+- `public/js/pages/guide.js` : bouton "📂 Voir sur GitHub" + REPO_BLOB + handlers supprimés
+- `public/guide/00-index.md` : URL github.io remplacée par "demande URL à la direction"
+- `public/guide/07-automatismes.md` : refs GitHub Pages neutralisées
+- `public/guide/08-faq-depannage.md` : githubstatus retiré + bloc "statut services externes" supprimé (révélait Firebase/Railway/GitHub Pages)
+- `public/guide/09-comptabilite.md` : URLs absolues vers github.io retirées
+- `public/js/firebase-config.js` : commentaire neutralisé
+
+Note : le repo reste public sur GitHub (GitHub Pages payant pour repos privés). Stratégie défense en profondeur : (1) ne pas donner le lien aux employés, (2) auth Firebase + rules Firestore restent la vraie barrière.
 
 ---
 
