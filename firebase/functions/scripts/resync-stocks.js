@@ -57,6 +57,10 @@ const STOCKS = [
   { id: 'canne-peche',             nom: 'Canne à pêche',           qty: 91    }, // 0-12
   { id: 'bicarbonate-soude',       nom: 'Bicarbonate de soude',    qty: 1998  }, // 0-13
   { id: 'sachet-vide',             nom: 'Sachet vide',             qty: 10000 }, // 0-14
+  { id: 'outil',                   nom: 'Outil',                   qty: 30    }, // 0-16 (Pince)
+  { id: 'cisaille',                nom: 'Cisaille',                qty: 16    }, // 0-16 (Pince)
+  { id: 'pince-coupante',          nom: 'Pince Coupante',          qty: 44    }, // 0-16 (Pince)
+  { id: 'pince-plaque',            nom: 'Pince pour Plaque',       qty: 25    }, // 0-16 (Pince)
   { id: 'batterie',                nom: 'Batterie',                qty: 151   }, // 0-17
 
   // --- Epicerie (action-27310) — comptage 2026-05-10 ---
