@@ -47,6 +47,10 @@ const CHANNEL_MAP = {
   [process.env.CH_LOGS_SERVICES]:         { type: 'service',        parser: parseServiceEmbed       },
   [process.env.CH_SUIVI_SERVICE_VENDEUR]: { type: 'service',        parser: parseServiceEmbed       },
   [process.env.CH_SUIVI_FACTURE]:         { type: 'facture',        parser: parseFactureEmbed       },
+  // #factures (id 1441586772403294359) : meme format que #suivi-facture, post-
+  // migration FiveM c'est ICI que Jessica poste les factures. Doublon possible
+  // avec #suivi-facture, dedupe assure par onFacture (set sur fac-{factureId}).
+  [process.env.CH_FACTURES]:              { type: 'facture',        parser: parseFactureEmbed       },
   [process.env.CH_SUIVI_ACHAT_ESSENCE]:   { type: 'redistribution', parser: parseRedistributionEmbed },
   [process.env.CH_DEPENSES]:              { type: 'depense',        parser: parseDepenseEmbed       },
   [process.env.CH_PAIE]:                  { type: 'paie',           parser: parsePaieEmbed          },
@@ -77,8 +81,8 @@ const CHANNEL_MAP = {
 const RAW_CHANNELS = {
   [process.env.CH_SUIVI_COFFRE_SECONDAIRE]: 'suivi-coffre-secondaire',
   [process.env.CH_ALERTE_COFFRE]:           'alerte-coffre',
-  [process.env.CH_REVENU]:                  'revenu',  // doublon xbankaccount, garde en raw pour audit
-  [process.env.CH_FACTURES]:                'factures'
+  [process.env.CH_REVENU]:                  'revenu'  // doublon xbankaccount, garde en raw pour audit
+  // CH_FACTURES : deplace en parser structure (CHANNEL_MAP ci-dessus)
   // CH_STATSBANK / CH_LOGS_LICENCIEMENT / CH_LOGS_AVERTISSEMENT :
   // deplaces en parsers structures (CHANNEL_MAP ci-dessus)
 };

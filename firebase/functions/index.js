@@ -342,7 +342,9 @@ async function onFacture(p) {
     const usnap = await db.collection('users').where('idDiscord', '==', p.vendeurDiscord).limit(1).get();
     if (!usnap.empty) vendeurId = usnap.docs[0].id;
   }
-  await db.collection('ventes').add({
+  // Idempotent : meme factureId emis par #suivi-facture ET #factures = 1 seul doc
+  const docId = p.factureId ? `fac-${p.factureId}` : `fac-msg-${Date.now()}`;
+  await db.collection('ventes').doc(docId).set({
     factureId: p.factureId,
     vendeurDiscord: p.vendeurDiscord || '',
     vendeurNom: p.vendeurNom || '',
@@ -355,7 +357,7 @@ async function onFacture(p) {
     items: p.items || [],
     stockVerifie: p.stockVerifie ?? null,
     timestamp: FieldValue.serverTimestamp()
-  });
+  }, { merge: true });
 }
 
 async function onRedistribution(p) {
