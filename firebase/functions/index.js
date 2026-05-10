@@ -435,14 +435,34 @@ async function onBankAccount(p) {
   const mapping = cfg.fivemPompesMap || {};
   const stationId = mapping[fivemPompeId] || '';
   let stationNom = `Station #${fivemPompeId}`;
+  let prixLitre = null;
+  let stockAvant = null;
+  let stockApres = null;
+  let litres = null;
+
   if (stationId) {
-    const sSnap = await db.collection('stations').doc(stationId).get();
-    if (sSnap.exists) stationNom = sSnap.data().nom || stationNom;
+    // Lecture + decrement dans une transaction pour eviter les races
+    // si plusieurs ventes arrivent quasi-simultanement sur la meme pompe.
+    const stationRef = db.collection('stations').doc(stationId);
+    await db.runTransaction(async (tx) => {
+      const sSnap = await tx.get(stationRef);
+      if (!sSnap.exists) return;
+      const s = sSnap.data();
+      stationNom = s.nom || stationNom;
+      prixLitre  = Number(s.prixLitre) || 0;
+      stockAvant = Number(s.stockActuel) || 0;
+      if (prixLitre > 0) {
+        litres = (Number(p.montant) || 0) / prixLitre;
+        stockApres = Math.max(0, Math.round((stockAvant - litres) * 100) / 100);
+        tx.set(stationRef, {
+          stockActuel: stockApres,
+          derniereMajAuto: FieldValue.serverTimestamp(),
+          sourceMajAuto: 'vente-carburant-auto-decrement'
+        }, { merge: true });
+      }
+    });
   }
 
-  // Dedupe : si on a déjà un redistribution avec ce fivemPompeId + ce timestamp,
-  // on n'écrit pas. Sinon on ajoute. La granularité utilisée est la seconde,
-  // suffisante pour différencier deux ventes successives sur la même pompe.
   await db.collection('redistributions').add({
     redistributionId: fivemPompeId,        // N° pompe FiveM (pas un id unique de vente)
     fivemPompeId,                          // explicite pour mapping/admin
@@ -451,10 +471,10 @@ async function onBankAccount(p) {
     montant: Number(p.montant) || 0,
     soldeAvant: Number(p.soldeAvant) || 0,
     soldeApres: Number(p.soldeApres) || 0,
-    litres: null,                          // inconnu via xbankaccount
-    prixLitre: null,
-    stockAvant: null,
-    stockApres: null,
+    litres,                                // calcule via montant/prixLitre
+    prixLitre,                             // snapshot au moment de la vente
+    stockAvant,
+    stockApres,
     source: 'banqueLtd-redistribution',
     timestamp: FieldValue.serverTimestamp()
   });
@@ -579,9 +599,12 @@ async function onStatsbank(p) {
 }
 
 // === Rapport pompiste quotidien (#pompiste) ===
-// Met à jour le stockActuel de chaque station d'après le % du rapport.
+// NOTE 2026-05-11 : ne MET PLUS A JOUR stockActuel des stations. La source
+// de verite stockActuel est maintenant : baseline manuel (modal /stations
+// ou script) + decrement automatique via onBankAccount sur chaque vente
+// carburant. Le rapport pompiste contenait des valeurs stale qui ecrasaient
+// les vraies valeurs in-game. On garde la sauvegarde brute pour audit.
 async function onRapportPompiste(p) {
-  // Sauvegarde brute pour audit
   await db.collection('rapportsPompisteQuotidien').add({
     dateRapport: p.dateRapport || '',
     ca: p.ca || 0,
@@ -589,30 +612,14 @@ async function onRapportPompiste(p) {
     niveaux: p.niveaux || [],
     timestamp: FieldValue.serverTimestamp()
   });
-
-  // Mise à jour des stations dont on a un mapping connu
-  for (const niv of p.niveaux || []) {
-    if (!niv.stationId) {
-      console.log(`[pompiste] Station inconnue : "${niv.nomBrut}" — pas de mapping`);
-      continue;
-    }
-    const ref = db.collection('stations').doc(niv.stationId);
-    const snap = await ref.get();
-    if (!snap.exists) continue;
-    const stockMax = snap.data().stockMax || 0;
-    if (stockMax <= 0) continue;
-    const stockActuel = Math.round((niv.niveauPct / 100) * stockMax);
-    await ref.set({
-      stockActuel,
-      derniereMajAuto: FieldValue.serverTimestamp(),
-      sourceMajAuto: 'rapport-pompiste-quotidien'
-    }, { merge: true });
-  }
 }
 
 // === Dashboard stations (#⛽ Station — message édité en place) ===
-// Source de vérité temps réel pour stockActuel/stockMax/prixLitre/derniereRavit
-// par station. Initialise seuilAlertePct=20 par défaut (override via /admin).
+// NOTE 2026-05-11 : N'ECRIT PLUS stockActuel. Le dashboard in-game contenait
+// des valeurs stale qui ecrasaient les vraies valeurs. La source de verite
+// stockActuel est maintenant : baseline manuel + decrement via onBankAccount.
+// On garde stockMax/prixLitre/derniereRavit/statut/niveauPct car ces infos
+// restent utiles (capacite max, prix officiel, dernier ravit etc).
 async function onStationsDashboard(p) {
   const stations = Array.isArray(p.stations) ? p.stations : [];
   for (const s of stations) {
@@ -622,7 +629,6 @@ async function onStationsDashboard(p) {
     const cur = snap.exists ? snap.data() : {};
     const patch = {
       nom:           s.nom || cur.nom || s.stationId,
-      stockActuel:   s.stockActuel,
       stockMax:      s.stockMax,
       niveauPct:     s.niveauPct,
       prixLitre:     s.prixLitre,
@@ -631,11 +637,9 @@ async function onStationsDashboard(p) {
       derniereMajAuto: FieldValue.serverTimestamp(),
       sourceMajAuto:   'stations-dashboard'
     };
-    // Pas de seuilAlertePct par defaut : aucune alerte tant que le patron
-    // n'aura pas configure ses seuils via /admin.
     await ref.set(patch, { merge: true });
   }
-  console.log(`[stationsDashboard] ${stations.length} stations sync`);
+  console.log(`[stationsDashboard] ${stations.length} stations sync (hors stockActuel)`);
 }
 
 // === Dossier employe (forum #Dossiers-Employers, threads) ===
