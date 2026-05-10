@@ -18,7 +18,7 @@ export function getField(embed, name) {
   if (embed.fields) {
     for (const f of embed.fields) {
       if (norm(f.name) === target || norm(f.name).includes(target)) {
-        return cleanValue(f.value);
+        return stripFieldPrefix(cleanValue(f.value), f.name);
       }
     }
   }
@@ -45,5 +45,14 @@ function normalize(s) {
 }
 function cleanValue(s) {
   return String(s || '').replace(/^`+|`+$/g, '').replace(/\*\*/g, '').trim();
+}
+// Faab'Hook (logs-ig) formate ses fields ainsi :
+//   name  = "owner"
+//   value = "owner:action-27166-0-1"
+// On retire le préfixe "{nom_du_field}:" pour récupérer la vraie valeur.
+function stripFieldPrefix(value, fieldName) {
+  if (!value || !fieldName) return value;
+  const re = new RegExp(`^\\s*${escapeReg(fieldName)}\\s*[:=]\\s*`, 'i');
+  return value.replace(re, '').trim();
 }
 function escapeReg(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
