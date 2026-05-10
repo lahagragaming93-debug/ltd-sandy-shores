@@ -15,6 +15,7 @@ import { money, num, pct, datetime, escapeHtml,
 import { checkMasseSalariale, primeHebdo, primeMensuelle } from '../utils/paie.js';
 import { isDirection, isVendeur, isPompiste, isResponsable, isSuperAdmin, compteEnFinance, ROLE_LABELS, PLAFOND_SALAIRE } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('comptabilite');
 const editable = isDirection(profile.role);
@@ -104,15 +105,20 @@ const html = `
   <!-- Charges détaillées -->
   <div class="panel">
     <div class="panel-title"><span>📋 Charges détaillées</span></div>
-    <table class="data" id="table-charges">
-      <thead>
-        <tr>
-          <th>Date</th><th>Raison</th><th>Type</th>
-          <th class="right">Montant</th><th>Utilisateur</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-charges"><tr><td colspan="5" class="muted text-center">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="data" id="table-charges">
+        <thead>
+          <tr>
+            <th data-sort="date">Date</th>
+            <th data-sort="raison">Raison</th>
+            <th data-sort="type">Type</th>
+            <th class="right" data-sort="montant">Montant</th>
+            <th data-sort="utilisateur">Utilisateur</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-charges"><tr><td colspan="5" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Modal ajout dépense -->
@@ -142,6 +148,8 @@ const html = `
   </div>
 `;
 renderShell(profile, 'comptabilite', html);
+
+makeSortable(document.getElementById('table-charges'));
 
 const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
@@ -593,16 +601,16 @@ async function chargerStatsbank() {
   });
 
   zone.innerHTML = `
-    <table class="data" style="font-size:0.85rem;">
+    <table class="data" id="table-statsbank" style="font-size:0.85rem;">
       <thead>
         <tr>
-          <th>Semaine FiveM</th>
-          <th class="right">CA officiel</th>
-          <th class="right">Notre CA</th>
-          <th class="right">Écart CA</th>
-          <th class="right">Solde actuel</th>
-          <th class="right">Impôt estimé</th>
-          <th class="center">Statut</th>
+          <th data-sort="semaine">Semaine FiveM</th>
+          <th class="right" data-sort="caOff">CA officiel</th>
+          <th class="right" data-sort="caInterne">Notre CA</th>
+          <th class="right" data-sort="ecart">Écart CA</th>
+          <th class="right" data-sort="solde">Solde actuel</th>
+          <th class="right" data-sort="impot">Impôt estimé</th>
+          <th class="center" data-sort="statut">Statut</th>
         </tr>
       </thead>
       <tbody>
@@ -634,5 +642,6 @@ async function chargerStatsbank() {
       ⚠ <strong>Si « Gros écart »</strong> : il y a un écart significatif (> 1 000 $). Investigue : ventes manquantes, dépenses non parsées, paies non versées, etc.
     </p>
   `;
+  makeSortable(document.getElementById('table-statsbank'));
 }
 chargerStatsbank();

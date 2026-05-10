@@ -14,6 +14,7 @@ import { salaireEstime, scorePompiste, checkMasseSalariale } from '../utils/paie
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('rh');
 const editable = isDirection(profile.role) || profile.role === 'drh';
@@ -38,21 +39,23 @@ const html = `
 
   <div class="panel framed">
     <div class="panel-title"><span>Effectif</span></div>
-    <table class="data" id="table-rh">
-      <thead>
-        <tr>
-          <th>Nom</th>
-          <th>Rôle</th>
-          <th>ID Discord</th>
-          <th class="right">Heures</th>
-          <th class="right">CA / Quota</th>
-          <th class="right">Salaire estimé</th>
-          <th>Statut</th>
-          <th class="center">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-rh"><tr><td colspan="8" class="muted text-center">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="data" id="table-rh">
+        <thead>
+          <tr>
+            <th data-sort="nom">Nom</th>
+            <th data-sort="role">Rôle</th>
+            <th data-sort="discord">ID Discord</th>
+            <th class="right" data-sort="heures">Heures</th>
+            <th class="right" data-sort="caQuota">CA / Quota</th>
+            <th class="right" data-sort="salaire">Salaire estimé</th>
+            <th data-sort="statut">Statut</th>
+            <th class="center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-rh"><tr><td colspan="8" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <div class="panel">
@@ -73,6 +76,8 @@ const html = `
   </div>
 `;
 renderShell(profile, 'rh', html);
+
+makeSortable(document.getElementById('table-rh'));
 
 const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
@@ -286,18 +291,25 @@ if (services.length === 0 && paies.length === 0) {
   });
   const sorted = Object.entries(parEmp).sort((a, b) => b[1].duree - a[1].duree);
   div.innerHTML = `
-    <table class="data">
-      <thead><tr><th>Employé</th><th class="right">Sessions</th><th class="right">Heures totales</th></tr></thead>
+    <table class="data" id="table-activite">
+      <thead><tr>
+        <th data-sort="emp">Employé</th>
+        <th class="right" data-sort="sessions">Sessions</th>
+        <th class="right" data-sort="heures">Heures totales</th>
+      </tr></thead>
       <tbody>
         ${sorted.map(([uid, s]) => {
           const u = usersById[uid];
           return `<tr>
             <td>${u ? escapeHtml(u.prenom + ' ' + u.nom) : uid}</td>
             <td class="right mono">${s.sessions}</td>
-            <td class="right mono">${durationHM(s.duree)}</td>
+            <td class="right mono" data-sort-value="${s.duree}">${durationHM(s.duree)}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
   `;
+  const tAct = document.getElementById('table-activite');
+  wrapScroll(tAct, 400);
+  makeSortable(tAct);
 }

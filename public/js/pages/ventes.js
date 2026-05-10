@@ -6,6 +6,7 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenVentesSemaine, listUsers, listProduits } from '../api.js';
 import { money, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('ventes');
 
@@ -27,22 +28,24 @@ const html = `
 
   <div class="panel framed">
     <div class="panel-title"><span>Factures de la semaine</span></div>
-    <table class="data" id="table-ventes">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>#Facture</th>
-          <th>Vendeur</th>
-          <th>Client</th>
-          <th class="right">Montant</th>
-          <th class="right">Bénéfice</th>
-          <th>Paiement</th>
-          <th>Raison</th>
-          <th class="center">Vérif. stock</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-ventes"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="data" id="table-ventes">
+        <thead>
+          <tr>
+            <th data-sort="date">Date</th>
+            <th data-sort="facture">#Facture</th>
+            <th data-sort="vendeur">Vendeur</th>
+            <th data-sort="client">Client</th>
+            <th class="right" data-sort="montant">Montant</th>
+            <th class="right" data-sort="benefice">Bénéfice</th>
+            <th data-sort="paiement">Paiement</th>
+            <th data-sort="raison">Raison</th>
+            <th class="center" data-sort="verif">Vérif. stock</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-ventes"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <div class="panel">
@@ -52,6 +55,8 @@ const html = `
 `;
 
 renderShell(profile, 'ventes', html);
+
+makeSortable(document.getElementById('table-ventes'));
 
 const debut = startOfWeekRP();
 const fin   = endOfWeekRP();

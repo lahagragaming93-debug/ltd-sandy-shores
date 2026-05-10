@@ -12,6 +12,7 @@ import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, canCreateProduit } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('stocks_epicerie');
 const editable = isDirection(profile.role) || profile.role === 'responsable-vente' || profile.role === 'drh';
@@ -383,10 +384,14 @@ async function chargerMouvements() {
     return;
   }
   div.innerHTML = `
-    <table class="data">
+    <table class="data" id="table-mouvements">
       <thead><tr>
-        <th>Date</th><th>Type</th><th>Item</th>
-        <th class="right">Quantité</th><th>Source</th><th>Raison</th>
+        <th data-sort="date">Date</th>
+        <th data-sort="type">Type</th>
+        <th data-sort="item">Item</th>
+        <th class="right" data-sort="qte">Quantité</th>
+        <th data-sort="source">Source</th>
+        <th data-sort="raison">Raison</th>
       </tr></thead>
       <tbody>
         ${mvts.map(m => `
@@ -402,6 +407,9 @@ async function chargerMouvements() {
       </tbody>
     </table>
   `;
+  const tMvts = document.getElementById('table-mouvements');
+  wrapScroll(tMvts, 400);
+  makeSortable(tMvts);
 }
 chargerMouvements();
 

@@ -11,6 +11,7 @@ import { CATALOGUE } from '../data/produits.js';
 import { datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('admin');
 if (!isDirection(profile.role) && !isSuperAdmin(profile.role) && profile.role !== 'drh') {
@@ -49,25 +50,29 @@ const html = `
       <span>Items FiveM observés</span>
       <span class="muted" style="font-size:0.75rem;">— les 2000 derniers mouvements de stock</span>
     </div>
-    <table class="data" id="table-items">
-      <thead>
-        <tr>
-          <th>Nom FiveM (brut)</th>
-          <th>Slug interne</th>
-          <th class="right">Vu (×)</th>
-          <th>Premier vu</th>
-          <th>Dernier vu</th>
-          <th class="center">Mapping catalogue</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-items">
-        <tr><td colspan="6" class="muted text-center">Chargement…</td></tr>
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="data" id="table-items">
+        <thead>
+          <tr>
+            <th data-sort="nom">Nom FiveM (brut)</th>
+            <th data-sort="slug">Slug interne</th>
+            <th class="right" data-sort="vu">Vu (×)</th>
+            <th data-sort="premier">Premier vu</th>
+            <th data-sort="dernier">Dernier vu</th>
+            <th class="center" data-sort="mapping">Mapping catalogue</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-items">
+          <tr><td colspan="6" class="muted text-center">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 `;
 
 renderShell(profile, 'admin', html);
+
+makeSortable(document.getElementById('table-items'));
 
 // Index des slugs du catalogue pour détecter les items déjà mappés
 const SLUGS_CATALOGUE = new Set(CATALOGUE.map(p => p.id));

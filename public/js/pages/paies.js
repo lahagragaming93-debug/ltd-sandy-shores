@@ -8,6 +8,7 @@ import { listMesPaies } from '../api.js';
 import { ROLE_LABELS, PLAFOND_SALAIRE } from '../utils/permissions.js';
 import { money, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('paies');
 
@@ -21,17 +22,19 @@ const html = `
       <span>Historique des paies reçues</span>
       <span class="muted mono" id="paies-count">—</span>
     </div>
-    <table class="data" id="table-paies">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Payeur</th>
-          <th class="right">Montant</th>
-          <th>Période</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-paies"><tr><td colspan="4" class="muted text-center">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="data" id="table-paies">
+        <thead>
+          <tr>
+            <th data-sort="date">Date</th>
+            <th data-sort="payeur">Payeur</th>
+            <th class="right" data-sort="montant">Montant</th>
+            <th data-sort="periode">Période</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-paies"><tr><td colspan="4" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <p class="muted text-center mt-3" style="font-size:0.78rem;">
@@ -40,6 +43,8 @@ const html = `
   </p>
 `;
 renderShell(profile, 'paies', html);
+
+makeSortable(document.getElementById('table-paies'));
 
 const me = getCurrentUser();
 const paies = await listMesPaies(me.uid, 200).catch(() => []);

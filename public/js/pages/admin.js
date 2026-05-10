@@ -10,6 +10,7 @@ import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDi
 import { date, escapeHtml } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('admin');
 const myAssignableRoles = assignableRoles(profile.role);
@@ -63,16 +64,23 @@ const html = `
 
   <div class="panel framed">
     <div class="panel-title"><span>Comptes utilisateurs</span></div>
-    <table class="data" id="table-users">
-      <thead>
-        <tr>
-          <th>Nom</th><th>Email</th><th>Rôle</th>
-          <th>ID Discord</th><th>ID Perso</th><th>Entrée</th>
-          <th>Statut</th><th class="center">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-users"><tr><td colspan="8" class="muted text-center">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="data" id="table-users">
+        <thead>
+          <tr>
+            <th data-sort="nom">Nom</th>
+            <th data-sort="email">Email</th>
+            <th data-sort="role">Rôle</th>
+            <th data-sort="discord">ID Discord</th>
+            <th data-sort="perso">ID Perso</th>
+            <th data-sort="entree">Entrée</th>
+            <th data-sort="statut">Statut</th>
+            <th class="center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-users"><tr><td colspan="8" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Modal création compte -->
@@ -185,6 +193,8 @@ const html = `
   </div>
 `;
 renderShell(profile, 'admin', html);
+
+makeSortable(document.getElementById('table-users'));
 
 let users = [];
 listenUsers(list => {

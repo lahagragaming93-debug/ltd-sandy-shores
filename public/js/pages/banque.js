@@ -11,6 +11,7 @@ import { collection, query, orderBy, limit, getDocs } from 'https://www.gstatic.
 import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { toastError } from '../utils/toast.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('banque');
 
@@ -37,23 +38,27 @@ const html = `
       <span>🏦 Mouvements bancaires LTD</span>
       <span class="muted" style="font-size:0.75rem;">— combinés : xbankaccount + #depenses, ordre chronologique décroissant</span>
     </div>
-    <table class="data" id="table-mvts">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th class="center">Type</th>
-          <th class="right">Montant</th>
-          <th class="right">Solde avant</th>
-          <th class="right">Solde après</th>
-          <th>Raison</th>
-          <th>Source</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-mvts"><tr><td colspan="7" class="muted text-center">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="data" id="table-mvts">
+        <thead>
+          <tr>
+            <th data-sort="date">Date</th>
+            <th class="center" data-sort="type">Type</th>
+            <th class="right" data-sort="montant">Montant</th>
+            <th class="right" data-sort="soldeAvant">Solde avant</th>
+            <th class="right" data-sort="soldeApres">Solde après</th>
+            <th data-sort="raison">Raison</th>
+            <th data-sort="source">Source</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-mvts"><tr><td colspan="7" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 `;
 renderShell(profile, 'banque', html);
+
+makeSortable(document.getElementById('table-mvts'));
 
 let mouvements = []; // [{ timestamp, type, montant, soldeAvant, soldeApres, raison, source, utilisateur }, …]
 
