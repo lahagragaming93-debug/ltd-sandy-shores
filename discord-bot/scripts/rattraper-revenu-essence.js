@@ -46,8 +46,10 @@ const TOTAL_LIMIT = limitArgIdx > 0 ? Math.max(1, parseInt(process.argv[limitArg
 const STATION_PLACEHOLDER    = 'Station inconnue (rattrapage revenu)';
 const STATION_ID_PLACEHOLDER = 'station-inconnue-revenu';
 
+// Format reel : "🏦 • **Compte ID**: `73830` ... 💰 • **Montant**: `45`$ ... 📋 • **Raison**: Redistribution N°16060"
+// On nettoie d'abord les ** markdown et les backticks pour simplifier les regex.
 const REGEX_MONTANT = /montant\s*:\s*([\d\s.,]+)\s*\$/i;
-const REGEX_REDIST  = /redistribution\s*n[°º]?\s*(\d+)/i;
+const REGEX_REDIST  = /raison\s*:\s*redistribution\s*n[°º]?\s*(\d+)/i;
 
 if (!process.env.DISCORD_TOKEN) {
   console.error("Variable d'environnement manquante : DISCORD_TOKEN");
@@ -81,10 +83,14 @@ async function fetchHistory(channel, totalLimit) {
 function parseRevenuMessage(msg) {
   const e = msg.embeds?.[0];
   if (!e) return null;
-  const title = String(e.title || '');
-  if (!title.toUpperCase().includes("ENTREE D'ARGENT") &&
-      !title.toUpperCase().includes("ENTRÉE D'ARGENT")) return null;
-  const desc = String(e.description || '');
+  // Title de Faab'Hook : "***__ENTRÉE D'ARGENT__***"
+  // On enleve les marqueurs markdown (* _) avant de tester.
+  const title = String(e.title || '').replace(/[*_]/g, '').toUpperCase();
+  if (!title.includes("ENTREE D'ARGENT") && !title.includes("ENTRÉE D'ARGENT")) return null;
+  // Description format Faab'Hook avec emojis, ** bold ** et `backticks` :
+  //   "🏦 • **Compte ID**: `73830`\n💰 • **Montant**: `45`$\n📋 • **Raison**: Redistribution N°16060"
+  // On strip ** et ` pour simplifier le matching.
+  const desc = String(e.description || '').replace(/\*\*/g, '').replace(/`/g, '');
   const mMontant = desc.match(REGEX_MONTANT);
   const mRedist  = desc.match(REGEX_REDIST);
   if (!mMontant || !mRedist) return null;
