@@ -5,7 +5,6 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { isDirection } from '../utils/permissions.js';
-import { infoModal } from '../utils/confirmation.js';
 
 const { profile } = await requireAuth('guide');
 
@@ -59,7 +58,6 @@ const html = `
     <article class="guide-content panel">
       <div id="guide-toolbar" class="row mb-2" style="gap:8px; flex-wrap:wrap;">
         <button class="btn btn-sm btn-ghost" id="btn-print">🖨 Imprimer / PDF</button>
-        <button id="btn-github" class="btn btn-sm btn-ghost" type="button">📂 Voir sur GitHub</button>
         <span class="spacer"></span>
         <span class="muted" id="guide-lecture-info" style="font-size:0.8rem;"></span>
       </div>
@@ -93,33 +91,12 @@ async function loadMarked() {
 
 const renderedEl     = document.getElementById('guide-rendered');
 const lectureInfoEl  = document.getElementById('guide-lecture-info');
-const btnGithub      = document.getElementById('btn-github');
 const btnPrint       = document.getElementById('btn-print');
 const tocLinks       = document.querySelectorAll('.guide-link');
-
-const REPO_BLOB = 'https://github.com/lahagragaming93-debug/ltd-sandy-shores/blob/main/public/';
 
 function highlightActive(id) {
   tocLinks.forEach(a => a.classList.toggle('active', a.dataset.guideId === id));
 }
-
-// Stocke l'URL courante pour le clic (modal d'info, pas de navigation directe
-// pour rester compatible tablette FiveM CEF qui n'aime pas les nouveaux onglets)
-let currentGithubUrl = '';
-function updateGithubLink(file) {
-  currentGithubUrl = REPO_BLOB + file;
-}
-btnGithub.addEventListener('click', async () => {
-  if (!currentGithubUrl) return;
-  await infoModal({
-    titre: '📂 Lien GitHub',
-    message: `Le code source de ce guide se trouve sur GitHub. Ouvre cette URL <strong>depuis ton navigateur PC</strong> (les nouveaux onglets ne sont pas supportés sur tablette FiveM) :<br><br>
-      <input type="text" readonly value="${currentGithubUrl}" style="width:100%;padding:8px;font-family:monospace;font-size:0.8rem;background:#0c0c0c;color:var(--color-bone);border:1px solid var(--color-sand-dark);" onclick="this.select()" />
-      <br><br><small class="muted">Astuce : clique le champ pour sélectionner l'URL puis Ctrl+C.</small>`,
-    type: 'info',
-    btnOk: 'Fermer'
-  });
-});
 
 function estimerLecture(texte) {
   // ~200 mots/minute en lecture rapide
@@ -136,7 +113,6 @@ async function loadGuide(id, opts = { pushHistory: true, scrollTop: true }) {
   }
 
   highlightActive(id);
-  updateGithubLink(guide.file);
   if (opts.pushHistory) {
     const newUrl = window.location.pathname + '?guide=' + id;
     window.history.pushState({ guideId: id }, '', newUrl);
@@ -165,7 +141,7 @@ async function loadGuide(id, opts = { pushHistory: true, scrollTop: true }) {
       <div class="alert danger">
         <strong>Impossible de charger le guide.</strong><br>
         Détail : <code>${err.message || err}</code><br>
-        Tu peux aussi le lire sur GitHub via le bouton ci-dessus.
+        Contacte la direction si le problème persiste.
       </div>`;
   }
 }

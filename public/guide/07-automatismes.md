@@ -226,9 +226,9 @@ Ces règles sont appliquées **côté serveur** (rules Firestore) — on ne peut
 - Si erreur 401 → token a expiré ou Firebase a un souci, contacter la direction technique
 
 ### Symptôme : le site est en blanc / écran vide
-- Probablement souci GitHub Pages ou Firebase
-- Vérifie https://www.githubstatus.com/ et https://status.firebase.google.com/
-- Si tout est OK → ouvre la console DevTools (F12) et regarde les erreurs
+- Probablement un souci d'hébergement ou Firebase
+- Ouvre la console DevTools (F12) et regarde les erreurs rouges
+- Contacte la direction technique si ça persiste
 
 ### Symptôme : les alertes Discord ne tombent plus
 - Vérifie l'URL du webhook (peut être révoquée si le canal a été supprimé)

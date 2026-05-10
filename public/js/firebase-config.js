@@ -2,7 +2,7 @@
 // Configuration Firebase — À COMPLÉTER avec votre projet
 // ============================================================
 // Voir docs/01-setup-firebase.md pour obtenir ces valeurs.
-// Remplacer les valeurs ci-dessous puis push sur GitHub Pages.
+// Remplacer les valeurs ci-dessous puis push sur l'hebergement.
 // ============================================================
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';

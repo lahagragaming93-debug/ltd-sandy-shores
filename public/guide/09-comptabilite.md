@@ -3,7 +3,7 @@
 > Tout ce qu'il faut savoir pour tenir la compta du LTD Sandy Shores au propre, conforme **TTE Chap. IV — Secteur 2**, et prête pour un contrôle **IRS RP** à tout moment.
 
 La compta du LTD vit à 2 endroits :
-- 🌐 **Le site** (https://lahagragaming93-debug.github.io/ltd-sandy-shores/comptabilite.html) → vue temps réel + saisies manuelles
+- 🌐 **Le site** (page Comptabilité) → vue temps réel + saisies manuelles
 - 📊 **Le Google Sheet** → archive lecture seule, prête pour audit IRS
 
 ---
@@ -47,7 +47,7 @@ Tu n'as rien à faire — sauf si tu vois une **discordance** (vente sans sortie
 
 #### Cas 2 : Dépense cash hors compte (rare)
 → **Saisie manuelle** sur le site :
-1. Va sur https://lahagragaming93-debug.github.io/ltd-sandy-shores/comptabilite.html
+1. Va sur la page **Comptabilité**
 2. Clique sur l'un des **5 templates rapides** en haut (🏭 Matières premières / ⚖ Frais avocat / 🚗 Entretien véhicule / 💰 Loyer / 📦 Autre) — la modale s'ouvre avec raison + type pré-remplis
 3. Saisis le **montant** uniquement
 4. Clique **« Enregistrer la dépense »**

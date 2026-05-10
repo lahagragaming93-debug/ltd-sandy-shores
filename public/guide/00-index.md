@@ -44,7 +44,7 @@ Tu peux aussi tout lire si tu veux comprendre comment marche l'entreprise.
 
 ## 🌐 Adresse du site
 
-**https://lahagragaming93-debug.github.io/ltd-sandy-shores/**
+*L'URL t'a été transmise par la direction sur ta tablette.*
 
 Le site fonctionne sur :
 - 💻 **Ordinateur** (navigateur classique : Chrome, Firefox, Edge…)
@@ -110,8 +110,8 @@ C'est volontaire : ça évite les clics accidentels qui détruiraient des donné
 ## 🆘 En cas de souci
 
 1. **Lis [08-faq-depannage.md](08-faq-depannage.md)** : 90 % des problèmes courants y sont expliqués.
-2. **Si le site ne charge pas** → vérifie ta connexion, puis https://www.githubstatus.com/
-3. **Si le bot Discord ne remonte rien** → contacte la direction (le bot tourne sur Railway et peut être relancé)
+2. **Si le site ne charge pas** → vérifie ta connexion et contacte la direction
+3. **Si le bot Discord ne remonte rien** → contacte la direction
 4. **Si tu vois quelque chose d'incohérent** → fais une capture et envoie-la à la direction sur Discord
 
 ---

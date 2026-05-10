@@ -8,13 +8,17 @@ import { listenStations, setStation, listRedistributionsSemaine,
          getConfig, setConfig, doc, deleteDoc } from '../api.js';
 import { db } from '../firebase-config.js';
 import { money, moneyPrecis, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
-import { isDirection } from '../utils/permissions.js';
+import { isDirection, isSuperAdmin, isPompiste } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('stocks_essence');
-const editable = isDirection(profile.role) || profile.role === 'responsable-pompiste';
+// fullEdit  = peut TOUT modifier (prix, capacite, seuil, N° pompe, supprimer, ajouter une station)
+// stockOnly = peut UNIQUEMENT toucher stockActuel (pompiste qui ravitaille)
+const fullEdit  = isDirection(profile.role) || isSuperAdmin(profile.role);
+const stockOnly = !fullEdit && (profile.role === 'responsable-pompiste' || isPompiste(profile.role));
+const editable  = fullEdit || stockOnly;
 
 const html = `
   <div class="kpi-grid" id="kpis-essence">
@@ -22,8 +26,8 @@ const html = `
   </div>
 
   <div class="row mb-2">
-    ${editable ? '<button class="btn btn-primary" id="btn-ajouter-station">+ Ajouter une station</button>' : ''}
-    <button class="btn" id="btn-config-essence">⚙ Configuration</button>
+    ${fullEdit ? '<button class="btn btn-primary" id="btn-ajouter-station">+ Ajouter une station</button>' : ''}
+    ${fullEdit ? '<button class="btn" id="btn-config-essence">⚙ Configuration</button>' : ''}
     <span class="spacer"></span>
     <span class="muted mono" id="stations-count">—</span>
   </div>
@@ -42,21 +46,22 @@ const html = `
   <div id="modal-station" class="modal-backdrop hidden">
     <div class="modal">
       <h3 id="modal-station-title">Station</h3>
+      ${stockOnly ? '<div class="alert info mb-2" style="font-size:0.82rem;"><span class="icon">ℹ</span><span>Tu peux uniquement modifier le <strong>stock actuel</strong> (ravitaillement). Les autres champs sont verrouillés.</span></div>' : ''}
       <input type="hidden" id="st-id" />
       <label>Nom</label>
-      <input type="text" id="st-nom" required />
+      <input type="text" id="st-nom" required ${stockOnly ? 'disabled' : ''} />
       <div class="field-row">
         <div><label>Stock actuel (L)</label><input type="number" id="st-stock-actuel" min="0" /></div>
-        <div><label>Capacité max (L)</label><input type="number" id="st-stock-max" min="0" /></div>
-        <div><label>Seuil alerte (L)</label><input type="number" id="st-seuil" min="0" /></div>
+        <div><label>Capacité max (L)</label><input type="number" id="st-stock-max" min="0" ${stockOnly ? 'disabled' : ''} /></div>
+        <div><label>Seuil alerte (L)</label><input type="number" id="st-seuil" min="0" ${stockOnly ? 'disabled' : ''} /></div>
       </div>
       <label>Prix au litre ($)</label>
-      <input type="number" id="st-prix" step="0.1" min="0" />
+      <input type="number" id="st-prix" step="0.1" min="0" ${stockOnly ? 'disabled' : ''} />
       <label>N° pompe FiveM <span class="muted" style="font-size:0.75rem;">— identifiant in-game qui apparaît dans "Redistribution N°XXXXX" (#logs-ig)</span></label>
-      <input type="text" id="st-fivem-pompe" placeholder="ex: 16060" />
+      <input type="text" id="st-fivem-pompe" placeholder="ex: 16060" ${stockOnly ? 'disabled' : ''} />
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-save-station">Enregistrer</button>
-        ${editable ? '<button class="btn btn-danger" id="btn-delete-station" style="display:none;">Supprimer</button>' : ''}
+        ${fullEdit ? '<button class="btn btn-danger" id="btn-delete-station" style="display:none;">Supprimer</button>' : ''}
         <button class="btn btn-ghost" id="btn-cancel-station">Annuler</button>
       </div>
     </div>
@@ -165,7 +170,7 @@ function miseAJourKpis(stations) {
 // === Modal station ===
 const modal = document.getElementById('modal-station');
 
-if (editable) {
+if (fullEdit) {
   document.getElementById('btn-ajouter-station').addEventListener('click', () => {
     document.getElementById('st-id').value = '';
     document.getElementById('st-nom').value = '';
@@ -201,8 +206,26 @@ document.getElementById('btn-cancel-station').addEventListener('click', () => mo
 
 document.getElementById('btn-save-station').addEventListener('click', async () => {
   const id = document.getElementById('st-id').value || ('station_' + Date.now());
-  // Note : input type=number rejette les virgules dans certaines locales — on remplace
-  // ',' par '.' pour être tolérant aux saisies utilisateur (5,5 au lieu de 5.5).
+
+  // Cas pompiste : on n'envoie QUE stockActuel (les autres inputs sont disabled).
+  if (stockOnly) {
+    if (!id) return toastError("Station introuvable.");
+    const newStock = Number(document.getElementById('st-stock-actuel').value) || 0;
+    try {
+      await setStation(id, { stockActuel: newStock });
+      const idx = stations.findIndex(x => x.id === id);
+      if (idx >= 0) stations[idx] = { ...stations[idx], stockActuel: newStock };
+      renderStations();
+      toastSuccess(`Stock mis à jour : ${newStock} L.`);
+      modal.classList.add('hidden');
+    } catch (e) {
+      console.error('[stations] save (stock only) FAIL', id, e);
+      toastError("Échec : " + (e?.message || e?.code || "erreur inattendue."));
+    }
+    return;
+  }
+
+  // Cas fullEdit : patch complet
   const lirePrix = (sel) => {
     const v = (document.getElementById(sel).value || '').toString().replace(',', '.');
     return Number(v);
@@ -217,20 +240,11 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
     fivemPompeId
   };
   if (!data.nom) return toastError("Nom obligatoire.");
-  console.log('[stations] save', id, data);
   try {
     await setStation(id, data);
-    // Maintient le reverse-mapping global (fivemPompeId → stationId) utilisé par
-    // onBankAccount pour matcher "Redistribution N°XXXXX" sur la bonne station.
     if (fivemPompeId) {
-      // merge:true en Firestore fait un merge récursif des objets imbriqués,
-      // donc les autres entrées de fivemPompesMap sont préservées.
       await setConfig({ fivemPompesMap: { [fivemPompeId]: id } });
     }
-    console.log('[stations] save OK', id);
-
-    // Mise à jour optimiste du state local + re-render immédiat
-    // (le listener temps réel confirmera dans la seconde)
     const idx = stations.findIndex(x => x.id === id);
     if (idx >= 0) {
       stations[idx] = { ...stations[idx], ...data };
@@ -238,7 +252,6 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
       stations.push({ id, ...data });
     }
     renderStations();
-
     toastSuccess(`Station "${data.nom}" enregistrée${fivemPompeId ? ` (N°pompe ${fivemPompeId})` : ''}.`);
     modal.classList.add('hidden');
   } catch (e) {
@@ -268,7 +281,8 @@ if (btnDel) {
   });
 }
 
-// === Modal config ===
+// === Modal config (reserve fullEdit) ===
+if (fullEdit) {
 document.getElementById('btn-config-essence').addEventListener('click', () => {
   document.getElementById('cfg-quota-bidons').value = config.quotaBidons ?? 1700;
   document.getElementById('cfg-quota-caoutchoucs').value = config.quotaCaoutchoucs ?? 800;
@@ -280,7 +294,7 @@ document.getElementById('btn-cancel-config').addEventListener('click', () => {
   document.getElementById('modal-config').classList.add('hidden');
 });
 document.getElementById('btn-save-config').addEventListener('click', async () => {
-  if (!isDirection(profile.role)) return toastError("Direction uniquement.");
+  if (!fullEdit) return toastError("Direction uniquement.");
   const patch = {
     quotaBidons: Number(document.getElementById('cfg-quota-bidons').value) || 1700,
     quotaCaoutchoucs: Number(document.getElementById('cfg-quota-caoutchoucs').value) || 800,
@@ -339,6 +353,7 @@ if (btnApplyAll) {
     else toastError(`${nbOk} OK / ${nbFail} en erreur. Voir console (F12).`);
   });
 }
+} // fin if (fullEdit) — bloc Modal config
 
 // === Redistributions de la semaine ===
 const debut = startOfWeekRP();

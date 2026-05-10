@@ -28,8 +28,7 @@ Ne devrait jamais arriver. Si ça t'arrive : ferme l'onglet et rouvre l'URL. Si 
 1. Recharge la page (F5)
 2. Vide le cache (Ctrl+Shift+R)
 3. Ouvre la console (F12) et regarde s'il y a des erreurs rouges
-4. Vérifie https://www.githubstatus.com/ (panne GitHub Pages ?)
-5. Si rien ne marche : contacte la direction
+4. Si rien ne marche : contacte la direction
 
 ---
 
@@ -217,11 +216,7 @@ Pas de backup automatique configuré. Tu peux exporter manuellement via la conso
 1. **Recharge la page** (F5)
 2. **Vide le cache** (Ctrl+Shift+R)
 3. **Console DevTools** (F12) → Onglet Console → cherche les erreurs rouges
-4. **Statut des services externes** :
-   - GitHub Pages : https://www.githubstatus.com/
-   - Firebase : https://status.firebase.google.com/
-   - Railway : https://railway.statuspage.io/
-5. **Contacte la direction** avec :
+4. **Contacte la direction** avec :
    - Capture d'écran du problème
    - Ce que tu faisais quand c'est arrivé
    - L'heure approximative
