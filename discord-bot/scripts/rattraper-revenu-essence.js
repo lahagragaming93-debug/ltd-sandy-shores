@@ -16,10 +16,19 @@
 //   - litres = 0, prixLitre = 0
 //   - Le graphique CA par jour sera juste, recap par station regroupera.
 //
-// IDEMPOTENT :
-//   - DocId = `rev-{msg.id}` (relance = overwrite, pas doublon)
-//   - Skip si redistributionId deja present dans /redistributions
-//     (evite doublons avec rattraper-redistributions.js et migrer-banque*).
+// IDEMPOTENT (par messageId Discord uniquement) :
+//   - DocId = `rev-{msg.id}` => relance = overwrite, pas de doublon
+//     d'un meme message rattrape 2 fois.
+//   - PAS de dedup par redistributionId : ce numero est un identifiant
+//     de cycle/station qui se REUTILISE entre transactions distinctes
+//     (ex: 35489 peut apparaitre sur plusieurs ventes a des dates
+//     differentes). Filtrer dessus aurait skippe les nouvelles ventes.
+//
+// CONSEQUENCE : si rattraper-redistributions.js a deja ecrit un doc
+// detaille (avec station/litres) pour la meme transaction, ce script
+// ecrira EN PLUS un doc minimal `rev-{msgId}` => doublon conceptuel
+// (2 docs pour la meme vente). A nettoyer plus tard si besoin via
+// inspection des docs `rev-*` qui chevauchent une vraie redistribution.
 // ============================================================
 // Usage :
 //   cd discord-bot
@@ -111,32 +120,15 @@ client.once('ready', async () => {
     if (!ch) throw new Error(`Canal ${CHANNEL_ID} introuvable`);
     console.log(`Canal trouve : #${ch.name}`);
 
-    // Index existant pour idempotence cross-script
-    console.log('Lecture /redistributions existant pour deduplication...');
-    const existingSnap = await db.collection('redistributions').get();
-    const existingIds = new Set();
-    for (const d of existingSnap.docs) {
-      const data = d.data();
-      if (data.redistributionId) existingIds.add(String(data.redistributionId));
-    }
-    console.log(`  ${existingIds.size} redistributionId deja en base (seront skippes)\n`);
-
     const messages = await fetchHistory(ch, TOTAL_LIMIT);
     console.log(`${messages.length} messages recuperes\n`);
 
-    let parsed = 0, skippedFormat = 0, skippedExisting = 0, written = 0, errors = 0;
+    let parsed = 0, skippedFormat = 0, written = 0, errors = 0;
     for (const m of messages) {
       try {
         const payload = parseRevenuMessage(m);
         if (!payload) { skippedFormat++; continue; }
         parsed++;
-
-        if (existingIds.has(payload.redistributionId)) {
-          skippedExisting++;
-          continue;
-        }
-        // Marque comme present pour la session (evite doublons internes)
-        existingIds.add(payload.redistributionId);
 
         const date = new Date(m.createdTimestamp).toISOString().slice(0, 16).replace('T', ' ');
         console.log(`  ${date}  N°${String(payload.redistributionId).padEnd(7)}  ${String(payload.montant).padStart(6)} $`);
@@ -169,7 +161,6 @@ client.once('ready', async () => {
     console.log(`  ${messages.length} messages recuperes`);
     console.log(`  ${skippedFormat} ignores (format non reconnu)`);
     console.log(`  ${parsed} entrees 'Redistribution' parsees`);
-    console.log(`  ${skippedExisting} skippees (redistributionId deja en base)`);
     console.log(`  ${written} ecrites dans /redistributions`);
     console.log(`  ${errors} erreurs`);
     if (APPLY) {
