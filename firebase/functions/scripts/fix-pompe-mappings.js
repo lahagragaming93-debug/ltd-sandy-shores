@@ -32,8 +32,8 @@ const MAPPINGS = [
   { fivemPompeId: '16428', stationId: 'route-68' },
   { fivemPompeId: '16488', stationId: 'clinton-avenue-vinewood' },
   { fivemPompeId: '16513', stationId: 'palomino-freeway-favelas' },
-  { fivemPompeId: '16535', stationId: 'senora-way-rex-s-diner' },
-  { fivemPompeId: '35489', stationId: 'cholla-springs-avenue' }
+  { fivemPompeId: '16535', stationId: 'cholla-springs-avenue' },        // swap : etait senora
+  { fivemPompeId: '35489', stationId: 'senora-way-rex-s-diner' }         // swap : etait cholla
   // 30358 : 4 docs orphelins, station inconnue — laisse non mappe pour l'instant
 ];
 
