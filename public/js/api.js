@@ -334,6 +334,10 @@ export async function getSemaineCourante(weekId) {
 }
 
 // ----- Alertes -----
+// Une alerte a 2 etats independants : `resolue` (probleme traite, l'item est
+// reapprovisionne ou la vente verifiee) et `lu` (le patron a vu, on cache du
+// badge mais on garde dans le dropdown grise). Le badge ne compte que les
+// non-lues ET non-resolues.
 export function listenAlertesActives(cb) {
   const q = query(collection(db, 'alertes'),
     where('resolue', '==', false), orderBy('timestamp', 'desc'));
@@ -341,6 +345,19 @@ export function listenAlertesActives(cb) {
 }
 export async function resoudreAlerte(id) {
   await updateDoc(doc(db, 'alertes', id), { resolue: true, resolueAt: serverTimestamp() });
+}
+export async function marquerAlerteLue(id) {
+  await updateDoc(doc(db, 'alertes', id), { lu: true, luAt: serverTimestamp() });
+}
+export async function marquerToutesAlertesLues() {
+  const snap = await getDocs(query(collection(db, 'alertes'),
+    where('resolue', '==', false)));
+  const batch = writeBatch(db);
+  for (const d of snap.docs) {
+    if (d.data().lu) continue;
+    batch.update(d.ref, { lu: true, luAt: serverTimestamp() });
+  }
+  await batch.commit();
 }
 
 // ----- Configuration -----

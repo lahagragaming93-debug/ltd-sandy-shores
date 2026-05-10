@@ -302,7 +302,7 @@ if (btnInit) {
           categorie: item.categorie,
           prixVente: ex.prixVente ?? item.prixVente,
           prixAchat: ex.prixAchat ?? 0,
-          seuilAlerte: ex.seuilAlerte ?? 5
+          seuilAlerte: ex.seuilAlerte ?? 0
         });
       }
       toastSuccess(`${CATALOGUE.length} produits initialisés.`);

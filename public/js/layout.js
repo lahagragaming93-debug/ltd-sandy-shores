@@ -5,7 +5,7 @@
 
 import { ROLE_LABELS, canAccess, isEmployeeView } from './utils/permissions.js';
 import { deconnecter } from './auth.js';
-import { listenAlertesActives } from './api.js';
+import { listenAlertesActives, marquerAlerteLue, marquerToutesAlertesLues } from './api.js';
 
 const NAV_ITEMS = [
   { key: 'dashboard',       href: 'dashboard.html',     icon: '★', label: 'Dashboard',          group: 'Direction' },
@@ -162,6 +162,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
             <div class="alerts-dropdown-header">
               <strong>Alertes actives</strong>
               <span class="muted" id="alerts-dropdown-count">—</span>
+              <button type="button" class="btn-mark-all-read" id="btn-mark-all-read" title="Tout marquer lu">Tout marquer lu</button>
             </div>
             <ul class="alerts-dropdown-list" id="alerts-dropdown-list">
               <li class="alerts-empty">Chargement…</li>
@@ -234,17 +235,34 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
   const dropList    = document.getElementById('alerts-dropdown-list');
   const dropCount   = document.getElementById('alerts-dropdown-count');
 
+  // "Tout marquer lu" : un seul commit en lot
+  const btnMarkAllRead = document.getElementById('btn-mark-all-read');
+  if (btnMarkAllRead) {
+    btnMarkAllRead.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await marquerToutesAlertesLues();
+      } catch (err) {
+        console.error('marquerToutesAlertesLues:', err);
+      }
+    });
+  }
+
   listenAlertesActives(alertes => {
     if (!badge) return;
-    if (alertes.length > 0) {
-      badge.textContent = alertes.length > 99 ? '99+' : alertes.length;
+    // Le badge ne compte que les NON-lues (alertes lu=true sont visibles
+    // dans le dropdown mais grisees, plus dans le compteur).
+    const nonLues = alertes.filter(a => !a.lu);
+    if (nonLues.length > 0) {
+      badge.textContent = nonLues.length > 99 ? '99+' : nonLues.length;
       badge.hidden = false;
       btnAlerts.classList.add('has-alerts');
     } else {
       badge.hidden = true;
       btnAlerts.classList.remove('has-alerts');
     }
-    dropCount.textContent = `${alertes.length} alerte${alertes.length > 1 ? 's' : ''}`;
+    dropCount.textContent = `${alertes.length} alerte${alertes.length > 1 ? 's' : ''}${nonLues.length < alertes.length ? ` (${nonLues.length} non lue${nonLues.length > 1 ? 's' : ''})` : ''}`;
+    btnMarkAllRead.hidden = nonLues.length === 0;
 
     if (alertes.length === 0) {
       dropList.innerHTML = `<li class="alerts-empty">✓ Aucune alerte active. Tout va bien.</li>`;
@@ -258,6 +276,8 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
       const ico   = alertIcon(a.type);
       const grav  = a.gravite || 'warn';
       const heure = relativeTime(a.timestamp);
+      const luCls = a.lu ? ' alert-lu' : '';
+      const btnLu = a.lu ? '' : `<button type="button" class="alert-mark-read" data-mark-read="${a.id}" title="Marquer lu" aria-label="Marquer lu">✓</button>`;
       const inner = `
         <span class="alert-ico">${ico}</span>
         <div class="alert-body">
@@ -267,16 +287,27 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
             <span class="alert-time">${heure}</span>
           </div>
         </div>
+        ${btnLu}
         ${href ? '<span class="alert-arrow">→</span>' : ''}
       `;
       return href
-        ? `<li><a class="alert-item alert-grav-${escapeHtml(grav)}" href="${href}" data-alert-link>${inner}</a></li>`
-        : `<li><div class="alert-item alert-grav-${escapeHtml(grav)}">${inner}</div></li>`;
+        ? `<li><a class="alert-item alert-grav-${escapeHtml(grav)}${luCls}" href="${href}" data-alert-link>${inner}</a></li>`
+        : `<li><div class="alert-item alert-grav-${escapeHtml(grav)}${luCls}">${inner}</div></li>`;
     }).join('');
 
     // Fermer le dropdown au clic sur une alerte (avant la navigation)
     dropList.querySelectorAll('[data-alert-link]').forEach(a => {
       a.addEventListener('click', () => closeAlerts());
+    });
+    // "Marquer lu" individuel : ne pas naviguer, juste mettre lu=true
+    dropList.querySelectorAll('[data-mark-read]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.getAttribute('data-mark-read');
+        try { await marquerAlerteLue(id); }
+        catch (err) { console.error('marquerAlerteLue:', err); }
+      });
     });
   });
 }

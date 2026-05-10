@@ -108,9 +108,13 @@ export const alerteStock = onDocumentWritten({
 
   console.log(`[alerteStock] ${id} qte=${qte} seuil=${seuil} (produit=${prodSnap.exists})`);
 
+  // Pas d'alerte tant qu'aucun seuil n'est configure manuellement (par le patron).
+  // Couvre rupture ET stock bas — les valeurs par defaut (qte=0 sans seuil) ne
+  // doivent pas spammer.
+  if (seuil <= 0) return;
   if (qte === 0) {
     await creerAlerte('stock-rupture', `Rupture : ${nom}`, 'danger', { stockId: id });
-  } else if (qte <= seuil && seuil > 0) {
+  } else if (qte <= seuil) {
     await creerAlerte('stock-bas', `Stock bas : ${nom} (${qte}/${seuil})`, 'warn', { stockId: id });
   }
 });
@@ -581,7 +585,8 @@ async function onStationsDashboard(p) {
       derniereMajAuto: FieldValue.serverTimestamp(),
       sourceMajAuto:   'stations-dashboard'
     };
-    if (!('seuilAlertePct' in cur)) patch.seuilAlertePct = 20;
+    // Pas de seuilAlertePct par defaut : aucune alerte tant que le patron
+    // n'aura pas configure ses seuils via /admin.
     await ref.set(patch, { merge: true });
   }
   console.log(`[stationsDashboard] ${stations.length} stations sync`);

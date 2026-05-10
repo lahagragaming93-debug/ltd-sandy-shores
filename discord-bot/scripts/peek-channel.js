@@ -46,7 +46,49 @@ client.once('ready', async () => {
       console.error(`Salon ${channelId} introuvable ou bot sans permission.`);
       process.exit(2);
     }
-    console.log(`Salon : #${channel.name} (guild: ${channel.guild?.name || '?'})`);
+    console.log(`Salon : #${channel.name} type=${channel.type} (guild: ${channel.guild?.name || '?'})`);
+
+    // Si categorie : lister les enfants
+    // Discord ChannelType : 4 = GuildCategory
+    if (channel.type === 4) {
+      const children = channel.children?.cache;
+      console.log(`\n--- ${children?.size || 0} salons dans cette categorie ---`);
+      if (children) {
+        for (const child of children.values()) {
+          console.log(`  [${child.type}] ${child.id}  #${child.name}  (msgs=${child.messages ? 'oui' : 'non'})`);
+        }
+      }
+      const out = { categorie: channel.name, children: [...(children?.values() || [])].map(c => ({
+        id: c.id, name: c.name, type: c.type, parentId: c.parentId
+      })) };
+      writeFileSync(`peek-${channelId}.json`, JSON.stringify(out, null, 2), 'utf-8');
+      console.log(`\nDump categorie -> peek-${channelId}.json`);
+      process.exit(0);
+    }
+
+    // Si forum : lister les threads actifs
+    if (channel.type === 15) {
+      const active = await channel.threads.fetchActive();
+      const archived = await channel.threads.fetchArchived({ limit: 30 });
+      console.log(`\n--- Forum : ${active.threads.size} threads actifs, ${archived.threads.size} archives (max 30) ---`);
+      const all = [...active.threads.values(), ...archived.threads.values()];
+      for (const t of all) {
+        console.log(`  [thread] ${t.id}  ${t.name}  msg=${t.messageCount || '?'} archived=${t.archived}`);
+      }
+      const out = { forum: channel.name, threads: all.map(t => ({
+        id: t.id, name: t.name, messageCount: t.messageCount, archived: t.archived,
+        createdAt: t.createdAt?.toISOString()
+      })) };
+      writeFileSync(`peek-${channelId}.json`, JSON.stringify(out, null, 2), 'utf-8');
+      console.log(`\nDump forum -> peek-${channelId}.json`);
+      process.exit(0);
+    }
+
+    if (!channel.messages?.fetch) {
+      console.error(`Type ${channel.type} non supporte (pas de messages.fetch).`);
+      process.exit(2);
+    }
+
     console.log(`Recuperation des ${count} derniers messages...`);
 
     // fetch limit max = 100 par appel ; on pagine si besoin
