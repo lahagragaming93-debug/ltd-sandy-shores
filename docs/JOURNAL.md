@@ -1,7 +1,62 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-10 (suite 2 : helper sortable-table, 8 pages avec scroll/tri, page Revenus carburant)**
+> Dernière mise à jour : **2026-05-11 (suite 4 : pipeline ventes carburant post-migration FiveM + décrément stockActuel auto)**
+
+---
+
+## ✅ Session 2026-05-10/11 (partie 4) — Pipeline ventes carburant post-migration + décrément stockActuel
+
+### 1. Diagnostic : #suivi-achat-essence est mort
+Depuis la migration FiveM (~05/2026), le canal `#suivi-achat-essence` ne reçoit plus rien. Les ventes carburant transitent maintenant par `#logs-ig` (parser `xbankaccount`) avec raison `Redistribution N°XXXXX`. Le N° = ID de la pompe in-game.
+
+### 2. Mapping pompes FiveM ↔ stations
+Inféré depuis les anciens embeds `#suivi-achat-essence` archivés (parser lisait "Redistribution N°16060 — Panorama Drive..." donc N°↔station étaient côte à côte). 8 mappings identifiés, stockés dans `/config.fivemPompesMap` :
+- 15877→Route 68 LTD, **16060→Panorama**, **16426→Algonquin**, 16428→Route 68, 16488→Clinton, 16513→Palomino, 16535→Senora, **35489→Cholla**
+- Pompe **30358** orpheline (8 docs anciens, station inconnue)
+- Modal `/stations` étendue : nouveau champ "N° pompe FiveM" qui synchronise `/stations/{id}.fivemPompeId` + reverse-map `/config.fivemPompesMap`
+
+⚠️ Pendant la session, le patron a suggéré 2 swaps (Cholla↔Senora puis Algonquin↔Palomino) qui se sont révélés erronés — le diagnostic post-cutoff (quelles pompes ont des ventes récentes = pompes actives) a confirmé que **l'inférence originale était correcte**. Trust historic data over verbal swap suggestions if conflict.
+
+### 3. Décrément auto stockActuel via `onBankAccount`
+Avant : aucune décrémentation. Le parser `stationsDashboard` écrasait périodiquement `stockActuel` avec des valeurs stale du dashboard in-game (Palomino 4855L alors que vide en jeu).
+
+Fix structurel (commit `433ce54`) :
+- `onBankAccount` détecte "Redistribution N°XXXXX" → lit `prixLitre` station → `litres = montant/prix` → décrémente `stockActuel` en **transaction atomique** + crée doc `/redistributions` enrichi (litres, stockAvant, stockApres, prixLitre snapshot)
+- `onStationsDashboard` **n'écrit plus** `stockActuel` (garde stockMax/prixLitre/derniereRavit/statut)
+- `onRapportPompiste` **n'écrit plus** `stockActuel` (garde uniquement le doc audit)
+
+**Source de vérité `stockActuel`** désormais : baseline manuel (modal `/stations` ou script) + décrément auto sur vente. Les ravitaillements doivent être saisis manuellement (le bot n'a pas accès au canal `#suivi-déclaration-quota-essence`).
+
+### 4. CA carburant intégré dans calculs globaux
+Les ventes carburant n'étaient comptabilisées nulle part dans le CA. Correction (commit `fb6ee48`) :
+- `dashboard.js` : nouveau KPI "⛽ CA carburant" à côté de "CA semaine". Le bénéfice net et ratio masse salariale (TTE) utilisent `caTotal = caProduits + caCarburant`
+- `comptabilite.js` : KPI "💚 CA produits" + "⛽ CA carburant" séparés. Tableau recettes détaille 2 lignes. Gauge TTE et CSV utilisent caTotal
+- `rh.js` : `totalCA` pour `checkMasseSalariale` inclut le carburant (TTE plus représentatif)
+- `/ventes` reste séparée (CA produits uniquement) — `/revenus-carburant` reste la page dédiée
+
+### 5. Stocks initiaux 2026-05-10 (3 stations actives)
+Baseline du patron : Panorama 2000L, Algonquin 3367L, Cholla 4506L, 5 autres à 0L. Après décrément des 6 ventes post-19:00 UTC : **Panorama 1940L, Algonquin 3332L, Cholla 4477L**. Prix appliqués selon baseline (Panorama 5$, Algonquin/Cholla 4.50$, Palomino 6$, Clinton 5.50$). Seuils d'alerte = 0 (pas de seuil pour le moment).
+
+### 6. ~6500 docs `/redistributions` synchronisés
+Plusieurs vagues de correction (mappings successifs) :
+- Backfill historique `/banqueLtd` → `/redistributions` (rattraper les ventes pré-deploy)
+- Fix stationId sur les rattrapages-revenu (placeholder `station-inconnue-revenu` → vraie station via mapping)
+- Re-fix après swap erroné Cholla/Senora puis revert
+- Re-fix après swap erroné Algonquin/Palomino puis revert
+- Total : ~7500 opérations cumulées, aucune erreur
+
+### 7. Scripts firebase/functions/scripts/ ajoutés
+- `init-stations.js` : baseline initial 8 stations
+- `backfill-redistributions-from-banque.js` : rattrapage `/banqueLtd` → `/redistributions`
+- `fix-pompe-mappings.js` : sync `/config.fivemPompesMap` + `/stations.fivemPompeId`
+- `fix-redistributions-stationid.js` : re-applique mapping sur docs existants
+- `apply-baseline-with-estimate.js` : reset stocks + estime via ventes post-cutoff
+- `check-redistributions-state.js` / `check-stations-state.js` / `diagnose-post-cutoff.js` : diagnostics
+- `reset-stocks-vides.js` : helper one-shot
+
+### 8. Commits de la session
+`5f05503` Ventes carburant via xbankaccount + mapping pompes — `c6d1e16` Scripts fix mapping — `fb6ee48` CA carburant inclus dashboard/compta/rh — `7e3df02` Swap Cholla/Senora (annulé plus tard) — `26b5829` Baseline + estimation stock — `433ce54` Décrément auto stockActuel, fini les écrasements
 
 ---
 
