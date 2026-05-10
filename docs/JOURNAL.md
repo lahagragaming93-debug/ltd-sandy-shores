@@ -1,11 +1,48 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-10 (session : refonte stocks, parsers RH complets, alertes manuelles)**
+> Dernière mise à jour : **2026-05-10 (suite : pipeline #logs-ig pleinement opérationnel, mapping 71 items internes FiveM)**
 
 ---
 
-## ✅ Session 2026-05-10 — Tout ce qui a été fait
+## ✅ Session 2026-05-10 (partie 2) — Pipeline inventory #logs-ig débogué
+
+### 1. Trois bugs critiques du parser inventory corrigés
+Le pipeline `#logs-ig` → bot → Functions → `/stocks` ne fonctionnait PAS depuis l'init du 2026-05-10. Aucun mouvement n'était capté. Trois bugs successifs :
+
+- **Bug A — `owner` vs `source`** (commit `1eb9b2d`) : `parseInventoryEmbed` filtrait `isLtdSource(source)` mais le coffre FiveM est porté par le champ `owner` (ex: `action-27166-0-1`). `source` contient un slot/numéro non significatif (ex: `559`). Fix : tester `owner` OU `source`.
+- **Bug B — préfixe `name:` dans la valeur des fields Faab'Hook** (commit `3f07ef6`) : le bot Faab'Hook formate ses embed fields ainsi : `name="owner", value="owner:action-27166-0-1"`. `getField(embed, 'owner')` retournait donc `"owner:action-27166-0-1"`. Conséquence : `isLtdSource()` ne matchait pas (préfixe devenait `"owner:action-27166"`) et `Number(count)` retournait NaN. Fix : nouvelle fonction `stripFieldPrefix()` dans `_helpers.js` qui retire automatiquement le préfixe `{name}:` de la valeur. Corrige tous les parsers consommant des embeds Faab'Hook.
+- **Bug C — mapping basé sur display names uniquement** (commit `f1724bd`) : `RAW_MAPPING` contenait les noms commerciaux français ("Bouteille d'Eau", "Spray pour tag") alors que `#logs-ig` envoie les noms internes FiveM (`water`, `spray`). Aucun item ne matchait → tous les `inventory-add/remove` étaient skippés silencieusement. Fix : nouvelle table `INTERNAL_MAPPING` consultée en priorité par `resolveItemId()`.
+
+### 2. Capture exhaustive des noms internes FiveM
+La copatronne Luciana Angel Mars a sorti **71 items un par un** des 3 coffres LTD pour générer 1 embed par type d'item. Mapping consolidé dans `INTERNAL_MAPPING` :
+- 10 boissons, 14 alimentaire, 9 confiserie, 7 outillage, 3 jardinage, 1 mobilier, 1 électronique, 4 auto, 3 matière première, 2 pêche, 1 emballage, 16 divers.
+- Mappings contre-intuitifs documentés : `bigdrill`→`perceuse-manuel` (et `heavy_duty_drill`→`grosse-perceuse-rouge`, l'inverse), `latte`→`koffi-caramel`, `marabou`→`chocolat`, `tronchese`→`outil` générique.
+
+### 3. Split crème glacée en 2 produits
+Deux noms internes FiveM observés pour 1 seul item catalogue :
+- `sourcream` → "Crème glacée pot" (nouveau ID `creme-glacee-pot`, 2$)
+- `icecream` → "Crème glacée cornet" (nouveau ID `creme-glacee-cornet`, 2$)
+- ⚠️ Attention `sour_cream` (avec underscore) = "Crème fraîche" (catalogue inchangé).
+- Ancien doc `/stocks/creme-glacee` supprimé via `cleanup-creme-glacee.js`.
+
+### 4. 23 items du catalogue restent skippés
+Items dont le nom interne FiveM n'a PAS été capturé (la copatronne ne les a pas tous sortis). À rattraper dès qu'un mouvement passe en jeu :
+- Alimentaire : baguette, bouteille-eau-purifiee, cola-zero, brique-citron, menus (burger/simple/complet), moutarde, noix-cajou
+- Confiserie : bonbon-cola, barre-energetique
+- Outillage : foret-perceuse
+- Jardinage : tas-terre, fillet, sac-jute
+- Électronique : pile
+- Auto : huile-shell, bidon-essence
+- Matière première : acier
+- Divers : ticket-gratter, skate-board, trottinette-electrique, spray-tag (mappé via display "spray", à vérifier)
+
+### 5. Script `resync-stocks.js`
+Créé pour forcer la quantité (SET absolu, pas increment) après comptage manuel des coffres IG. Mode dry-run + `--apply`. La copatronne va prendre des screens des 3 coffres (et leurs sous-coffres), l'user remplira la zone STOCKS et lancera le script.
+
+---
+
+## ✅ Session 2026-05-10 (partie 1) — Tout ce qui a été fait
 
 ### 1. Refonte catalogue produits + filtrage logs FiveM
 - Catalogue `public/js/data/produits.js` réécrit avec **12 catégories** alignées sur l'inventaire réel (boissons, alimentaire, confiserie, outillage, jardinage, mobilier, electronique, auto, matiere_premiere, peche, emballage, divers). 93 items au total (28 nouveaux ajoutés depuis l'export coffre user).
@@ -79,12 +116,13 @@
 
 ## 📋 TODO demain (à reprendre dans cet ordre)
 
-1. **Valider les 8 embauches via `/admin`** — attendre confirmation de Blake sur qui est encore actif. Pour chacun : saisir email + idPerso FiveM + générer mot de passe provisoire.
-2. **Relancer `init-dossiers.js --apply`** après création des comptes — l'enrichissement `/users` (téléphone, IBAN, pôle) se déclenchera cette fois (matching nom+prenom).
-3. **Test baguette en jeu** → vérifier que `/stocks/baguette.quantite` baisse en temps réel via le pipeline Discord → Functions.
-4. **Tournée 8 stations essence** → relevé manuel des vrais niveaux → je crée `init-stations.js` (script + dry-run + `--apply`).
-5. **Compléter les prix** des ~16 nouveaux produits via `/admin` (whey, plats cuisinés, perceuses, matières premières, etc.) — actuellement à 0 avec note "à confirmer".
-6. **IDs des coffres station-essence** à demander à Blake (FiveM `action-XXXXX-X`) pour étendre `SOURCES_LTD_PREFIXES` dans `discord-bot/parsers/items-mapping.js`.
+1. **Resync complet des stocks LTD** — la copatronne envoie les screens des 3 coffres + sous-coffres, on remplit `firebase/functions/scripts/resync-stocks.js` avec `{id, qty}` puis on lance `--apply`. Force la quantité absolue (écrase l'init du matin + tous les mouvements précédents).
+2. **Capturer les 23 items manquants** — quand un de ces items passe en jeu (#logs-ig), récupérer son embed et l'ajouter à `INTERNAL_MAPPING`. Liste : baguette, bonbon-cola, bouteille-eau-purifiee, cola-zero, brique-citron, menus, moutarde, noix-cajou, foret-perceuse, tas-terre, fillet, sac-jute, pile, huile-shell, bidon-essence, acier, ticket-gratter, skate-board, trottinette-electrique, barre-energetique, spray-tag (à vérifier).
+3. **Valider les 8 embauches via `/admin`** — attendre confirmation de Blake sur qui est encore actif. Pour chacun : saisir email + idPerso FiveM + générer mot de passe provisoire.
+4. **Relancer `init-dossiers.js --apply`** après création des comptes — l'enrichissement `/users` (téléphone, IBAN, pôle) se déclenchera cette fois (matching nom+prenom).
+5. **Tournée 8 stations essence** → relevé manuel des vrais niveaux → je crée `init-stations.js` (script + dry-run + `--apply`).
+6. **Compléter les prix** des ~16 nouveaux produits via `/admin` (whey, plats cuisinés, perceuses, matières premières, etc.) — actuellement à 0 avec note "à confirmer".
+7. **IDs des coffres station-essence** à demander à Blake (FiveM `action-XXXXX-X`) pour étendre `SOURCES_LTD_PREFIXES` dans `discord-bot/parsers/items-mapping.js`.
 
 ## 🔧 Audit/optimisations à faire (non bloquant, mais à planifier)
 
