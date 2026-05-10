@@ -157,6 +157,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === Sorties / retours de véhicules LTD (parser vehicule sur #logs-vehicules) ===
+    match /sortiesVehicules/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+
     // === Stats hebdo officielles FiveM (#statsbank) ===
     match /statsHebdoOfficiels/{id} {
       allow read:  if isAuth() && (canAdmin() || isDRH());

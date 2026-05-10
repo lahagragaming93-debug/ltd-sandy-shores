@@ -263,6 +263,8 @@ export const botIngest = onRequest({
       case 'avertissement':   await onAvertissement(payload); break;
       case 'licenciement':    await onLicenciement(payload); break;
       case 'venteAuto':       await onVenteAuto(payload); break;
+      case 'vehicule':        await onVehicule(payload); break;
+      case 'stagiaire':       await onStagiaire(payload); break;
       case 'logBrut':         await onLogBrut(payload); break;
       default:                return res.status(400).send('Unknown type');
     }
@@ -713,6 +715,78 @@ async function onLicenciement(p) {
     console.log(`[licenciement] /users/${userDoc.id} marque exclu (type=${p.typeLicenciement})`);
   } else {
     console.log(`[licenciement] aucun user matche pour ${p.prenom} ${p.nom} (discord=${p.memberDiscordId} idPerso=${p.idPerso}) — log uniquement`);
+  }
+}
+
+// === Sortie/retour véhicule LTD (#logs-vehicules) ===
+// Stocké dans /sortiesVehicules. Permet d'auditer l'usage des véhicules
+// d'entreprise par employé (qui prend quoi, quand). Pas de side-effect
+// sur les autres collections.
+async function onVehicule(p) {
+  let employeId = null;
+  if (p.employeDiscord) {
+    const u = await db.collection('users').where('idDiscord', '==', p.employeDiscord).limit(1).get();
+    if (!u.empty) employeId = u.docs[0].id;
+  }
+  const ts = p.heureMs ? Timestamp.fromMillis(Number(p.heureMs)) : FieldValue.serverTimestamp();
+  await db.collection('sortiesVehicules').add({
+    action: p.action || 'autre',
+    employeId,
+    employeDiscord: p.employeDiscord || '',
+    employeNom: p.employeNom || '',
+    characterId: p.characterId || '',
+    vehiculeId: p.vehiculeId || '',
+    markerId: p.markerId || '',
+    actionId: p.actionId || '',
+    source: p.source || '',
+    timestamp: ts
+  });
+}
+
+// === Nouvel employé / stagiaire (#stagiaire) ===
+// Crée un événement RH ET enrichit /users matchant idPerso (priorité)
+// puis idDiscord, avec téléphone, IBAN, casier (si renseignés).
+async function onStagiaire(p) {
+  const dateEmbauche = p.dateEmbauche ? new Date(p.dateEmbauche) : null;
+
+  // 1) Logger l'événement RH (audit)
+  await db.collection('rhEvenements').add({
+    type: 'embauche-stagiaire',
+    employeDiscord: p.employeDiscord || '',
+    employeUsername: p.employeUsername || '',
+    idPerso: p.idPerso || '',
+    nom: p.nom || '',
+    prenom: p.prenom || '',
+    telephone: p.telephone || null,
+    iban: p.iban || null,
+    casier: p.casier || null,
+    dateEmbauche: dateEmbauche ? Timestamp.fromDate(dateEmbauche) : null,
+    recruteurDiscord: p.recruteurDiscord || '',
+    traitee: false,
+    timestamp: FieldValue.serverTimestamp()
+  });
+
+  // 2) Enrichir /users si match idPerso ou idDiscord
+  let userRef = null;
+  if (p.idPerso) {
+    const s = await db.collection('users').where('idPerso', '==', p.idPerso).limit(1).get();
+    if (!s.empty) userRef = s.docs[0].ref;
+  }
+  if (!userRef && p.employeDiscord) {
+    const s = await db.collection('users').where('idDiscord', '==', p.employeDiscord).limit(1).get();
+    if (!s.empty) userRef = s.docs[0].ref;
+  }
+  if (userRef) {
+    const patch = {};
+    if (p.telephone) patch.telephone = p.telephone;
+    if (p.iban)      patch.iban      = p.iban;
+    if (p.casier)    patch.casier    = p.casier;
+    if (dateEmbauche && !isNaN(dateEmbauche.getTime())) {
+      patch.dateEmbauche = Timestamp.fromDate(dateEmbauche);
+    }
+    if (Object.keys(patch).length > 0) {
+      await userRef.set(patch, { merge: true });
+    }
   }
 }
 

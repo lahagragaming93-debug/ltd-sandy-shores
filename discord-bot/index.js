@@ -24,6 +24,8 @@ import { parseStationsDashboardMessage } from './parsers/stationsDashboard.js';
 import { parseDossierEmployeMessage }  from './parsers/dossierEmploye.js';
 import { parseAvertissementEmbed }     from './parsers/avertissement.js';
 import { parseLicenciementEmbed }      from './parsers/licenciement.js';
+import { parseVehiculeEmbed }          from './parsers/vehicule.js';
+import { parseStagiaireEmbed }         from './parsers/stagiaire.js';
 
 const required = ['DISCORD_TOKEN', 'GUILD_ID', 'INGEST_URL', 'INGEST_TOKEN'];
 for (const k of required) {
@@ -67,7 +69,9 @@ const CHANNEL_MAP = {
                                             listenEdits: true },
   // Logs RH structures (deplaces depuis RAW_CHANNELS)
   [process.env.CH_LOGS_AVERTISSEMENT]:    { type: 'avertissement', parser: parseAvertissementEmbed },
-  [process.env.CH_LOGS_LICENCIEMENT]:     { type: 'licenciement',  parser: parseLicenciementEmbed }
+  [process.env.CH_LOGS_LICENCIEMENT]:     { type: 'licenciement',  parser: parseLicenciementEmbed },
+  [process.env.CH_LOGS_VEHICULES]:        { type: 'vehicule',      parser: parseVehiculeEmbed     },
+  [process.env.CH_STAGIAIRE]:             { type: 'stagiaire',     parser: parseStagiaireEmbed    }
 };
 
 const RAW_CHANNELS = {
