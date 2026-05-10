@@ -1,7 +1,101 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-09 (session de reprise partie 2 — parsers Discord avancés)**
+> Dernière mise à jour : **2026-05-10 (session : refonte stocks, parsers RH complets, alertes manuelles)**
+
+---
+
+## ✅ Session 2026-05-10 — Tout ce qui a été fait
+
+### 1. Refonte catalogue produits + filtrage logs FiveM
+- Catalogue `public/js/data/produits.js` réécrit avec **12 catégories** alignées sur l'inventaire réel (boissons, alimentaire, confiserie, outillage, jardinage, mobilier, electronique, auto, matiere_premiere, peche, emballage, divers). 93 items au total (28 nouveaux ajoutés depuis l'export coffre user).
+- Nouveau `discord-bot/parsers/items-mapping.js` : table `RAW_MAPPING` nom FiveM display → ID catalogue, `resolveItemId()` insensible casse/accents/suffixe `$`, `isLtdSource()` filtre préfixes `action-27310` (épicerie), `action-27166` (matériel), `action-30439` (entrepôt).
+- `inventory.js` : skip silencieux si source non-LTD ou item hors mapping. Émet `item: itemId` canonique + `itemNomBrut` display.
+- `onInventory` Functions : utilise itemId résolu, conserve display name pour lisibilité.
+- Variantes typos ajoutées (Crème Glaci, Crème Fruiche pour ventes-auto).
+
+### 2. Initialisation stocks (script one-shot)
+- `firebase/functions/scripts/init-stocks.js` créé avec snapshot 2026-05-10 des 3 coffres LTD.
+- Lancé en `--apply` → **77 docs `stocks/{id}` écrits, 72 059 unités totales**, 0 erreur.
+- 3 items sommés (présents dans 2 coffres) : creme-glacee, creme-fraiche, barre-choco-caramel.
+
+### 3. Parser dashboard stations (temps réel)
+- Nouveau `discord-bot/parsers/stationsDashboard.js` : lit le message édité en place du canal `#⛽ Station` (8 embeds, 1 par station). Extrait stockActuel, stockMax, niveauPct, prixLitre, derniereRavit, statut (vert/jaune/rouge).
+- Bot `index.js` : refactor `MessageCreate` → `handleMessage(msg, source)`, ajout listener `Events.MessageUpdate` (uniquement channels marqués `listenEdits: true`), `fetchOnStartup` au démarrage.
+- `onStationsDashboard` Functions : sync `stations/{id}` avec données dashboard.
+- 5 doublons stations supprimés (de 13 à 8 docs).
+
+### 4. RH — embauches en attente
+- 8 employés actifs détectés dans la catégorie Discord `#══ LIAISONS EMPLOYER ══` :
+  - 2 pompistes ⛽ (Charlie WILLIAMS, Liam MARS)
+  - 5 épiciers 🛒 (Maverick JACKERTON, Tony TAC, Logan DAVIS, Travis WALLACE, Hailey WILLIAMS)
+  - 1 manager 📝 (Nesquik BROAS)
+- `firebase/functions/scripts/init-embauches.js` lancé → **8 docs `rhEvenements` (type='embauche', traitee=false)** créés.
+- À valider via `/admin` section "Embauches à traiter".
+
+### 5. 3 nouveaux parsers RH structurés (bot Jéssica)
+- `discord-bot/parsers/dossierEmploye.js` : forum `#Dossiers-Employers` (threads), parse 6 champs (nom+prénom, téléphone, IBAN, CNI, permis, pôle). Route via `parentId` du thread vers la config CHANNEL_MAP du forum parent.
+- `discord-bot/parsers/avertissement.js` : `#logs-avertissement`, parse "Service trop court" (sousType + memberDiscordId + dureeMinutes + début/fin).
+- `discord-bot/parsers/licenciement.js` : `#logs-licenciement`, parse 13 champs (idDiscord, idPerso, nom, prenom, IBAN, tel, dateEmbauche, dateFin, type, parQui, raison, casier).
+- Functions handlers correspondants :
+  - `onDossierEmploye` : stocke `/dossiersEmployes/{threadId}`, enrichit `/users` matchant nom+prénom (skip si ambigu).
+  - `onAvertissement` : `/rhEvenements` type='avertissement'.
+  - `onLicenciement` : `/rhEvenements` type='licenciement' + bascule `/users` `statut='exclu'` (match par idDiscord puis fallback idPerso).
+- `init-dossiers.js` lancé → **9/13 fiches existantes parsées et postées** (3 fiches vides + 1 template skip).
+
+### 6. Cloche d'alertes : marquer comme lu
+- `api.js` : `marquerAlerteLue(id)` + `marquerToutesAlertesLues()` (batch).
+- `layout.js` : badge ne compte que les **non-lues**, bouton "Tout marquer lu" en haut du dropdown, bouton "✓" individuel sur chaque alerte. Les lues restent visibles grisées.
+- `western.css` : styles `.alert-lu`, `.alert-mark-read`, `.btn-mark-all-read`.
+
+### 7. Alertes : seuils manuels uniquement
+- **Plus aucune alerte automatique** tant qu'un seuil n'est pas configuré explicitement par le patron (cohérent avec phase de mise en place).
+- `alerteStock` : ne crée plus rupture/stock-bas si `seuilAlerte === 0`.
+- `alerteStation` : déjà conditionné `seuilL > 0` ou `seuilPct > 0` — retiré l'init `seuilAlertePct=20` par défaut dans `onStationsDashboard`.
+- `stocks.js` bouton "Réinitialiser depuis catalogue" : `seuilAlerte` par défaut = 0 (au lieu de 5).
+- `creerAlerte` : dédup par entité (`stationId`/`stockId`/`venteId`) au lieu de message — évite spam quand stockActuel fluctue.
+
+### 8. Sécurité Discord token
+- Token Discord régénéré (l'ancien traînait en clair dans un fichier .txt sur le bureau).
+- Fichier sensible supprimé. `.gitignore` étendu (`*.token`, `*.secret`, `*.credentials.json`, `**/serviceAccountKey*.json`).
+- Bot redéployé avec nouveau token côté Railway.
+
+### 9. Scripts utilitaires créés
+- `firebase/functions/scripts/init-stocks.js` (77 stocks)
+- `firebase/functions/scripts/init-embauches.js` (8 embauches)
+- `firebase/functions/scripts/compare-employes.js` (audit users vs Discord)
+- `discord-bot/scripts/peek-channel.js` (debug Discord, supporte texte/forum/catégorie)
+- `discord-bot/scripts/init-dossiers.js` (rattrapage forum dossiers)
+- Tous en mode dry-run par défaut + flag `--apply`.
+
+### 10. Mémoire mise à jour
+- `references_canaux_discord_logs.md` : 3 nouveaux canaux RH branchés (Dossiers-Employers, logs-avertissement, logs-licenciement) avec format embeds.
+- `references_coffres_ltd.md` : 3 préfixes coffres LTD identifiés.
+- `references_roles_employes.md` : convention emoji ⛽/🛒/📝 = pompiste/épicier/manager.
+- `projet_inventaire_csv_2026_05_10.md` : gap catalogue documenté.
+- `projet_filtrage_logs_fivem.md` : tâches 1-3 marquées implémentées.
+
+---
+
+## 📋 TODO demain (à reprendre dans cet ordre)
+
+1. **Valider les 8 embauches via `/admin`** — attendre confirmation de Blake sur qui est encore actif. Pour chacun : saisir email + idPerso FiveM + générer mot de passe provisoire.
+2. **Relancer `init-dossiers.js --apply`** après création des comptes — l'enrichissement `/users` (téléphone, IBAN, pôle) se déclenchera cette fois (matching nom+prenom).
+3. **Test baguette en jeu** → vérifier que `/stocks/baguette.quantite` baisse en temps réel via le pipeline Discord → Functions.
+4. **Tournée 8 stations essence** → relevé manuel des vrais niveaux → je crée `init-stations.js` (script + dry-run + `--apply`).
+5. **Compléter les prix** des ~16 nouveaux produits via `/admin` (whey, plats cuisinés, perceuses, matières premières, etc.) — actuellement à 0 avec note "à confirmer".
+6. **IDs des coffres station-essence** à demander à Blake (FiveM `action-XXXXX-X`) pour étendre `SOURCES_LTD_PREFIXES` dans `discord-bot/parsers/items-mapping.js`.
+
+## 🔧 Audit/optimisations à faire (non bloquant, mais à planifier)
+
+- **Cloche alertes — règles Firestore restrictives** : `update` sur `/alertes` n'est autorisé que pour `canAdmin || isDRH || isResponsable`. Le bouton "marquer lu" sera bloqué silencieusement pour les autres rôles. Soit étendre les rules pour `lu: true` à tout user actif, soit masquer la cloche/le bouton pour les rôles sans permission.
+- **Migration anciennes catégories produits** : tant que tu n'as pas cliqué "Réinitialiser depuis catalogue" sur `/stocks`, les anciens docs `produits/{id}` ont les anciennes catégories (`agriculture`, `mecanique`, `nourriture`, `document`) — invisibles dans le filtre dropdown qui utilise les 12 nouvelles.
+- **Nettoyage 30+ alertes existantes** générées avant le passage en seuils-manuels. Soit tu cliques "Tout marquer lu", soit on script une suppression définitive.
+- **Doublon Blake Mars** dans le forum dossiers (2 threads) : à nettoyer manuellement côté Discord.
+- **3 fiches RH non parseables** (Aaron knox, Kaï Saint, Karl Williams) : à inspecter manuellement (probablement vides ou format custom).
+- **Compatibilité tablette FiveM** : tests manuels nécessaires (pas de popup, pas de nouvel onglet) — pas vérifié ce soir.
+- **Audit perf Functions/Firestore** : usage actuel reste faible (~30 alertes, 172 mouvementsStock, 102 logsBruts), pas urgent. À profiler quand trafic monte.
+- **MAJ guides 01-05 et 07** : reflètent encore l'état initial pré-2026-05-10. À relire/MAJ quand temps disponible.
 
 ---
 

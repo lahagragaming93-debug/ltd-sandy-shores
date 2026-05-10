@@ -145,8 +145,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // === Événements RH automatisés (#auto-rh embauches/exclusions) ===
+    // === Événements RH automatisés (embauches, exclusions, avertissements, licenciements) ===
     match /rhEvenements/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+
+    // === Dossiers employés (forum #Dossiers-Employers, parser dossierEmploye) ===
+    match /dossiersEmployes/{id} {
       allow read:  if isAuth() && (canAdmin() || isDRH());
       allow write: if false;
     }

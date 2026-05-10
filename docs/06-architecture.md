@@ -26,7 +26,9 @@
              ▼
    ┌──────────────────────┐         ┌──────────────────────┐
    │  Firestore           │ <─────> │  Cloud Functions     │
-   │  (collections)       │         │  - clotureHebdo      │
+   │  (collections)       │         │  - botIngest         │
+   │                      │         │  - clotureHebdo      │
+   │                      │         │  - comptaExport      │
    │                      │         │  - alerteStock       │
    │                      │         │  - alerteStation     │
    │                      │         │  - alerteVenteSansStock│
@@ -61,6 +63,36 @@
 | `config`             | `global`          | Quotas, prix essence, seuils             |
 | `coffres`            | coffreId          | Snapshots panel coffre                   |
 | `logsBruts`          | auto              | Logs des canaux non-structurés           |
+| `historiquePrix`     | auto              | Historique des changements de prix produits |
+| `rhEvenements`       | auto              | Embauches, exclusions, avertissements, licenciements |
+| `dossiersEmployes`   | threadId Discord  | Fiches RH structurées (téléphone, IBAN, pôle) |
+| `rapportsPompisteQuotidien` | auto       | Snapshot quotidien CA + niveaux stations |
+| `statsHebdoOfficiels` | weekId           | Récap hebdo FiveM officiel (#statsbank)  |
+| `banqueLtd`          | auto              | Mouvements bancaires LTD                 |
+
+## Parsers Discord (bot)
+
+Chaque parser lit les embeds d'un canal Discord, normalise et POST vers `botIngest`.
+
+| Canal Discord | Parser | Type payload |
+|---------------|--------|--------------|
+| `#logs-ig` | `inventory.js` (filtre source LTD + mapping FiveM) | `inventory` |
+| `#logs-ig` | `xbankaccount.js` | `bankAccount` |
+| `#logs-services` | `service.js` | `service` |
+| `#suivi-facture` | `facture.js` | `facture` |
+| `#suivi-achat-essence` | `essence.js` | `redistribution` |
+| `#depenses` | `depense.js` | `depense` |
+| `#paie` | `paie.js` | `paie` |
+| `#suivi-coffre` | `coffre.js` | `coffre` |
+| `#auto-rh` | `autoRh.js` | `autoRh` |
+| `#autorankup` | `autorankup.js` | `autorankup` |
+| `#statsbank` | `statsbank.js` | `statsbank` |
+| `#pompiste` | `rapportPompiste.js` | `rapportPompiste` |
+| `#⛽ Station` (dashboard) | `stationsDashboard.js` (listenEdits, fetchOnStartup) | `stationsDashboard` |
+| `#ventes` | `venteAuto.js` | `venteAuto` |
+| `#📋 Dossiers-Employers` (forum threads) | `dossierEmploye.js` (route via parentId, listenEdits) | `dossierEmploye` |
+| `#logs-avertissement` (bot Jéssica) | `avertissement.js` | `avertissement` |
+| `#logs-licenciement` (bot Jéssica) | `licenciement.js` | `licenciement` |
 
 ## Sécurité
 
