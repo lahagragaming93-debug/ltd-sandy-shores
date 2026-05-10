@@ -12,6 +12,7 @@ firebase/functions/lib/
 discord-bot/config.json
 discord-bot/.env
 discord-bot/peek-*.json
+discord-bot/peek-*.md
 
 # Secrets (tokens, .env, credentials)
 *.token
