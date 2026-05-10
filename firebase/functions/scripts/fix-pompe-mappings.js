@@ -28,12 +28,12 @@ const APPLY = process.argv.includes('--apply');
 const MAPPINGS = [
   { fivemPompeId: '15877', stationId: 'route-68-ltd' },
   { fivemPompeId: '16060', stationId: 'panorama-drive-aerodrome-sandy-shores' },
-  { fivemPompeId: '16426', stationId: 'algonquin-boulevard' },
+  { fivemPompeId: '16426', stationId: 'algonquin-boulevard' },           // confirme par diagnostic post-cutoff (158$ recents = active)
   { fivemPompeId: '16428', stationId: 'route-68' },
   { fivemPompeId: '16488', stationId: 'clinton-avenue-vinewood' },
   { fivemPompeId: '16513', stationId: 'palomino-freeway-favelas' },
-  { fivemPompeId: '16535', stationId: 'cholla-springs-avenue' },        // swap : etait senora
-  { fivemPompeId: '35489', stationId: 'senora-way-rex-s-diner' }         // swap : etait cholla
+  { fivemPompeId: '16535', stationId: 'senora-way-rex-s-diner' },
+  { fivemPompeId: '35489', stationId: 'cholla-springs-avenue' }          // confirme par patron : 3 stations actives = Panorama+Algonquin+Cholla
   // 30358 : 4 docs orphelins, station inconnue — laisse non mappe pour l'instant
 ];
 
