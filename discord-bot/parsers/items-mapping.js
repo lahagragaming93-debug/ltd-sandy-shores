@@ -1,26 +1,149 @@
 // ============================================================
-// Mapping nom FiveM (display) → ID catalogue interne
+// Mapping items FiveM → ID catalogue interne
 // ============================================================
-// Source : export manuel des coffres LTD du 2026-05-10
-// Le matching est insensible à la casse, aux accents, aux espaces
-// et aux traits d'union/underscores via normalize().
-// ============================================================
-// Si un item ne figure pas dans cette table, le parser inventory
-// le SKIP silencieusement (pas d'écriture en base, pas d'alerte).
+// Deux tables sont consultées par resolveItemId(), dans cet ordre :
+//
+//   1. INTERNAL_MAPPING : nom INTERNE FiveM (snake_case / slug exact)
+//      Source : champ `item:` des embeds #logs-ig (bot Faab'Hook).
+//      Match strict (insensible à la casse uniquement).
+//
+//   2. RAW_MAPPING : nom DISPLAY (français, avec accents/espaces).
+//      Source : embeds #ventes (bot venteAuto) ou inventaire manuel.
+//      Match via normalizeKey() : insensible casse/accents/séparateurs/
+//      suffixe " 4$".
+//
+// Si aucune des deux ne matche, l'item est SKIP silencieusement.
 // ============================================================
 
-// Préfixes de coffres LTD légitimes (le source FiveM est sous la forme
-// "action-XXXXX-0-N"). On filtre sur le préfixe "action-XXXXX".
-// Tout mouvement venant d'un autre source = inventaire perso, coffre
-// maison ou véhicule → ignoré.
-// TODO: ajouter les préfixes des 8 coffres station-essence dès export user.
+// Préfixes de coffres LTD légitimes. Le coffre FiveM est porté par
+// `owner` (ex: "action-27166-0-1") — ou parfois par `source` selon
+// le canal. On filtre sur le préfixe "action-XXXXX".
 export const SOURCES_LTD_PREFIXES = [
-  'action-27310', // Épicerie  : boissons, confiserie, alimentaire
+  'action-27310', // Épicerie  : boissons, alimentaire, confiserie
   'action-27166', // Matériel  : divers, outillage, jardinage, mobilier
   'action-30439'  // Entrepôt  : matières premières, auto, craft
 ];
 
-// Table : nom FiveM affiché (tel qu'observé en jeu) → ID catalogue
+// ============================================================
+// Table 1 : noms INTERNES FiveM (champ `item:` des embeds #logs-ig)
+// ============================================================
+// Source : capture exhaustive du 2026-05-10 par la copatronne (Luciana
+// Angel Mars), 71 items sortis un par un des 3 coffres LTD.
+const INTERNAL_MAPPING = {
+  // Boissons
+  water:                'bouteille-eau',
+  jus_raisin:           'jus-raisin-rouge',
+  latte:                'koffi-caramel',
+  milkshake_proteine:   'milkshake-proteine',
+  whey_fraise:          'whey-fraise',
+  whey_zero:            'whey-zero',
+  pure_whey:            'pure-whey',
+  proteine_energy:      'proteine-energy',
+  proteine_muscle2000:  'prot-muscle-2000',
+  proteine_vegan:       'proteine-vegan',
+
+  // Alimentaire
+  noix:                 'noix',
+  bolpistache:          'pistache',
+  sourcream:            'creme-glacee-pot',     // pot de glace
+  icecream:             'creme-glacee-cornet',  // cornet de glace
+  sour_cream:           'creme-fraiche',        // ⚠️ avec underscore = fraîche
+  bakingsoda:           'bicarbonate-soude',
+  buns:                 'pain-burger',
+  pasta:                'pates',
+  nouille:              'nouille',
+  effiloche_mouton:     'effiloche-mouton',
+  pastelitos:           'pastelitos',
+  picadillo:            'picadillo',
+  tortilla:             'tortilla',
+  tacoshell:            'coquille-tacos',
+
+  // Confiserie
+  candy:                'bonbon',
+  bonbon_tagada:        'bonbon-tada',
+  bonbon_dragibus:      'bonbon-drag',
+  chewinggum:           'chewing-gum-citron',
+  gum:                  'chewing-gum-cerise',
+  caramelle:            'barre-choco-caramel',
+  chocolatebar:         'barre-chocolatee',
+  chocolate_fountain:   'fontaine-chocolat',
+  marabou:              'chocolat',
+
+  // Outillage (mappings contre-intuitifs confirmés par les embeds)
+  drill:                'perceuse',
+  heavy_duty_drill:     'grosse-perceuse-rouge',
+  bigdrill:             'perceuse-manuel',
+  shears:               'cisaille',
+  heavy_cutters:        'pince-coupante',
+  boltplate:            'pince-plaque',
+  tronchese:            'outil',
+
+  // Jardinage
+  fertilizer:           'fertilisant',
+  flowerpot:            'pot-fleur',
+  cokeground:           'bac-jardinage',
+
+  // Mobilier
+  drugtable:            'table',
+
+  // Électronique
+  battery:              'batterie',
+
+  // Auto
+  shell_oil:            'huile',
+  stock_oil:            'huile-noire',
+  car_battery:          'batterie-voiture',
+  vehicle_sponge:       'eponge-voiture',
+
+  // Matière première
+  rubber:               'caoutchouc',
+  copper:               'cuivre',
+  feve_cacao:           'feve-cacao',
+
+  // Pêche
+  canadapesca:          'canne-peche',
+  turtlebait:           'appat-grande-qualite',
+
+  // Emballage
+  empty_bag:            'sachet-vide',
+
+  // Divers
+  document_holder:      'porte-document',
+  wallet:               'porte-feuille',
+  key_chain:            'trousseau-clefs',
+  wig_glue:             'colle',
+  money_ink_set:        'encre',
+  corde:                'corde',
+  purplelight:          'lumiere-violette',
+  solvente:             'solvant',
+  sponge:               'eponge-nettoyage',
+  rolling_paper:        'papier-rouler',
+  basketball:           'ballon-basket',
+  football:             'ballon-foot',
+  croquettes:           'croquette',
+  herisson:             'herisson',
+  elastic:              'elastique',
+  petit_pot_peinture:   'bidon-peinture'
+
+  // ⚠️ Items du catalogue dont le nom interne FiveM n'est PAS encore connu
+  // (skippés silencieusement jusqu'à capture d'un embed) :
+  //   baguette, bonbon-cola, bouteille-eau-purifiee, cola-zero,
+  //   brique-citron, menu-burger, menu-simple, menu-complet, moutarde,
+  //   noix-cajou, foret-perceuse, tas-terre, fillet, sac-jute, pile,
+  //   huile-shell, bidon-essence, acier, ticket-gratter, skate-board,
+  //   trottinette-electrique, barre-energetique, spray-tag.
+};
+
+const INTERNAL_NORMALIZED = Object.fromEntries(
+  Object.entries(INTERNAL_MAPPING).map(([k, v]) => [k.toLowerCase(), v])
+);
+
+// ============================================================
+// Table 2 : noms DISPLAY (français)
+// ============================================================
+// Source : embeds #ventes (bot venteAuto) et inventaire manuel.
+// Lookup via normalizeKey() : insensible à la casse, aux accents, aux
+// séparateurs et au suffixe monétaire " 4$".
 const RAW_MAPPING = {
   // Boissons
   "Bouteille d'Eau":       'bouteille-eau',
@@ -39,7 +162,10 @@ const RAW_MAPPING = {
   "Noix":                  'noix',
   "Baguette":              'baguette',
   "Pistache":              'pistache',
-  "Crème glacée":          'creme-glacee',
+  // ⚠️ Le display "Crème glacée" ne distingue pas pot/cornet — par
+  // défaut on suppose pot. Les ventes-auto précises devront utiliser
+  // le nom interne (sourcream/icecream).
+  "Crème glacée":          'creme-glacee-pot',
   "Crème fraîche":         'creme-fraiche',
   "Tortilla":              'tortilla',
   "Coquille à tacos":      'coquille-tacos',
@@ -105,7 +231,7 @@ const RAW_MAPPING = {
   "Sachet vide":           'sachet-vide',
 
   // Variantes typos observées sur #ventes (canal ventes-auto FiveM)
-  "Crème Glaci":           'creme-glacee',
+  "Crème Glaci":           'creme-glacee-pot',  // typo, pot par défaut
   "Crème Fruiche":         'creme-fraiche',
 
   // Divers
@@ -145,18 +271,24 @@ const NORMALIZED_MAPPING = Object.fromEntries(
 );
 
 /**
- * Résout le nom FiveM brut vers un ID catalogue.
- * Retourne null si l'item n'est pas mappé (le caller doit alors skip).
+ * Résout le nom d'item brut (interne FiveM ou display) vers un ID catalogue.
+ * Cherche d'abord dans INTERNAL_MAPPING (snake_case), puis dans RAW_MAPPING
+ * (display avec normalisation). Retourne null si rien ne matche → SKIP.
  */
 export function resolveItemId(rawItem) {
   if (!rawItem) return null;
-  const key = normalizeKey(rawItem);
+  const raw = String(rawItem).trim();
+  // 1) Lookup nom interne FiveM (case-insensitive)
+  const internal = INTERNAL_NORMALIZED[raw.toLowerCase()];
+  if (internal) return internal;
+  // 2) Fallback : lookup display name (normalisation aggressive)
+  const key = normalizeKey(raw);
   return NORMALIZED_MAPPING[key] || null;
 }
 
 /**
- * Vérifie qu'un `source` FiveM (ex: "action-27310-0-1") est un coffre LTD.
- * Compare uniquement le préfixe "action-XXXXX".
+ * Vérifie qu'un identifiant de coffre FiveM (ex: "action-27310-0-1")
+ * appartient à un coffre LTD légitime. Compare le préfixe "action-XXXXX".
  */
 export function isLtdSource(source) {
   if (!source) return false;
