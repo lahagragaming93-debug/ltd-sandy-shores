@@ -25,10 +25,13 @@ export function parseInventoryEmbed(msg) {
   else return null;
 
   const source  = getField(embed, 'source');
+  const owner   = getField(embed, 'owner');
   const rawItem = getField(embed, 'item');
 
-  // Skip silencieux : tout ce qui ne vient pas d'un coffre LTD légitime.
-  if (!isLtdSource(source)) return null;
+  // Le coffre FiveM est porté par `owner` (ex: "action-27166-0-1") ;
+  // `source` peut être un slot/numéro non significatif. On accepte si
+  // l'un OU l'autre matche un préfixe LTD.
+  if (!isLtdSource(owner) && !isLtdSource(source)) return null;
 
   // Skip silencieux : item inconnu du catalogue (parasites, items persos…).
   const itemId = resolveItemId(rawItem);
@@ -45,6 +48,6 @@ export function parseInventoryEmbed(msg) {
     item:        itemId,            // ID catalogue résolu (slug stable)
     itemNomBrut: rawItem,           // nom FiveM original conservé pour debug
     metadata:    getField(embed, 'metadata') || '',
-    owner:       getField(embed, 'owner') || ''
+    owner:       owner || ''
   };
 }
