@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { key: 'ventes',          href: 'ventes.html',        icon: '$',  label: 'Ventes',             group: 'Opérations' },
   { key: 'comptabilite',    href: 'comptabilite.html',  icon: '☰',  label: 'Comptabilité',       group: 'Finance' },
   { key: 'banque',          href: 'banque.html',        icon: '🏦', label: 'Banque LTD',         group: 'Finance' },
+  { key: 'revenus_carburant', href: 'revenus-carburant.html', icon: '⛽', label: 'Revenus carburant', group: 'Finance' },
   { key: 'rh',              href: 'rh.html',            icon: '☆',  label: 'Ressources humaines',group: 'Personnel' },
   { key: 'admin',           href: 'admin.html',         icon: '⚙',  label: 'Administration',     group: 'Système' },
   { key: 'employee',        href: 'employee.html',      icon: '◉',  label: 'Mon espace',         group: 'Personnel' },

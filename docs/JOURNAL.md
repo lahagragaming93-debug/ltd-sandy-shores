@@ -1,7 +1,40 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-10 (suite : pipeline #logs-ig pleinement opérationnel, mapping 71 items internes FiveM)**
+> Dernière mise à jour : **2026-05-10 (suite 2 : helper sortable-table, 8 pages avec scroll/tri, page Revenus carburant)**
+
+---
+
+## ✅ Session 2026-05-10 (partie 3) — UX tableaux + page Revenus carburant
+
+### 1. Helper `utils/sortable-table.js`
+Module DOM-based réutilisable (`wrapScroll` + `makeSortable`). Tri par click sur en-tête, indicateurs ▲/▼, MutationObserver pour réappliquer le tri auto après chaque rebuild du tbody. CSS sticky header + scrollbar western. Support `data-sort-value` pour valeur de tri custom (utile quand l'affichage diffère de la valeur réelle, ex: durée formatée mais triée par ms).
+
+### 2. Scroll + tri appliqué sur 9 tableaux de 8 pages
+- **stocks** : Inventaire (custom stateful) + Mouvements
+- **ventes** : Factures de la semaine
+- **comptabilité** : Charges détaillées + Statsbank vs interne
+- **rh** : Effectif + Activité
+- **banque** : Mouvements bancaires
+- **admin** : Comptes utilisateurs
+- **paies** : Historique paies reçues
+- **decouverte-items** : Items FiveM observés
+
+### 3. Resync complet stocks LTD (74 items, 78 391 unités)
+Snapshot manuel des 3 coffres LTD + sous-coffres. Doublons sommés automatiquement (bouteille-eau, creme-fraiche, barre-choco-caramel, creme-glacee-pot). Script `resync-stocks.js` lancé en `--apply`, 0 erreur.
+
+### 4. Page Revenus carburant (nouveau)
+- `public/revenus-carburant.html` + `js/pages/revenus-carburant.js`
+- Source : collection `/redistributions` (alimentée par parser `essence` sur `#suivi-achat-essence`)
+- 4 KPIs : CA carburant, litres vendus, prix moyen pondéré / L, nombre de stations actives
+- Graphique Chart.js : CA par jour (bar chart, thème western)
+- Tableau récap par station (avec scroll + tri) : transactions, litres, CA, prix moyen
+- Tableau détaillé des transactions (avec scroll + tri)
+- Filtres : période (semaine en cours / 7j / 30j) + station
+- Export CSV
+- Permissions : Patron, Co-Patron, DRH, Responsable Pompiste, Admin Technique
+- Entrée nav ajoutée dans le groupe Finance (entre Banque LTD et autres)
+- Guide responsable-pompiste mis à jour
 
 ---
 

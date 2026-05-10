@@ -1,7 +1,7 @@
 # 📖 Guide complet — LTD Sandy Shores
 
 > Le manuel d'utilisation officiel de la plateforme de gestion du LTD.
-> Dernière mise à jour : **2026-05-09**
+> Dernière mise à jour : **2026-05-10** — ajout page **Revenus carburant** (Finance)
 
 Bienvenue. Ce guide est organisé **par rôle** : chaque employé n'a besoin de lire que la partie qui le concerne. La direction lit tout.
 

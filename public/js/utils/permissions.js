@@ -53,6 +53,8 @@ export const ACCESS = {
   stations:          [...DIRECTION, 'responsable-pompiste', ...SUPER_ADMINS],
   // Banque LTD : direction + DRH + super-admin (audit financier sensible)
   banque:            [...DIRECTION, 'drh', ...SUPER_ADMINS],
+  // Revenus carburant : direction + DRH + responsable pompiste (pilotage stations)
+  revenus_carburant: [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
   // Admin : direction + DRH + responsables + super-admins
   admin:             [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,

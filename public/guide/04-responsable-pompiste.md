@@ -10,11 +10,31 @@
 | Module | Accès | Rôle |
 |--------|-------|------|
 | ⛽ **Stations essence** | **Lecture + écriture** | C'est ton outil principal |
+| ⛽ **Revenus carburant** | **Lecture** | CA carburant par station, prix moyen, transactions, graphique CA/jour |
 | 🧑‍💼 RH | Lecture | Voir l'effectif pompistes |
 | ⚙ **Administration** | **Lecture + écriture (pompistes uniquement)** | Gérer ton équipe |
 | 👤 Mon espace + 💰 Mes paies | Lecture | Tes infos perso |
 
-> 🔒 Tu **n'as pas accès** à : Dashboard, Stocks épicerie, Ventes, Comptabilité, **Configuration globale** dans Administration.
+> 🔒 Tu **n'as pas accès** à : Dashboard, Stocks épicerie, Ventes, Comptabilité, Banque LTD, **Configuration globale** dans Administration.
+
+---
+
+## ⛽ Revenus carburant (nouveau)
+
+La page **Revenus carburant** (groupe Finance dans la sidebar) te donne en un coup d'œil le CA généré par tes stations sur la période choisie (semaine en cours / 7 derniers jours / 30 derniers jours).
+
+**Source** : collection `redistributions` alimentée automatiquement par le bot Discord (canal `#suivi-achat-essence`). À chaque fois qu'un client paie à la pompe, une ligne arrive ici.
+
+**Ce que tu y vois** :
+- 4 KPIs : CA total carburant, litres vendus, prix moyen / L (pondéré), nombre de stations actives
+- Graphique CA par jour
+- Récap par station (CA, litres, transactions, prix moyen) — trie par CA pour repérer la station la plus rentable
+- Détail chronologique de toutes les transactions
+- Filtre par station + export CSV
+
+**Astuce pilotage** :
+- Si une station a un prix moyen / L très bas par rapport aux autres → soit prix mal réglé, soit volume gros consommateur
+- Si une station n'apparaît pas dans le récap → aucune vente sur la période → vérifier le stock essence dans `Stations essence`
 >
 > 🔐 **Périmètre Administration** : tu peux gérer **uniquement les pompistes** (Novice, Intermédiaire, Expérimenté). Tous les autres comptes apparaissent grisés (lecture seule).
 
