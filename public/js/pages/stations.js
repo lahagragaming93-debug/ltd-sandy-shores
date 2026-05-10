@@ -7,10 +7,11 @@ import { renderShell } from '../layout.js';
 import { listenStations, setStation, listRedistributionsSemaine,
          getConfig, setConfig, doc, deleteDoc } from '../api.js';
 import { db } from '../firebase-config.js';
-import { money, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
+import { money, moneyPrecis, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
 import { isDirection } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('stocks_essence');
 const editable = isDirection(profile.role) || profile.role === 'responsable-pompiste';
@@ -127,7 +128,7 @@ function renderStations() {
               <div class="label">${num(s.stockActuel || 0)} / ${num(s.stockMax || 0)} L</div>
             </div>
             <div class="row between mt-2 muted mono" style="font-size:0.8rem;">
-              <span>Prix : ${money(s.prixLitre || 0)}/L</span>
+              <span>Prix : ${moneyPrecis(s.prixLitre || 0)}/L</span>
               <span>Seuil : ${num(s.seuilAlerte || 0)} L</span>
             </div>
             ${editable ? `
@@ -337,11 +338,14 @@ async function chargerRedistributions() {
     return;
   }
   div.innerHTML = `
-    <table class="data">
+    <table class="data" id="table-redistributions">
       <thead><tr>
-        <th>Date</th><th>Station</th>
-        <th class="right">Litres</th><th class="right">Prix/L</th><th class="right">Montant</th>
-        <th class="right">Stock après</th>
+        <th data-sort="date">Date</th>
+        <th data-sort="station">Station</th>
+        <th class="right" data-sort="litres">Litres</th>
+        <th class="right" data-sort="prix">Prix/L</th>
+        <th class="right" data-sort="montant">Montant</th>
+        <th class="right" data-sort="stock">Stock après</th>
       </tr></thead>
       <tbody>
         ${list.map(r => `
@@ -349,7 +353,7 @@ async function chargerRedistributions() {
             <td>${datetime(r.timestamp)}</td>
             <td>${escapeHtml(r.station || r.stationId || '—')}</td>
             <td class="right mono">${num(r.litres)}</td>
-            <td class="right mono">${money(r.prixLitre)}</td>
+            <td class="right mono">${moneyPrecis(r.prixLitre)}</td>
             <td class="right mono">${money(r.montant)}</td>
             <td class="right mono">${num(r.stockApres)} L</td>
           </tr>
@@ -357,5 +361,8 @@ async function chargerRedistributions() {
       </tbody>
     </table>
   `;
+  const tRedis = document.getElementById('table-redistributions');
+  wrapScroll(tRedis, 400);
+  makeSortable(tRedis);
 }
 chargerRedistributions();

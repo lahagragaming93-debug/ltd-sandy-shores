@@ -51,14 +51,20 @@ const html = `
         Les embauches détectées dans <code>#auto-rh</code> sont listées ici.
         Clique <strong>« Créer le compte »</strong> pour ouvrir le formulaire pré-rempli avec les IDs déjà capturés.
       </p>
-      <table class="data">
-        <thead>
-          <tr>
-            <th>Date détection</th><th>Nom</th><th>ID Discord</th><th>ID Perso</th><th class="center">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-embauches"><tr><td colspan="5" class="muted text-center">Chargement…</td></tr></tbody>
-      </table>
+      <div class="table-scroll" style="max-height:400px;">
+        <table class="data" id="table-embauches">
+          <thead>
+            <tr>
+              <th data-sort="date">Date détection</th>
+              <th data-sort="nom">Nom</th>
+              <th data-sort="discord">ID Discord</th>
+              <th data-sort="perso">ID Perso</th>
+              <th class="center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-embauches"><tr><td colspan="5" class="muted text-center">Chargement…</td></tr></tbody>
+        </table>
+      </div>
     </div>
   ` : ''}
 
@@ -195,6 +201,7 @@ const html = `
 renderShell(profile, 'admin', html);
 
 makeSortable(document.getElementById('table-users'));
+makeSortable(document.getElementById('table-embauches'));
 
 let users = [];
 listenUsers(list => {

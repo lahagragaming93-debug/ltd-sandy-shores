@@ -33,9 +33,10 @@ export function parseXbankaccountEmbed(msg) {
 
   // Extraction des champs
   const accountId  = getField(e, 'accountId') || getField(e, 'account id') || '';
-  const before     = getMoney(getField(e, 'before'));
-  const amount     = getMoney(getField(e, 'amount'));
-  const after      = getMoney(getField(e, 'after'));
+  // precise=true : conserve les centimes pour audit comptable exact
+  const before     = getMoney(getField(e, 'before'), true);
+  const amount     = getMoney(getField(e, 'amount'), true);
+  const after      = getMoney(getField(e, 'after'),  true);
   const reason     = getField(e, 'reason') || '';
 
   // Sécurité : si on n'a pas de chiffres cohérents, on skip

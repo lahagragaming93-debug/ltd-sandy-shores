@@ -12,6 +12,7 @@ import { ROLE_LABELS, isVendeur, isPompiste, PLAFOND_SALAIRE,
 import { salaireVendeur, salairePompiste, scorePompiste } from '../utils/paie.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('employee');
 const debut = startOfWeekRP();
@@ -94,21 +95,29 @@ if (isVendeur(profile.role)) {
       </div>
     </div>
 
-    <table class="data mt-3">
-      <thead><tr><th>Date</th><th>Client</th><th class="right">Montant</th><th class="right">Bénéfice</th></tr></thead>
-      <tbody>
-        ${myVentes.length === 0 ? '<tr><td colspan="4" class="muted text-center">Aucune vente cette semaine.</td></tr>' :
-          myVentes.slice(0, 30).map(v => `
-            <tr>
-              <td>${datetime(v.timestamp)}</td>
-              <td>${escapeHtml(v.client || '—')}</td>
-              <td class="right mono">${money(v.montant)}</td>
-              <td class="right mono">${money(v.benefice || 0)}</td>
-            </tr>
-          `).join('')}
-      </tbody>
-    </table>
+    <div class="table-scroll" style="max-height:400px;margin-top:12px;">
+      <table class="data" id="table-mes-ventes">
+        <thead><tr>
+          <th data-sort="date">Date</th>
+          <th data-sort="client">Client</th>
+          <th class="right" data-sort="montant">Montant</th>
+          <th class="right" data-sort="benefice">Bénéfice</th>
+        </tr></thead>
+        <tbody>
+          ${myVentes.length === 0 ? '<tr><td colspan="4" class="muted text-center">Aucune vente cette semaine.</td></tr>' :
+            myVentes.map(v => `
+              <tr>
+                <td>${datetime(v.timestamp)}</td>
+                <td>${escapeHtml(v.client || '—')}</td>
+                <td class="right mono">${money(v.montant)}</td>
+                <td class="right mono">${money(v.benefice || 0)}</td>
+              </tr>
+            `).join('')}
+        </tbody>
+      </table>
+    </div>
   `;
+  if (myVentes.length > 0) makeSortable(document.getElementById('table-mes-ventes'));
 } else if (isPompiste(profile.role)) {
   const bidons = quota?.bidons || 0;
   const caoutchoucs = quota?.caoutchoucs || 0;
@@ -173,20 +182,27 @@ if (myServices.length === 0) {
   sDiv.innerHTML = `<p class="muted">Aucune session enregistrée cette semaine.</p>`;
 } else {
   sDiv.innerHTML = `
-    <table class="data">
-      <thead><tr><th>Début</th><th>Fin</th><th class="right">Durée</th></tr></thead>
-      <tbody>
-        ${myServices.map(s => `
-          <tr>
-            <td>${datetime(s.debut)}</td>
-            <td>${datetime(s.fin)}</td>
-            <td class="right mono">${durationHM(s.duree || 0)}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
+    <div class="table-scroll" style="max-height:400px;">
+      <table class="data" id="table-mes-services">
+        <thead><tr>
+          <th data-sort="debut">Début</th>
+          <th data-sort="fin">Fin</th>
+          <th class="right" data-sort="duree">Durée</th>
+        </tr></thead>
+        <tbody>
+          ${myServices.map(s => `
+            <tr>
+              <td>${datetime(s.debut)}</td>
+              <td>${datetime(s.fin)}</td>
+              <td class="right mono" data-sort-value="${s.duree || 0}">${durationHM(s.duree || 0)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
     <p class="muted mono mt-2" style="font-size:0.78rem;">
       Total : ${durationHM(heuresMs)} ${heuresMs >= 7*3600*1000 ? '✓ ≥ 7h' : '— moins de 7h (info uniquement, non bloquant)'}
     </p>
   `;
+  makeSortable(document.getElementById('table-mes-services'));
 }

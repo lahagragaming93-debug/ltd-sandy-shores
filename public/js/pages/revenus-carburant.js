@@ -15,7 +15,7 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listRedistributionsSemaine } from '../api.js';
-import { money, num, datetime, escapeHtml,
+import { money, moneyPrecis, num, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm';
@@ -171,7 +171,7 @@ function rendre() {
     </div>
     <div class="kpi">
       <div class="label">💵 Prix moyen / L</div>
-      <div class="value">${money(prixMoyen)}</div>
+      <div class="value">${moneyPrecis(prixMoyen)}</div>
       <div class="delta">pondéré</div>
     </div>
     <div class="kpi">
@@ -208,7 +208,7 @@ function rendre() {
             <td class="right mono">${num(s.transactions)}</td>
             <td class="right mono">${num(s.litres)} L</td>
             <td class="right mono">${money(s.ca)}</td>
-            <td class="right mono">${money(prixM)}</td>
+            <td class="right mono">${moneyPrecis(prixM)}</td>
           </tr>`;
       }).join('');
   }
@@ -223,8 +223,8 @@ function rendre() {
         <td>${datetime(r.timestamp)}</td>
         <td>${escapeHtml(r.station || r.stationId || '—')}</td>
         <td class="right mono">${num(r.litres || 0)}</td>
-        <td class="right mono">${money(r.prixLitre || 0)}</td>
-        <td class="right mono">${money(r.montant || 0)}</td>
+        <td class="right mono">${moneyPrecis(r.prixLitre || 0)}</td>
+        <td class="right mono">${moneyPrecis(r.montant || 0)}</td>
         <td class="right mono">${num(r.stockApres || 0)} L</td>
         <td class="mono">#${escapeHtml(String(r.id || r.redistributionId || '—'))}</td>
       </tr>

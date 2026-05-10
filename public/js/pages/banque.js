@@ -8,7 +8,7 @@ import { renderShell } from '../layout.js';
 import { listMouvementsBanqueRecents, listDepensesSemaine } from '../api.js';
 import { db } from '../firebase-config.js';
 import { collection, query, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
+import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -172,9 +172,9 @@ function rendre() {
       <tr>
         <td class="mono" style="font-size:0.78rem;">${escapeHtml(datetime(m.timestamp) || '—')}</td>
         <td class="center">${badge}</td>
-        <td class="right mono" style="${colorMontant};font-weight:bold;">${isAdd ? '+' : '−'}${money(m.montant)}</td>
-        <td class="right mono muted">${money(m.soldeAvant)}</td>
-        <td class="right mono"><strong>${money(m.soldeApres)}</strong></td>
+        <td class="right mono" style="${colorMontant};font-weight:bold;">${isAdd ? '+' : '−'}${moneyPrecis(m.montant)}</td>
+        <td class="right mono muted">${moneyPrecis(m.soldeAvant)}</td>
+        <td class="right mono"><strong>${moneyPrecis(m.soldeApres)}</strong></td>
         <td>${escapeHtml(m.raison || '—')}</td>
         <td><span class="badge neutral">${escapeHtml(m.source)}</span></td>
       </tr>

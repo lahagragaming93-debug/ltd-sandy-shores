@@ -31,11 +31,15 @@ export function getField(embed, name) {
   return null;
 }
 
-export function getMoney(value) {
+// precise=true : conserve les decimales (centimes), utile pour les prix
+// au litre ou les montants ou la precision compte. Par defaut, arrondi
+// a l'entier pour rester compatible avec les anciens parsers.
+export function getMoney(value, precise = false) {
   if (value == null) return 0;
   const s = String(value).replace(/[^\d,.-]/g, '').replace(/,/g, '.');
   const n = parseFloat(s);
-  return isNaN(n) ? 0 : Math.round(n);
+  if (isNaN(n)) return 0;
+  return precise ? n : Math.round(n);
 }
 
 function normalize(s) {

@@ -10,6 +10,7 @@ import {
   getDernierSoldeBanque
 } from '../api.js';
 import { startOfWeekRP, endOfWeekRP, money, num, pct, datetime, escapeHtml } from '../utils/formatters.js';
+import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { checkMasseSalariale } from '../utils/paie.js';
 import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm';
 Chart.register(...registerables);
@@ -179,27 +180,30 @@ async function chargerKpis() {
     histDiv.innerHTML = `<p class="muted">Première semaine — pas d'historique.</p>`;
   } else {
     histDiv.innerHTML = `
-      <table class="data">
-        <thead><tr>
-          <th>Semaine</th>
-          <th class="right">CA</th>
-          <th class="right">Dépenses</th>
-          <th class="right">Bénéfice net</th>
-          <th>Statut</th>
-        </tr></thead>
-        <tbody>
-          ${semaines.map(s => `
-            <tr>
-              <td>${s.numero || s.dateDebut || '—'}</td>
-              <td class="right">${money(s.ca)}</td>
-              <td class="right">${money(s.depenses)}</td>
-              <td class="right">${money(s.benefice)}</td>
-              <td><span class="badge ${s.statut === 'cloturee' ? 'ok' : 'info'}">${s.statut || 'en cours'}</span></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      <div class="table-scroll" style="max-height:400px;">
+        <table class="data" id="table-historique">
+          <thead><tr>
+            <th data-sort="semaine">Semaine</th>
+            <th class="right" data-sort="ca">CA</th>
+            <th class="right" data-sort="depenses">Dépenses</th>
+            <th class="right" data-sort="benefice">Bénéfice net</th>
+            <th data-sort="statut">Statut</th>
+          </tr></thead>
+          <tbody>
+            ${semaines.map(s => `
+              <tr>
+                <td>${s.numero || s.dateDebut || '—'}</td>
+                <td class="right">${money(s.ca)}</td>
+                <td class="right">${money(s.depenses)}</td>
+                <td class="right">${money(s.benefice)}</td>
+                <td><span class="badge ${s.statut === 'cloturee' ? 'ok' : 'info'}">${s.statut || 'en cours'}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     `;
+    makeSortable(document.getElementById('table-historique'));
   }
 }
 chargerKpis();

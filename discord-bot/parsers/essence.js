@@ -20,8 +20,9 @@ export function parseRedistributionEmbed(msg) {
   const id = idMatch ? idMatch[1] : `${msg.id}`;
   const station = (stationMatch ? stationMatch[1] : '').trim();
 
-  const montant     = getMoney(getField(e, 'montant facturé') || getField(e, 'montant'));
-  const prixLitre   = getMoney(getField(e, 'prix du litre')   || getField(e, 'prix'));
+  // precise=true : conserve les centimes — sinon le prix au litre 5,50$ devient 6$
+  const montant     = getMoney(getField(e, 'montant facturé') || getField(e, 'montant'), true);
+  const prixLitre   = getMoney(getField(e, 'prix du litre')   || getField(e, 'prix'),    true);
   const litres      = parseInt(String(getField(e, 'litres consommés') || getField(e, 'litres') || '0').replace(/[^\d]/g, ''), 10) || 0;
   const stockAvant  = parseInt(String(getField(e, 'stock avant') || '0').replace(/[^\d]/g, ''), 10) || 0;
   const stockApres  = parseInt(String(getField(e, 'stock après') || getField(e, 'stock apres') || '0').replace(/[^\d]/g, ''), 10) || 0;

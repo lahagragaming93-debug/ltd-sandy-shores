@@ -5,11 +5,16 @@
 const NF_MONEY = new Intl.NumberFormat('fr-FR', {
   minimumFractionDigits: 0, maximumFractionDigits: 0
 });
+const NF_MONEY_PRECIS = new Intl.NumberFormat('fr-FR', {
+  minimumFractionDigits: 2, maximumFractionDigits: 2
+});
 const NF_DECIMAL = new Intl.NumberFormat('fr-FR', {
   minimumFractionDigits: 0, maximumFractionDigits: 2
 });
 
 export function money(n)   { return (NF_MONEY.format(n ?? 0)) + ' $'; }
+// Variante avec 2 decimales — pour prix au litre, prix unitaire, etc.
+export function moneyPrecis(n) { return (NF_MONEY_PRECIS.format(n ?? 0)) + ' $'; }
 export function moneySigned(n) {
   const v = n ?? 0;
   return (v >= 0 ? '+' : '') + NF_MONEY.format(v) + ' $';
