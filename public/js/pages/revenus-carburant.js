@@ -32,6 +32,10 @@ Chart.defaults.color = CH_COLORS.sand;
 Chart.defaults.font.family = "'Special Elite', 'Courier New', monospace";
 Chart.defaults.borderColor = CH_COLORS.grid;
 
+// Reprise officielle du LTD par Blake MARS le 2026-05-09. Les transactions
+// anterieures restent en base (audit) mais ne sont pas affichees ici.
+const REPRISE_DATE = new Date('2026-05-09T00:00:00');
+
 const { profile } = await requireAuth('revenus_carburant');
 
 const html = `
@@ -125,8 +129,14 @@ function periodeRange(key) {
 async function recharger() {
   const periode = document.getElementById('filtre-periode').value;
   const { debut, fin } = periodeRange(periode);
-  const list = await listRedistributionsSemaine(debut, fin).catch(() => []);
-  dataCache = list;
+  // On ne descend jamais sous la date de reprise officielle.
+  const debutEffectif = debut < REPRISE_DATE ? REPRISE_DATE : debut;
+  const list = await listRedistributionsSemaine(debutEffectif, fin).catch(() => []);
+  // Double filet : exclure aussi cote client tout doc qui aurait un timestamp anterieur
+  dataCache = list.filter(r => {
+    const t = r.timestamp?.toDate?.();
+    return t && t >= REPRISE_DATE;
+  });
 
   // Alimente le filtre station (dynamique selon les données chargées)
   const stationsUniques = [...new Set(list.map(r => r.station || r.stationId).filter(Boolean))].sort();
@@ -146,8 +156,13 @@ function rendre() {
 
   // === KPIs globaux ===
   const ca = rows.reduce((s, r) => s + (Number(r.montant) || 0), 0);
-  const litres = rows.reduce((s, r) => s + (Number(r.litres) || 0), 0);
-  const prixMoyen = litres > 0 ? ca / litres : 0;
+  // Pour les litres et le prix moyen, on EXCLUT les transactions sans
+  // detail (litres=0, typiquement issues du rattrapage #revenu) sinon
+  // le prix moyen serait fausse vers le bas.
+  const rowsAvecDetail = rows.filter(r => (Number(r.litres) || 0) > 0);
+  const litres = rowsAvecDetail.reduce((s, r) => s + (Number(r.litres) || 0), 0);
+  const caAvecDetail = rowsAvecDetail.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const prixMoyen = litres > 0 ? caAvecDetail / litres : 0;
 
   document.getElementById('kpis-carb').innerHTML = `
     <div class="kpi kpi-recette">
@@ -193,13 +208,15 @@ function rendre() {
       .sort((a, b) => b[1].ca - a[1].ca)
       .map(([nom, s]) => {
         const prixM = s.litres > 0 ? s.ca / s.litres : 0;
+        const litresAffiche = s.litres > 0 ? num(s.litres) + ' L' : '<span class="muted">—</span>';
+        const prixAffiche   = s.litres > 0 ? moneyPrecis(prixM)  : '<span class="muted">—</span>';
         return `
           <tr>
             <td><strong>${escapeHtml(nom)}</strong></td>
             <td class="right mono">${num(s.transactions)}</td>
-            <td class="right mono">${num(s.litres)} L</td>
+            <td class="right mono">${litresAffiche}</td>
             <td class="right mono">${money(s.ca)}</td>
-            <td class="right mono">${moneyPrecis(prixM)}</td>
+            <td class="right mono">${prixAffiche}</td>
           </tr>`;
       }).join('');
   }
@@ -209,14 +226,16 @@ function rendre() {
   if (rows.length === 0) {
     tbodyTrans.innerHTML = `<tr><td colspan="7" class="muted text-center">Aucune transaction sur la période.</td></tr>`;
   } else {
+    const cellOuTiret = (val, formatter) =>
+      (Number(val) || 0) > 0 ? formatter(val) : '<span class="muted">—</span>';
     tbodyTrans.innerHTML = rows.map(r => `
       <tr>
         <td>${datetime(r.timestamp)}</td>
         <td>${escapeHtml(r.station || r.stationId || '—')}</td>
-        <td class="right mono">${num(r.litres || 0)}</td>
-        <td class="right mono">${moneyPrecis(r.prixLitre || 0)}</td>
+        <td class="right mono">${cellOuTiret(r.litres, v => num(v) + ' L')}</td>
+        <td class="right mono">${cellOuTiret(r.prixLitre, moneyPrecis)}</td>
         <td class="right mono">${moneyPrecis(r.montant || 0)}</td>
-        <td class="right mono">${num(r.stockApres || 0)} L</td>
+        <td class="right mono">${cellOuTiret(r.stockApres, v => num(v) + ' L')}</td>
         <td class="mono">#${escapeHtml(String(r.id || r.redistributionId || '—'))}</td>
       </tr>
     `).join('');
