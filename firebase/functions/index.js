@@ -27,12 +27,16 @@ const COMPTA_TOKEN  = defineSecret('LTD_COMPTA_EXPORT_TOKEN');
 // ----------------------------------------------------------------
 // Cron déplacé du dim 00:00 au lundi 00:00 pour clôturer une semaine
 // RP COMPLÈTE (lundi 00:00 → dimanche 23:59:59) et non tronquée.
+// === Cloture etape 1 : ventes + depenses (lundi 00:00 Paris) ===
+// Inclut aussi le CA carburant (/redistributions). Pas encore la masse
+// salariale car les paies arrivent post-cloture (deadline mardi 21h).
+// Statut = 'cloturee-partielle' jusqu'a la cloture etape 2.
 export const clotureHebdo = onSchedule({
   schedule: '0 0 * * 1',
   timeZone: 'Europe/Paris',
   region:   'europe-west1'
 }, async () => {
-  console.log('=== Début clôture hebdomadaire ===');
+  console.log('=== Début clôture hebdomadaire (étape 1 : ventes + dépenses) ===');
   const now = new Date();
 
   // À lundi 00:00, la semaine qui vient de finir = lundi précédent → dimanche 23:59:59
@@ -43,46 +47,103 @@ export const clotureHebdo = onSchedule({
 
   const weekKey = debut.toISOString().slice(0, 10);
 
-  // Agréger
-  const [ventesSnap, depensesSnap, paiesSnap] = await Promise.all([
+  // Agréger (ventes produits + ventes carburant + dépenses)
+  const [ventesSnap, redistSnap, depensesSnap] = await Promise.all([
     db.collection('ventes')
+      .where('timestamp', '>=', Timestamp.fromDate(debut))
+      .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
+    db.collection('redistributions')
       .where('timestamp', '>=', Timestamp.fromDate(debut))
       .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
     db.collection('depenses')
       .where('timestamp', '>=', Timestamp.fromDate(debut))
       .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
-    db.collection('paies')
-      .where('timestamp', '>=', Timestamp.fromDate(debut))
-      .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
   ]);
 
-  const ca       = ventesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
-  const benefice = ventesSnap.docs.reduce((s, d) => s + (d.data().benefice || 0), 0);
-  const depTotal = depensesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
-  const dedu     = depensesSnap.docs
+  const caProduits  = ventesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
+  const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
+  const ca          = caProduits + caCarburant;
+  const benefice    = ventesSnap.docs.reduce((s, d) => s + (d.data().benefice || 0), 0);
+  const depTotal    = depensesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
+  const dedu        = depensesSnap.docs
     .filter(d => d.data().deductible !== false)
     .reduce((s, d) => s + (d.data().montant || 0), 0);
-  const masse    = paiesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
-  const beneficeNet = ca - depTotal - masse;
 
   await db.collection('semaines').doc(weekKey).set({
     numero: weekKey,
     dateDebut: Timestamp.fromDate(debut),
     dateFin:   Timestamp.fromDate(fin),
-    ca, beneficeBrut: benefice,
+    ca,
+    caProduits,
+    caCarburant,
+    beneficeBrut: benefice,
     depenses: depTotal,
     chargesDeductibles: dedu,
+    masseSalariale: 0,             // pas encore connue (sera mise en cloture etape 2)
+    benefice: ca - depTotal,       // provisoire (sans masse)
+    nbVentes: ventesSnap.size + redistSnap.size,
+    nbDepenses: depensesSnap.size,
+    statut: 'cloturee-partielle',
+    dateCloture: FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  console.log('Cloture etape 1 OK', weekKey, { ca, caProduits, caCarburant, depTotal });
+});
+
+// === Cloture etape 2 : masse salariale + benefice net (mardi 21:05 Paris) ===
+// Fenetre de paie : lundi N+1 00:00 -> mardi N+1 21:00. Au mardi 21:05, on
+// recolte toutes les paies effectivement versees pour la semaine N (clos
+// dimanche 23:59) et on finalise le doc /semaines.
+export const clotureHebdoPaies = onSchedule({
+  schedule: '5 21 * * 2',
+  timeZone: 'Europe/Paris',
+  region:   'europe-west1'
+}, async () => {
+  console.log('=== Début clôture hebdomadaire (étape 2 : paies) ===');
+  const now = new Date();
+
+  // Semaine clos il y a 2 jours (lundi 00:00 -> dimanche 23:59 il y a 2 jours)
+  // À mardi 21:05, la semaine N = mardi - 2 jours = dimanche (= dim 23:59 N)
+  const fin = new Date(now);
+  fin.setHours(0, 0, 0, 0);
+  fin.setDate(fin.getDate() - 1);   // lundi 00:00
+  fin.setMilliseconds(fin.getMilliseconds() - 1); // dimanche 23:59:59.999
+  const debut = new Date(fin);
+  debut.setDate(debut.getDate() - 6);
+  debut.setHours(0, 0, 0, 0);
+  const weekKey = debut.toISOString().slice(0, 10);
+
+  // Fenetre paie : lundi 00:00 (= maintenant - 1 jour 21:05) -> mardi 21:00 (= il y a 5 min)
+  const debutFenetrePaie = new Date(fin.getTime() + 1);  // lundi N+1 00:00
+  const finFenetrePaie = new Date(debutFenetrePaie);
+  finFenetrePaie.setDate(finFenetrePaie.getDate() + 1);  // mardi
+  finFenetrePaie.setHours(21, 0, 0, 0);                  // 21:00:00
+
+  const paiesSnap = await db.collection('paies')
+    .where('timestamp', '>=', Timestamp.fromDate(debutFenetrePaie))
+    .where('timestamp', '<=', Timestamp.fromDate(finFenetrePaie)).get();
+
+  const masse = paiesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
+
+  // Recharge le doc semaine pour recalculer le benefice net
+  const semSnap = await db.collection('semaines').doc(weekKey).get();
+  if (!semSnap.exists) {
+    console.error('Cloture etape 2 : doc /semaines/' + weekKey + ' introuvable. Etape 1 a echoue ?');
+    return;
+  }
+  const sem = semSnap.data();
+  const beneficeNet = (sem.ca || 0) - (sem.depenses || 0) - masse;
+
+  await db.collection('semaines').doc(weekKey).set({
     masseSalariale: masse,
     benefice: beneficeNet,
-    nbVentes: ventesSnap.size,
-    nbDepenses: depensesSnap.size,
     statut: 'cloturee',
-    dateCloture: FieldValue.serverTimestamp()
-  });
+    dateClotureFinale: FieldValue.serverTimestamp(),
+    fenetrePaieDebut: Timestamp.fromDate(debutFenetrePaie),
+    fenetrePaieFin: Timestamp.fromDate(finFenetrePaie)
+  }, { merge: true });
 
-  // Aucune purge : TTE exige MINIMUM 6 semaines, on garde tout l'historique.
-  // Le dashboard limite l'affichage à 6 mais la base conserve tout pour audit.
-  console.log('Clôture OK', weekKey, { ca, masse, beneficeNet });
+  console.log('Cloture etape 2 OK', weekKey, { masse, beneficeNet, nbPaies: paiesSnap.size });
 });
 
 // ----------------------------------------------------------------
