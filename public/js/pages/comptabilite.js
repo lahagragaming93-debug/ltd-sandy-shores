@@ -186,8 +186,12 @@ async function chargerTout() {
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const caTotal = ca + caCarburant;
-  const totalDepenses = depenses.reduce((s, d) => s + (d.montant || 0), 0);
-  const deductibles = depenses.filter(d => d.deductible !== false)
+  // Exclure les depenses type='paie' (doublon avec /paies attribuees a la
+  // semaine precedente via fenetre post-cloture). Sinon les paies sont
+  // comptees 2 fois : une en "Charges non deductibles", une en "Masse salariale".
+  const depensesHorsPaie = depenses.filter(d => d.type !== 'paie');
+  const totalDepenses = depensesHorsPaie.reduce((s, d) => s + (d.montant || 0), 0);
+  const deductibles = depensesHorsPaie.filter(d => d.deductible !== false)
     .reduce((s, d) => s + (d.montant || 0), 0);
   const nonDeductibles = totalDepenses - deductibles;
   const masseSalariale = paies.reduce((s, p) => s + (p.montant || 0), 0);
@@ -253,12 +257,13 @@ async function chargerTout() {
   renderSalaires(users, paies);
 
   // === Charges détaillées ===
+  // Le tableau affiche uniquement les VRAIES dépenses (hors paies en doublon)
   const usersById = users.reduce((m, u) => (m[u.id] = u, m), {});
   const tbody = document.getElementById('tbody-charges');
-  if (depenses.length === 0) {
+  if (depensesHorsPaie.length === 0) {
     tbody.innerHTML = `<tr><td colspan="5" class="muted text-center">Aucune dépense saisie cette semaine.</td></tr>`;
   } else {
-    tbody.innerHTML = depenses.map(d => {
+    tbody.innerHTML = depensesHorsPaie.map(d => {
       const u = usersById[d.utilisateurId];
       return `
         <tr>

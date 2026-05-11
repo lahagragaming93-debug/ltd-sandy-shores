@@ -530,6 +530,18 @@ async function onDepense(p) {
   if (/^<@!?undefined>$/i.test(utilisateur) || utilisateur === '') {
     utilisateur = 'Système (auto)';
   }
+
+  // 2026-05-11 : detection paie/salaire en doublon avec /paies.
+  // FiveM log les paies sur DEUX canaux : #paie (-> /paies) ET #depenses (sortie
+  // d'argent) avec raison "Paye ponctuelle de membre" ou "Salaire". On marque
+  // alors type='paie' pour que la page Comptabilite exclue ces entries de
+  // "Charges non deductibles" (sinon doublon avec masse salariale).
+  let type = p.type || 'autre';
+  const rawRaison = String(p.raison || '');
+  if (/\b(paye|paie|salaire|r[ée]mun[ée]ration)\b/i.test(rawRaison)) {
+    type = 'paie';
+  }
+
   await db.collection('depenses').add({
     compteId: p.compteId,
     utilisateur,
@@ -537,7 +549,7 @@ async function onDepense(p) {
     soldeAvant: p.soldeAvant,
     soldeApres: p.soldeApres,
     raison: p.raison || '',
-    type: p.type || 'autre',
+    type,
     deductible,
     source: 'discord',
     timestamp: FieldValue.serverTimestamp()
