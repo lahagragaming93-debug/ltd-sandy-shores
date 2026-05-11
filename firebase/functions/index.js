@@ -12,10 +12,12 @@ import { onRequest }  from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
 
 initializeApp();
 const db = getFirestore();
+const adminAuth = getAdminAuth();
 
 const BOT_TOKEN     = defineSecret('LTD_BOT_INGEST_TOKEN');
 const COMPTA_TOKEN  = defineSecret('LTD_COMPTA_EXPORT_TOKEN');
@@ -949,6 +951,65 @@ function currentWeekId() {
 // Retourne du CSV utilisable directement par =IMPORTDATA(URL) dans Sheets.
 // 4 types : ?type=resume | depenses | ventes | paies
 // ----------------------------------------------------------------
+
+// ----------------------------------------------------------------
+// adminResetPassword — Régénère le MDP d'un compte par un admin
+// ----------------------------------------------------------------
+// Sécurité : caller doit être Patron / Co-Patron / Admin Technique
+// (vérifié via le ID token Firebase Auth fourni en header).
+// Retourne le nouveau MDP en clair (one-shot) pour transmission RP.
+// Met motDePasseProvisoire=true pour forcer un changement à la
+// prochaine connexion.
+// ----------------------------------------------------------------
+export const adminResetPassword = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const callerRole = callerSnap.data().role;
+    const ROLES_ADMIN = ['patron', 'co-patron', 'admin-technique'];
+    if (!ROLES_ADMIN.includes(callerRole)) {
+      return res.status(403).json({ error: 'Only patron/co-patron/admin-technique can reset passwords' });
+    }
+
+    const { targetUid } = req.body || {};
+    if (!targetUid) return res.status(400).json({ error: 'Missing targetUid' });
+
+    // Garde-fou : on ne reset pas le patron sauf si caller est patron ou super admin
+    const targetSnap = await db.collection('users').doc(targetUid).get();
+    if (!targetSnap.exists) return res.status(404).json({ error: 'Target user not found' });
+    const targetRole = targetSnap.data().role;
+    if (targetRole === 'patron' && callerRole !== 'patron' && callerRole !== 'admin-technique') {
+      return res.status(403).json({ error: 'Only patron or admin-technique can reset the patron password' });
+    }
+
+    // Génère un nouveau mot de passe aléatoire (12 chars, sans caractères ambigus)
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+    let newPassword = '';
+    for (let i = 0; i < 12; i++) newPassword += chars[Math.floor(Math.random() * chars.length)];
+
+    // Update Firebase Auth + flag motDePasseProvisoire
+    await adminAuth.updateUser(targetUid, { password: newPassword });
+    await db.collection('users').doc(targetUid).set({
+      motDePasseProvisoire: true,
+      mdpRegenereLe: FieldValue.serverTimestamp(),
+      mdpRegenerePar: decoded.uid
+    }, { merge: true });
+
+    return res.status(200).json({ password: newPassword });
+  } catch (err) {
+    console.error('[adminResetPassword]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
 
 export const comptaExport = onRequest({
   region: 'europe-west1',

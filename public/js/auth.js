@@ -36,13 +36,35 @@ import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.
 import { getAuth as getAuth2 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
 
-export async function creerCompteEmploye({ email, prenom, nom, idDiscord, idPerso, role, motDePasse, creePar }) {
+// Domaine interne fictif : Firebase Auth a besoin d'un email mais l'employe
+// ne le voit jamais. Username "blake" devient "blake@ltd-sandy-shores.local"
+// cote Firebase Auth, le user voit / saisit juste "blake".
+const INTERNAL_DOMAIN = 'ltd-sandy-shores.local';
+
+// Convertit un identifiant saisi par le user en email Firebase Auth.
+// - Si contient "@" → utilise tel quel (backward compat anciens comptes mail)
+// - Sinon → "{username}@ltd-sandy-shores.local"
+export function identifiantToEmail(identifiant) {
+  const v = (identifiant || '').trim();
+  if (!v) return '';
+  return v.includes('@') ? v : `${v.toLowerCase()}@${INTERNAL_DOMAIN}`;
+}
+
+export async function creerCompteEmploye({ username, prenom, nom, idDiscord, idPerso, role, motDePasse, creePar }) {
+  if (!username) throw new Error("Username obligatoire.");
+  const cleanUsername = String(username).trim().toLowerCase();
+  if (!/^[a-z0-9._-]{3,30}$/.test(cleanUsername)) {
+    throw new Error("Username : 3-30 caracteres, lettres/chiffres/. _ - uniquement.");
+  }
+  const email = `${cleanUsername}@${INTERNAL_DOMAIN}`;
+
   const tmpApp = initializeApp(firebaseConfig, 'tmp-auth-' + Date.now());
   const tmpAuth = getAuth2(tmpApp);
   try {
     const cred = await createUserWithEmailAndPassword(tmpAuth, email, motDePasse);
     await setUserDoc(cred.user.uid, {
-      email,
+      username: cleanUsername,
+      email,                                 // interne, jamais affiche
       prenom,
       nom: nom.toUpperCase(),
       idDiscord: idDiscord || '',
@@ -61,7 +83,11 @@ export async function creerCompteEmploye({ email, prenom, nom, idDiscord, idPers
 }
 
 // === Connexion ===
-export async function connecter(email, password) {
+// Accepte un username (ex: "blake") OU un email (ex: "blake@gmail.com" pour
+// les anciens comptes). Firebase Auth ne voit que l'email construit.
+export async function connecter(identifiant, password) {
+  const email = identifiantToEmail(identifiant);
+  if (!email) throw new Error("Identifiant requis.");
   const cred = await signInWithEmailAndPassword(auth, email, password);
   return cred.user;
 }

@@ -75,7 +75,7 @@ const html = `
         <thead>
           <tr>
             <th data-sort="nom">Nom</th>
-            <th data-sort="email">Email</th>
+            <th data-sort="username">Identifiant</th>
             <th data-sort="role">Rôle</th>
             <th data-sort="discord">ID Discord</th>
             <th data-sort="perso">ID Perso</th>
@@ -97,8 +97,8 @@ const html = `
         <div><label>Prénom RP</label><input type="text" id="new-prenom" required /></div>
         <div><label>NOM RP</label><input type="text" id="new-nom" required style="text-transform:uppercase;" /></div>
       </div>
-      <label>Email</label>
-      <input type="email" id="new-email" required />
+      <label>Nom d'utilisateur <span class="muted" style="font-size:0.75rem;">— l'identifiant que l'employé utilisera pour se connecter (3-30 caractères, lettres/chiffres/. _ -)</span></label>
+      <input type="text" id="new-username" required placeholder="ex: blake.mars" autocapitalize="off" />
       <div class="field-row">
         <div><label>ID Discord</label><input type="text" id="new-id-discord" /></div>
         <div><label>ID Perso (in-game)</label><input type="text" id="new-id-perso" /></div>
@@ -120,8 +120,9 @@ const html = `
         <span class="icon">ℹ</span>
         <div>
           Compte créé. <strong>Transmettre à l'employé :</strong>
-          <div class="mono mt-1">Email: <span id="cred-email"></span></div>
-          <div class="mono">Mot de passe: <span id="cred-mdp"></span></div>
+          <div class="mono mt-1">Identifiant : <span id="cred-username"></span></div>
+          <div class="mono">Mot de passe : <span id="cred-mdp"></span></div>
+          <div class="muted mt-1" style="font-size:0.75rem;">À sa première connexion, il devra définir son mot de passe permanent.</div>
         </div>
       </div>
     </div>
@@ -132,7 +133,7 @@ const html = `
     <div class="modal" style="max-width:520px;">
       <h3>Modifier le compte</h3>
       <input type="hidden" id="edit-uid" />
-      <p class="muted mono" style="font-size:0.75rem;">Email : <span id="edit-email-readonly">—</span> <em>(non modifiable ici)</em></p>
+      <p class="muted mono" style="font-size:0.75rem;">Identifiant : <span id="edit-email-readonly">—</span> <em>(non modifiable ici)</em></p>
       <div class="field-row">
         <div><label>Prénom RP</label><input type="text" id="edit-prenom" /></div>
         <div><label>NOM RP</label><input type="text" id="edit-nom" style="text-transform:uppercase;" /></div>
@@ -236,7 +237,7 @@ function renderUsers() {
     return `
     <tr ${canManage ? '' : 'class="row-readonly"'}>
       <td><strong>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</strong></td>
-      <td class="mono">${escapeHtml(u.email || '—')}</td>
+      <td class="mono">${escapeHtml(u.username || u.email || '—')}</td>
       <td>
         <select data-role="${u.id}" data-old-role="${u.role}" ${roleSelectAttr} ${tooltipHors}>
           ${currentRoleHtml}${roleOptions}
@@ -250,6 +251,7 @@ function renderUsers() {
       </td>
       <td class="center">
         <button class="btn btn-sm btn-ghost" data-edit-user="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Modifier</button>
+        <button class="btn btn-sm" data-regen-mdp="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors} title="Régénérer un nouveau mot de passe">🔑</button>
         ${u.statut !== 'suspendu'
           ? `<button class="btn btn-sm" data-suspend="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} ${isSelf ? 'title="Tu ne peux pas te suspendre toi-même"' : tooltipHors}>Suspendre</button>`
           : `<button class="btn btn-sm" data-reactiver="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Réactiver</button>`}
@@ -339,6 +341,47 @@ function renderUsers() {
   tbody.querySelectorAll('[data-edit-user]').forEach(btn => {
     btn.addEventListener('click', () => ouvrirEdition(btn.dataset.editUser));
   });
+
+  // === Bouton Régénérer mot de passe ===
+  tbody.querySelectorAll('[data-regen-mdp]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const uid = btn.dataset.regenMdp;
+      const u = users.find(x => x.id === uid);
+      if (!u) return;
+      const ok = await confirmCritique({
+        titre: 'Régénérer le mot de passe',
+        message: `Un <strong>nouveau mot de passe aléatoire</strong> sera généré pour <strong>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</strong>.<br><br>
+          L'ancien mot de passe sera <strong>immédiatement invalidé</strong> et tu devras transmettre le nouveau à l'employé (Discord, in-game…).<br>
+          À sa prochaine connexion, il sera obligé de choisir son propre mot de passe.`,
+        btnConfirm: 'Régénérer le mot de passe',
+        delaiSec: 3
+      });
+      if (!ok) return;
+
+      try {
+        const { auth } = await import('../firebase-config.js');
+        const idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/adminResetPassword', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ targetUid: uid })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+        await infoModal({
+          titre: 'Mot de passe régénéré',
+          message: `<strong>Transmettre à ${escapeHtml(u.prenom)} ${escapeHtml(u.nom)} :</strong>
+            <div class="mono mt-2">Identifiant : <strong>${escapeHtml(u.username || '—')}</strong></div>
+            <div class="mono">Mot de passe : <strong>${escapeHtml(json.password)}</strong></div>
+            <div class="muted mt-2" style="font-size:0.78rem;">À sa prochaine connexion, il devra définir son mot de passe permanent.</div>`,
+          type: 'info'
+        });
+      } catch (err) {
+        console.error('regen-mdp FAIL:', err);
+        toastError(err.message || 'Erreur lors de la régénération.');
+      }
+    });
+  });
 }
 
 // === Édition d'un compte ===
@@ -378,7 +421,7 @@ document.getElementById('btn-save-edit').addEventListener('click', async () => {
 
 // === Création de compte ===
 document.getElementById('btn-nouveau').addEventListener('click', () => {
-  ['new-prenom','new-nom','new-email','new-id-discord','new-id-perso','new-mdp'].forEach(id => document.getElementById(id).value = '');
+  ['new-prenom','new-nom','new-username','new-id-discord','new-id-perso','new-mdp'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('new-role').value = 'vendeur-novice';
   document.getElementById('new-mdp').value = genererMotDePasseProvisoire();
   document.getElementById('alert-credentials').classList.add('hidden');
@@ -391,19 +434,46 @@ document.getElementById('btn-gen-mdp').addEventListener('click', () => {
   document.getElementById('new-mdp').value = genererMotDePasseProvisoire();
 });
 
+// Auto-suggest username quand prenom+nom sont remplis (si l'admin n'a pas encore tape)
+const slugRp = (s) => String(s || '').toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[^a-z0-9]/g, '');
+function autoSuggestUsername() {
+  const usernameInput = document.getElementById('new-username');
+  if (usernameInput.dataset.userTyped === '1') return;
+  const p = slugRp(document.getElementById('new-prenom').value);
+  const n = slugRp(document.getElementById('new-nom').value);
+  const suggestion = (p && n) ? `${p}.${n}` : (p || n);
+  usernameInput.value = suggestion;
+}
+document.getElementById('new-prenom').addEventListener('input', autoSuggestUsername);
+document.getElementById('new-nom').addEventListener('input', autoSuggestUsername);
+document.getElementById('new-username').addEventListener('input', (e) => {
+  // marque que l'admin a tape manuellement pour ne plus surcharger automatiquement
+  e.target.dataset.userTyped = e.target.value ? '1' : '';
+});
+
 document.getElementById('btn-creer').addEventListener('click', async () => {
+  const username = document.getElementById('new-username').value.trim().toLowerCase();
   const data = {
     prenom: document.getElementById('new-prenom').value.trim(),
     nom: document.getElementById('new-nom').value.trim(),
-    email: document.getElementById('new-email').value.trim(),
+    username,
     idDiscord: document.getElementById('new-id-discord').value.trim(),
     idPerso: document.getElementById('new-id-perso').value.trim(),
     role: document.getElementById('new-role').value,
     motDePasse: document.getElementById('new-mdp').value,
     creePar: profile.prenom + ' ' + profile.nom
   };
-  if (!data.prenom || !data.nom || !data.email || !data.motDePasse) {
-    return toastError("Champs prénom, nom, email et mot de passe obligatoires.");
+  if (!data.prenom || !data.nom || !data.username || !data.motDePasse) {
+    return toastError("Champs prénom, nom, identifiant et mot de passe obligatoires.");
+  }
+  if (!/^[a-z0-9._-]{3,30}$/.test(data.username)) {
+    return toastError("Identifiant : 3-30 caractères, lettres/chiffres/. _ - uniquement.");
+  }
+  // Unicité côté client
+  if (users.some(u => (u.username || '').toLowerCase() === data.username)) {
+    return toastError(`Identifiant "${data.username}" déjà pris.`);
   }
   // Garde-fou : refuser la création d'un rôle hors périmètre
   if (!canManageUser(profile.role, data.role)) {
@@ -430,7 +500,7 @@ document.getElementById('btn-creer').addEventListener('click', async () => {
   try {
     await creerCompteEmploye(data);
     toastSuccess("Compte créé.");
-    document.getElementById('cred-email').textContent = data.email;
+    document.getElementById('cred-username').textContent = data.username;
     document.getElementById('cred-mdp').textContent = data.motDePasse;
     document.getElementById('alert-credentials').classList.remove('hidden');
   } catch (err) {
