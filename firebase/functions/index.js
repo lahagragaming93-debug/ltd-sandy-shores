@@ -204,11 +204,15 @@ export const alerteStation = onDocumentWritten({
   const nom = after.nom || stationId;
 
   // === Modification manuelle pompiste : alerte info audit ===
-  // Condition : la source de la derniere modif est 'modal-manuel-pompiste'
-  // ET le stockActuel a change. La direction utilise 'modal-manuel-direction'
-  // donc cette branche ne fire pas pour les modifs silencieuses direction.
-  if (before && after.sourceMajAuto === 'modal-manuel-pompiste'
-      && before.stockActuel !== after.stockActuel) {
+  // Sources pompiste :
+  //   'modal-manuel-pompiste' (legacy, saisie directe stockActuel)
+  //   'modal-bidons-pompiste' (depuis 2026-05-11, saisie en bidons 15L)
+  // La direction utilise 'modal-manuel-direction' qui ne fire pas cette branche.
+  const isPompisteEdit = before && before.stockActuel !== after.stockActuel && (
+    after.sourceMajAuto === 'modal-manuel-pompiste' ||
+    after.sourceMajAuto === 'modal-bidons-pompiste'
+  );
+  if (isPompisteEdit) {
     const auteur = after.derniereModifPar?.nom || after.derniereModifPar?.uid || 'pompiste inconnu';
     const ancien = before.stockActuel || 0;
     const delta  = stockActuel - ancien;
@@ -216,9 +220,9 @@ export const alerteStation = onDocumentWritten({
     // Pas de dedupe (chaque modif manuelle = 1 alerte distincte avec timestamp)
     await db.collection('alertes').add({
       type: 'station-modif-manuelle',
-      message: `🛢 ${auteur} a modifié le stock de ${nom} : ${ancien.toLocaleString('fr-FR')} L → ${stockActuel.toLocaleString('fr-FR')} L (${sens} L)`,
+      message: `🛢 ${auteur} a ravitaillé ${nom} : ${ancien.toLocaleString('fr-FR')} L → ${stockActuel.toLocaleString('fr-FR')} L (${sens} L)`,
       gravite: 'info',
-      metadata: { stationId, ancien, nouveau: stockActuel, delta, auteur },
+      metadata: { stationId, ancien, nouveau: stockActuel, delta, auteur, source: after.sourceMajAuto },
       resolue: false,
       timestamp: FieldValue.serverTimestamp()
     });
@@ -396,8 +400,11 @@ async function onInventory({ type, item, itemNomBrut, count, source, owner, char
     timestamp: FieldValue.serverTimestamp()
   });
 
-  if (type === 'inventory-add' && characterId &&
-      (itemId === 'bidon-essence' || itemId === 'caoutchouc')) {
+  // Quota pompiste depuis logs FiveM :
+  //   - caoutchouc : oui (pas de saisie modal)
+  //   - bidon-essence : NON depuis 2026-05-11 (le modal /stations ravitaillement
+  //     est devenu source de verite, eviter doublon avec pompisteRavitaillerManuel)
+  if (type === 'inventory-add' && characterId && itemId === 'caoutchouc') {
     await majQuotaPompiste(characterId, itemNom, count);
   }
 }
@@ -1286,6 +1293,117 @@ export const adminResetPassword = onRequest({
     return res.status(200).json({ password: newPassword });
   } catch (err) {
     console.error('[adminResetPassword]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// ----------------------------------------------------------------
+// pompisteRavitaillerManuel — Le pompiste declare avoir mis N bidons.
+// ----------------------------------------------------------------
+// Le pompiste raisonne en bidons, pas en litres. Cette fonction :
+//   1. stockActuel += N * 15 (cap a stockMax)
+//   2. cree un doc /redistributions source='manuel-pompiste' (audit)
+//   3. incremente /quotasPompiste/{semaine}_{uid}.bidons de N
+// Le modal = source de verite quota (pas les logs FiveM inventory-add).
+// Atomique via Cloud Function pour bypasser les rules Firestore
+// restrictives (quotas/redistributions = canAdmin uniquement).
+// ----------------------------------------------------------------
+export const pompisteRavitaillerManuel = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    const allowed = role === 'patron' || role === 'co-patron' || role === 'admin-technique'
+      || role === 'responsable-pompiste' || /^pompiste-/.test(role);
+    if (!allowed) return res.status(403).json({ error: 'Ce role ne peut pas ravitailler une station.' });
+
+    const { stationId, bidons } = req.body || {};
+    if (!stationId) return res.status(400).json({ error: 'Missing stationId' });
+    const nbBidons = Number(bidons);
+    if (!Number.isFinite(nbBidons) || nbBidons <= 0 || !Number.isInteger(nbBidons)) {
+      return res.status(400).json({ error: 'bidons doit etre un entier > 0' });
+    }
+
+    const BIDON_L = 15;
+    const litresDemandes = nbBidons * BIDON_L;
+
+    const stRef = db.collection('stations').doc(stationId);
+    const stSnap = await stRef.get();
+    if (!stSnap.exists) return res.status(404).json({ error: 'Station introuvable' });
+    const station = stSnap.data();
+    const stockAvant = Number(station.stockActuel || 0);
+    const stockMax = Number(station.stockMax || 0);
+    const stockApres = stockAvant + litresDemandes;
+    const pompisteNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+
+    // Refuse hard si depasse la capacite max (anti-fraude / detection mensonge).
+    // On cree aussi une alerte direction avec la tentative pour audit.
+    if (stockMax > 0 && stockApres > stockMax) {
+      const placeRestante = Math.max(0, stockMax - stockAvant);
+      const bidonsMax = Math.floor(placeRestante / BIDON_L);
+      await db.collection('alertes').add({
+        type: 'pompiste-overflow-tentative',
+        message: `🚨 ${pompisteNom} a tenté de ravitailler ${station.nom || stationId} de ${nbBidons} bidons (${litresDemandes} L) alors que la station n'accepte que ${bidonsMax} bidons max (${placeRestante} L libres).`,
+        gravite: 'warn',
+        metadata: { stationId, pompisteId: decoded.uid, pompisteNom, bidonsTentes: nbBidons, bidonsMax, stockAvant, stockMax },
+        resolue: false,
+        timestamp: FieldValue.serverTimestamp()
+      });
+      return res.status(400).json({
+        error: `Impossible : la station n'a que ${placeRestante} L libres (${bidonsMax} bidons max). Tu en as saisi ${nbBidons}.`,
+        bidonsMax, placeRestante, stockAvant, stockMax
+      });
+    }
+    const litresAjoutes = litresDemandes;
+
+    // 1. Update station
+    await stRef.set({
+      stockActuel: stockApres,
+      derniereModifPar: { uid: decoded.uid, nom: pompisteNom },
+      sourceMajAuto: 'modal-bidons-pompiste',
+      derniereRedistribution: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    // 2. Audit /redistributions
+    await db.collection('redistributions').add({
+      station: station.nom || stationId,
+      stationId,
+      litres: litresAjoutes,
+      bidons: nbBidons,
+      prixLitre: Number(station.prixLitre || 0),
+      montant: 0,                   // pas de vente, juste ravitaillement
+      stockAvant,
+      stockApres,
+      source: 'manuel-pompiste',
+      pompisteId: decoded.uid,
+      pompisteNom,
+      timestamp: FieldValue.serverTimestamp()
+    });
+
+    // 3. Incremente quota pompiste
+    const wId = currentWeekId();
+    const docId = `${wId}_${decoded.uid}`;
+    await db.collection('quotasPompiste').doc(docId).set({
+      semaine: wId,
+      employeId: decoded.uid,
+      bidons: FieldValue.increment(nbBidons)
+    }, { merge: true });
+
+    return res.status(200).json({
+      ok: true, bidons: nbBidons, litresAjoutes, stockApres, stockMax
+    });
+  } catch (err) {
+    console.error('[pompisteRavitaillerManuel]', err);
     return res.status(500).json({ error: err.message || 'Internal error' });
   }
 });

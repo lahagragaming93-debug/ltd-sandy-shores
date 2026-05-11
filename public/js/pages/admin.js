@@ -7,7 +7,7 @@ import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire } from '..
 import { renderShell } from '../layout.js';
 import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee } from '../api.js';
 import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection, isSuperAdmin } from '../utils/permissions.js';
-import { date, escapeHtml } from '../utils/formatters.js';
+import { date, escapeHtml, normalizePrenom, normalizeNom } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique, infoModal } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -405,8 +405,8 @@ document.getElementById('btn-cancel-edit').addEventListener('click', () => {
 document.getElementById('btn-save-edit').addEventListener('click', async () => {
   const uid = document.getElementById('edit-uid').value;
   const patch = {
-    prenom:    document.getElementById('edit-prenom').value.trim(),
-    nom:       document.getElementById('edit-nom').value.trim().toUpperCase(),
+    prenom:    normalizePrenom(document.getElementById('edit-prenom').value),
+    nom:       normalizeNom(document.getElementById('edit-nom').value),
     idDiscord: document.getElementById('edit-id-discord').value.trim(),
     idPerso:   document.getElementById('edit-id-perso').value.trim(),
     dateEntree:document.getElementById('edit-date-entree').value || null
@@ -456,8 +456,8 @@ document.getElementById('new-username').addEventListener('input', (e) => {
 document.getElementById('btn-creer').addEventListener('click', async () => {
   const username = document.getElementById('new-username').value.trim().toLowerCase();
   const data = {
-    prenom: document.getElementById('new-prenom').value.trim(),
-    nom: document.getElementById('new-nom').value.trim(),
+    prenom: normalizePrenom(document.getElementById('new-prenom').value),
+    nom: normalizeNom(document.getElementById('new-nom').value),
     username,
     idDiscord: document.getElementById('new-id-discord').value.trim(),
     idPerso: document.getElementById('new-id-perso').value.trim(),

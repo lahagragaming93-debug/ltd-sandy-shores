@@ -10,7 +10,7 @@ import { db } from '../firebase-config.js';
 import { money, moneyPrecis, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin, isPompiste } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
-import { confirmCritique } from '../utils/confirmation.js';
+import { confirmCritique, infoModal } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('stocks_essence');
@@ -46,21 +46,39 @@ const html = `
   <div id="modal-station" class="modal-backdrop hidden">
     <div class="modal">
       <h3 id="modal-station-title">Station</h3>
-      ${stockOnly ? '<div class="alert info mb-2" style="font-size:0.82rem;"><span class="icon">ℹ</span><span>Tu peux uniquement modifier le <strong>stock actuel</strong> (ravitaillement). Les autres champs sont verrouillés.</span></div>' : ''}
-      <input type="hidden" id="st-id" />
-      <label>Nom</label>
-      <input type="text" id="st-nom" required ${stockOnly ? 'disabled' : ''} />
-      <div class="field-row">
-        <div><label>Stock actuel (L)</label><input type="number" id="st-stock-actuel" min="0" /></div>
-        <div><label>Capacité max (L)</label><input type="number" id="st-stock-max" min="0" ${stockOnly ? 'disabled' : ''} /></div>
-        <div><label>Seuil alerte (L)</label><input type="number" id="st-seuil" min="0" ${stockOnly ? 'disabled' : ''} /></div>
-      </div>
-      <label>Prix au litre ($)</label>
-      <input type="number" id="st-prix" step="0.1" min="0" ${stockOnly ? 'disabled' : ''} />
-      <label>N° pompe FiveM <span class="muted" style="font-size:0.75rem;">— identifiant in-game qui apparaît dans "Redistribution N°XXXXX" (#logs-ig)</span></label>
-      <input type="text" id="st-fivem-pompe" placeholder="ex: 16060" ${stockOnly ? 'disabled' : ''} />
+      ${stockOnly ? `
+        <div class="alert info mb-2" style="font-size:0.82rem;">
+          <span class="icon">ℹ</span>
+          <span>Saisis le <strong>nombre de bidons</strong> que tu viens de mettre dans la station (1 bidon = 15 L). Le site met automatiquement à jour le stock, l'historique et ton quota.</span>
+        </div>
+
+        <div class="panel" style="margin:0 0 12px 0;background:rgba(0,0,0,0.18);">
+          <div class="row between"><span class="muted">Station</span><strong id="ro-nom">—</strong></div>
+          <div class="row between"><span class="muted">Stock actuel</span><strong id="ro-stock-actuel">—</strong></div>
+          <div class="row between"><span class="muted">Capacité max</span><strong id="ro-stock-max">—</strong></div>
+        </div>
+
+        <label>Bidons ajoutés <span class="muted" style="font-size:0.75rem;">— 1 bidon = 15 L</span></label>
+        <input type="number" id="st-bidons" min="1" step="1" placeholder="ex: 5" />
+        <div class="muted mt-1" id="bidons-preview" style="font-size:0.82rem;">—</div>
+
+        <input type="hidden" id="st-id" />
+      ` : `
+        <input type="hidden" id="st-id" />
+        <label>Nom</label>
+        <input type="text" id="st-nom" required />
+        <div class="field-row">
+          <div><label>Stock actuel (L)</label><input type="number" id="st-stock-actuel" min="0" /></div>
+          <div><label>Capacité max (L)</label><input type="number" id="st-stock-max" min="0" /></div>
+          <div><label>Seuil alerte (L)</label><input type="number" id="st-seuil" min="0" /></div>
+        </div>
+        <label>Prix au litre ($)</label>
+        <input type="number" id="st-prix" step="0.1" min="0" />
+        <label>N° pompe FiveM <span class="muted" style="font-size:0.75rem;">— identifiant in-game qui apparaît dans "Redistribution N°XXXXX" (#logs-ig)</span></label>
+        <input type="text" id="st-fivem-pompe" placeholder="ex: 16060" />
+      `}
       <div class="row mt-3">
-        <button class="btn btn-primary" id="btn-save-station">Enregistrer</button>
+        <button class="btn btn-primary" id="btn-save-station">${stockOnly ? 'Valider le ravitaillement' : 'Enregistrer'}</button>
         ${fullEdit ? '<button class="btn btn-danger" id="btn-delete-station" style="display:none;">Supprimer</button>' : ''}
         <button class="btn btn-ghost" id="btn-cancel-station">Annuler</button>
       </div>
@@ -190,16 +208,54 @@ function ouvrirStation(id) {
   const s = stations.find(x => x.id === id);
   if (!s) return;
   document.getElementById('st-id').value = id;
-  document.getElementById('st-nom').value = s.nom || '';
-  document.getElementById('st-stock-actuel').value = s.stockActuel || 0;
-  document.getElementById('st-stock-max').value = s.stockMax || 0;
-  document.getElementById('st-seuil').value = s.seuilAlerte || 0;
-  document.getElementById('st-prix').value = s.prixLitre || 0;
-  document.getElementById('st-fivem-pompe').value = s.fivemPompeId || '';
   document.getElementById('modal-station-title').textContent = s.nom;
-  const delBtn = document.getElementById('btn-delete-station');
-  if (delBtn) delBtn.style.display = 'inline-block';
+
+  if (stockOnly) {
+    document.getElementById('ro-nom').textContent = s.nom || '—';
+    document.getElementById('ro-stock-actuel').textContent = `${num(s.stockActuel || 0)} L`;
+    document.getElementById('ro-stock-max').textContent = `${num(s.stockMax || 0)} L`;
+    document.getElementById('st-bidons').value = '';
+    document.getElementById('bidons-preview').textContent = '—';
+  } else {
+    document.getElementById('st-nom').value = s.nom || '';
+    document.getElementById('st-stock-actuel').value = s.stockActuel || 0;
+    document.getElementById('st-stock-max').value = s.stockMax || 0;
+    document.getElementById('st-seuil').value = s.seuilAlerte || 0;
+    document.getElementById('st-prix').value = s.prixLitre || 0;
+    document.getElementById('st-fivem-pompe').value = s.fivemPompeId || '';
+    const delBtn = document.getElementById('btn-delete-station');
+    if (delBtn) delBtn.style.display = 'inline-block';
+  }
   modal.classList.remove('hidden');
+}
+
+// Preview live + barriere overflow : 1 bidon = 15 L, refuser si depasse stockMax.
+const BIDON_L = 15;
+if (stockOnly) {
+  document.getElementById('st-bidons').addEventListener('input', (e) => {
+    const id = document.getElementById('st-id').value;
+    const s = stations.find(x => x.id === id);
+    if (!s) return;
+    const n = parseInt(e.target.value, 10);
+    const preview = document.getElementById('bidons-preview');
+    if (!Number.isFinite(n) || n <= 0) {
+      preview.textContent = '—';
+      preview.style.color = '';
+      return;
+    }
+    const ajout = n * BIDON_L;
+    const stockFinal = (s.stockActuel || 0) + ajout;
+    const stockMax = s.stockMax || 0;
+    if (stockMax > 0 && stockFinal > stockMax) {
+      const placeRestante = Math.max(0, stockMax - (s.stockActuel || 0));
+      const bidonsMax = Math.floor(placeRestante / BIDON_L);
+      preview.style.color = 'var(--color-blood, #d33)';
+      preview.innerHTML = `⛔ Impossible : ${n} bidons = ${num(ajout)} L mais la station n'accepte que <strong>${bidonsMax} bidons max</strong> (${num(placeRestante)} L libres).`;
+    } else {
+      preview.style.color = '';
+      preview.textContent = `${n} bidon${n > 1 ? 's' : ''} = ${num(ajout)} L → stock final : ${num(stockFinal)} L / ${num(stockMax)} L`;
+    }
+  });
 }
 
 document.getElementById('btn-cancel-station').addEventListener('click', () => modal.classList.add('hidden'));
@@ -207,25 +263,51 @@ document.getElementById('btn-cancel-station').addEventListener('click', () => mo
 document.getElementById('btn-save-station').addEventListener('click', async () => {
   const id = document.getElementById('st-id').value || ('station_' + Date.now());
 
-  // Cas pompiste : on n'envoie QUE stockActuel (les autres inputs sont disabled).
-  // On tague la source pour que le trigger Firestore alerteStation cree une
-  // alerte info "Stock modifie par X" visible par la direction (audit).
+  // Cas pompiste : saisie en bidons. La Cloud Function fait atomiquement :
+  // (1) maj stockActuel station, (2) doc /redistributions audit, (3) increment quota.
   if (stockOnly) {
     if (!id) return toastError("Station introuvable.");
-    const newStock = Number(document.getElementById('st-stock-actuel').value) || 0;
+    const bidons = parseInt(document.getElementById('st-bidons').value, 10);
+    if (!Number.isFinite(bidons) || bidons <= 0) {
+      return toastError("Indique un nombre de bidons > 0.");
+    }
+    // Pre-check overflow cote client (la function refusera aussi server-side).
+    const s = stations.find(x => x.id === id);
+    if (s && s.stockMax > 0) {
+      const stockFinal = (s.stockActuel || 0) + bidons * BIDON_L;
+      if (stockFinal > s.stockMax) {
+        const placeRestante = Math.max(0, s.stockMax - (s.stockActuel || 0));
+        const bidonsMax = Math.floor(placeRestante / BIDON_L);
+        await infoModal({
+          titre: 'Ravitaillement impossible',
+          message: `La station <strong>${escapeHtml(s.nom)}</strong> ne peut pas recevoir <strong>${bidons} bidons</strong> (${num(bidons * BIDON_L)} L).<br><br>
+            Stock actuel : <strong>${num(s.stockActuel || 0)} L</strong><br>
+            Capacité max : <strong>${num(s.stockMax)} L</strong><br>
+            Place restante : <strong>${num(placeRestante)} L</strong> = <strong>${bidonsMax} bidons max</strong>.<br><br>
+            Vérifie le nombre que tu viens de mettre. Si tu confirmes avoir mis ${bidons} bidons, contacte la direction.`,
+          type: 'danger'
+        });
+        return;
+      }
+    }
     try {
-      await setStation(id, {
-        stockActuel: newStock,
-        sourceMajAuto: 'modal-manuel-pompiste',
-        derniereModifPar: { uid: profile.id || profile.uid || '', nom: `${profile.prenom || ''} ${profile.nom || ''}`.trim() }
+      const { auth } = await import('../firebase-config.js');
+      const idToken = await auth.currentUser.getIdToken();
+      const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteRavitaillerManuel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        body: JSON.stringify({ stationId: id, bidons })
       });
-      const idx = stations.findIndex(x => x.id === id);
-      if (idx >= 0) stations[idx] = { ...stations[idx], stockActuel: newStock };
-      renderStations();
-      toastSuccess(`Stock mis à jour : ${newStock} L. (Une alerte info est envoyée à la direction.)`);
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+      const msg = `Ravitaillement enregistré : ${bidons} bidon${bidons > 1 ? 's' : ''} (+${num(json.litresAjoutes)} L). Stock à ${num(json.stockApres)} L.${json.capped ? ' ⚠ plafonné capacité max.' : ''}`;
+      toastSuccess(msg);
       modal.classList.add('hidden');
+      // listenStations va re-rendre automatiquement, mais on prepare un refresh
+      // du tableau redistributions
+      chargerRedistributions();
     } catch (e) {
-      console.error('[stations] save (stock only) FAIL', id, e);
+      console.error('[stations] ravitaillement pompiste FAIL', id, e);
       toastError("Échec : " + (e?.message || e?.code || "erreur inattendue."));
     }
     return;
@@ -380,7 +462,9 @@ async function chargerRedistributions() {
     <table class="data" id="table-redistributions">
       <thead><tr>
         <th data-sort="date">Date</th>
+        <th data-sort="source">Source</th>
         <th data-sort="station">Station</th>
+        <th data-sort="pompiste">Pompiste</th>
         <th class="right" data-sort="litres">Litres</th>
         <th class="right" data-sort="prix">Prix/L</th>
         <th class="right" data-sort="montant">Montant</th>
@@ -388,17 +472,31 @@ async function chargerRedistributions() {
         <th class="right" data-sort="stockApres">Stock après</th>
       </tr></thead>
       <tbody>
-        ${list.map(r => `
-          <tr>
-            <td>${datetime(r.timestamp)}</td>
-            <td>${escapeHtml(r.station || r.stationId || '—')}</td>
-            <td class="right mono">${num(r.litres)}</td>
-            <td class="right mono">${moneyPrecis(r.prixLitre)}</td>
-            <td class="right mono">${money(r.montant)}</td>
-            <td class="right mono muted">${r.stockAvant != null ? num(r.stockAvant) + ' L' : '—'}</td>
-            <td class="right mono">${r.stockApres != null ? num(r.stockApres) + ' L' : '—'}</td>
-          </tr>
-        `).join('')}
+        ${list.map(r => {
+          const manuel = r.source === 'manuel-pompiste';
+          const sourceLabel = manuel
+            ? `<span class="badge" style="background:rgba(255,180,0,0.15);color:var(--color-gold);">manuel</span>`
+            : `<span class="muted" style="font-size:0.8rem;">FiveM</span>`;
+          const pompiste = manuel
+            ? escapeHtml(r.pompisteNom || '—')
+            : '<span class="muted">—</span>';
+          const litresStr = manuel && r.bidons
+            ? `${num(r.litres)} <span class="muted" style="font-size:0.75rem;">(${r.bidons} bidon${r.bidons > 1 ? 's' : ''})</span>`
+            : num(r.litres);
+          return `
+            <tr>
+              <td>${datetime(r.timestamp)}</td>
+              <td>${sourceLabel}</td>
+              <td>${escapeHtml(r.station || r.stationId || '—')}</td>
+              <td>${pompiste}</td>
+              <td class="right mono">${litresStr}</td>
+              <td class="right mono">${moneyPrecis(r.prixLitre)}</td>
+              <td class="right mono">${money(r.montant)}</td>
+              <td class="right mono muted">${r.stockAvant != null ? num(r.stockAvant) + ' L' : '—'}</td>
+              <td class="right mono">${r.stockApres != null ? num(r.stockApres) + ' L' : '—'}</td>
+            </tr>
+          `;
+        }).join('')}
       </tbody>
     </table>
   `;

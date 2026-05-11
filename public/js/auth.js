@@ -11,6 +11,7 @@ import {
 import { getUserDoc, setUserDoc, listUsers } from './api.js';
 import { canAccess, defaultLandingPage, ROLES } from './utils/permissions.js';
 import { infoModal } from './utils/confirmation.js';
+import { normalizePrenom, normalizeNom } from './utils/formatters.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -62,13 +63,16 @@ export async function creerCompteEmploye({ username, prenom, nom, idDiscord, idP
   const tmpAuth = getAuth2(tmpApp);
   try {
     const cred = await createUserWithEmailAndPassword(tmpAuth, email, motDePasse);
+    // Normalisation silencieuse : evite que la detection bot/site echoue sur
+    // une casse non canonique (ex: "ilyes" -> matching case-insensitive
+    // necessaire avant le 2026-05-11).
     await setUserDoc(cred.user.uid, {
       username: cleanUsername,
       email,                                 // interne, jamais affiche
-      prenom,
-      nom: nom.toUpperCase(),
-      idDiscord: idDiscord || '',
-      idPerso: idPerso || '',
+      prenom: normalizePrenom(prenom),
+      nom: normalizeNom(nom),
+      idDiscord: (idDiscord || '').trim(),
+      idPerso: (idPerso || '').trim(),
       role,
       statut: 'actif',
       dateEntree: new Date().toISOString().slice(0, 10),

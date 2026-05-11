@@ -80,6 +80,18 @@ export function durationHM(ms) {
   return `${h}h${m.toString().padStart(2, '0')}`;
 }
 
+// === Normalisation noms employes ===
+// Garantit que la detection bot/site matche meme si l'admin tape "ilyes chaifi"
+// au lieu de "Ilyes CHAIFI". Respecte tirets et apostrophes : "marc-antoine"
+// -> "Marc-Antoine", "o'brien" -> "O'Brien".
+export function normalizePrenom(s) {
+  return String(s ?? '').trim().toLowerCase()
+    .replace(/(^|[\s'-])([a-zà-ÿ])/g, (_, p, c) => p + c.toUpperCase());
+}
+export function normalizeNom(s) {
+  return String(s ?? '').trim().toUpperCase();
+}
+
 export function escapeHtml(s) {
   if (s == null) return '';
   return String(s)
