@@ -55,7 +55,9 @@ const [allVentes, allServices, allMyServices, quota] = await Promise.all([
   listVentesSemaine(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
   listAllServicesEmploye(me.uid).catch(() => []),
-  isPompiste(profile.role) ? getQuotaPompiste(me.uid, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 })) : null
+  // Charge le quota pour TOUS les roles (les non-pompistes peuvent aussi
+  // produire des bidons/caoutchoucs en bossant a la station - bonus info).
+  getQuotaPompiste(me.uid, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 }))
 ]);
 
 const myVentes = allVentes.filter(v => v.vendeurId === me.uid);
@@ -170,19 +172,57 @@ if (isVendeur(profile.role)) {
     </div>
   `;
 } else {
-  // Direction / Resp / DRH affichent un résumé sobre
+  // Direction / Resp / DRH / Admin Tech : salaire FIXE, mais peuvent aussi
+  // vendre / ravitailler. On affiche leurs stats personnelles a titre INFO
+  // (sans impact sur leur paye fixe).
+  const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
+  const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
+  const bidons = quota?.bidons ?? 0;
+  const caoutchoucs = quota?.caoutchoucs ?? 0;
+  const aFaitDeLaCo = ca > 0 || bidons > 0 || caoutchoucs > 0;
+
   document.getElementById('kpis-emp').innerHTML = `
+    <div class="kpi"><div class="label">Plafond salaire</div><div class="value">${money(plafondSalaire)}</div><div class="delta">salaire fixe (TTE)</div></div>
     <div class="kpi"><div class="label">Heures cette semaine</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServices.length} sessions</div></div>
-    <div class="kpi"><div class="label">Plafond salaire</div><div class="value">${money(plafondSalaire)}</div><div class="delta">défini par TTE</div></div>
-    <div class="kpi"><div class="label">Statut</div><div class="value">${ROLE_LABELS[profile.role]}</div><div class="delta">${profile.statut || 'actif'}</div></div>
+    <div class="kpi"><div class="label">${aFaitDeLaCo ? '🎁 CA bonus généré' : 'Statut'}</div><div class="value">${aFaitDeLaCo ? money(ca) : ROLE_LABELS[profile.role]}</div><div class="delta">${aFaitDeLaCo ? myVentes.length + ' ventes (info, sans impact paye)' : (profile.statut || 'actif')}</div></div>
     <div class="kpi"><div class="label">Date d'entrée</div><div class="value mono" style="font-size:1.2rem;">${profile.dateEntree || '—'}</div><div class="delta">au LTD</div></div>
   `;
-  document.getElementById('detail').innerHTML = `
-    <p class="muted">
-      En tant que ${ROLE_LABELS[profile.role]}, ton salaire est fixé par la direction.
-      Utilise les autres modules pour piloter l'activité.
+
+  // Section activite annexe (ventes + quotas pompiste si presents)
+  let detailHtml = `
+    <p class="muted mb-2">
+      En tant que ${ROLE_LABELS[profile.role]}, ton salaire est <strong>fixé</strong> par la direction (${money(plafondSalaire)} max).
+      ${aFaitDeLaCo ? "Tes ventes et ravitaillements ci-dessous comptent pour le CA global du LTD mais <strong>n'impactent pas ta paye</strong>." : "Utilise les autres modules pour piloter l'activité."}
     </p>
   `;
+  if (aFaitDeLaCo) {
+    detailHtml += `
+      <div class="kpi-grid mb-2">
+        ${ca > 0 ? `<div class="kpi"><div class="label">💵 CA généré</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes</div></div>` : ''}
+        ${benefice !== 0 ? `<div class="kpi"><div class="label">📈 Bénéfice généré</div><div class="value">${money(benefice)}</div><div class="delta">pour le LTD</div></div>` : ''}
+        ${bidons > 0 ? `<div class="kpi"><div class="label">🛢 Bidons d'essence</div><div class="value">${num(bidons)}</div><div class="delta">produits cette semaine</div></div>` : ''}
+        ${caoutchoucs > 0 ? `<div class="kpi"><div class="label">🪖 Caoutchoucs</div><div class="value">${num(caoutchoucs)}</div><div class="delta">produits cette semaine</div></div>` : ''}
+      </div>
+      ${myVentes.length > 0 ? `
+        <div class="table-scroll" style="max-height:300px;">
+          <table class="data">
+            <thead><tr><th>Date</th><th>Client</th><th class="right">Montant</th><th class="right">Bénéfice</th></tr></thead>
+            <tbody>
+              ${myVentes.map(v => `
+                <tr>
+                  <td class="mono">${datetime(v.timestamp)}</td>
+                  <td>${escapeHtml(v.client || '—')}</td>
+                  <td class="right mono">${money(v.montant)}</td>
+                  <td class="right mono ${(v.benefice||0) >= 0 ? '' : 'muted'}">${money(v.benefice || 0)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
+    `;
+  }
+  document.getElementById('detail').innerHTML = detailHtml;
 }
 
 // === Heures de service : 3 KPIs (jour / semaine / cumul depuis embauche) ===
