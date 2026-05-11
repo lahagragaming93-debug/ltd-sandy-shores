@@ -410,22 +410,28 @@ async function onService({ employeId, employeIdDiscord, employeNom, action, time
   // "Prenom Nom a commence son service").
   let key = employeId || employeIdDiscord;
   if (!key && employeNom) {
-    // Tentative 1 : split simple — prenom = 1er mot, nom = reste (UPPER)
+    // Resolution par nom RP : matching case-insensitive contre tous les users.
+    // Firestore == est case-sensitive, donc on fetch all + filtre en code.
+    // OK pour ~20 employes ; reviser si LTD passe a >200.
     const parts = employeNom.trim().split(/\s+/);
     if (parts.length >= 2) {
-      const prenom = parts[0];
-      const nom = parts.slice(1).join(' ').toUpperCase();
-      let snap = await db.collection('users')
-        .where('prenom', '==', prenom).where('nom', '==', nom).limit(1).get();
-      // Tentative 2 : prenom = 2 premiers mots, nom = dernier (UPPER)
-      // Utile pour "Luciana Angel Mars" -> prenom="Luciana Angel", nom="MARS"
-      if (snap.empty && parts.length >= 3) {
-        const prenomLong = parts.slice(0, parts.length - 1).join(' ');
-        const nomCourt = parts[parts.length - 1].toUpperCase();
-        snap = await db.collection('users')
-          .where('prenom', '==', prenomLong).where('nom', '==', nomCourt).limit(1).get();
+      const norm = (s) => String(s || '').trim().toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const usersSnap = await db.collection('users').get();
+      const candidats = [
+        // Tentative 1 : prenom = 1er mot, nom = reste
+        { prenom: parts[0], nom: parts.slice(1).join(' ') },
+        // Tentative 2 : prenom = tous sauf dernier, nom = dernier
+        // Utile pour "Luciana Angel Mars" -> prenom="Luciana Angel", nom="MARS"
+        ...(parts.length >= 3 ? [{ prenom: parts.slice(0, -1).join(' '), nom: parts.at(-1) }] : [])
+      ];
+      for (const c of candidats) {
+        const match = usersSnap.docs.find(d => {
+          const u = d.data();
+          return norm(u.prenom) === norm(c.prenom) && norm(u.nom) === norm(c.nom);
+        });
+        if (match) { key = match.id; break; }
       }
-      if (!snap.empty) key = snap.docs[0].id;
     }
   }
   if (!key) {

@@ -9,7 +9,7 @@ import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, 
 import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { date, escapeHtml } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
-import { confirmCritique } from '../utils/confirmation.js';
+import { confirmCritique, infoModal } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('admin');
