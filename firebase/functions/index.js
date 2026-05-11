@@ -953,6 +953,57 @@ function currentWeekId() {
 // ----------------------------------------------------------------
 
 // ----------------------------------------------------------------
+// migrateUsername — Change l'email Firebase Auth vers le synthetique
+// {username}@ltd-sandy-shores.local pour les utilisateurs existants.
+// ----------------------------------------------------------------
+// Contourne la restriction "Please verify the new email before changing"
+// imposee aux clients par Firebase Auth (protection recente). L'Admin SDK
+// bypass cette verification.
+// Le caller doit etre authentifie et n'agit que sur SON propre compte.
+// ----------------------------------------------------------------
+export const migrateUsername = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const uid = decoded.uid;
+
+    const { username } = req.body || {};
+    const cleanUsername = String(username || '').trim().toLowerCase();
+    if (!/^[a-z0-9._-]{3,30}$/.test(cleanUsername)) {
+      return res.status(400).json({ error: 'Username invalide : 3-30 caracteres, lettres/chiffres/. _ -' });
+    }
+
+    // Verification unicite
+    const existing = await db.collection('users').where('username', '==', cleanUsername).limit(1).get();
+    if (!existing.empty && existing.docs[0].id !== uid) {
+      return res.status(409).json({ error: `Username "${cleanUsername}" deja pris` });
+    }
+
+    const newEmail = `${cleanUsername}@ltd-sandy-shores.local`;
+
+    // Admin SDK : updateUser bypass le requirement de verification email
+    await adminAuth.updateUser(uid, { email: newEmail, emailVerified: true });
+    await db.collection('users').doc(uid).set({
+      username: cleanUsername,
+      email: newEmail,
+      motDePasseProvisoire: true,
+      usernameDefiniLe: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    return res.status(200).json({ ok: true, username: cleanUsername, email: newEmail });
+  } catch (err) {
+    console.error('[migrateUsername]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// ----------------------------------------------------------------
 // adminResetPassword — Régénère le MDP d'un compte par un admin
 // ----------------------------------------------------------------
 // Sécurité : caller doit être Patron / Co-Patron / Admin Technique

@@ -109,19 +109,21 @@
             return;
           }
 
-          const newEmail = `${cleanUsername}@ltd-sandy-shores.local`;
           try {
-            // Reauth obligatoire pour changer l'email (Firebase Auth security)
-            const cred = EmailAuthProvider.credential(user.email, pwd);
-            await reauthenticateWithCredential(user, cred);
-            await updateEmail(user, newEmail);
-            // motDePasseProvisoire=true → le bloc suivant prompt aussi le nouveau MDP
-            await setUserDoc(user.uid, {
-              username: cleanUsername,
-              email: newEmail,
-              motDePasseProvisoire: true
+            // Cloud Function avec Admin SDK : bypass la protection
+            // "verify email before change" de Firebase Auth pour le mail
+            // synthetique @ltd-sandy-shores.local (qui ne peut etre verifie).
+            const idToken = await user.getIdToken();
+            const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/migrateUsername', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+              body: JSON.stringify({ username: cleanUsername })
             });
-            profile.motDePasseProvisoire = true; // pour la suite immediate du flow
+            const json = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+            // Recharge le token apres update email cote Auth (sinon il est stale)
+            await user.getIdToken(true);
+            profile.motDePasseProvisoire = true; // pour le bloc suivant
             toastSuccess(`Identifiant "${cleanUsername}" enregistré.`);
           } catch (err) {
             console.error('Migration username FAIL:', err);
