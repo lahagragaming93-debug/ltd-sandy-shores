@@ -8,11 +8,12 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell, roleBadgeHtml } from '../layout.js';
 import {
   listVentesSemaine, listDepensesSemaine, listPaiesSemaine, listSemaines,
-  ajouterDepense, listUsers, listStatsHebdoOfficielles, listRedistributionsSemaine
+  ajouterDepense, listUsers, listStatsHebdoOfficielles, listRedistributionsSemaine,
+  listServicesSemaine, listQuotasSemaine, getConfig
 } from '../api.js';
 import { money, num, pct, datetime, escapeHtml,
-         startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
-import { checkMasseSalariale, primeHebdo, primeMensuelle } from '../utils/paie.js';
+         startOfWeekRP, endOfWeekRP, weekId } from '../utils/formatters.js';
+import { checkMasseSalariale, primeHebdo, primeMensuelle, salaireEstime } from '../utils/paie.js';
 import { isDirection, isVendeur, isPompiste, isResponsable, isSuperAdmin, compteEnFinance, ROLE_LABELS, PLAFOND_SALAIRE } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -174,12 +175,15 @@ async function chargerTout() {
     return;
   }
 
-  const [ventes, depenses, paies, u, redistributions] = await Promise.all([
+  const [ventes, depenses, paies, u, redistributions, services, quotas, cfg] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
     listUsers().catch(() => []),
-    listRedistributionsSemaine(debut, fin).catch(() => [])
+    listRedistributionsSemaine(debut, fin).catch(() => []),
+    listServicesSemaine(debut, fin).catch(() => []),
+    listQuotasSemaine(weekId()).catch(() => []),
+    getConfig().catch(() => ({}))
   ]);
   users = u;
 
@@ -187,14 +191,39 @@ async function chargerTout() {
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const caTotal = ca + caCarburant;
   // Exclure les depenses type='paie' (doublon avec /paies attribuees a la
-  // semaine precedente via fenetre post-cloture). Sinon les paies sont
-  // comptees 2 fois : une en "Charges non deductibles", une en "Masse salariale".
+  // semaine precedente via fenetre post-cloture).
   const depensesHorsPaie = depenses.filter(d => d.type !== 'paie');
   const totalDepenses = depensesHorsPaie.reduce((s, d) => s + (d.montant || 0), 0);
   const deductibles = depensesHorsPaie.filter(d => d.deductible !== false)
     .reduce((s, d) => s + (d.montant || 0), 0);
   const nonDeductibles = totalDepenses - deductibles;
-  const masseSalariale = paies.reduce((s, p) => s + (p.montant || 0), 0);
+
+  // === Masse salariale PRÉVISIONNELLE ===
+  // Au lieu de juste les paies versées, on calcule en continu le salaire
+  // estimé de chaque user actif (Direction = fixe au plafond, Vendeur/Pompiste
+  // = variable selon CA/quotas/heures). Ainsi le patron voit en temps réel
+  // ce qu'il devra verser lundi-mardi prochain — pas seulement ce qu'il a
+  // déjà versé.
+  const masseVersee = paies.reduce((s, p) => s + (p.montant || 0), 0);
+  let masseEstimee = 0;
+  for (const usr of users.filter(x => compteEnFinance(x.role) && x.statut === 'actif')) {
+    const myV = ventes.filter(v => v.vendeurId === usr.id);
+    const myCa = myV.reduce((s, v) => s + (v.montant || 0), 0);
+    const myBenef = myV.reduce((s, v) => s + (v.benefice || 0), 0);
+    const q = quotas.find(qu => qu.employeId === usr.id) || { bidons: 0, caoutchoucs: 0 };
+    masseEstimee += salaireEstime({
+      role: usr.role,
+      caGenere: myCa,
+      beneficeGenere: myBenef,
+      bidonsRealises: q.bidons,
+      caoutchoucsRealises: q.caoutchoucs,
+      salaireDecide: usr.salaireDecide
+    }, cfg);
+  }
+  // On utilise le MAX des 2 pour le contrôle TTE (sinon on peut tricher
+  // en sous-payant). En pratique masseEstimee >= masseVersee tant que la
+  // semaine n'est pas finie.
+  const masseSalariale = Math.max(masseEstimee, masseVersee);
   const resultatImposable = caTotal - deductibles;
   const beneficeNet = caTotal - totalDepenses - masseSalariale;
   const masse = checkMasseSalariale(masseSalariale, caTotal);
@@ -221,10 +250,10 @@ async function chargerTout() {
       <div class="value">${money(deductibles)}</div>
       <div class="delta">imposable: ${money(resultatImposable)}</div>
     </div>
-    <div class="kpi kpi-salaire">
+    <div class="kpi kpi-salaire" title="Prévisionnel = somme des salaires estimés (Direction fixe + Vendeur/Pompiste selon CA/quotas en temps réel). Versé = paies réellement déjà payées.">
       <div class="label">💰 Masse salariale</div>
       <div class="value">${money(masseSalariale)}</div>
-      <div class="delta ${masse.ok ? 'up' : 'down'}">${pct(masse.ratio*100, 1)} ${masse.ok ? '✓' : '⚠ HORS TTE'}</div>
+      <div class="delta ${masse.ok ? 'up' : 'down'}">${pct(masse.ratio*100, 1)} ${masse.ok ? '✓' : '⚠ HORS TTE'} · ${money(masseVersee)} déjà versé</div>
     </div>
     <div class="kpi ${beneficeNet >= 0 ? 'kpi-benefice' : 'kpi-perte'}">
       <div class="label">${beneficeNet >= 0 ? '📈 Bénéfice net' : '📉 Perte'}</div>

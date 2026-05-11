@@ -7,8 +7,12 @@ import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listenStocks, listenStations, listDepensesSemaine,
   listPaiesSemaine, listSemaines, listenAlertesActives, getConfig,
-  getDernierSoldeBanque, listRedistributionsSemaine
+  getDernierSoldeBanque, listRedistributionsSemaine,
+  listUsers, listServicesSemaine, listQuotasSemaine
 } from '../api.js';
+import { salaireEstime } from '../utils/paie.js';
+import { compteEnFinance } from '../utils/permissions.js';
+import { weekId } from '../utils/formatters.js';
 import { startOfWeekRP, endOfWeekRP, money, num, pct, datetime, escapeHtml } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { checkMasseSalariale } from '../utils/paie.js';
@@ -90,25 +94,47 @@ document.getElementById('periode-semaine').textContent =
 
 // === KPIs ===
 async function chargerKpis() {
-  const [ventes, depenses, paies, config, soldeBanque, redistributions] = await Promise.all([
+  const [ventes, depenses, paies, config, soldeBanque, redistributions, allUsers, services, quotas] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
     getConfig().catch(() => ({})),
     getDernierSoldeBanque().catch(() => null),
-    listRedistributionsSemaine(debut, fin).catch(() => [])
+    listRedistributionsSemaine(debut, fin).catch(() => []),
+    listUsers().catch(() => []),
+    listServicesSemaine(debut, fin).catch(() => []),
+    listQuotasSemaine(weekId()).catch(() => [])
   ]);
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const caTotal = ca + caCarburant;
   const benefice = ventes.reduce((s, v) => s + (v.benefice || 0), 0);
-  const totalDepenses = depenses.reduce((s, d) => s + (d.montant || 0), 0);
+  // Depenses : exclut type='paie' (doublon)
+  const totalDepenses = depenses.filter(d => d.type !== 'paie').reduce((s, d) => s + (d.montant || 0), 0);
   const totalPaies = paies.reduce((s, p) => s + (p.montant || 0), 0);
-  const beneficeNet = caTotal - totalDepenses - totalPaies;
-  // Masse salariale TTE : rapport sur le CA TOTAL (produits + carburant) pour
-  // refleter la realite economique de l'entreprise.
-  const masse = checkMasseSalariale(totalPaies, caTotal);
+
+  // Masse salariale PREVISIONNELLE : somme des salaires estimes (Direction fixe
+  // + Vendeur/Pompiste variable selon CA/quotas). Reflet temps reel de ce qui
+  // sera du au prochain versement (lundi-mardi suivant).
+  let masseEstimee = 0;
+  for (const usr of allUsers.filter(x => compteEnFinance(x.role) && x.statut === 'actif')) {
+    const myV = ventes.filter(v => v.vendeurId === usr.id);
+    const myCa = myV.reduce((s, v) => s + (v.montant || 0), 0);
+    const myBenef = myV.reduce((s, v) => s + (v.benefice || 0), 0);
+    const q = quotas.find(qu => qu.employeId === usr.id) || { bidons: 0, caoutchoucs: 0 };
+    masseEstimee += salaireEstime({
+      role: usr.role,
+      caGenere: myCa,
+      beneficeGenere: myBenef,
+      bidonsRealises: q.bidons,
+      caoutchoucsRealises: q.caoutchoucs,
+      salaireDecide: usr.salaireDecide
+    }, config);
+  }
+  const masseSalariale = Math.max(masseEstimee, totalPaies);
+  const beneficeNet = caTotal - totalDepenses - masseSalariale;
+  const masse = checkMasseSalariale(masseSalariale, caTotal);
 
   // Solde banque LTD (dernière dépense connue avec champ soldeApres)
   let soldeKpi = `
@@ -152,11 +178,11 @@ async function chargerKpis() {
         après dépenses + salaires
       </div>
     </div>
-    <div class="kpi">
+    <div class="kpi" title="Prévisionnel : salaires fixes Direction + variables Vendeur/Pompiste calculés selon CA/quotas en temps réel.">
       <div class="label">Masse salariale</div>
       <div class="value">${pct(masse.ratio * 100, 1)}</div>
       <div class="delta ${masse.ok ? 'up' : 'down'}">
-        ${masse.ok ? '≤ 90% (TTE OK)' : '⚠ Dépasse 90%'}
+        ${masse.ok ? '≤ 90% (TTE OK)' : '⚠ Dépasse 90%'} · ${money(masseSalariale)} prévu / ${money(totalPaies)} versé
       </div>
     </div>
   `;
