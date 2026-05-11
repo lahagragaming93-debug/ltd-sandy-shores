@@ -672,9 +672,12 @@ async function onStationsDashboard(p) {
 
 // === Dossier employe (forum #Dossiers-Employers, threads) ===
 // Stocke chaque fiche dans /dossiersEmployes/{threadId} (audit complet).
-// Tente d'enrichir le user matchant /users (nom + prenom) en y ajoutant
-// telephone, IBAN, pole. NE TOUCHE PAS aux champs critiques (email,
-// idDiscord, idPerso) car la fiche ne les contient pas.
+// 2026-05-11 : AUTO-CREATION COMPTE. Si aucun /users ne matche le nom+prenom :
+//   - Cree Firebase Auth user avec username=prenom.nom (slugifie) + mdp aleatoire
+//   - Cree /users avec telephone/iban/pole de la fiche + motDePasseProvisoire=true
+//   - Cree une alerte info dans /alertes avec les identifiants a transmettre
+// Si un /users existe deja : enrichit avec telephone/iban/pole sans toucher
+// aux champs critiques (email/idDiscord/idPerso).
 async function onDossierEmploye(p) {
   if (!p?.threadId) return;
   await db.collection('dossiersEmployes').doc(p.threadId).set({
@@ -694,21 +697,87 @@ async function onDossierEmploye(p) {
     derniereMaj:     FieldValue.serverTimestamp()
   }, { merge: true });
 
-  // Enrichissement /users : match exact nom (UPPER) + prenom (Title).
-  // Si plusieurs matches, on skip (risque famille — Williams, Mars, etc.).
   if (!p.nom || !p.prenom) return;
   const usersSnap = await db.collection('users')
     .where('nom', '==', p.nom)
     .where('prenom', '==', p.prenom)
     .get();
-  if (usersSnap.size === 0) {
-    console.log(`[dossierEmploye] aucun user matche ${p.prenom} ${p.nom} — fiche stockee dans /dossiersEmployes seulement`);
-    return;
-  }
+
   if (usersSnap.size > 1) {
-    console.log(`[dossierEmploye] ${usersSnap.size} users matchent ${p.prenom} ${p.nom} — skip enrichissement (ambigu)`);
+    console.log(`[dossierEmploye] ${usersSnap.size} users matchent ${p.prenom} ${p.nom} — skip (ambigu)`);
     return;
   }
+
+  if (usersSnap.size === 0) {
+    // === AUTO-CREATION DU COMPTE ===
+    const slug = (s) => String(s || '').toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+    let username = `${slug(p.prenom)}.${slug(p.nom)}`;
+    if (username.length < 3 || username.length > 30) {
+      console.log(`[dossierEmploye] username '${username}' invalide — skip auto-creation`);
+      return;
+    }
+    // Verifier unicite username (un homonyme deja en base)
+    const usernameExisting = await db.collection('users').where('username', '==', username).limit(1).get();
+    if (!usernameExisting.empty) {
+      username = `${username}.${Date.now().toString(36).slice(-4)}`;
+    }
+
+    // Generer mot de passe
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+    let password = '';
+    for (let i = 0; i < 12; i++) password += chars[Math.floor(Math.random() * chars.length)];
+
+    const email = `${username}@ltd-sandy-shores.local`;
+    // Devine le role depuis le pole (par defaut vendeur-novice)
+    const role = /pompiste/i.test(p.pole || '') ? 'pompiste-novice' : 'vendeur-novice';
+
+    try {
+      const userRecord = await adminAuth.createUser({
+        email, password, emailVerified: true,
+        displayName: `${p.prenom} ${p.nom}`
+      });
+      await db.collection('users').doc(userRecord.uid).set({
+        username, email,
+        prenom: p.prenom, nom: p.nom,
+        idDiscord: p.auteurDiscordId || '',
+        idPerso: '',
+        role, statut: 'actif',
+        dateEntree: new Date().toISOString().slice(0, 10),
+        creePar: 'auto-dossier-employe',
+        motDePasseProvisoire: true,
+        telephone: p.telephone || '',
+        iban: p.iban || '',
+        pole: p.pole || '',
+        cni: p.cni || '',
+        permis: p.permis || '',
+        sourceCreationThread: p.threadId
+      });
+      // Alerte direction avec les credentials a transmettre
+      await db.collection('alertes').add({
+        type: 'compte-cree-auto',
+        message: `🆕 Compte auto-cree pour ${p.prenom} ${p.nom} (depuis fiche Discord). Identifiant: ${username} — Mot de passe initial: ${password}. A transmettre via Discord/in-game.`,
+        gravite: 'info',
+        metadata: { uid: userRecord.uid, username, password, prenom: p.prenom, nom: p.nom, threadId: p.threadId },
+        resolue: false,
+        timestamp: FieldValue.serverTimestamp()
+      });
+      console.log(`[dossierEmploye] AUTO-CREATION : ${p.prenom} ${p.nom} → ${username} (uid=${userRecord.uid})`);
+    } catch (err) {
+      console.error(`[dossierEmploye] AUTO-CREATION FAIL pour ${p.prenom} ${p.nom} :`, err.message);
+      await db.collection('alertes').add({
+        type: 'compte-cree-auto-error',
+        message: `❌ Echec auto-creation compte pour ${p.prenom} ${p.nom} : ${err.message}`,
+        gravite: 'warn',
+        metadata: { prenom: p.prenom, nom: p.nom, threadId: p.threadId, error: err.message },
+        resolue: false,
+        timestamp: FieldValue.serverTimestamp()
+      });
+    }
+    return;
+  }
+
+  // === ENRICHISSEMENT du user existant ===
   const userRef = usersSnap.docs[0].ref;
   const enrichPatch = {};
   if (p.telephone) enrichPatch.telephone = p.telephone;

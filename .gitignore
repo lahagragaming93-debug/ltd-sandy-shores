@@ -18,6 +18,8 @@ discord-bot/peek-*.md
 *.token
 *.secret
 *.credentials.json
+IDENTIFIANTS-*.txt
+backup-*.json
 
 # Logs
 *.log
