@@ -210,6 +210,11 @@ function renderTable() {
 ['filtre-role', 'filtre-statut', 'filtre-recherche'].forEach(id => {
   document.getElementById(id).addEventListener('input', renderTable);
 });
+
+// Pre-remplit le champ de recherche depuis ?q=... (lien profond depuis /stocks)
+const _qParam = new URLSearchParams(location.search).get('q');
+if (_qParam) document.getElementById('filtre-recherche').value = _qParam;
+
 renderTable();
 
 function ouvrirDetail(uid) {

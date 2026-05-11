@@ -5,7 +5,8 @@
 import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
-  listProduits, setProduit, deleteProduit, listenStocks, ajusterStock, listMouvementsRecents
+  listProduits, setProduit, deleteProduit, listenStocks, ajusterStock, listMouvementsRecents,
+  listUsers
 } from '../api.js';
 import { CATALOGUE, CATEGORIES, CATEGORY_LABELS } from '../data/produits.js';
 import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
@@ -380,7 +381,27 @@ if (btnInit) {
 
 // === Derniers mouvements ===
 async function chargerMouvements() {
-  const mvts = await listMouvementsRecents(20).catch(() => []);
+  const [mvts, users] = await Promise.all([
+    listMouvementsRecents(20).catch(() => []),
+    listUsers().catch(() => [])
+  ]);
+  // Index pour matching rapide : par idDiscord, idPerso, et par nom RP complet
+  const byDiscord = {};
+  const byPerso   = {};
+  const byNom     = {};
+  for (const u of users) {
+    if (u.idDiscord) byDiscord[u.idDiscord] = u;
+    if (u.idPerso)   byPerso[u.idPerso] = u;
+    const nomComplet = `${u.prenom || ''} ${u.nom || ''}`.trim().toLowerCase();
+    if (nomComplet) byNom[nomComplet] = u;
+  }
+  function resolveUser(m) {
+    if (m.discord && byDiscord[m.discord]) return byDiscord[m.discord];
+    if (m.characterId && byPerso[m.characterId]) return byPerso[m.characterId];
+    const raw = (m.par || '').trim().toLowerCase();
+    return byNom[raw] || null;
+  }
+
   const div = document.getElementById('mouvements');
   if (mvts.length === 0) {
     div.innerHTML = `<p class="muted">Aucun mouvement (logs Discord à venir).</p>`;
@@ -393,20 +414,26 @@ async function chargerMouvements() {
         <th data-sort="type">Type</th>
         <th data-sort="item">Item</th>
         <th class="right" data-sort="qte">Quantité</th>
-        <th data-sort="source">Source</th>
+        <th data-sort="source">Employé</th>
         <th data-sort="raison">Raison</th>
       </tr></thead>
       <tbody>
-        ${mvts.map(m => `
+        ${mvts.map(m => {
+          const u = resolveUser(m);
+          const sourceCell = u
+            ? `<a href="rh.html?q=${encodeURIComponent(u.prenom + ' ' + u.nom)}" class="user-link" title="Voir le profil employé">${escapeHtml(u.prenom + ' ' + u.nom)}</a>`
+            : `<span class="muted" title="Employé non lié à un compte du site">${escapeHtml(m.par || m.source || '—')}</span>`;
+          return `
           <tr>
             <td>${datetime(m.timestamp)}</td>
             <td><span class="badge ${m.type?.includes('add') ? 'ok' : 'warn'}">${m.type}</span></td>
             <td>${escapeHtml(m.item || '—')}</td>
             <td class="right mono">${num(m.quantite || 0)}</td>
-            <td>${escapeHtml(m.par || m.source || '—')}</td>
+            <td>${sourceCell}</td>
             <td class="muted">${escapeHtml(m.raison || '')}</td>
           </tr>
-        `).join('')}
+        `;
+        }).join('')}
       </tbody>
     </table>
   `;

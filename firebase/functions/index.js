@@ -340,18 +340,47 @@ async function onInventory({ type, item, itemNomBrut, count, source, owner, char
 
 async function onService({ employeId, employeIdDiscord, employeNom, action, timestamp }) {
   const t = timestamp ? new Date(timestamp) : new Date();
+
+  // Resolution de la cle Firestore : idPerso > idDiscord > lookup par nom RP.
+  // Necessaire car les logs Jessica n'ont ni idPerso ni idDiscord (juste
+  // "Prenom Nom a commence son service").
+  let key = employeId || employeIdDiscord;
+  if (!key && employeNom) {
+    // Tentative 1 : split simple — prenom = 1er mot, nom = reste (UPPER)
+    const parts = employeNom.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      const prenom = parts[0];
+      const nom = parts.slice(1).join(' ').toUpperCase();
+      let snap = await db.collection('users')
+        .where('prenom', '==', prenom).where('nom', '==', nom).limit(1).get();
+      // Tentative 2 : prenom = 2 premiers mots, nom = dernier (UPPER)
+      // Utile pour "Luciana Angel Mars" -> prenom="Luciana Angel", nom="MARS"
+      if (snap.empty && parts.length >= 3) {
+        const prenomLong = parts.slice(0, parts.length - 1).join(' ');
+        const nomCourt = parts[parts.length - 1].toUpperCase();
+        snap = await db.collection('users')
+          .where('prenom', '==', prenomLong).where('nom', '==', nomCourt).limit(1).get();
+      }
+      if (!snap.empty) key = snap.docs[0].id;
+    }
+  }
+  if (!key) {
+    console.log(`[onService] employeNom="${employeNom}" pas resolu -> skip`);
+    return;
+  }
+
   if (action === 'start') {
-    await db.collection('servicesOuverts').doc(employeId).set({
-      employeId, employeNom, debut: Timestamp.fromDate(t)
+    await db.collection('servicesOuverts').doc(key).set({
+      employeId: key, employeNom, debut: Timestamp.fromDate(t)
     });
   } else if (action === 'end') {
-    const ref = db.collection('servicesOuverts').doc(employeId);
+    const ref = db.collection('servicesOuverts').doc(key);
     const snap = await ref.get();
     if (snap.exists) {
       const debut = snap.data().debut.toDate();
       const duree = t.getTime() - debut.getTime();
       await db.collection('services').add({
-        employeId, employeNom,
+        employeId: key, employeNom,
         debut: Timestamp.fromDate(debut),
         fin: Timestamp.fromDate(t),
         duree
@@ -368,6 +397,17 @@ async function onFacture(p) {
     const usnap = await db.collection('users').where('idDiscord', '==', p.vendeurDiscord).limit(1).get();
     if (!usnap.empty) vendeurId = usnap.docs[0].id;
   }
+
+  // 2026-05-11 : verification "vendeur en service".
+  // Un employe ne doit emettre des factures que pendant son service. Si pas
+  // de doc /servicesOuverts/{vendeurId} → alerte direction (potentielle fraude
+  // ou oubli de prise de service).
+  let enService = null;
+  if (vendeurId) {
+    const svcSnap = await db.collection('servicesOuverts').doc(vendeurId).get();
+    enService = svcSnap.exists;
+  }
+
   // Idempotent : meme factureId emis par #suivi-facture ET #factures = 1 seul doc
   const docId = p.factureId ? `fac-${p.factureId}` : `fac-msg-${Date.now()}`;
   await db.collection('ventes').doc(docId).set({
@@ -375,6 +415,7 @@ async function onFacture(p) {
     vendeurDiscord: p.vendeurDiscord || '',
     vendeurNom: p.vendeurNom || '',
     vendeurId,
+    enServiceAuMomentDeLaVente: enService,
     client: p.clientNom || '',
     montant: Number(p.montant) || 0,
     benefice: p.benefice ?? null,
@@ -384,6 +425,18 @@ async function onFacture(p) {
     stockVerifie: p.stockVerifie ?? null,
     timestamp: FieldValue.serverTimestamp()
   }, { merge: true });
+
+  // Alerte si vendeur identifie mais PAS en service au moment de la vente
+  if (vendeurId && enService === false) {
+    await db.collection('alertes').add({
+      type: 'vente-hors-service',
+      message: `⚠ Vente #${p.factureId} (${p.montant}$) par ${p.vendeurNom || vendeurId} HORS SERVICE — devrait être en prise de service.`,
+      gravite: 'warn',
+      metadata: { factureId: p.factureId, vendeurId, vendeurNom: p.vendeurNom, montant: p.montant },
+      resolue: false,
+      timestamp: FieldValue.serverTimestamp()
+    });
+  }
 }
 
 async function onRedistribution(p) {
