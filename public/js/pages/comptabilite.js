@@ -413,23 +413,89 @@ function renderGaugeMasse(masse, masseSalariale, ca) {
   `;
 }
 
-function renderSemaineFigee(s) {
+async function renderSemaineFigee(s) {
+  // KPIs depuis le snapshot fige
   document.getElementById('kpis-compta').innerHTML = `
     <div class="kpi kpi-recette"><div class="label">💚 CA</div><div class="value">${money(s.ca)}</div><div class="delta">${s.statut || 'figée'}</div></div>
-    <div class="kpi kpi-depense"><div class="label">❤ Dépenses</div><div class="value">${money(s.depenses)}</div><div class="delta">total</div></div>
-    <div class="kpi kpi-salaire"><div class="label">💰 Salaires</div><div class="value">${money(s.masseSalariale)}</div><div class="delta">versés</div></div>
+    <div class="kpi kpi-recette"><div class="label">⛽ CA carburant</div><div class="value">${money(s.caCarburant || 0)}</div><div class="delta">inclus dans CA</div></div>
+    <div class="kpi kpi-depense"><div class="label">❤ Dépenses (hors salaires)</div><div class="value">${money(s.depenses)}</div><div class="delta">${s.chargesDeductibles ? money(s.chargesDeductibles) + ' déductibles' : ''}</div></div>
+    <div class="kpi kpi-salaire"><div class="label">💰 Salaires</div><div class="value">${money(s.masseSalariale)}</div><div class="delta">versés post-cloture</div></div>
     <div class="kpi ${s.benefice >= 0 ? 'kpi-benefice' : 'kpi-perte'}"><div class="label">${s.benefice >= 0 ? '📈 Bénéfice' : '📉 Perte'}</div><div class="value">${money(s.benefice)}</div><div class="delta ${s.benefice>=0?'up':'down'}">cloturé</div></div>
   `;
-  document.getElementById('tbody-recettes').innerHTML =
-    `<tr><td>Semaine cloturée</td><td class="right mono">${money(s.ca)}</td></tr>`;
-  document.getElementById('tbody-depenses').innerHTML =
-    `<tr><td>Semaine cloturée</td><td class="right mono">${money(s.depenses + (s.masseSalariale||0))}</td></tr>`;
-  document.getElementById('salaires-zone').innerHTML =
-    `<p class="muted">Détail des salaires non disponible pour les semaines archivées.</p>`;
-  document.getElementById('tbody-charges').innerHTML =
-    `<tr><td colspan="5" class="muted text-center">Détail non disponible — semaine archivée.</td></tr>`;
-  document.getElementById('masse-gauge').innerHTML =
-    `<p class="muted">Semaine cloturée le ${datetime(s.dateCloture)}.</p>`;
+
+  // Recettes : split produits / carburant
+  document.getElementById('tbody-recettes').innerHTML = `
+    <tr><td>CA produits</td><td class="right mono">${money(s.caProduits || (s.ca - (s.caCarburant || 0)))}</td></tr>
+    <tr><td>CA carburant</td><td class="right mono">${money(s.caCarburant || 0)}</td></tr>
+    <tr class="row-total"><td>Total recettes</td><td class="right mono">${money(s.ca)}</td></tr>
+  `;
+
+  // Recharge dynamiquement les paies + depenses pour afficher les details.
+  // /paies utilise la fenetre post-cloture (mardi 21h max) via listPaiesSemaine.
+  const debut = s.dateDebut?.toDate?.() || new Date(s.dateDebut);
+  const fin   = s.dateFin?.toDate?.()   || new Date(s.dateFin);
+  const [paiesDetail, depensesDetail] = await Promise.all([
+    listPaiesSemaine(debut, fin).catch(() => []),
+    listDepensesSemaine(debut, fin).catch(() => [])
+  ]);
+  const depHorsPaie = depensesDetail.filter(d => d.type !== 'paie');
+  const totDep = depHorsPaie.reduce((sum, d) => sum + (d.montant || 0), 0);
+
+  document.getElementById('tbody-depenses').innerHTML = `
+    <tr><td>Charges (hors salaires)</td><td class="right mono">${money(totDep)}</td></tr>
+    <tr><td>Salaires versés</td><td class="right mono">${money(s.masseSalariale || 0)}</td></tr>
+    <tr class="row-total"><td>Total dépenses + salaires</td><td class="right mono">${money(totDep + (s.masseSalariale || 0))}</td></tr>
+  `;
+
+  // Detail des salaires
+  if (paiesDetail.length === 0) {
+    document.getElementById('salaires-zone').innerHTML =
+      `<p class="muted">Aucune paie versée pour cette semaine (fenêtre post-cloture vide).</p>`;
+  } else {
+    const usersById = users.reduce((m, u) => (m[u.id] = u, m), {});
+    document.getElementById('salaires-zone').innerHTML = `
+      <table class="data" style="margin-top:6px;">
+        <thead><tr>
+          <th>Date</th><th>Bénéficiaire</th><th class="right">Montant</th>
+        </tr></thead>
+        <tbody>
+          ${paiesDetail.map(p => {
+            const u = usersById[p.beneficiaireId];
+            const nom = u ? `${u.prenom} ${u.nom}` : (p.beneficiaireNom || p.beneficiaireDiscord || '—');
+            return `<tr>
+              <td class="mono">${datetime(p.timestamp)}</td>
+              <td>${escapeHtml(nom)}</td>
+              <td class="right mono">${money(p.montant)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // Detail des charges (depenses hors paies)
+  if (depHorsPaie.length === 0) {
+    document.getElementById('tbody-charges').innerHTML =
+      `<tr><td colspan="5" class="muted text-center">Aucune dépense cette semaine.</td></tr>`;
+  } else {
+    const usersById = users.reduce((m, u) => (m[u.id] = u, m), {});
+    document.getElementById('tbody-charges').innerHTML = depHorsPaie.map(d => {
+      const u = usersById[d.utilisateurId];
+      return `
+        <tr>
+          <td>${datetime(d.timestamp)}</td>
+          <td>${escapeHtml(d.raison || '')}</td>
+          <td><span class="badge ${d.deductible !== false ? 'ok' : 'neutral'}">${d.deductible !== false ? 'Déductible' : 'Non déductible'}</span></td>
+          <td class="right mono">${money(d.montant)}</td>
+          <td>${escapeHtml(u ? (u.prenom + ' ' + u.nom) : (d.utilisateur || '—'))}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // Gauge masse salariale
+  const masseRatio = s.ca > 0 ? (s.masseSalariale / s.ca) : 0;
+  renderGaugeMasse({ ratio: masseRatio, ok: masseRatio <= 0.9, alerte: masseRatio > 0.85 && masseRatio <= 0.9 }, s.masseSalariale, s.ca);
 }
 
 sel.addEventListener('change', chargerTout);

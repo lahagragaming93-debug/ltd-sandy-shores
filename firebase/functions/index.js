@@ -64,8 +64,11 @@ export const clotureHebdo = onSchedule({
   const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
   const ca          = caProduits + caCarburant;
   const benefice    = ventesSnap.docs.reduce((s, d) => s + (d.data().benefice || 0), 0);
-  const depTotal    = depensesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
-  const dedu        = depensesSnap.docs
+  // Exclure les depenses type='paie' (doublon avec /paies). Sinon les paies
+  // sont comptees 2 fois : depenses + masseSalariale.
+  const depensesReelles = depensesSnap.docs.filter(d => d.data().type !== 'paie');
+  const depTotal    = depensesReelles.reduce((s, d) => s + (d.data().montant || 0), 0);
+  const dedu        = depensesReelles
     .filter(d => d.data().deductible !== false)
     .reduce((s, d) => s + (d.data().montant || 0), 0);
 
