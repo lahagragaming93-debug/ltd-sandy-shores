@@ -159,6 +159,14 @@ export async function listServicesSemaine(dateDebut, dateFin) {
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
+// Tous les services d'un employe (sans filtre date) — pour le cumul depuis embauche
+export async function listAllServicesEmploye(employeId) {
+  const q = query(collection(db, 'services'),
+    where('employeId', '==', employeId),
+    orderBy('debut', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
 // ----- Quotas pompistes -----
 export async function getQuotaPompiste(employeId, weekId) {
@@ -302,10 +310,25 @@ export async function listItemsFiveMUniques(maxLignes = 2000) {
 }
 
 // ----- Paies -----
+// Regle business : la cloture compta est le dimanche 23h59. Les paies pour
+// la semaine N sont DELIVRES apres cloture, et le patron a jusqu'au mardi
+// (jour suivant le lundi de N+1) a 21h pour les verser et faire la decla IRS.
+// Donc fenetre de paie de la semaine N = [lundi N+1 00h00, mardi N+1 21h00].
+// listPaiesSemaine retourne les paies dont le TIMESTAMP tombe dans cette
+// fenetre de paie associee a la semaine demandee (et non pas dans la
+// semaine N elle-meme — sinon les paies seraient affichees a la mauvaise
+// semaine puisque elles arrivent forcement APRES cloture).
 export async function listPaiesSemaine(dateDebut, dateFin) {
+  // dateDebut = lundi 00h00 de la semaine N, dateFin = dimanche 23h59 de N
+  // Fenetre paie : lundi N+1 00h00 (= dateFin + 1s arrondi) -> mardi N+1 21h00
+  const debutFenetre = new Date(dateFin.getTime() + 1000);
+  debutFenetre.setHours(0, 0, 0, 0);    // lundi N+1 00h00 (au cas ou dateFin n'etait pas pile 23:59:59)
+  const finFenetre = new Date(debutFenetre);
+  finFenetre.setDate(finFenetre.getDate() + 1);   // mardi N+1
+  finFenetre.setHours(21, 0, 0, 0);              // mardi N+1 21h00
   const q = query(collection(db, 'paies'),
-    where('timestamp', '>=', Timestamp.fromDate(dateDebut)),
-    where('timestamp', '<=', Timestamp.fromDate(dateFin)),
+    where('timestamp', '>=', Timestamp.fromDate(debutFenetre)),
+    where('timestamp', '<=', Timestamp.fromDate(finFenetre)),
     orderBy('timestamp', 'desc'));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));

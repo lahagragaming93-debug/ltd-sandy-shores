@@ -5,7 +5,7 @@
 import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
-  listVentesSemaine, listServicesSemaine, getQuotaPompiste, getConfig
+  listVentesSemaine, listServicesSemaine, listAllServicesEmploye, getQuotaPompiste, getConfig
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
@@ -51,15 +51,24 @@ renderShell(profile, 'employee', html);
 const me = getCurrentUser();
 const config = await getConfig().catch(() => ({}));
 
-const [allVentes, allServices, quota] = await Promise.all([
+const [allVentes, allServices, allMyServices, quota] = await Promise.all([
   listVentesSemaine(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
+  listAllServicesEmploye(me.uid).catch(() => []),
   isPompiste(profile.role) ? getQuotaPompiste(me.uid, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 })) : null
 ]);
 
 const myVentes = allVentes.filter(v => v.vendeurId === me.uid);
 const myServices = allServices.filter(s => s.employeId === me.uid);
 const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0);
+
+// Cumul depuis embauche (tous services) + heures aujourd'hui
+const cumulMs = allMyServices.reduce((s, x) => s + (x.duree || 0), 0);
+const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+const heuresJourMs = allMyServices.reduce((s, x) => {
+  const d = x.debut?.toDate?.();
+  return d && d >= startOfDay ? s + (x.duree || 0) : s;
+}, 0);
 
 const plafondSalaire = PLAFOND_SALAIRE[profile.role] || 0;
 
@@ -176,12 +185,20 @@ if (isVendeur(profile.role)) {
   `;
 }
 
-// === Heures de service ===
+// === Heures de service : 3 KPIs (jour / semaine / cumul depuis embauche) ===
 const sDiv = document.getElementById('services');
+const heuresStatsHtml = `
+  <div class="kpi-grid mb-2">
+    <div class="kpi"><div class="label">⏱ Aujourd'hui</div><div class="value">${durationHM(heuresJourMs)}</div><div class="delta">depuis 00h00</div></div>
+    <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServices.length} sessions</div></div>
+    <div class="kpi"><div class="label">🗂 Cumul depuis embauche</div><div class="value">${durationHM(cumulMs)}</div><div class="delta">${allMyServices.length} sessions total</div></div>
+  </div>
+`;
 if (myServices.length === 0) {
-  sDiv.innerHTML = `<p class="muted">Aucune session enregistrée cette semaine.</p>`;
+  sDiv.innerHTML = heuresStatsHtml + `<p class="muted">Aucune session enregistrée cette semaine.</p>`;
 } else {
-  sDiv.innerHTML = `
+  // Le tableau detaille reste sur la semaine en cours (pas trop long)
+  sDiv.innerHTML = heuresStatsHtml + `
     <div class="table-scroll" style="max-height:400px;">
       <table class="data" id="table-mes-services">
         <thead><tr>
@@ -201,7 +218,7 @@ if (myServices.length === 0) {
       </table>
     </div>
     <p class="muted mono mt-2" style="font-size:0.78rem;">
-      Total : ${durationHM(heuresMs)} ${heuresMs >= 7*3600*1000 ? '✓ ≥ 7h' : '— moins de 7h (info uniquement, non bloquant)'}
+      Total semaine : ${durationHM(heuresMs)} ${heuresMs >= 7*3600*1000 ? '✓ ≥ 7h' : '— moins de 7h (info uniquement, non bloquant)'}
     </p>
   `;
   makeSortable(document.getElementById('table-mes-services'));
