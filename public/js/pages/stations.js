@@ -208,15 +208,21 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
   const id = document.getElementById('st-id').value || ('station_' + Date.now());
 
   // Cas pompiste : on n'envoie QUE stockActuel (les autres inputs sont disabled).
+  // On tague la source pour que le trigger Firestore alerteStation cree une
+  // alerte info "Stock modifie par X" visible par la direction (audit).
   if (stockOnly) {
     if (!id) return toastError("Station introuvable.");
     const newStock = Number(document.getElementById('st-stock-actuel').value) || 0;
     try {
-      await setStation(id, { stockActuel: newStock });
+      await setStation(id, {
+        stockActuel: newStock,
+        sourceMajAuto: 'modal-manuel-pompiste',
+        derniereModifPar: { uid: profile.id || profile.uid || '', nom: `${profile.prenom || ''} ${profile.nom || ''}`.trim() }
+      });
       const idx = stations.findIndex(x => x.id === id);
       if (idx >= 0) stations[idx] = { ...stations[idx], stockActuel: newStock };
       renderStations();
-      toastSuccess(`Stock mis à jour : ${newStock} L.`);
+      toastSuccess(`Stock mis à jour : ${newStock} L. (Une alerte info est envoyée à la direction.)`);
       modal.classList.add('hidden');
     } catch (e) {
       console.error('[stations] save (stock only) FAIL', id, e);
@@ -224,6 +230,10 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
     }
     return;
   }
+
+  // Cas fullEdit : modif silencieuse direction (pas d'alerte)
+  // Le tag source 'modal-manuel-direction' override un eventuel tag 'pompiste'
+  // anterieur pour eviter que le trigger reste arme.
 
   // Cas fullEdit : patch complet
   const lirePrix = (sel) => {
@@ -237,7 +247,8 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
     stockMax: Number(document.getElementById('st-stock-max').value) || 0,
     seuilAlerte: Number(document.getElementById('st-seuil').value) || 0,
     prixLitre: lirePrix('st-prix') || 0,
-    fivemPompeId
+    fivemPompeId,
+    sourceMajAuto: 'modal-manuel-direction'    // override tag pompiste si present
   };
   if (!data.nom) return toastError("Nom obligatoire.");
   try {

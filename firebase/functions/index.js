@@ -123,10 +123,13 @@ export const alerteStock = onDocumentWritten({
 
 // Stations sous seuil — supporte seuil en L (seuilAlerte) ou en % (seuilAlertePct).
 // Anti-spam : creerAlerte dédoublonne par stationId tant que l'alerte est non résolue.
+// 2026-05-11 : aussi alerte info quand un pompiste modifie manuellement stockActuel
+// (sourceMajAuto='modal-manuel-pompiste'), pour traçabilité audit hebdo direction.
 export const alerteStation = onDocumentWritten({
   document: 'stations/{id}',
   region: 'europe-west1'
 }, async (event) => {
+  const before = event.data?.before?.data();
   const after = event.data?.after?.data();
   if (!after) return;
   const stationId = event.params.id;
@@ -135,6 +138,27 @@ export const alerteStation = onDocumentWritten({
   const seuilL      = after.seuilAlerte    || 0;
   const seuilPct    = after.seuilAlertePct || 0;
   const nom = after.nom || stationId;
+
+  // === Modification manuelle pompiste : alerte info audit ===
+  // Condition : la source de la derniere modif est 'modal-manuel-pompiste'
+  // ET le stockActuel a change. La direction utilise 'modal-manuel-direction'
+  // donc cette branche ne fire pas pour les modifs silencieuses direction.
+  if (before && after.sourceMajAuto === 'modal-manuel-pompiste'
+      && before.stockActuel !== after.stockActuel) {
+    const auteur = after.derniereModifPar?.nom || after.derniereModifPar?.uid || 'pompiste inconnu';
+    const ancien = before.stockActuel || 0;
+    const delta  = stockActuel - ancien;
+    const sens   = delta >= 0 ? `+${delta}` : `${delta}`;
+    // Pas de dedupe (chaque modif manuelle = 1 alerte distincte avec timestamp)
+    await db.collection('alertes').add({
+      type: 'station-modif-manuelle',
+      message: `🛢 ${auteur} a modifié le stock de ${nom} : ${ancien.toLocaleString('fr-FR')} L → ${stockActuel.toLocaleString('fr-FR')} L (${sens} L)`,
+      gravite: 'info',
+      metadata: { stationId, ancien, nouveau: stockActuel, delta, auteur },
+      resolue: false,
+      timestamp: FieldValue.serverTimestamp()
+    });
+  }
 
   // Seuil en litres absolus (ancien comportement)
   if (seuilL > 0 && stockActuel < seuilL) {

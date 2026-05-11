@@ -9,13 +9,16 @@ import {
 } from '../api.js';
 import { CATALOGUE, CATEGORIES, CATEGORY_LABELS } from '../data/produits.js';
 import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
-import { isDirection, canCreateProduit } from '../utils/permissions.js';
+import { isDirection, isSuperAdmin, canCreateProduit } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('stocks_epicerie');
-const editable = isDirection(profile.role) || profile.role === 'responsable-vente' || profile.role === 'drh';
+// 2026-05-11 : restreint a Direction + Admin Technique uniquement (sur demande
+// du patron, pour audit inventaire hebdo physique). Responsable Vente et DRH
+// ne peuvent plus modifier les stocks epicerie.
+const editable = isDirection(profile.role) || isSuperAdmin(profile.role);
 const canCreate = canCreateProduit(profile.role);
 
 const html = `
