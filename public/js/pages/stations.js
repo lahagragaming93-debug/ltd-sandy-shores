@@ -16,8 +16,13 @@ import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 const { profile } = await requireAuth('stocks_essence');
 // fullEdit  = peut TOUT modifier (prix, capacite, seuil, N° pompe, supprimer, ajouter une station)
 // stockOnly = peut UNIQUEMENT toucher stockActuel (pompiste qui ravitaille)
-const fullEdit  = isDirection(profile.role) || isSuperAdmin(profile.role);
-const stockOnly = !fullEdit && (profile.role === 'responsable-pompiste' || isPompiste(profile.role));
+// previewPompiste = super-admin qui regarde "comme un pompiste" via ?as=pompiste
+//   (pour QA visuel + test bout-en-bout : la Cloud Function accepte admin-technique)
+const previewPompiste = isSuperAdmin(profile.role)
+  && new URLSearchParams(location.search).get('as') === 'pompiste';
+const fullEdit  = !previewPompiste && (isDirection(profile.role) || isSuperAdmin(profile.role));
+const stockOnly = previewPompiste
+  || (!fullEdit && (profile.role === 'responsable-pompiste' || isPompiste(profile.role)));
 const editable  = fullEdit || stockOnly;
 
 const html = `
@@ -25,9 +30,17 @@ const html = `
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
 
+  ${previewPompiste ? `
+    <div class="alert" style="background:rgba(180,140,40,0.15);border:1px solid #b48c28;margin-bottom:12px;">
+      🔬 <strong>Aperçu mode pompiste</strong> — tu vois la page exactement comme un pompiste. Les actions (saisie de bidons) sont <strong>réelles</strong>, ne valide pas un faux ravitaillement.
+      <a href="?" style="margin-left:12px;">← Quitter l'aperçu</a>
+    </div>
+  ` : ''}
+
   <div class="row mb-2">
     ${fullEdit ? '<button class="btn btn-primary" id="btn-ajouter-station">+ Ajouter une station</button>' : ''}
     ${fullEdit ? '<button class="btn" id="btn-config-essence">⚙ Configuration</button>' : ''}
+    ${(isSuperAdmin(profile.role) && !previewPompiste) ? '<button class="btn btn-ghost" id="btn-preview-pompiste" title="Voir la page comme un pompiste">🔬 Aperçu mode pompiste</button>' : ''}
     <span class="spacer"></span>
     <span class="muted mono" id="stations-count">—</span>
   </div>
@@ -187,6 +200,16 @@ function miseAJourKpis(stations) {
 
 // === Modal station ===
 const modal = document.getElementById('modal-station');
+
+// Bouton "Apercu mode pompiste" (super-admin uniquement, hors preview).
+const btnPreview = document.getElementById('btn-preview-pompiste');
+if (btnPreview) {
+  btnPreview.addEventListener('click', () => {
+    const u = new URL(location.href);
+    u.searchParams.set('as', 'pompiste');
+    location.href = u.toString();
+  });
+}
 
 if (fullEdit) {
   document.getElementById('btn-ajouter-station').addEventListener('click', () => {
