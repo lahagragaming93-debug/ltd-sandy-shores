@@ -25,6 +25,13 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.statut;
     }
     function isActif()       { return statut() == 'actif'; }
+    // Compte bloque : 3 avertissements actifs (denormalise par trigger
+    // onAvertissementChange). Les writes "metier" sont refuses, les
+    // lectures restent autorisees pour que l'employe voie sa situation.
+    function avertsActifs() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('avertsActifs', 0);
+    }
+    function isNotBlocked()  { return avertsActifs() < 3; }
     function isDirection()   { return role() == 'patron' || role() == 'co-patron'; }
     function isDRH()         { return role() == 'drh'; }
     function isRespVente()   { return role() == 'responsable-vente'; }
@@ -114,18 +121,21 @@ service cloud.firestore {
     }
 
     // === Stations essence ===
+    // canAdmin toujours OK (direction exemptee du blocage). isRespPompiste
+    // soumis a isNotBlocked pour eviter qu'un responsable cumule 3 averts
+    // mais continue a modifier les stations.
     match /stations/{id} {
       allow read:  if isAuth() && isActif();
-      allow write: if canAdmin() || isRespPompiste();
+      allow write: if canAdmin() || (isRespPompiste() && isNotBlocked());
     }
     match /redistributions/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || isRespPompiste();
+      allow create: if canAdmin() || (isRespPompiste() && isNotBlocked());
       allow update, delete: if canAdmin();
     }
     match /declarationsCaoutchouc/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || isRespPompiste();
+      allow create: if canAdmin() || (isRespPompiste() && isNotBlocked());
       allow update, delete: if canAdmin();
     }
 

@@ -144,6 +144,11 @@ export function requireAuth(pageKey) {
         window.location.href = 'index.html';
         return;
       }
+      // Calcule le flag bloque (3 avertissements actifs). Direction exemptee.
+      const isDir = profile.role === 'patron' || profile.role === 'co-patron'
+        || profile.role === 'admin-technique';
+      profile.bloque = !isDir && (profile.avertsActifs || 0) >= 3;
+
       currentUser = user;
       currentProfile = profile;
 

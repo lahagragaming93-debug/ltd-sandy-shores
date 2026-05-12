@@ -174,11 +174,33 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         ${userChip}
       </header>
       <main class="main">
+        ${profile.bloque ? `
+          <div class="alert" style="background:rgba(220,40,40,0.20);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:12px;">
+            🔒 <strong>COMPTE BLOQUÉ — 3 avertissements actifs.</strong>
+            Tu peux consulter le site mais aucune écriture, déclaration ou ravitaillement n'est possible.
+            Contacte la direction pour qu'elle retire un avertissement et débloque ton compte.
+          </div>
+        ` : ''}
         ${mainContentHtml}
       </main>
     </div>
     <div id="toast-container"></div>
   `;
+
+  // Si le compte est bloque, on grise visuellement les boutons d'action
+  // sensibles. La protection reelle est cote Cloud Functions + Firestore
+  // rules — c'est juste de l'UX pour eviter les clics qui echoueraient.
+  if (profile.bloque) {
+    setTimeout(() => {
+      document.querySelectorAll('button.btn-primary, button.btn-danger').forEach(b => {
+        if (b.id === 'btn-logout' || b.id === 'btn-menu' || b.id === 'btn-back') return;
+        b.disabled = true;
+        b.title = 'Compte bloqué (3 avertissements actifs)';
+        b.style.opacity = '0.5';
+        b.style.cursor = 'not-allowed';
+      });
+    }, 50);
+  }
 
   // === Déconnexion ===
   document.getElementById('btn-logout').addEventListener('click', deconnecter);

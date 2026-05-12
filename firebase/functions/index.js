@@ -319,6 +319,29 @@ async function notifierDiscord(type, message, gravite) {
 }
 
 // ----------------------------------------------------------------
+// Trigger : recompte les avertissements actifs d'un employe et
+// denormalise sur /users/{uid}.avertsActifs (utilise par les rules
+// Firestore et par le frontend pour bloquer les ecritures sensibles
+// quand >= 3).
+// ----------------------------------------------------------------
+export const onAvertissementChange = onDocumentWritten({
+  document: 'avertissements/{id}',
+  region: 'europe-west1'
+}, async (event) => {
+  const after  = event.data?.after?.data();
+  const before = event.data?.before?.data();
+  const employeId = after?.employeId || before?.employeId;
+  if (!employeId) return;
+  const snap = await db.collection('avertissements')
+    .where('employeId', '==', employeId)
+    .where('actif', '==', true)
+    .get();
+  const nb = snap.size;
+  await db.collection('users').doc(employeId).set({ avertsActifs: nb }, { merge: true });
+  console.log(`[avertsActifs] user=${employeId} -> ${nb}`);
+});
+
+// ----------------------------------------------------------------
 // 3. Endpoint HTTP pour le bot Discord — ingestion sécurisée
 // ----------------------------------------------------------------
 // Le bot envoie des évènements parsés ; cette fonction valide le
@@ -1335,9 +1358,13 @@ export const pompisteRavitaillerManuel = onRequest({
     if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
     const caller = callerSnap.data();
     const role = caller.role || '';
-    const allowed = role === 'patron' || role === 'co-patron' || role === 'admin-technique'
-      || role === 'responsable-pompiste' || /^pompiste-/.test(role);
+    const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+    const allowed = isDir || role === 'responsable-pompiste' || /^pompiste-/.test(role);
     if (!allowed) return res.status(403).json({ error: 'Ce role ne peut pas ravitailler une station.' });
+    // Blocage : direction exemptee (sinon deadlock si patron prend 3 averts)
+    if (!isDir && (caller.avertsActifs || 0) >= 3) {
+      return res.status(403).json({ error: 'Compte bloque (3 avertissements actifs). Contacte la direction pour qu\'elle en retire un.' });
+    }
 
     const { stationId, bidons } = req.body || {};
     if (!stationId) return res.status(400).json({ error: 'Missing stationId' });
@@ -1445,9 +1472,12 @@ export const pompisteDeclarerCaoutchoucs = onRequest({
     if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
     const caller = callerSnap.data();
     const role = caller.role || '';
-    const allowed = role === 'patron' || role === 'co-patron' || role === 'admin-technique'
-      || role === 'responsable-pompiste' || /^pompiste-/.test(role);
+    const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+    const allowed = isDir || role === 'responsable-pompiste' || /^pompiste-/.test(role);
     if (!allowed) return res.status(403).json({ error: 'Ce role ne peut pas declarer de caoutchoucs.' });
+    if (!isDir && (caller.avertsActifs || 0) >= 3) {
+      return res.status(403).json({ error: 'Compte bloque (3 avertissements actifs). Contacte la direction pour qu\'elle en retire un.' });
+    }
 
     const { caoutchoucs } = req.body || {};
     const nb = Number(caoutchoucs);
