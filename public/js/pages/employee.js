@@ -83,18 +83,28 @@ if (isVendeur(profile.role)) {
   const salaireEst = salaireVendeur(profile.role, ca, benefice);
   const progressionCA = Math.min(100, (ca / CA_PLAFOND_VENDEUR) * 100);
   const commission = COMMISSION_VENDEUR[profile.role] * 100;
+  // Quota CA hebdo : si non atteint a la cloture mardi 21h05, avert auto.
+  const quotaCA = Number(config.quotaCAVendeur ?? 30000);
+  const pctQuotaCA = quotaCA > 0 ? Math.min(100, (ca / quotaCA) * 100) : 0;
 
   document.getElementById('kpis-emp').innerHTML = `
     <div class="kpi"><div class="label">Ton CA</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes</div></div>
+    <div class="kpi"><div class="label">Quota CA hebdo</div><div class="value">${pct(pctQuotaCA, 0)}</div><div class="delta ${ca >= quotaCA ? 'up' : 'down'}">${money(ca)} / ${money(quotaCA)}</div></div>
     <div class="kpi"><div class="label">Bénéfice généré</div><div class="value">${money(benefice)}</div><div class="delta">commission ${commission}%</div></div>
-    <div class="kpi"><div class="label">Progression CA</div><div class="value">${pct(progressionCA, 1)}</div><div class="delta">vers 40 000 $ plafond</div></div>
     <div class="kpi"><div class="label">Salaire estimé</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
   `;
 
   document.getElementById('detail').innerHTML = `
     <div class="row" style="gap:14px;flex-direction:column;align-items:stretch;">
       <div>
-        <div class="muted mono mb-1">Progression vers plafond CA (40 000 $)</div>
+        <div class="muted mono mb-1">Quota CA hebdo (avert auto si non atteint mardi 21h)</div>
+        <div class="progress" style="height:24px;">
+          <div class="fill" style="width:${pctQuotaCA}%;${ca >= quotaCA ? 'background:var(--color-cactus,#5a8);' : ''}"></div>
+          <div class="label">${money(ca)} / ${money(quotaCA)} (${pct(pctQuotaCA, 0)})</div>
+        </div>
+      </div>
+      <div>
+        <div class="muted mono mb-1">Progression vers plafond CA (${money(CA_PLAFOND_VENDEUR)} — au-delà, le bénéfice n'est plus commissionné)</div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${progressionCA}%"></div>
           <div class="label">${money(ca)} / ${money(CA_PLAFOND_VENDEUR)}</div>
