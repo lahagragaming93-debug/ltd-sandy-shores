@@ -129,6 +129,16 @@ service cloud.firestore {
       allow update, delete: if canAdmin();
     }
 
+    // === Avertissements (3 actifs = compte bloque) ===
+    // Direction cree, modifie (retirer = actif:false). Tous les autres lisent
+    // pour qu'un employe voie ses propres avertissements en temps reel.
+    match /avertissements/{id} {
+      allow read:   if isAuth() && isActif();
+      allow create: if canAdmin();
+      allow update: if canAdmin();
+      allow delete: if false;  // jamais — audit immuable
+    }
+
     // === Services / quotas pompistes ===
     match /services/{id}        { allow read: if isAuth() && isActif();
                                   allow write: if canAdmin(); }

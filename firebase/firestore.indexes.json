@@ -47,6 +47,14 @@
         { "fieldPath": "beneficiaireId", "order": "ASCENDING" },
         { "fieldPath": "timestamp",      "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "avertissements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeId",    "order": "ASCENDING" },
+        { "fieldPath": "dateCreation", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

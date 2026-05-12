@@ -5,7 +5,8 @@
 
 import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee } from '../api.js';
+import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee,
+         listAvertissements, listenAvertissementsActifs, creerAvertissement, retirerAvertissement } from '../api.js';
 import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { date, escapeHtml, normalizePrenom, normalizeNom } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
@@ -81,10 +82,11 @@ const html = `
             <th data-sort="perso">ID Perso</th>
             <th data-sort="entree">Entrée</th>
             <th data-sort="statut">Statut</th>
+            <th data-sort="averts" class="center">⚠ Averts</th>
             <th class="center">Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody-users"><tr><td colspan="8" class="muted text-center">Chargement…</td></tr></tbody>
+        <tbody id="tbody-users"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -174,6 +176,48 @@ const html = `
     </div>
   </div>
 
+  <!-- Modal avertissements -->
+  <div id="modal-averts" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:680px;">
+      <h3>⚠ Avertissements de <span id="averts-employe">—</span></h3>
+      <div class="alert info mb-2" style="font-size:0.82rem;">
+        <span class="icon">ℹ</span>
+        <span>3 avertissements actifs = compte automatiquement bloqué (peut consulter mais plus aucune écriture). Retirer un avertissement débloque immédiatement le compte.</span>
+      </div>
+      <div class="row mb-2">
+        <button class="btn btn-primary btn-sm" id="btn-nouvel-avert">+ Nouvel avertissement</button>
+        <span class="spacer"></span>
+        <span class="muted mono" id="averts-count-modal">—</span>
+      </div>
+      <div id="modal-nouvel-avert" class="hidden" style="background:rgba(0,0,0,0.18);padding:10px;border-radius:6px;margin-bottom:10px;">
+        <label>Motif</label>
+        <textarea id="nouvel-avert-motif" rows="2" placeholder="ex: Quota bidons non atteint (1200/1700)"></textarea>
+        <div class="row mt-2">
+          <button class="btn btn-primary btn-sm" id="btn-creer-avert">Créer l'avertissement</button>
+          <button class="btn btn-ghost btn-sm" id="btn-annuler-avert">Annuler</button>
+        </div>
+      </div>
+      <div class="table-scroll" style="max-height:380px;">
+        <table class="data" id="table-averts">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Motif</th>
+              <th>Source</th>
+              <th>Par</th>
+              <th class="center">Statut</th>
+              <th class="center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-averts"><tr><td colspan="6" class="muted text-center">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="row mt-3">
+        <button class="btn btn-ghost" id="btn-cancel-averts">Fermer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal config globale -->
   <div id="modal-config" class="modal-backdrop hidden">
     <div class="modal" style="max-width: 580px;">
@@ -208,12 +252,136 @@ let users = [];
 listenUsers(list => {
   users = list;
   renderUsers();
+  appliquerCompteursAverts();
+});
+
+// === Compteurs avertissements actifs en temps reel ===
+// Maintient un Map uid -> nb d'averts actifs et met a jour les cellules
+// .data-averts-cell des lignes users.
+let avertsActifsParUser = new Map();
+listenAvertissementsActifs(list => {
+  const m = new Map();
+  for (const a of list) {
+    m.set(a.employeId, (m.get(a.employeId) || 0) + 1);
+  }
+  avertsActifsParUser = m;
+  appliquerCompteursAverts();
+});
+
+function appliquerCompteursAverts() {
+  document.querySelectorAll('[data-averts-cell]').forEach(td => {
+    const uid = td.dataset.avertsCell;
+    const n = avertsActifsParUser.get(uid) || 0;
+    const cls = n === 0 ? 'ok' : n >= 3 ? 'danger' : n === 2 ? 'warn' : 'info';
+    const label = n === 0 ? '0' : n >= 3 ? `🔒 ${n}` : `⚠ ${n}`;
+    td.innerHTML = `<button class="btn btn-sm" data-averts-btn="${uid}" title="Voir les avertissements"><span class="badge ${cls}">${label}</span></button>`;
+  });
+  // Re-binder les boutons (le innerHTML les recree)
+  document.querySelectorAll('[data-averts-btn]').forEach(btn => {
+    btn.addEventListener('click', () => ouvrirAvertissements(btn.dataset.avertsBtn));
+  });
+}
+
+// === Modal avertissements ===
+let avertsCurrentUid = null;
+async function ouvrirAvertissements(uid) {
+  const u = users.find(x => x.id === uid);
+  if (!u) return;
+  avertsCurrentUid = uid;
+  document.getElementById('averts-employe').textContent = `${u.prenom || ''} ${u.nom || ''}`.trim() || u.username || uid;
+  document.getElementById('modal-nouvel-avert').classList.add('hidden');
+  document.getElementById('nouvel-avert-motif').value = '';
+  document.getElementById('modal-averts').classList.remove('hidden');
+  await chargerAvertsModal(uid);
+}
+
+async function chargerAvertsModal(uid) {
+  const tbody = document.getElementById('tbody-averts');
+  tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">Chargement…</td></tr>`;
+  let list = [];
+  try { list = await listAvertissements(uid); }
+  catch (e) { console.error(e); tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">Erreur de chargement.</td></tr>`; return; }
+  const actifs = list.filter(a => a.actif).length;
+  document.getElementById('averts-count-modal').textContent = `${actifs} actif${actifs > 1 ? 's' : ''} / ${list.length} total`;
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">Aucun avertissement.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(a => {
+    const d = a.dateCreation?.toDate ? a.dateCreation.toDate() : null;
+    const dRetrait = a.dateRetrait?.toDate ? a.dateRetrait.toDate() : null;
+    const dateStr = d ? date(d) : '—';
+    const source = a.auto ? '<span class="badge info">auto</span>' : '<span class="badge">manuel</span>';
+    const statut = a.actif
+      ? '<span class="badge danger">⚠ ACTIF</span>'
+      : `<span class="badge ok">retiré ${dRetrait ? date(dRetrait) : ''}</span>`;
+    const action = a.actif
+      ? `<button class="btn btn-sm" data-retirer-avert="${a.id}">Retirer</button>`
+      : `<span class="muted mono" style="font-size:0.75rem;">par ${escapeHtml(a.parQuiRetraitNom || '—')}</span>`;
+    return `<tr>
+      <td class="mono" style="font-size:0.8rem;">${dateStr}</td>
+      <td>${escapeHtml(a.motif || '')}</td>
+      <td>${source}</td>
+      <td>${escapeHtml(a.parQuiNom || '—')}</td>
+      <td class="center">${statut}</td>
+      <td class="center">${action}</td>
+    </tr>`;
+  }).join('');
+  tbody.querySelectorAll('[data-retirer-avert]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const ok = await confirmCritique({
+        titre: "Retirer cet avertissement",
+        message: "L'avertissement sera marqué comme retiré (audit conservé). Si l'employé était bloqué et passe sous 3 avertissements actifs, son compte sera <strong>débloqué immédiatement</strong>.",
+        btnConfirm: "Retirer l'avertissement",
+        delaiSec: 2
+      });
+      if (!ok) return;
+      try {
+        await retirerAvertissement(btn.dataset.retirerAvert, profile.id, `${profile.prenom || ''} ${profile.nom || ''}`.trim());
+        toastSuccess("Avertissement retiré.");
+        await chargerAvertsModal(uid);
+      } catch (e) { toastError(e?.message || "Erreur."); }
+    });
+  });
+}
+
+document.getElementById('btn-cancel-averts').addEventListener('click', () => {
+  document.getElementById('modal-averts').classList.add('hidden');
+  avertsCurrentUid = null;
+});
+document.getElementById('btn-nouvel-avert').addEventListener('click', () => {
+  document.getElementById('modal-nouvel-avert').classList.remove('hidden');
+  document.getElementById('nouvel-avert-motif').focus();
+});
+document.getElementById('btn-annuler-avert').addEventListener('click', () => {
+  document.getElementById('modal-nouvel-avert').classList.add('hidden');
+  document.getElementById('nouvel-avert-motif').value = '';
+});
+document.getElementById('btn-creer-avert').addEventListener('click', async () => {
+  const motif = document.getElementById('nouvel-avert-motif').value.trim();
+  if (!motif) return toastError("Indique un motif.");
+  if (!avertsCurrentUid) return;
+  const u = users.find(x => x.id === avertsCurrentUid);
+  try {
+    await creerAvertissement({
+      employeId: avertsCurrentUid,
+      employeNom: `${u?.prenom || ''} ${u?.nom || ''}`.trim(),
+      motif,
+      parQui: profile.id,
+      parQuiNom: `${profile.prenom || ''} ${profile.nom || ''}`.trim(),
+      auto: false
+    });
+    toastSuccess("Avertissement créé.");
+    document.getElementById('modal-nouvel-avert').classList.add('hidden');
+    document.getElementById('nouvel-avert-motif').value = '';
+    await chargerAvertsModal(avertsCurrentUid);
+  } catch (e) { toastError(e?.message || "Erreur."); }
 });
 
 function renderUsers() {
   const tbody = document.getElementById('tbody-users');
   if (users.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="muted text-center">Aucun compte.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="muted text-center">Aucun compte.</td></tr>`;
     return;
   }
   // Patron et Admin Technique peuvent éditer leur propre compte (changer leur rôle).
@@ -248,6 +416,9 @@ function renderUsers() {
       <td>${u.dateEntree || '—'}</td>
       <td>
         <span class="badge ${u.statut === 'actif' ? 'ok' : 'warn'}">${u.statut || 'actif'}</span>
+      </td>
+      <td class="center" data-averts-cell="${u.id}">
+        <span class="muted">…</span>
       </td>
       <td class="center">
         <button class="btn btn-sm btn-ghost" data-edit-user="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Modifier</button>

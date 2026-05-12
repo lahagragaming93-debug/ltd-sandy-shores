@@ -5,7 +5,8 @@
 import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
-  listVentesSemaine, listServicesSemaine, listAllServicesEmploye, getQuotaPompiste, getConfig
+  listVentesSemaine, listServicesSemaine, listAllServicesEmploye, getQuotaPompiste, getConfig,
+  listenAvertissements
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
@@ -30,6 +31,8 @@ const html = `
   <div class="kpi-grid" id="kpis-emp">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
+
+  <div id="bloc-averts"></div>
 
   <div class="panel framed" id="panel-detail">
     <div class="panel-title"><span>Détail de ta semaine</span></div>
@@ -224,6 +227,51 @@ if (isVendeur(profile.role)) {
   }
   document.getElementById('detail').innerHTML = detailHtml;
 }
+
+// === Avertissements (temps reel) ===
+// L'employe voit ses propres averts. 3 actifs = compte bloque (banniere rouge).
+// Le retrait par le patron debloque immediatement (listener Firestore).
+listenAvertissements(me.uid, (list) => {
+  const div = document.getElementById('bloc-averts');
+  const actifs = list.filter(a => a.actif);
+  const n = actifs.length;
+  if (n === 0 && list.length === 0) { div.innerHTML = ''; return; }
+
+  const banniere = n >= 3 ? `
+    <div class="alert" style="background:rgba(220,40,40,0.18);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:8px;">
+      🔒 <strong>COMPTE BLOQUÉ</strong> — tu as ${n} avertissements actifs (max 3). Tu peux consulter le site mais aucune écriture ni déclaration n'est possible. Contacte la direction pour qu'elle retire un avertissement.
+    </div>` : n === 2 ? `
+    <div class="alert" style="background:rgba(220,140,40,0.18);border:1px solid #d88;margin-bottom:8px;">
+      ⚠ <strong>${n} avertissements actifs</strong> — au prochain, ton compte sera bloqué.
+    </div>` : n === 1 ? `
+    <div class="alert" style="background:rgba(220,180,40,0.12);border:1px solid #c93;margin-bottom:8px;">
+      ⚠ <strong>1 avertissement actif</strong> — fais attention.
+    </div>` : '';
+
+  const detail = list.length > 0 ? `
+    <div class="panel mb-3" style="margin:0 0 12px 0;">
+      <div class="panel-title"><span>⚠ Mes avertissements</span><span class="muted mono">${n} actif${n > 1 ? 's' : ''} / ${list.length} total</span></div>
+      <table class="data" style="margin-top:6px;">
+        <thead><tr><th>Date</th><th>Motif</th><th>Source</th><th class="center">Statut</th></tr></thead>
+        <tbody>${list.map(a => {
+          const d = a.dateCreation?.toDate ? a.dateCreation.toDate() : null;
+          const dateStr = d ? d.toLocaleDateString('fr-FR') : '—';
+          const source = a.auto ? '<span class="badge info">auto</span>' : '<span class="badge">manuel</span>';
+          const statut = a.actif
+            ? '<span class="badge danger">⚠ ACTIF</span>'
+            : '<span class="badge ok">retiré</span>';
+          return `<tr>
+            <td class="mono" style="font-size:0.8rem;">${dateStr}</td>
+            <td>${escapeHtml(a.motif || '')}</td>
+            <td>${source}</td>
+            <td class="center">${statut}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>` : '';
+
+  div.innerHTML = banniere + detail;
+});
 
 // === Heures de service : 3 KPIs (jour / semaine / cumul depuis embauche) ===
 const sDiv = document.getElementById('services');

@@ -406,6 +406,54 @@ export async function setSecrets(patch) {
   await setDoc(doc(db, 'config', 'secrets'), patch, { merge: true });
 }
 
+// ----- Avertissements -----
+// 3 avertissements actifs = compte bloque (lecture OK, ecritures interdites).
+// actif=false quand le patron en retire un (jamais delete : on garde l'audit).
+export async function listAvertissements(employeId) {
+  const snap = await getDocs(query(
+    collection(db, 'avertissements'),
+    where('employeId', '==', employeId),
+    orderBy('dateCreation', 'desc'),
+    limit(50)
+  ));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export function listenAvertissements(employeId, cb) {
+  return onSnapshot(query(
+    collection(db, 'avertissements'),
+    where('employeId', '==', employeId),
+    orderBy('dateCreation', 'desc'),
+    limit(50)
+  ), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+// Listener global : tous les avertissements actifs, pour le badge admin
+// (compteur par employe).
+export function listenAvertissementsActifs(cb) {
+  return onSnapshot(query(
+    collection(db, 'avertissements'),
+    where('actif', '==', true),
+    limit(500)
+  ), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+export async function creerAvertissement({ employeId, employeNom, motif, parQui, parQuiNom, auto = false }) {
+  await addDoc(collection(db, 'avertissements'), {
+    employeId, employeNom: employeNom || '',
+    motif: motif || '',
+    parQui, parQuiNom: parQuiNom || '',
+    auto: !!auto,
+    actif: true,
+    dateCreation: serverTimestamp()
+  });
+}
+export async function retirerAvertissement(id, parQui, parQuiNom) {
+  await updateDoc(doc(db, 'avertissements', id), {
+    actif: false,
+    dateRetrait: serverTimestamp(),
+    parQuiRetrait: parQui,
+    parQuiRetraitNom: parQuiNom || ''
+  });
+}
+
 // ----- Helpers d'écriture brute -----
 export {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
