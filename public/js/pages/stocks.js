@@ -8,7 +8,7 @@ import {
   listProduits, setProduit, deleteProduit, listenStocks, ajusterStock, listMouvementsRecents,
   listUsers
 } from '../api.js';
-import { CATALOGUE, CATEGORIES, CATEGORY_LABELS } from '../data/produits.js';
+import { CATEGORIES, CATEGORY_LABELS } from '../data/produits.js';
 import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin, canCreateProduit } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
@@ -38,9 +38,6 @@ const html = `
     <input type="text" id="filtre-recherche" placeholder="Rechercher un produit…" style="flex:1;min-width:200px;" />
     ${canCreate ? `
       <button class="btn btn-primary" id="btn-nouveau-produit">+ Ajouter un produit</button>
-    ` : ''}
-    ${editable ? `
-      <button class="btn" id="btn-init-catalogue">Réinitialiser depuis catalogue</button>
     ` : ''}
   </div>
 
@@ -179,7 +176,7 @@ async function chargerProduits() {
   if (produits.length === 0 && editable) {
     document.getElementById('tbody-stocks').innerHTML = `
       <tr><td colspan="9" class="muted text-center">
-        Catalogue vide. Cliquer sur "Réinitialiser depuis catalogue" pour pré-remplir.
+        Catalogue vide. Utilise "+ Ajouter un produit" pour commencer.
       </td></tr>`;
   }
 }
@@ -345,39 +342,6 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     console.error(err);
   }
 });
-
-// === Initialisation depuis catalogue ===
-const btnInit = document.getElementById('btn-init-catalogue');
-if (btnInit) {
-  btnInit.addEventListener('click', async () => {
-    const ok = await confirmCritique({
-      titre: 'Réinitialiser depuis le catalogue',
-      message: 'Cette action va <strong>écraser les noms, catégories, prix de vente et seuils</strong> de tous les produits existants avec les valeurs par défaut du catalogue.<br><br>✓ Les prix d\'achat existants seront <strong>préservés</strong>.<br>⚠ Les produits hors catalogue ne seront pas supprimés.',
-      btnConfirm: 'Réinitialiser le catalogue',
-      delaiSec: 3
-    });
-    if (!ok) return;
-    try {
-      const existants = produits.reduce((m, p) => (m[p.id] = p, m), {});
-      for (const item of CATALOGUE) {
-        const ex = existants[item.id] || {};
-        await setProduit(item.id, {
-          nom: item.nom,
-          categorie: item.categorie,
-          prixVente: ex.prixVente ?? item.prixVente,
-          prixAchat: ex.prixAchat ?? 0,
-          seuilAlerte: ex.seuilAlerte ?? 0
-        });
-      }
-      toastSuccess(`${CATALOGUE.length} produits initialisés.`);
-      await chargerProduits();
-      renderTable();
-    } catch (err) {
-      toastError("Erreur d'initialisation.");
-      console.error(err);
-    }
-  });
-}
 
 // === Derniers mouvements ===
 async function chargerMouvements() {

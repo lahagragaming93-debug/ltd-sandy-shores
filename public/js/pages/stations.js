@@ -92,24 +92,18 @@ const html = `
 
       <div class="alert info mb-2" style="font-size:0.82rem;">
         <span class="icon">ℹ</span>
-        <span>
-          <strong>Quotas</strong> : effet immédiat sur le calcul des paies pompistes.<br>
-          <strong>Prix par défaut / Seuil par défaut</strong> : utilisés <em>uniquement</em> à la création de NOUVELLES stations. N'affectent pas les stations existantes — pour ça, utilise le bouton « Appliquer à toutes les stations » ci-dessous, ou modifie chaque station individuellement.
-        </span>
+        <span>Effet immédiat sur le calcul des paies pompistes (bidons + caoutchoucs) et vendeurs (CA hebdo). Le prix au litre et le seuil d'alerte se modifient station par station.</span>
       </div>
 
       <label>Quota bidons / pompiste / semaine</label>
       <input type="number" id="cfg-quota-bidons" min="0" />
       <label>Quota caoutchoucs / pompiste / semaine</label>
       <input type="number" id="cfg-quota-caoutchoucs" min="0" />
-      <label>Prix essence par défaut ($/L) <span class="muted" style="font-size:0.75rem;">— pour nouvelles stations</span></label>
-      <input type="number" id="cfg-prix-essence" step="0.1" min="0" />
-      <label>Seuil alerte essence par défaut (L) <span class="muted" style="font-size:0.75rem;">— pour nouvelles stations</span></label>
-      <input type="number" id="cfg-seuil-essence" min="0" />
+      <label>Quota CA / vendeur / semaine ($)</label>
+      <input type="number" id="cfg-quota-ca-vendeur" min="0" step="1000" />
 
       <div class="row mt-3" style="flex-wrap:wrap; gap:8px;">
         <button class="btn btn-primary" id="btn-save-config">Enregistrer config</button>
-        ${editable ? '<button class="btn btn-danger" id="btn-apply-all">Appliquer prix + seuil à TOUTES les stations</button>' : ''}
         <button class="btn btn-ghost" id="btn-cancel-config">Fermer</button>
       </div>
     </div>
@@ -194,8 +188,8 @@ if (fullEdit) {
     document.getElementById('st-nom').value = '';
     document.getElementById('st-stock-actuel').value = 0;
     document.getElementById('st-stock-max').value = 30000;
-    document.getElementById('st-seuil').value = config.seuilAlerteEssence || 1000;
-    document.getElementById('st-prix').value = config.prixEssence || 5;
+    document.getElementById('st-seuil').value = 1000;
+    document.getElementById('st-prix').value = 5;
     document.getElementById('st-fivem-pompe').value = '';
     document.getElementById('modal-station-title').textContent = 'Nouvelle station';
     const delBtn = document.getElementById('btn-delete-station');
@@ -379,8 +373,7 @@ if (fullEdit) {
 document.getElementById('btn-config-essence').addEventListener('click', () => {
   document.getElementById('cfg-quota-bidons').value = config.quotaBidons ?? 1700;
   document.getElementById('cfg-quota-caoutchoucs').value = config.quotaCaoutchoucs ?? 800;
-  document.getElementById('cfg-prix-essence').value = config.prixEssence ?? 5;
-  document.getElementById('cfg-seuil-essence').value = config.seuilAlerteEssence ?? 1000;
+  document.getElementById('cfg-quota-ca-vendeur').value = config.quotaCAVendeur ?? 30000;
   document.getElementById('modal-config').classList.remove('hidden');
 });
 document.getElementById('btn-cancel-config').addEventListener('click', () => {
@@ -391,8 +384,7 @@ document.getElementById('btn-save-config').addEventListener('click', async () =>
   const patch = {
     quotaBidons: Number(document.getElementById('cfg-quota-bidons').value) || 1700,
     quotaCaoutchoucs: Number(document.getElementById('cfg-quota-caoutchoucs').value) || 800,
-    prixEssence: Number(document.getElementById('cfg-prix-essence').value) || 5,
-    seuilAlerteEssence: Number(document.getElementById('cfg-seuil-essence').value) || 1000
+    quotaCAVendeur: Number(document.getElementById('cfg-quota-ca-vendeur').value) || 30000
   };
   try {
     await setConfig(patch);
@@ -402,50 +394,6 @@ document.getElementById('btn-save-config').addEventListener('click', async () =>
     miseAJourKpis(stations);
   } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
 });
-
-// === Bouton "Appliquer prix + seuil à toutes les stations" ===
-const btnApplyAll = document.getElementById('btn-apply-all');
-if (btnApplyAll) {
-  btnApplyAll.addEventListener('click', async () => {
-    const prix  = Number(document.getElementById('cfg-prix-essence').value);
-    const seuil = Number(document.getElementById('cfg-seuil-essence').value);
-    if (!Number.isFinite(prix) || prix < 0) return toastError("Prix invalide.");
-    if (!Number.isFinite(seuil) || seuil < 0) return toastError("Seuil invalide.");
-
-    const ok = await confirmCritique({
-      titre: 'Appliquer à toutes les stations',
-      message: `Cette action va <strong>écraser le prix au litre et le seuil d'alerte</strong> de TOUTES les ${stations.length} stations existantes avec :<br><br>
-        • Prix : <strong>${prix} $/L</strong><br>
-        • Seuil : <strong>${seuil} L</strong><br><br>
-        Le stock actuel, la capacité et le nom restent inchangés.<br><br>
-        Cette action est <strong>irréversible</strong> (pas d'annulation).`,
-      btnConfirm: `Appliquer aux ${stations.length} stations`,
-      delaiSec: 3
-    });
-    if (!ok) return;
-
-    let nbOk = 0, nbFail = 0;
-    btnApplyAll.disabled = true;
-    btnApplyAll.textContent = 'Application…';
-    for (const s of stations) {
-      try {
-        await setStation(s.id, { prixLitre: prix, seuilAlerte: seuil });
-        // Mise à jour optimiste du state local
-        const idx = stations.findIndex(x => x.id === s.id);
-        if (idx >= 0) stations[idx] = { ...stations[idx], prixLitre: prix, seuilAlerte: seuil };
-        nbOk++;
-      } catch (e) {
-        console.error('Échec station', s.id, e);
-        nbFail++;
-      }
-    }
-    renderStations();
-    btnApplyAll.disabled = false;
-    btnApplyAll.textContent = 'Appliquer prix + seuil à TOUTES les stations';
-    if (nbFail === 0) toastSuccess(`${nbOk} stations mises à jour.`);
-    else toastError(`${nbOk} OK / ${nbFail} en erreur. Voir console (F12).`);
-  });
-}
 } // fin if (fullEdit) — bloc Modal config
 
 // === Redistributions de la semaine ===
