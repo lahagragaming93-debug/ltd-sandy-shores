@@ -417,29 +417,7 @@ async function onService({ employeId, employeIdDiscord, employeNom, action, time
   // "Prenom Nom a commence son service").
   let key = employeId || employeIdDiscord;
   if (!key && employeNom) {
-    // Resolution par nom RP : matching case-insensitive contre tous les users.
-    // Firestore == est case-sensitive, donc on fetch all + filtre en code.
-    // OK pour ~20 employes ; reviser si LTD passe a >200.
-    const parts = employeNom.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      const norm = (s) => String(s || '').trim().toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '');
-      const usersSnap = await db.collection('users').get();
-      const candidats = [
-        // Tentative 1 : prenom = 1er mot, nom = reste
-        { prenom: parts[0], nom: parts.slice(1).join(' ') },
-        // Tentative 2 : prenom = tous sauf dernier, nom = dernier
-        // Utile pour "Luciana Angel Mars" -> prenom="Luciana Angel", nom="MARS"
-        ...(parts.length >= 3 ? [{ prenom: parts.slice(0, -1).join(' '), nom: parts.at(-1) }] : [])
-      ];
-      for (const c of candidats) {
-        const match = usersSnap.docs.find(d => {
-          const u = d.data();
-          return norm(u.prenom) === norm(c.prenom) && norm(u.nom) === norm(c.nom);
-        });
-        if (match) { key = match.id; break; }
-      }
-    }
+    key = await resolveEmployeeIdByName(employeNom);
   }
   if (!key) {
     console.log(`[onService] employeNom="${employeNom}" pas resolu -> skip`);
@@ -468,11 +446,20 @@ async function onService({ employeId, employeIdDiscord, employeNom, action, time
 }
 
 async function onFacture(p) {
-  // Résolution automatique de l'uid Firebase du vendeur via son ID Discord
+  // Resolution de l'uid Firebase du vendeur :
+  //   1. p.vendeurId si deja fourni
+  //   2. lookup par idDiscord (si l'embed porte une mention <@123>)
+  //   3. fallback nom RP case-insensitive (cas frequent : embed sans mention,
+  //      juste "Facture par Ilyes Chaifi" -> resoud sur prenom+nom).
+  // Sans ce fallback, vendeurId reste null -> la vente n'est pas comptee dans
+  // le CA / salaire estime de l'employe (page employee.html, rh.js).
   let vendeurId = p.vendeurId || null;
   if (!vendeurId && p.vendeurDiscord) {
     const usnap = await db.collection('users').where('idDiscord', '==', p.vendeurDiscord).limit(1).get();
     if (!usnap.empty) vendeurId = usnap.docs[0].id;
+  }
+  if (!vendeurId && p.vendeurNom) {
+    vendeurId = await resolveEmployeeIdByName(p.vendeurNom);
   }
 
   // 2026-05-11 : verification "vendeur en service".
@@ -1169,6 +1156,34 @@ function slug(s) {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+}
+
+// Resolution employe par nom RP, case-insensitive et tolerant aux accents.
+// Utilise quand idDiscord/idPerso ne sont pas presents dans l'embed (cas
+// frequent : "Ilyes Chaifi a commence son service" / "Facture #X par Ilyes Chaifi").
+// Necessaire car certains embeds FiveM ne portent pas de mention Discord.
+async function resolveEmployeeIdByName(nomComplet) {
+  if (!nomComplet) return null;
+  const parts = String(nomComplet).trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const norm = (s) => String(s || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const usersSnap = await db.collection('users').get();
+  const candidats = [
+    // Tentative 1 : prenom = 1er mot, nom = reste
+    { prenom: parts[0], nom: parts.slice(1).join(' ') },
+    // Tentative 2 : prenom = tous sauf dernier, nom = dernier
+    // Utile pour "Luciana Angel Mars" -> prenom="Luciana Angel", nom="MARS"
+    ...(parts.length >= 3 ? [{ prenom: parts.slice(0, -1).join(' '), nom: parts.at(-1) }] : [])
+  ];
+  for (const c of candidats) {
+    const match = usersSnap.docs.find(d => {
+      const u = d.data();
+      return norm(u.prenom) === norm(c.prenom) && norm(u.nom) === norm(c.nom);
+    });
+    if (match) return match.id;
+  }
+  return null;
 }
 function currentWeekId() {
   const d = new Date();
