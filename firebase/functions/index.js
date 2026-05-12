@@ -400,13 +400,10 @@ async function onInventory({ type, item, itemNomBrut, count, source, owner, char
     timestamp: FieldValue.serverTimestamp()
   });
 
-  // Quota pompiste depuis logs FiveM :
-  //   - caoutchouc : oui (pas de saisie modal)
-  //   - bidon-essence : NON depuis 2026-05-11 (le modal /stations ravitaillement
-  //     est devenu source de verite, eviter doublon avec pompisteRavitaillerManuel)
-  if (type === 'inventory-add' && characterId && itemId === 'caoutchouc') {
-    await majQuotaPompiste(characterId, itemNom, count);
-  }
+  // Quota pompiste : plus de decompte auto depuis logs FiveM depuis 2026-05-12.
+  // Le pompiste declare lui-meme via le site (modal /stations bidons +
+  // declaration caoutchoucs via pompisteDeclarerCaoutchoucs). Cela evite tout
+  // doublon entre Discord et site et force la rigueur de declaration.
 }
 
 async function onService({ employeId, employeIdDiscord, employeNom, action, timestamp }) {
@@ -1419,6 +1416,71 @@ export const pompisteRavitaillerManuel = onRequest({
     });
   } catch (err) {
     console.error('[pompisteRavitaillerManuel]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// ----------------------------------------------------------------
+// pompisteDeclarerCaoutchoucs — Le pompiste declare N caoutchoucs fabriques.
+// ----------------------------------------------------------------
+// Le pompiste fabrique des caoutchoucs et les pose dans le coffre dedie.
+// Cette fonction :
+//   1. Cree un doc /declarationsCaoutchouc (audit : qui, combien, quand)
+//   2. Incremente /quotasPompiste/{semaine}_{uid}.caoutchoucs de N
+// Le decompte auto via #logs-ig (inventory-add caoutchouc) est neutralise
+// depuis 2026-05-12 — le modal site est la source de verite unique.
+// ----------------------------------------------------------------
+export const pompisteDeclarerCaoutchoucs = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    const allowed = role === 'patron' || role === 'co-patron' || role === 'admin-technique'
+      || role === 'responsable-pompiste' || /^pompiste-/.test(role);
+    if (!allowed) return res.status(403).json({ error: 'Ce role ne peut pas declarer de caoutchoucs.' });
+
+    const { caoutchoucs } = req.body || {};
+    const nb = Number(caoutchoucs);
+    if (!Number.isFinite(nb) || nb <= 0 || !Number.isInteger(nb)) {
+      return res.status(400).json({ error: 'caoutchoucs doit etre un entier > 0' });
+    }
+    if (nb > 500) {
+      return res.status(400).json({ error: 'Maximum 500 caoutchoucs par declaration (anti-erreur de saisie).' });
+    }
+
+    const pompisteNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+
+    // 1. Audit /declarationsCaoutchouc
+    await db.collection('declarationsCaoutchouc').add({
+      caoutchoucs: nb,
+      pompisteId: decoded.uid,
+      pompisteNom,
+      source: 'manuel-pompiste',
+      timestamp: FieldValue.serverTimestamp()
+    });
+
+    // 2. Incremente quota pompiste
+    const wId = currentWeekId();
+    const docId = `${wId}_${decoded.uid}`;
+    await db.collection('quotasPompiste').doc(docId).set({
+      semaine: wId,
+      employeId: decoded.uid,
+      caoutchoucs: FieldValue.increment(nb)
+    }, { merge: true });
+
+    return res.status(200).json({ ok: true, caoutchoucs: nb });
+  } catch (err) {
+    console.error('[pompisteDeclarerCaoutchoucs]', err);
     return res.status(500).json({ error: err.message || 'Internal error' });
   }
 });

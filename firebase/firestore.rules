@@ -123,6 +123,11 @@ service cloud.firestore {
       allow create: if canAdmin() || isRespPompiste();
       allow update, delete: if canAdmin();
     }
+    match /declarationsCaoutchouc/{id} {
+      allow read:   if isAuth() && isActif();
+      allow create: if canAdmin() || isRespPompiste();
+      allow update, delete: if canAdmin();
+    }
 
     // === Services / quotas pompistes ===
     match /services/{id}        { allow read: if isAuth() && isActif();

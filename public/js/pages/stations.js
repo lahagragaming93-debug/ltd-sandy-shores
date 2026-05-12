@@ -28,9 +28,30 @@ const html = `
   <div class="row mb-2">
     ${fullEdit ? '<button class="btn btn-primary" id="btn-ajouter-station">+ Ajouter une station</button>' : ''}
     ${fullEdit ? '<button class="btn" id="btn-config-essence">⚙ Configuration</button>' : ''}
+    ${stockOnly ? '<button class="btn btn-primary" id="btn-declarer-caoutchoucs">📦 Déclarer des caoutchoucs fabriqués</button>' : ''}
     <span class="spacer"></span>
     <span class="muted mono" id="stations-count">—</span>
   </div>
+
+  ${stockOnly ? `
+    <!-- Modal declaration caoutchoucs -->
+    <div id="modal-caoutchoucs" class="modal-backdrop hidden">
+      <div class="modal" style="max-width:480px;">
+        <h3>📦 Déclarer des caoutchoucs fabriqués</h3>
+        <div class="alert info mb-2" style="font-size:0.82rem;">
+          <span class="icon">ℹ</span>
+          <span>Saisis le <strong>nombre de caoutchoucs</strong> que tu viens de fabriquer et de poser dans le coffre dédié. Le site met à jour ton quota immédiatement.</span>
+        </div>
+        <label>Nombre de caoutchoucs fabriqués</label>
+        <input type="number" id="caou-nb" min="1" max="500" step="1" placeholder="ex: 50" />
+        <div class="muted mt-1" id="caou-preview" style="font-size:0.82rem;">—</div>
+        <div class="row mt-3">
+          <button class="btn btn-primary" id="btn-save-caoutchoucs">Valider la déclaration</button>
+          <button class="btn btn-ghost" id="btn-cancel-caoutchoucs">Annuler</button>
+        </div>
+      </div>
+    </div>
+  ` : ''}
 
   <div class="panel framed">
     <div class="panel-title"><span>Stations</span></div>
@@ -365,6 +386,62 @@ if (btnDel) {
       toastSuccess("Station supprimée.");
       modal.classList.add('hidden');
     } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
+  });
+}
+
+// === Modal declaration caoutchoucs (pompiste) ===
+if (stockOnly) {
+  const modalCaou = document.getElementById('modal-caoutchoucs');
+  const inputCaou = document.getElementById('caou-nb');
+  const previewCaou = document.getElementById('caou-preview');
+  const quotaC = config.quotaCaoutchoucs || 800;
+
+  document.getElementById('btn-declarer-caoutchoucs').addEventListener('click', () => {
+    inputCaou.value = '';
+    previewCaou.textContent = `Quota hebdo : ${num(quotaC)} caoutchoucs.`;
+    previewCaou.style.color = '';
+    modalCaou.classList.remove('hidden');
+  });
+
+  inputCaou.addEventListener('input', () => {
+    const n = parseInt(inputCaou.value, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      previewCaou.textContent = `Quota hebdo : ${num(quotaC)} caoutchoucs.`;
+      previewCaou.style.color = '';
+      return;
+    }
+    if (n > 500) {
+      previewCaou.style.color = 'var(--color-blood, #d33)';
+      previewCaou.textContent = `⛔ Maximum 500 par déclaration. Saisis ${n} en plusieurs fois.`;
+      return;
+    }
+    previewCaou.style.color = '';
+    previewCaou.textContent = `+${num(n)} caoutchouc${n > 1 ? 's' : ''} ajoutés à ton quota hebdo (${num(quotaC)} max).`;
+  });
+
+  document.getElementById('btn-cancel-caoutchoucs').addEventListener('click', () => {
+    modalCaou.classList.add('hidden');
+  });
+
+  document.getElementById('btn-save-caoutchoucs').addEventListener('click', async () => {
+    const n = parseInt(inputCaou.value, 10);
+    if (!Number.isFinite(n) || n <= 0) return toastError("Indique un nombre > 0.");
+    if (n > 500) return toastError("Maximum 500 par déclaration.");
+    try {
+      const { auth } = await import('../firebase-config.js');
+      const idToken = await auth.currentUser.getIdToken();
+      const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteDeclarerCaoutchoucs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        body: JSON.stringify({ caoutchoucs: n })
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+      toastSuccess(`Déclaration enregistrée : ${n} caoutchouc${n > 1 ? 's' : ''} ajoutés à ton quota.`);
+      modalCaou.classList.add('hidden');
+    } catch (e) {
+      toastError(e?.message || "Erreur inattendue.");
+    }
   });
 }
 
