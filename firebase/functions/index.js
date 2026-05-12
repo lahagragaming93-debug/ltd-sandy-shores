@@ -147,7 +147,78 @@ export const clotureHebdoPaies = onSchedule({
   }, { merge: true });
 
   console.log('Cloture etape 2 OK', weekKey, { masse, beneficeNet, nbPaies: paiesSnap.size });
+
+  // === Auto-avertissements quotas non atteints ===
+  // Pompiste : quota bidons OU caoutchoucs partiel -> 1 avert avec motif detaille
+  // Vendeur  : CA hebdo < quotaCAVendeur -> 1 avert
+  // Idempotent : id deterministe auto_{weekKey}_{uid} = max 1 avert auto/sem/user
+  // Direction (patron, co-patron, admin-tech) jamais ciblee.
+  try {
+    await genererAvertissementsAuto(weekKey, debut, fin);
+  } catch (e) {
+    console.error('[avertissements-auto]', e);
+  }
 });
+
+async function genererAvertissementsAuto(weekKey, debutSem, finSem) {
+  const cfg = (await db.collection('config').doc('global').get()).data() || {};
+  const quotaBidons       = Number(cfg.quotaBidons       ?? 1700);
+  const quotaCaoutchoucs  = Number(cfg.quotaCaoutchoucs  ??  800);
+  const quotaCAVendeur    = Number(cfg.quotaCAVendeur    ?? 30000);
+
+  const usersSnap = await db.collection('users').where('statut', '==', 'actif').get();
+  const ventesSnap = await db.collection('ventes')
+    .where('timestamp', '>=', Timestamp.fromDate(debutSem))
+    .where('timestamp', '<=', Timestamp.fromDate(finSem)).get();
+  const caParVendeur = {};
+  ventesSnap.docs.forEach(d => {
+    const v = d.data();
+    if (v.vendeurId) caParVendeur[v.vendeurId] = (caParVendeur[v.vendeurId] || 0) + (Number(v.montant) || 0);
+  });
+
+  let nbCrees = 0;
+  for (const uDoc of usersSnap.docs) {
+    const u = uDoc.data();
+    const role = u.role || '';
+    const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+    if (isDir) continue;
+
+    let motifsManques = [];
+    if (/^pompiste-/.test(role) || role === 'responsable-pompiste') {
+      const qSnap = await db.collection('quotasPompiste').doc(`${weekKey}_${uDoc.id}`).get();
+      const q = qSnap.exists ? qSnap.data() : { bidons: 0, caoutchoucs: 0 };
+      const b = Number(q.bidons || 0);
+      const c = Number(q.caoutchoucs || 0);
+      if (b < quotaBidons)      motifsManques.push(`bidons ${b}/${quotaBidons}`);
+      if (c < quotaCaoutchoucs) motifsManques.push(`caoutchoucs ${c}/${quotaCaoutchoucs}`);
+    } else if (/^vendeur-/.test(role)) {
+      const ca = caParVendeur[uDoc.id] || 0;
+      if (ca < quotaCAVendeur) motifsManques.push(`CA ${Math.round(ca)} \$/${quotaCAVendeur} \$`);
+    } else {
+      continue;
+    }
+
+    if (motifsManques.length === 0) continue;
+    const motif = `Quota hebdo non atteint (semaine ${weekKey}) : ${motifsManques.join(', ')}`;
+    const id = `auto_${weekKey}_${uDoc.id}`;
+    // Skip si deja existant (pour ne pas reactiver un avert deja retire par le patron).
+    const existing = await db.collection('avertissements').doc(id).get();
+    if (existing.exists) continue;
+    await db.collection('avertissements').doc(id).set({
+      employeId: uDoc.id,
+      employeNom: `${u.prenom || ''} ${u.nom || ''}`.trim(),
+      motif,
+      parQui: 'system',
+      parQuiNom: 'Clôture hebdo automatique',
+      auto: true,
+      actif: true,
+      dateCreation: FieldValue.serverTimestamp(),
+      semaineSource: weekKey
+    });
+    nbCrees++;
+  }
+  console.log(`[avertissements-auto] semaine ${weekKey} : ${nbCrees} avert(s) crees`);
+}
 
 // ----------------------------------------------------------------
 // 2. Génération d'alertes au fil de l'eau
