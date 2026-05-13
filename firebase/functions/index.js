@@ -571,6 +571,38 @@ async function onFacture(p) {
 
   // Idempotent : meme factureId emis par #suivi-facture ET #factures = 1 seul doc
   const docId = p.factureId ? `fac-${p.factureId}` : `fac-msg-${Date.now()}`;
+  const montantBot = Number(p.montant) || 0;
+
+  // Detection doublon : si une declaration manuelle correspondante existe
+  // (meme vendeur, meme montant, dans les 15 minutes precedentes), on cree
+  // la vente bot directement marquee cachee:true. Le bot peut remonter la
+  // facture APRES que l'employe ait declare manuellement (latence Discord).
+  let venteCachee = false;
+  let remplaceeParId = null;
+  let remplaceeParFactureId = null;
+  if (vendeurId && montantBot > 0) {
+    try {
+      const quinzeMin = new Date(Date.now() - 15 * 60 * 1000);
+      const manSnap = await db.collection('ventes')
+        .where('timestamp', '>=', Timestamp.fromDate(quinzeMin))
+        .get();
+      for (const m of manSnap.docs) {
+        const mv = m.data();
+        if (mv.source === 'manuelle' &&
+            mv.vendeurId === vendeurId &&
+            Number(mv.montant) === montantBot) {
+          venteCachee = true;
+          remplaceeParId = m.id;
+          remplaceeParFactureId = mv.factureId;
+          console.log(`[onFacture] Vente bot ${p.factureId} creee cachee (doublon manuel ${mv.factureId})`);
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('[onFacture] check doublon manuel error', e);
+    }
+  }
+
   await db.collection('ventes').doc(docId).set({
     factureId: p.factureId,
     vendeurDiscord: p.vendeurDiscord || '',
@@ -578,12 +610,16 @@ async function onFacture(p) {
     vendeurId,
     enServiceAuMomentDeLaVente: enService,
     client: p.clientNom || '',
-    montant: Number(p.montant) || 0,
+    montant: montantBot,
     benefice: p.benefice ?? null,
     raison: p.raison || '',
     paiement: p.paiement || '',
     items: p.items || [],
     stockVerifie: p.stockVerifie ?? null,
+    source: 'discord',
+    cachee: venteCachee,
+    remplaceeParId,
+    remplaceeParFactureId,
     timestamp: FieldValue.serverTimestamp()
   }, { merge: true });
 
@@ -1746,6 +1782,38 @@ export const declarerVente = onRequest({
       await reconcileSortiesAvecVente(decoded.uid, lignesResolues, factureId);
     } catch (e) {
       console.error('[declarerVente] reconcile error', e);
+    }
+
+    // Cache la vente bot Discord en doublon : meme vendeur, meme montant,
+    // dans les 15 minutes precedentes. La manuelle (avec benefice calcule
+    // proprement) remplace l'auto-remontee bot a benefice 0. Best-effort.
+    // NB : les ventes bot ont source=undefined (pas 'discord'), on filtre
+    // donc juste `source !== 'manuelle'`.
+    try {
+      const quinzeMin = new Date(now.getTime() - 15 * 60 * 1000);
+      const botSnap = await db.collection('ventes')
+        .where('timestamp', '>=', Timestamp.fromDate(quinzeMin))
+        .where('timestamp', '<=', Timestamp.fromDate(now))
+        .get();
+      for (const d of botSnap.docs) {
+        const v = d.data();
+        if (v.vendeurId === decoded.uid &&
+            v.source !== 'manuelle' &&
+            Number(v.montant) === montant &&
+            !v.cachee &&
+            d.id !== docId) {
+          await d.ref.update({
+            cachee: true,
+            remplaceeParId: docId,
+            remplaceeParFactureId: factureId,
+            dateCachage: FieldValue.serverTimestamp()
+          });
+          console.log(`[declarerVente] Vente bot ${v.factureId} cachee (doublon manuel ${factureId})`);
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('[declarerVente] cachage doublon error', e);
     }
 
     return res.status(200).json({ ok: true, factureId, coutTotal, benefice, montant });

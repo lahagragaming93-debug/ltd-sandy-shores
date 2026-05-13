@@ -102,20 +102,25 @@ export async function ajusterStock(produitId, delta, raison, parUid) {
 }
 
 // ----- Ventes -----
+// Les ventes marquees `cachee: true` (doublons bot remplaces par declaration
+// manuelle) sont filtrees ici une fois pour toutes — toutes les pages
+// consommatrices (compta, rh, dashboard, employee, ventes) en beneficient.
 export async function listVentesSemaine(dateDebut, dateFin) {
   const q = query(collection(db, 'ventes'),
     where('timestamp', '>=', Timestamp.fromDate(dateDebut)),
     where('timestamp', '<=', Timestamp.fromDate(dateFin)),
     orderBy('timestamp', 'desc'));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(v => !v.cachee);
 }
 export function listenVentesSemaine(dateDebut, dateFin, cb) {
   const q = query(collection(db, 'ventes'),
     where('timestamp', '>=', Timestamp.fromDate(dateDebut)),
     where('timestamp', '<=', Timestamp.fromDate(dateFin)),
     orderBy('timestamp', 'desc'));
-  return onSnapshot(q, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, s => cb(
+    s.docs.map(d => ({ id: d.id, ...d.data() })).filter(v => !v.cachee)
+  ));
 }
 
 // ----- Mouvements de stock -----
