@@ -17,7 +17,7 @@ import { toastSuccess, toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('rh');
-const editable = isDirection(profile.role) || profile.role === 'drh';
+const editable = isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh';
 
 const html = `
   <div class="kpi-grid" id="kpis-rh">

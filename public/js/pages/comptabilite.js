@@ -19,7 +19,7 @@ import { toastSuccess, toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('comptabilite');
-const editable = isDirection(profile.role);
+const editable = isDirection(profile.role) || isSuperAdmin(profile.role);
 
 // === Templates de dépenses fréquentes ===
 const TEMPLATES_DEPENSES = [
