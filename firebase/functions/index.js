@@ -1857,18 +1857,22 @@ export const modifierVente = onRequest({
     const modifieParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
 
     await db.runTransaction(async (tx) => {
-      // Lit + update stocks
-      for (const [pid, delta] of Object.entries(deltaParProduit)) {
-        if (!delta) continue;
-        const sRef = db.collection('stocks').doc(pid);
-        const sSnap = await tx.get(sRef);
+      // 1) PHASE LECTURES : on lit tous les stocks d'abord (Firestore exige
+      //    toutes les reads avant toutes les writes dans une transaction).
+      const deltaEntries = Object.entries(deltaParProduit).filter(([, d]) => d !== 0);
+      const stockRefs = deltaEntries.map(([pid]) => db.collection('stocks').doc(pid));
+      const stockSnaps = await Promise.all(stockRefs.map(r => tx.get(r)));
+
+      // 2) PHASE ECRITURES : on update tous les stocks puis la vente.
+      deltaEntries.forEach(([pid, delta], i) => {
+        const sSnap = stockSnaps[i];
         const cur = sSnap.exists ? Number(sSnap.data().quantite || 0) : 0;
-        tx.set(sRef, {
+        tx.set(stockRefs[i], {
           quantite: cur + delta,
           derniereMaj: FieldValue.serverTimestamp(),
           par: `${modifieParNom} (modif vente ${ancienne.factureId || venteId})`
         }, { merge: true });
-      }
+      });
       tx.set(venteRef, {
         client: String(clientNom || ancienne.client || '').trim(),
         paiement: String(moyenPaiement || ancienne.paiement || '').trim(),
