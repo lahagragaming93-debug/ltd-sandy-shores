@@ -20,25 +20,35 @@ import { ouvrirModalNouvelleVente } from '../utils/vente-modal.js';
 
 const { profile: callerProfile } = await requireAuth('employee');
 
-// === Mode "Voir comme..." : direction/DRH/admin-technique peut consulter
+// === Mode "Voir l'espace de X" : direction/DRH/admin-technique peut consulter
 // l'espace personnel de n'importe quel employe (lecture seule) via ?asUser=UID
 // Pour debugger ou verifier ce qu'un employe voit en cas de probleme.
+// On utilise roleReel pour bypass le mode "Voir le site comme..." (preexistant
+// qui peut modifier callerProfile.role si l'admin teste un autre role).
 const urlParams = new URLSearchParams(location.search);
 const asUserId = urlParams.get('asUser');
+const callerRoleReel = callerProfile.roleReel || callerProfile.role;
 const canVoirComme = (r) => isDirection(r) || isSuperAdmin(r) || r === 'drh';
 
 let profile = callerProfile;
 let viewedUserId = getCurrentUser().uid;
 let modeVoirComme = false;
 
-if (asUserId && asUserId !== viewedUserId && canVoirComme(callerProfile.role)) {
-  const target = await getUserDoc(asUserId);
-  if (target) {
-    profile = target;
-    viewedUserId = asUserId;
-    modeVoirComme = true;
+if (asUserId && asUserId !== viewedUserId && canVoirComme(callerRoleReel)) {
+  try {
+    const target = await getUserDoc(asUserId);
+    if (target) {
+      profile = target;
+      viewedUserId = asUserId;
+      modeVoirComme = true;
+    } else {
+      console.warn('[employee] asUser=', asUserId, 'introuvable');
+    }
+  } catch (e) {
+    console.error('[employee] erreur chargement profil cible:', e);
   }
 }
+console.log('[employee] modeVoirComme=', modeVoirComme, 'viewedUserId=', viewedUserId, 'callerRoleReel=', callerRoleReel);
 
 const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
