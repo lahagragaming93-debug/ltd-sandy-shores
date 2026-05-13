@@ -3,7 +3,8 @@
 // Le périmètre des actions est filtré par canManageUser().
 // ============================================================
 
-import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire } from '../auth.js';
+import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire,
+         getViewAsRole, setViewAsRole, clearViewAsRole } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee,
          listAvertissements, listenAvertissementsActifs, creerAvertissement, retirerAvertissement } from '../api.js';
@@ -40,6 +41,24 @@ const html = `
     ${canEditCfg ? `<button class="btn" id="btn-export-sheets">📊 Export Google Sheets</button>` : ''}
     ${canEditCfg ? `<a href="decouverte-items.html" class="btn">🔍 Découverte items FiveM</a>` : ''}
   </div>
+
+  ${['patron', 'co-patron', 'admin-technique'].includes(profile.roleReel) ? `
+    <div class="panel mb-2" style="background:rgba(180,120,40,0.08);border:1px dashed #c93;">
+      <div class="row" style="flex-wrap:wrap;gap:10px;align-items:center;">
+        <span style="font-weight:bold;">🎭 Voir le site comme :</span>
+        <select id="select-view-as" style="min-width:240px;">
+          <option value="">— ma vue normale (${escapeHtml(ROLE_LABELS[profile.roleReel])}) —</option>
+          ${Object.entries(ROLE_LABELS)
+            .filter(([r]) => r !== profile.roleReel)
+            .map(([r, label]) => `<option value="${escapeHtml(r)}">${escapeHtml(label)}</option>`).join('')}
+        </select>
+        <span class="muted" style="font-size:0.78rem;">
+          (Ne change rien en base — tes droits réels restent ${escapeHtml(ROLE_LABELS[profile.roleReel])}.
+          Permet de voir ce que verrait un employé de ce rôle.)
+        </span>
+      </div>
+    </div>
+  ` : ''}
 
   <!-- Embauches à traiter (alimentées par #auto-rh) -->
   ${canCreate ? `
@@ -589,6 +608,19 @@ document.getElementById('btn-save-edit').addEventListener('click', async () => {
     document.getElementById('modal-edit').classList.add('hidden');
   } catch (e) { toastError(e?.message || e?.code || "Erreur."); console.error(e); }
 });
+
+// === Selecteur "Voir le site comme..." (admin reel uniquement) ===
+const selectViewAs = document.getElementById('select-view-as');
+if (selectViewAs) {
+  selectViewAs.value = getViewAsRole();
+  selectViewAs.addEventListener('change', () => {
+    const v = selectViewAs.value;
+    if (v) setViewAsRole(v);
+    else clearViewAsRole();
+    // Reload : la garde requireAuth va appliquer / retirer la surcharge
+    window.location.reload();
+  });
+}
 
 // === Création de compte ===
 document.getElementById('btn-nouveau').addEventListener('click', () => {

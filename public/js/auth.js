@@ -16,6 +16,24 @@ import { normalizePrenom, normalizeNom } from './utils/formatters.js';
 let currentUser = null;
 let currentProfile = null;
 
+// === Mode "Voir le site comme..." (admin only) ===
+// Stocke un role simule dans localStorage. Si actif + l'utilisateur est admin
+// reel, requireAuth surcharge profile.role par cette valeur (UI uniquement).
+// Cote serveur, les rules Firestore voient toujours le vrai role -> l'admin
+// garde TOUS ses droits en ecriture, c'est juste l'affichage qui change.
+const VIEW_AS_KEY = 'ltd_viewAsRole';
+const ADMIN_ROLES_REELS = ['patron', 'co-patron', 'admin-technique'];
+export function getViewAsRole() {
+  try { return localStorage.getItem(VIEW_AS_KEY) || ''; } catch { return ''; }
+}
+export function setViewAsRole(role) {
+  try {
+    if (role) localStorage.setItem(VIEW_AS_KEY, role);
+    else localStorage.removeItem(VIEW_AS_KEY);
+  } catch {}
+}
+export function clearViewAsRole() { setViewAsRole(''); }
+
 // === Inscription publique — DÉSACTIVÉE ===
 // L'inscription publique a été utilisée une seule fois pour bootstrapper le
 // premier patron. Depuis, tous les comptes (Co-Patron, DRH, employés) sont
@@ -148,6 +166,23 @@ export function requireAuth(pageKey) {
       const isDir = profile.role === 'patron' || profile.role === 'co-patron'
         || profile.role === 'admin-technique';
       profile.bloque = !isDir && (profile.avertsActifs || 0) >= 3;
+
+      // === Mode "Voir comme..." ===
+      // Si le vrai role est admin ET viewAsRole valide -> on stocke le vrai role
+      // dans profile.roleReel et on surcharge profile.role pour l'UI.
+      // Cote Firestore, l'ecriture utilise toujours request.auth.uid -> les
+      // rules voient l'utilisateur Firebase (admin), donc droits intacts.
+      profile.roleReel = profile.role;
+      profile.viewingAs = null;
+      const viewAs = getViewAsRole();
+      const rolesValides = Object.values(ROLES);
+      if (viewAs && ADMIN_ROLES_REELS.includes(profile.role) && rolesValides.includes(viewAs)) {
+        profile.viewingAs = viewAs;
+        profile.role = viewAs;
+        // Re-eval bloque selon le role simule
+        const isDirSimule = ADMIN_ROLES_REELS.includes(viewAs);
+        profile.bloque = !isDirSimule && (profile.avertsActifs || 0) >= 3;
+      }
 
       currentUser = user;
       currentProfile = profile;

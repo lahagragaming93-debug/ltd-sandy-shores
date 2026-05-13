@@ -4,7 +4,7 @@
 // ============================================================
 
 import { ROLE_LABELS, canAccess, isEmployeeView } from './utils/permissions.js';
-import { deconnecter } from './auth.js';
+import { deconnecter, clearViewAsRole } from './auth.js';
 import { listenAlertesActives, marquerAlerteLue, marquerToutesAlertesLues } from './api.js';
 
 const NAV_ITEMS = [
@@ -174,6 +174,13 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         ${userChip}
       </header>
       <main class="main">
+        ${profile.viewingAs ? `
+          <div class="alert" id="bandeau-view-as" style="background:rgba(180,120,40,0.22);border:2px solid #c93;font-weight:bold;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span>🎭 <strong>Mode aperçu</strong> : tu vois le site comme <strong>${escapeHtml(ROLE_LABELS[profile.viewingAs] || profile.viewingAs)}</strong>.
+            Tes vrais droits restent <strong>${escapeHtml(ROLE_LABELS[profile.roleReel] || profile.roleReel)}</strong>.</span>
+            <button class="btn btn-ghost" id="btn-quitter-apercu" type="button" style="padding:4px 12px;margin-left:auto;">↩ Revenir à ma vue ${escapeHtml(ROLE_LABELS[profile.roleReel] || '')}</button>
+          </div>
+        ` : ''}
         ${profile.bloque ? `
           <div class="alert" style="background:rgba(220,40,40,0.20);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:12px;">
             🔒 <strong>COMPTE BLOQUÉ — 3 avertissements actifs.</strong>
@@ -200,6 +207,15 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         b.style.cursor = 'not-allowed';
       });
     }, 50);
+  }
+
+  // === Quitter le mode apercu (admin reel) ===
+  const btnQuitter = document.getElementById('btn-quitter-apercu');
+  if (btnQuitter) {
+    btnQuitter.addEventListener('click', () => {
+      clearViewAsRole();
+      window.location.reload();
+    });
   }
 
   // === Déconnexion ===
