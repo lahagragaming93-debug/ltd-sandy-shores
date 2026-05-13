@@ -1691,12 +1691,49 @@ export const declarerVente = onRequest({
       return res.status(403).json({ error: 'Compte bloque (3 avertissements actifs). Contacte la direction.' });
     }
 
-    const { clientNom, moyenPaiement, montantEncaisse, lignes } = req.body || {};
+    const { clientNom, moyenPaiement, montantEncaisse, lignes, factureBotId } = req.body || {};
     if (!Array.isArray(lignes) || lignes.length === 0) {
       return res.status(400).json({ error: 'Ajoute au moins une ligne de produit' });
     }
     if (lignes.length > 50) {
       return res.status(400).json({ error: 'Maximum 50 lignes par vente' });
+    }
+
+    // === Anti-fraude : la declaration manuelle DOIT correspondre a une vente
+    // bot Discord existante (la facture in-game qui prouve la realite de la
+    // transaction). Sans cela, un vendeur pourrait inventer des factures.
+    // Exception : direction/admin-technique/responsable-vente peuvent declarer
+    // sans reference (pour saisie de regularisation/correction).
+    const peutDeclarerSansBot = isDir || role === 'drh' || role === 'responsable-vente';
+    let venteBotData = null;
+    let venteBotRef = null;
+    if (!peutDeclarerSansBot) {
+      if (!factureBotId) {
+        return res.status(400).json({
+          error: 'Pour declarer une vente, tu dois selectionner la facture in-game correspondante. Si tu n\'as pas encore fait la facture en jeu, fais-la d\'abord puis reviens ici.'
+        });
+      }
+      venteBotRef = db.collection('ventes').doc(String(factureBotId));
+      const botSnap = await venteBotRef.get();
+      if (!botSnap.exists) {
+        return res.status(400).json({ error: 'Facture in-game introuvable. Verifie qu\'elle est bien remontee.' });
+      }
+      venteBotData = botSnap.data();
+      if (venteBotData.source === 'manuelle') {
+        return res.status(400).json({ error: 'Cette facture est deja une declaration manuelle.' });
+      }
+      if (venteBotData.vendeurId && venteBotData.vendeurId !== decoded.uid) {
+        return res.status(403).json({ error: 'Cette facture n\'est pas la tienne.' });
+      }
+      if (venteBotData.cachee) {
+        return res.status(400).json({ error: 'Cette facture a deja ete declaree.' });
+      }
+      // Fenetre temporelle : facture in-game doit dater de moins de 24h
+      const botTs = venteBotData.timestamp?.toDate?.() || new Date(0);
+      const ageHeures = (Date.now() - botTs.getTime()) / 3600000;
+      if (ageHeures > 24) {
+        return res.status(400).json({ error: `Cette facture in-game a plus de 24h (${Math.round(ageHeures)}h). Trop ancien pour la declarer maintenant — contacte la direction.` });
+      }
     }
 
     // Resolution des produits + calcul serveur (anti-fraude).
@@ -1743,6 +1780,18 @@ export const declarerVente = onRequest({
       return res.status(400).json({ error: 'Montant total nul (verifie les prix de vente du catalogue).' });
     }
     const benefice = montant - coutTotal;
+
+    // Anti-fraude : si on est lie a une vente bot, le montant declare DOIT
+    // matcher exactement le montant facture in-game (tolerance 0.01 \$ pour
+    // arrondis flottants).
+    if (venteBotData) {
+      const montantBot = Number(venteBotData.montant || 0);
+      if (Math.abs(montant - montantBot) > 0.01) {
+        return res.status(400).json({
+          error: `Le montant declare (${montant} \$) ne correspond pas au montant de la facture in-game (${montantBot} \$). Verifie tes produits/quantites.`
+        });
+      }
+    }
     // Part particulier (commissionnable) : pro-rata si l'admin a saisi un montant
     // total different du prix catalogue (rabais, remise, etc.).
     const montantParticulier = prixVenteTotal > 0
@@ -1765,6 +1814,8 @@ export const declarerVente = onRequest({
     const docId = `man-${factureId}`;
 
     // Transaction atomique : creation /ventes + decrement /stocks pour chaque ligne
+    // + cachage de la vente bot liee (si applicable). Tout en une fois pour
+    // garantir la coherence.
     await db.runTransaction(async (tx) => {
       const stockRefs = lignesResolues.map(l => db.collection('stocks').doc(l.produitId));
       const stockSnaps = await Promise.all(stockRefs.map(r => tx.get(r)));
@@ -1799,8 +1850,20 @@ export const declarerVente = onRequest({
         modifieParNom: null,
         motifModification: null,
         dateModification: null,
+        factureBotId: factureBotId || null,
+        factureBotRef: venteBotData?.factureId || null,
         timestamp: FieldValue.serverTimestamp()
       });
+
+      // Marque la vente bot comme cachee (atomique : pas de doublon visible)
+      if (venteBotRef) {
+        tx.update(venteBotRef, {
+          cachee: true,
+          remplaceeParId: docId,
+          remplaceeParFactureId: factureId,
+          dateCachage: FieldValue.serverTimestamp()
+        });
+      }
     });
 
     // Audit /mouvementsStock (hors transaction, append-only)
@@ -1825,37 +1888,8 @@ export const declarerVente = onRequest({
       console.error('[declarerVente] reconcile error', e);
     }
 
-    // Cache la vente bot Discord en doublon : meme vendeur, meme montant,
-    // dans les 15 minutes precedentes. La manuelle (avec benefice calcule
-    // proprement) remplace l'auto-remontee bot a benefice 0. Best-effort.
-    // NB : les ventes bot ont source=undefined (pas 'discord'), on filtre
-    // donc juste `source !== 'manuelle'`.
-    try {
-      const quinzeMin = new Date(now.getTime() - 15 * 60 * 1000);
-      const botSnap = await db.collection('ventes')
-        .where('timestamp', '>=', Timestamp.fromDate(quinzeMin))
-        .where('timestamp', '<=', Timestamp.fromDate(now))
-        .get();
-      for (const d of botSnap.docs) {
-        const v = d.data();
-        if (v.vendeurId === decoded.uid &&
-            v.source !== 'manuelle' &&
-            Number(v.montant) === montant &&
-            !v.cachee &&
-            d.id !== docId) {
-          await d.ref.update({
-            cachee: true,
-            remplaceeParId: docId,
-            remplaceeParFactureId: factureId,
-            dateCachage: FieldValue.serverTimestamp()
-          });
-          console.log(`[declarerVente] Vente bot ${v.factureId} cachee (doublon manuel ${factureId})`);
-          break;
-        }
-      }
-    } catch (e) {
-      console.error('[declarerVente] cachage doublon error', e);
-    }
+    // Note : la vente bot liee est marquee `cachee=true` atomiquement dans la
+    // transaction ci-dessus (plus de "best-effort post-creation").
 
     return res.status(200).json({ ok: true, factureId, coutTotal, benefice, montant, montantParticulier });
   } catch (err) {

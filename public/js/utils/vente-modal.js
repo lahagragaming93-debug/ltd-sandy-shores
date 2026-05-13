@@ -5,8 +5,8 @@
 // Le prixAchat affiche cote client est INDICATIF — recalcul serveur.
 // ============================================================
 
-import { listProduits } from '../api.js';
-import { money, moneyPrecis, escapeHtml } from './formatters.js';
+import { listProduits, listVentesSemaineIncluantCachees } from '../api.js';
+import { money, moneyPrecis, escapeHtml, datetime, startOfWeekRP, endOfWeekRP } from './formatters.js';
 import { toastSuccess, toastError } from './toast.js';
 import { auth } from '../firebase-config.js';
 import { isVendeur } from './permissions.js';
@@ -18,7 +18,7 @@ const MODAL_HTML = `
     <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto;">
       <h3 id="modal-vente-title">📝 Déclarer une vente</h3>
 
-      <div class="alert info mb-2" style="font-size:0.82rem;">
+      <div class="alert info mb-2" style="font-size:0.82rem;" id="modal-vente-info-bloc">
         <span class="icon">ℹ</span>
         <span id="modal-vente-info">
           Saisis chaque produit vendu et la quantité. Le <strong>prix de vente</strong>
@@ -29,6 +29,20 @@ const MODAL_HTML = `
 
       <input type="hidden" id="vente-id" />
       <input type="hidden" id="vente-mode" value="create" />
+      <input type="hidden" id="vente-facture-bot-id" />
+
+      <!-- Etape 1 (mode employe vendeur) : selectionner la facture bot a declarer -->
+      <div id="vente-select-bot-bloc" class="hidden">
+        <label>📋 Facture in-game à déclarer <span style="color:var(--color-blood-light);">*</span></label>
+        <select id="vente-select-bot" style="width:100%;">
+          <option value="">— Sélectionne la facture —</option>
+        </select>
+        <p class="muted" style="font-size:0.78rem;margin:4px 0 8px;">
+          Seules les factures in-game <strong>de moins de 24h non encore déclarées</strong> sont listées.
+          Si la tienne n'apparaît pas : fais-la d'abord en jeu et reviens ici (le bot doit la remonter).
+        </p>
+        <div id="vente-bot-info" class="hidden alert info" style="font-size:0.82rem;margin-bottom:8px;"></div>
+      </div>
 
       <label>Lignes de produits</label>
       <div id="vente-lignes" style="display:flex;flex-direction:column;gap:6px;"></div>
@@ -82,6 +96,7 @@ let produitsCache = null;
 let produitsVisibles = null; // sous-ensemble filtre selon le role caller
 let modalInjected = false;
 let onSuccessCb = null;
+let venteBotChoisie = null;  // vente bot selectionnee pour declaration (mode vendeur)
 
 function injectModalIfNeeded() {
   if (modalInjected) return;
@@ -249,6 +264,29 @@ function recalculer() {
   const el = document.getElementById('vente-benefice');
   el.textContent = moneyPrecis(benefice);
   el.style.color = benefice >= 0 ? 'var(--color-cactus,#5a8)' : 'var(--color-blood-light)';
+
+  // Validation temps reel vs montant facture bot (mode vendeur)
+  const botIdSel = document.getElementById('vente-facture-bot-id')?.value;
+  if (botIdSel && venteBotChoisie) {
+    const cible = Number(venteBotChoisie.montant || 0);
+    const ecart = montantEffectif - cible;
+    const info = document.getElementById('vente-bot-info');
+    const btnValider = document.getElementById('btn-vente-valider');
+    if (Math.abs(ecart) < 0.01) {
+      info.className = 'alert info';
+      info.innerHTML = `✅ <strong>Montant correspond</strong> à la facture in-game #${escapeHtml(String(venteBotChoisie.factureId))} (${moneyPrecis(cible)}). Tu peux valider.`;
+      btnValider.disabled = false;
+    } else if (montantEffectif === 0) {
+      info.className = 'alert info';
+      info.innerHTML = `🎯 Cible : <strong>${moneyPrecis(cible)}</strong> — facture #${escapeHtml(String(venteBotChoisie.factureId))}.<br>Ajoute les produits que tu as vendus.`;
+      btnValider.disabled = true;
+    } else {
+      info.className = 'alert warn';
+      info.innerHTML = `⚠ <strong>Écart : ${ecart > 0 ? '+' : ''}${moneyPrecis(ecart)}</strong> — il faut atteindre <strong>${moneyPrecis(cible)}</strong> (facture in-game). Vérifie les produits/quantités.`;
+      btnValider.disabled = true;
+    }
+    info.classList.remove('hidden');
+  }
 }
 
 async function soumettre() {
@@ -284,9 +322,10 @@ async function soumettre() {
     const url = mode === 'edit'
       ? `${FUNCTIONS_BASE}/modifierVente`
       : `${FUNCTIONS_BASE}/declarerVente`;
+    const factureBotId = document.getElementById('vente-facture-bot-id')?.value || undefined;
     const body = mode === 'edit'
       ? { venteId, clientNom, moyenPaiement, montantEncaisse: montantEncaisse || 0, lignes, motifModification }
-      : { lignes, clientNom: clientNom || undefined, moyenPaiement: moyenPaiement || undefined, montantEncaisse: montantEncaisse || undefined };
+      : { lignes, clientNom: clientNom || undefined, moyenPaiement: moyenPaiement || undefined, montantEncaisse: montantEncaisse || undefined, factureBotId };
 
     const resp = await fetch(url, {
       method: 'POST',
@@ -315,7 +354,7 @@ async function soumettre() {
 // API publique
 // ============================================================
 
-export async function ouvrirModalNouvelleVente({ onSuccess, role } = {}) {
+export async function ouvrirModalNouvelleVente({ onSuccess, role, factureBotIdPreset } = {}) {
   injectModalIfNeeded();
   if (!produitsCache) produitsCache = await listProduits().catch(() => []);
   // Filtre les produits visibles selon le role :
@@ -328,10 +367,12 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role } = {}) {
     ? nonIntrant.filter(p => !p.pourPro)
     : nonIntrant;
   onSuccessCb = onSuccess || null;
+  venteBotChoisie = null;
 
   document.getElementById('modal-vente-title').textContent = '📝 Déclarer une vente';
   document.getElementById('vente-mode').value = 'create';
   document.getElementById('vente-id').value = '';
+  document.getElementById('vente-facture-bot-id').value = '';
   document.getElementById('vente-client').value = '';
   document.getElementById('vente-paiement').value = '';
   document.getElementById('vente-montant').value = '';
@@ -341,6 +382,81 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role } = {}) {
   document.getElementById('vente-admin-fields').classList.add('hidden');
   document.getElementById('btn-vente-valider').textContent = 'Valider la vente';
   document.getElementById('vente-lignes').innerHTML = '';
+
+  // === Mode vendeur : doit choisir une facture bot avant de saisir ===
+  const blocSelect = document.getElementById('vente-select-bot-bloc');
+  const selectBot  = document.getElementById('vente-select-bot');
+  const infoBot    = document.getElementById('vente-bot-info');
+  if (isVendeur(role)) {
+    blocSelect.classList.remove('hidden');
+    selectBot.innerHTML = '<option value="">Chargement…</option>';
+    infoBot.classList.add('hidden');
+
+    // Charge les ventes bot non declarees du vendeur (semaine en cours)
+    const debut = startOfWeekRP();
+    const fin   = endOfWeekRP();
+    const ventes = await listVentesSemaineIncluantCachees(debut, fin).catch(() => []);
+    const uid = auth.currentUser?.uid;
+    const il_y_a_24h = Date.now() - 24 * 3600 * 1000;
+    const nonDeclarees = ventes.filter(v =>
+      v.vendeurId === uid &&
+      v.source !== 'manuelle' &&
+      !v.cachee &&
+      (v.timestamp?.toMillis?.() || 0) >= il_y_a_24h
+    ).sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+
+    if (nonDeclarees.length === 0) {
+      selectBot.innerHTML = '<option value="">— Aucune facture in-game à déclarer —</option>';
+      selectBot.disabled = true;
+      infoBot.className = 'alert warn';
+      infoBot.innerHTML = `⚠ <strong>Aucune facture in-game non déclarée dans les 24 dernières heures.</strong><br>
+        Pour déclarer une vente, il faut d'abord faire la facture en jeu. Le bot Discord la remontera ici dans les secondes qui suivent.<br>
+        <em>Si tu en attends une, patiente quelques secondes puis rouvre cette fenêtre.</em>`;
+      infoBot.classList.remove('hidden');
+      document.getElementById('btn-vente-valider').disabled = true;
+    } else {
+      selectBot.disabled = false;
+      selectBot.innerHTML = '<option value="">— Sélectionne la facture —</option>' +
+        nonDeclarees.map(v => {
+          const dt = v.timestamp?.toDate?.()
+            ? v.timestamp.toDate().toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+            : '?';
+          const raison = (v.raison || '').slice(0, 35);
+          return `<option value="${v.id}" data-montant="${v.montant}">${dt} · ${moneyPrecis(v.montant)} · ${escapeHtml(raison || v.client || '?')}</option>`;
+        }).join('');
+      // Stocke le set pour retrouver le doc apres selection
+      selectBot.dataset.ventesJson = JSON.stringify(nonDeclarees);
+
+      selectBot.onchange = () => {
+        const docId = selectBot.value;
+        if (!docId) {
+          venteBotChoisie = null;
+          document.getElementById('vente-facture-bot-id').value = '';
+          infoBot.classList.add('hidden');
+          recalculer();
+          return;
+        }
+        const list = JSON.parse(selectBot.dataset.ventesJson || '[]');
+        venteBotChoisie = list.find(v => v.id === docId);
+        if (venteBotChoisie) {
+          document.getElementById('vente-facture-bot-id').value = docId;
+        }
+        recalculer();
+      };
+
+      // Preselect si demande (depuis Mon espace)
+      if (factureBotIdPreset && nonDeclarees.find(v => v.id === factureBotIdPreset)) {
+        selectBot.value = factureBotIdPreset;
+        selectBot.onchange();
+      }
+      document.getElementById('btn-vente-valider').disabled = true; // active apres saisie matchante
+    }
+  } else {
+    // Admin/direction : pas de selection bot requise
+    blocSelect.classList.add('hidden');
+    document.getElementById('btn-vente-valider').disabled = false;
+  }
+
   ajouterLigne();
   recalculer();
   document.getElementById('modal-vente').classList.remove('hidden');

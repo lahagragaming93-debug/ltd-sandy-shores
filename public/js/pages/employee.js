@@ -5,8 +5,8 @@
 import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
-  listVentesSemaine, listServicesSemaine, listAllServicesEmploye, getQuotaPompiste, getConfig,
-  listenAvertissements,
+  listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
+  getQuotaPompiste, getConfig, listenAvertissements,
   collection, query, where, orderBy, limit, onSnapshot
 } from '../api.js';
 import { db } from '../firebase-config.js';
@@ -36,6 +36,9 @@ const html = `
 
   <div id="bloc-sorties-attente"></div>
 
+  <!-- Bloc ventes IG non declarees (vendeurs uniquement) -->
+  <div id="bloc-non-declarees"></div>
+
   <div class="kpi-grid" id="kpis-emp">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
@@ -62,14 +65,83 @@ renderShell(profile, 'employee', html);
 const me = getCurrentUser();
 const config = await getConfig().catch(() => ({}));
 
-const [allVentes, allServices, allMyServices, quota] = await Promise.all([
+const [allVentes, ventesAvecCachees, allServices, allMyServices, quota] = await Promise.all([
   listVentesSemaine(debut, fin).catch(() => []),
+  listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
   listAllServicesEmploye(me.uid).catch(() => []),
   // Charge le quota pour TOUS les roles (les non-pompistes peuvent aussi
   // produire des bidons/caoutchoucs en bossant a la station - bonus info).
   getQuotaPompiste(me.uid, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 }))
 ]);
+
+// === Ventes IG (bot Discord) non encore declarees par l'employe ===
+// Filtre : vendeur=moi, source!=manuelle, non cachee, moins de 24h
+const il_y_a_24h = Date.now() - 24 * 3600 * 1000;
+const nonDeclarees = ventesAvecCachees.filter(v =>
+  v.vendeurId === me.uid &&
+  v.source !== 'manuelle' &&
+  !v.cachee &&
+  (v.timestamp?.toMillis?.() || 0) >= il_y_a_24h
+).sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+
+function renderNonDeclarees() {
+  const bloc = document.getElementById('bloc-non-declarees');
+  if (!isVendeur(profile.role) || nonDeclarees.length === 0) {
+    bloc.innerHTML = '';
+    return;
+  }
+  bloc.innerHTML = `
+    <div class="panel framed mb-2" style="border-color:var(--color-warning, #f0a020);">
+      <div class="panel-title">
+        <span>📌 ${nonDeclarees.length} vente${nonDeclarees.length > 1 ? 's' : ''} in-game à déclarer</span>
+        <span class="muted" style="font-size:0.78rem;">— moins de 24h</span>
+      </div>
+      <p class="muted" style="font-size:0.82rem;margin:0 0 8px;">
+        Le bot Discord a remonté ${nonDeclarees.length > 1 ? 'ces factures' : 'cette facture'} mais tu n'as pas encore déclaré le détail des produits. <strong>Déclare maintenant</strong> pour que ta commission soit calculée correctement.
+      </p>
+      <table class="data" style="font-size:0.85rem;">
+        <thead><tr>
+          <th>Date</th>
+          <th>#Facture</th>
+          <th>Client</th>
+          <th class="right">Montant</th>
+          <th>Détail (raison)</th>
+          <th class="center">Action</th>
+        </tr></thead>
+        <tbody>
+          ${nonDeclarees.map(v => {
+            const dt = v.timestamp?.toDate?.()
+              ? v.timestamp.toDate().toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+              : '?';
+            return `
+              <tr>
+                <td class="mono" style="font-size:0.78rem;">${dt}</td>
+                <td class="mono">#${escapeHtml(String(v.factureId || ''))}</td>
+                <td>${escapeHtml(v.client || '—')}</td>
+                <td class="right mono"><strong>${money(v.montant || 0)}</strong></td>
+                <td class="muted" style="font-size:0.78rem;">${escapeHtml((v.raison || '').slice(0, 50))}</td>
+                <td class="center">
+                  <button class="btn btn-primary btn-sm" data-declarer-bot="${v.id}">📝 Déclarer</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  bloc.querySelectorAll('[data-declarer-bot]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ouvrirModalNouvelleVente({
+        role: profile.role,
+        factureBotIdPreset: btn.dataset.declarerBot,
+        onSuccess: () => window.location.reload()
+      });
+    });
+  });
+}
+renderNonDeclarees();
 
 const myVentes = allVentes.filter(v => v.vendeurId === me.uid);
 const myServices = allServices.filter(s => s.employeId === me.uid);
@@ -292,28 +364,34 @@ onSnapshot(sortiesQ, (snap) => {
   if (alertes.length > 0) {
     html += `
       <div class="alert" style="background:rgba(220,40,40,0.18);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:8px;">
-        🚨 <strong>Sortie non régularisée — ${alertes.length}</strong> : tu as sorti
-        des produits du coffre il y a plus de 30 minutes sans les vendre ni les redéposer.
-        <strong>Régularise immédiatement</strong> (déclare la vente ou redépose le produit).
-        La direction a été notifiée.
+        🚨 <strong>Sortie non régularisée — ${alertes.length} produit${alertes.length > 1 ? 's' : ''}</strong>
         <ul style="margin:6px 0 0 18px;font-weight:normal;">
           ${alertes.map(s => {
             const d = s.dateSortie?.toDate ? s.dateSortie.toDate() : null;
             return `<li>${escapeHtml(s.produitNom)} × ${s.quantite}${d ? ` — sorti à ${d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})}` : ''}</li>`;
           }).join('')}
         </ul>
+        <div style="background:rgba(0,0,0,0.25);padding:8px 10px;margin-top:8px;border-radius:4px;font-weight:normal;font-size:0.88rem;">
+          ⚠ Tu as sorti ${alertes.length > 1 ? 'ces produits' : 'ce produit'} du coffre il y a <strong>plus de 30 minutes</strong> sans déclarer de vente.<br>
+          <strong>Pour faire disparaître ce message, 2 options :</strong>
+          <ol style="margin:4px 0 0 18px;">
+            <li><strong>Déclare la vente</strong> ici (bouton "📝 Déclarer une vente" ci-dessus) en sélectionnant la facture in-game correspondante.</li>
+            <li><strong>Repose ${alertes.length > 1 ? 'les produits' : 'le produit'} dans le coffre LTD</strong> (le bot Discord détectera le redépôt automatiquement).</li>
+          </ol>
+          La direction a été notifiée — régularise vite pour éviter un avertissement.
+        </div>
       </div>`;
   }
   if (enAttente.length > 0) {
     html += `
       <div class="alert" style="background:rgba(220,180,40,0.12);border:1px solid #c93;margin-bottom:8px;font-size:0.9rem;">
         ⏱ <strong>${enAttente.length} sortie${enAttente.length > 1 ? 's' : ''} en attente</strong> de
-        régularisation (vente ou redépôt). Tu as 30 min à partir de la sortie du coffre.
+        régularisation. Tu as 30 min depuis la sortie du coffre pour déclarer la vente ou reposer le produit.
         <ul style="margin:4px 0 0 18px;">
           ${enAttente.map(s => {
             const d = s.dateSortie?.toDate ? s.dateSortie.toDate() : null;
             const tRest = d ? Math.max(0, 30 - Math.round((Date.now() - d.getTime()) / 60000)) : '?';
-            return `<li>${escapeHtml(s.produitNom)} × ${s.quantite} — ${tRest} min restantes</li>`;
+            return `<li>${escapeHtml(s.produitNom)} × ${s.quantite} — <strong>${tRest} min restantes</strong></li>`;
           }).join('')}
         </ul>
       </div>`;
