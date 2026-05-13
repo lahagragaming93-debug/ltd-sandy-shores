@@ -88,7 +88,7 @@ const plafondSalaire = PLAFOND_SALAIRE[profile.role] || 0;
 if (isVendeur(profile.role)) {
   const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
   const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
-  const salaireEst = salaireVendeur(profile.role, ca, benefice);
+  const salaireEst = salaireVendeur(profile.role, ca);
   const progressionCA = Math.min(100, (ca / CA_PLAFOND_VENDEUR) * 100);
   const commission = COMMISSION_VENDEUR[profile.role] * 100;
   // Quota CA hebdo : si non atteint a la cloture dimanche 23h59, avert auto.

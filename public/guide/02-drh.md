@@ -131,24 +131,21 @@ Bouton **« + Créer un compte »**. Remplis :
 commission = 32,5 % (Novice) / 35 % (Inter) / 37,5 % (Exp)
 plafond    = 13 000 / 14 000 / 15 000 $ (Novice / Inter / Exp)
 
-Si CA généré > 40 000 $ :
-   bénéfice retenu = bénéfice × (40 000 / CA)
-Sinon :
-   bénéfice retenu = bénéfice total
+CA retenu = MIN( CA généré, 40 000 $ )
 
-Salaire = MIN( bénéfice retenu × commission , plafond )
+Salaire = MIN( CA retenu × commission , plafond )
 ```
 
 **Exemple concret** (Vendeur Intermédiaire) :
-- CA : 35 000 $
-- Bénéfice : 18 000 $
-- Salaire = MIN(18 000 × 35 %, 14 000) = MIN(6 300, 14 000) = **6 300 $**
+- CA : 25 000 $
+- Salaire = MIN(25 000 × 35 %, 14 000) = MIN(8 750, 14 000) = **8 750 $**
 
 **Exemple plafonné** (Vendeur Expérimenté) :
 - CA : 60 000 $ (au-dessus du plafond CA de 40 000)
-- Bénéfice total : 30 000 $
-- Bénéfice retenu = 30 000 × (40 000 / 60 000) = **20 000 $**
-- Salaire = MIN(20 000 × 37,5 %, 15 000) = MIN(7 500, 15 000) = **7 500 $**
+- CA retenu = 40 000 $
+- Salaire = MIN(40 000 × 37,5 %, 15 000) = MIN(15 000, 15 000) = **15 000 $**
+
+> 💡 Le calibrage est aligné : atteindre 40 000 $ de CA = atteindre exactement le plafond salaire de chaque grade (40k × 32,5% = 13k ; 40k × 35% = 14k ; 40k × 37,5% = 15k).
 
 ### Pompiste
 ```

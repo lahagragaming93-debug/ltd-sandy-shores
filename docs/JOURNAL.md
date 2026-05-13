@@ -1,7 +1,28 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-13 (DRH aligné Direction sur stocks épicerie + stations essence)**
+> Dernière mise à jour : **2026-05-13 (Refonte calcul salaire vendeur : CA × commission au lieu de bénéfice × commission)**
+
+---
+
+## ✅ Session 2026-05-13 — Salaire vendeur calculé sur CA × commission
+
+**Demande patron** : le calcul actuel donnait Teodomiro à 1 316 $ pour 9 412 $ de CA en S20. Le patron veut la règle simple `CA × commission` (32,5 / 35 / 37,5 %), pas `bénéfice × commission`. Avec l'ancienne formule, le plafond salaire (13k / 14k / 15k $) était inatteignable vu une marge moyenne de ~43 % sur l'épicerie. Avec la nouvelle, le calibrage est aligné : atteindre 40 000 $ de CA = atteindre exactement le plafond du grade.
+
+**Fichiers modifiés** :
+- `public/js/utils/paie.js` : `salaireVendeur(role, caGenere)` — `caRetenu = min(caGenere, 40000)`, `salaire = min(caRetenu × commission, plafond)`. Signature simplifiée (paramètre `beneficeTotal` supprimé)
+- `public/js/utils/paie.js` ligne 71 : `salaireEstime` ne passe plus `beneficeGenere`
+- `public/js/pages/employee.js` ligne 91 : appel `salaireVendeur(role, ca)` (sans bénéfice)
+- `public/guide/05-vendeur.md` : formule + 3 exemples + section "maximiser ta paie" + FAQ
+- `public/guide/02-drh.md` : formule + 2 exemples calibrage plafond
+- `public/guide/08-faq-depannage.md` : FAQ salaire bas / plafond CA
+- `public/guide/01-direction.md` + `public/guide/03-responsable-vente.md` : note "prix d'achat = compta, pas commission"
+
+**Impact** : masse salariale vendeurs ~2× plus élevée à CA équivalent. À surveiller vis-à-vis du ratio TTE 90 % (mais en pratique les vendeurs étaient sous-payés vs l'intention initiale du calibrage 40k → plafond).
+
+**Bénéfice (prix d'achat)** : continue d'être affiché et sert au bénéfice net en compta + aux marges produit ; n'impacte plus la commission vendeur.
+
+**Déploiement** : site re-poussé sur GitHub Pages.
 
 ---
 

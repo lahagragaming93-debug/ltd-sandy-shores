@@ -116,9 +116,9 @@ Voir avec le Responsable Pompiste / direction. Stratégie historique :
 ### « Mon salaire estimé est trop bas par rapport à mes performances »
 Possibilités :
 - Tu n'as pas atteint ton quota (pompiste) ou ton CA n'est pas haut (vendeur)
-- Les **prix d'achat** de tes ventes ne sont pas saisis → bénéfice = 0 → commission = 0
 - Tu débutes la semaine, le compteur va monter au fur et à mesure
 - Tu es plafonné par ton grade (Novice = 13k max, etc.)
+- Vendeur : salaire = CA × commission (32,5 / 35 / 37,5 %), plafonné à 40 000 $ de CA
 
 ### « J'ai reçu une paie mais elle n'apparaît pas dans Mes paies »
 Probablement **ton ID Perso** qui n'est pas renseigné. Le bot matche les paies via l'ID Perso (in-game). Demande au Patron de vérifier ton profil.
@@ -126,8 +126,8 @@ Probablement **ton ID Perso** qui n'est pas renseigné. Le bot matche les paies 
 ### « Ma paie n'a pas été versée alors que j'ai bossé toute la semaine »
 La paie n'est **pas versée automatiquement** par le site — c'est le Patron / DRH qui doit te la verser via Discord (`#paie`) selon ce que le système estime. Si tu vois ton estimation correcte mais rien dans Mes paies → relance la direction RP.
 
-### « Pourquoi ma commission est plus basse alors que mon CA est haut ? »
-Si ton CA dépasse 40 000 $ (plafond CA vendeur), le bénéfice retenu est **proportionnellement réduit**. C'est volontaire (équité TTE).
+### « Pourquoi ma commission ne monte plus alors que mon CA grimpe ? »
+Au-delà de 40 000 $ de CA, le CA retenu pour le calcul est **plafonné à 40 000 $**. Ce qui se vend au-dessus profite au LTD (et aux primes hebdo collectives) mais pas à ta commission individuelle. C'est volontaire (équité TTE).
 
 ---
 

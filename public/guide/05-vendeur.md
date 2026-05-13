@@ -26,8 +26,8 @@ C'est tout ! En tant que vendeur, tu as un accès très restreint et c'est norma
 | KPI | Signification |
 |-----|---------------|
 | **Mon CA** | Total des montants des factures que tu as faites cette semaine |
-| **Mon bénéfice** | CA × ta commission (32,5 % / 35 % / 37,5 %) |
-| **Progression CA** | Barre vers le plafond de 40 000 $ (au-delà, le bénéfice retenu plafonne) |
+| **Mon salaire** | CA retenu × ta commission (32,5 % / 35 % / 37,5 %) |
+| **Progression CA** | Barre vers le plafond de 40 000 $ (au-delà, le CA retenu plafonne) |
 | **Salaire estimé** | Ce que tu vas recevoir en fin de semaine, plafonné selon ton grade |
 
 ### Tableau de tes ventes
@@ -69,55 +69,47 @@ Toutes tes prises et fins de service de la semaine, avec durée totale.
 commission = 32,5 % (Novice) / 35 % (Inter) / 37,5 % (Exp)
 plafond    = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 
-Si CA > 40 000 $ :
-   bénéfice retenu = bénéfice × (40 000 / CA)
-Sinon :
-   bénéfice retenu = bénéfice total
+CA retenu = MIN( CA généré, 40 000 $ )
 
-Salaire = MIN( bénéfice retenu × commission, plafond )
+Salaire = MIN( CA retenu × commission, plafond )
 ```
 
 ### En clair
 
 #### Cas 1 — CA inférieur au plafond CA (40 000)
-Ton salaire = ton bénéfice × ta commission.
+Ton salaire = ton CA × ta commission.
 
 **Exemple Vendeur Inter** :
 - Tu fais 25 000 $ de CA dans la semaine
-- Bénéfice généré : 12 000 $
-- Salaire = 12 000 × 35 % = **4 200 $**
+- Salaire = 25 000 × 35 % = **8 750 $**
 
 #### Cas 2 — CA supérieur à 40 000 (plafond CA)
-Ton bénéfice est **proportionnellement réduit** : on retient seulement la part qui correspond aux 40 000 premiers $ de CA.
+Le CA au-delà de 40 000 $ **n'est plus commissionné** : on retient seulement les 40 000 premiers $.
 
 **Exemple Vendeur Exp** :
 - Tu fais 60 000 $ de CA
-- Bénéfice généré : 30 000 $
-- Bénéfice retenu = 30 000 × (40 000 / 60 000) = **20 000 $**
-- Salaire = 20 000 × 37,5 % = **7 500 $**
+- CA retenu = 40 000 $
+- Salaire = 40 000 × 37,5 % = **15 000 $** (= plafond Exp)
 
 > 💡 Vendre **plus de 40 000 $ de CA** ne fait **plus monter ta commission**. Mais ça reste utile pour le LTD (et pour les primes hebdo collectives).
 
-#### Cas 3 — Salaire au plafond
-Si ton calcul donne plus que le plafond de ton grade, c'est plafonné.
+#### Cas 3 — Plafond salaire
+Le calibrage CA × commission est aligné avec les plafonds : atteindre 40 000 $ de CA = atteindre ton plafond salaire.
 
-**Exemple Vendeur Novice** :
-- CA : 35 000 $, bénéfice : 22 000 $
-- Calcul : 22 000 × 32,5 % = 7 150 $
-- Plafond Novice = 13 000 $ → tu ne dépasses pas → **7 150 $**
-
-Pour atteindre le plafond Novice, il faudrait :
-- Bénéfice × 32,5 % ≥ 13 000
-- Soit bénéfice ≥ 40 000 (avec un CA correspondant)
+| Grade | Calcul au plafond CA | Plafond salaire |
+|-------|----------------------|-----------------|
+| Novice | 40 000 × 32,5 % | 13 000 $ |
+| Inter | 40 000 × 35 % | 14 000 $ |
+| Exp | 40 000 × 37,5 % | 15 000 $ |
 
 ---
 
 ## 📈 Comment maximiser ta paie
 
-### 1. Joue sur le bénéfice, pas juste le CA
-- Le calcul prend le **bénéfice** (CA − coût d'achat des produits vendus)
-- Vendre des produits à **forte marge** est plus rentable que des produits à faible marge
-- Tu peux voir les marges en demandant à ton **Responsable Vente**
+### 1. Maximise ton CA
+- Le calcul prend le **CA** (montant total facturé) × ta commission
+- Vise les **40 000 $** de CA pour atteindre ton plafond salaire
+- Le bénéfice généré (CA − coût d'achat) sert au LTD pour la compta — pas à ta paie
 
 ### 2. Optimise tes heures de service
 - Pas d'heures = pas de présence = pas de ventes attribuées (et la direction ne te paiera pas)
@@ -172,7 +164,7 @@ C'est normal et c'est par sécurité — chacun ne voit que ses propres infos.
 Le bot Discord n'a peut-être pas remonté ta facture (canal `#suivi-facture`). Attends 30 secondes, sinon préviens ton responsable.
 
 **« Pourquoi mon salaire estimé est nul alors que j'ai vendu ? »**
-Probablement parce que les prix d'achat ne sont pas renseignés sur les produits que tu as vendus → pas de calcul de bénéfice possible → pas de commission. Demande à ton Responsable Vente de mettre à jour les prix d'achat.
+Si ton CA s'affiche bien mais que le salaire reste à 0 $, c'est probablement un bug — préviens la direction (le calcul est : `CA × ta commission`, plafonné à 40 000 $ de CA).
 
 **« Est-ce que je peux dépasser le plafond ? »**
 Non, c'est un plafond légal TTE. Pour gagner plus, il faut **monter en grade** (Novice → Inter → Exp).

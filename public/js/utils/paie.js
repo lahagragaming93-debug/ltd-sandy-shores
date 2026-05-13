@@ -7,23 +7,16 @@ import { PLAFOND_SALAIRE, COMMISSION_VENDEUR, CA_PLAFOND_VENDEUR,
          isVendeur, isPompiste, isResponsable, isDirection } from './permissions.js';
 
 /**
- * Salaire vendeur — commission sur bénéfice, plafond CA 40 000 $
+ * Salaire vendeur — commission sur CA, plafond CA 40 000 $
  * @param {string} role
  * @param {number} caGenere     Chiffre d'affaires généré par le vendeur
- * @param {number} beneficeTotal  Bénéfice total (vente - achat) sur ses ventes
  */
-export function salaireVendeur(role, caGenere, beneficeTotal) {
+export function salaireVendeur(role, caGenere) {
   if (!isVendeur(role)) return 0;
   const commission = COMMISSION_VENDEUR[role] ?? 0;
   const plafondSalaire = PLAFOND_SALAIRE[role] ?? 0;
-
-  // Le CA au-delà de 40 000 $ ne compte pas — on calcule un bénéfice prorata
-  let beneficeRetenu = beneficeTotal;
-  if (caGenere > CA_PLAFOND_VENDEUR && caGenere > 0) {
-    const ratio = CA_PLAFOND_VENDEUR / caGenere;
-    beneficeRetenu = beneficeTotal * ratio;
-  }
-  const brut = beneficeRetenu * commission;
+  const caRetenu = Math.min(caGenere || 0, CA_PLAFOND_VENDEUR);
+  const brut = caRetenu * commission;
   return Math.min(Math.round(brut), plafondSalaire);
 }
 
@@ -68,7 +61,7 @@ export function salaireEstime(e, cfg = {}) {
   const quotaCaoutchoucs = cfg.quotaCaoutchoucs ?? 800;
 
   if (isVendeur(e.role)) {
-    return salaireVendeur(e.role, e.caGenere ?? 0, e.beneficeGenere ?? 0);
+    return salaireVendeur(e.role, e.caGenere ?? 0);
   }
   if (isPompiste(e.role)) {
     return salairePompiste(e.role, e.bidonsRealises ?? 0,

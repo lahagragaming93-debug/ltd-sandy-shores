@@ -64,12 +64,12 @@ Ce guide couvre **les 9 modules** auxquels tu as accès, dans l'ordre où tu les
 
 ### À comprendre
 - Le **stock évolue automatiquement** quand un vendeur fait une facture (le bot Discord remonte la sortie de stock).
-- Le **prix d'achat** n'est jamais dans les logs FiveM — c'est à toi de le saisir manuellement (utilisé pour calculer la marge et la commission vendeur).
+- Le **prix d'achat** n'est jamais dans les logs FiveM — c'est à toi de le saisir manuellement (utilisé pour calculer la marge et le bénéfice net du LTD ; n'impacte pas la commission vendeur, qui est sur le CA).
 - La **marge** = prix vente − prix achat. Si elle est rouge ou orange dans le tableau, le produit n'est pas rentable ou peu.
 
 ### ⚠ Ne pas faire
 - ❌ Ne change pas un prix de vente sans prévenir tes vendeurs (ils risquent de facturer à l'ancien prix in-game).
-- ❌ Ne mets jamais un prix d'achat à 0 sauf si c'est volontaire (sinon la marge sera artificiellement énorme et fausse les commissions).
+- ❌ Ne mets jamais un prix d'achat à 0 sauf si c'est volontaire (sinon la marge sera artificiellement énorme et fausse le bénéfice net en compta).
 - ❌ Pour les ajustements manuels de stock, **toujours mettre une raison claire** (« inventaire physique constaté », « casse », « erreur de saisie ») — ça reste tracé à vie dans l'audit.
 
 ---

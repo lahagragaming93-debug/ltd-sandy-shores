@@ -74,7 +74,7 @@ Bouton **« Modifier »** sur chaque ligne. Modale avec :
 | Champ | Quoi mettre |
 |-------|-------------|
 | **Nom** | Le nom commercial (visible partout) |
-| **Prix achat** | Combien ton fournisseur te le vend (sert au calcul de marge et commission) |
+| **Prix achat** | Combien ton fournisseur te le vend (sert au calcul de marge et bénéfice net en compta) |
 | **Prix vente** | Le prix que tu factures au client (in-game) |
 | **Seuil d'alerte** | À quel stock le produit passe en « BAS » (déclenche une alerte) |
 | **Catégorie** | Pour les filtres |
@@ -101,12 +101,12 @@ Bouton **« Réinitialiser depuis catalogue »** — modal CRITIQUE 3 sec.
 
 #### ✅ À faire
 - **Vérifie les seuils d'alerte** chaque semaine. Un produit qui se vend bien doit avoir un seuil élevé pour anticiper la rupture.
-- **Mets à jour les prix d'achat** dès qu'un fournisseur change ses tarifs. Sinon, les commissions des vendeurs sont fausses.
+- **Mets à jour les prix d'achat** dès qu'un fournisseur change ses tarifs. Sinon, le bénéfice net affiché en compta est faux.
 - **Investigue les écarts** dans Mouvements récents (ex. un retrait sans raison expliquée).
 
 #### ❌ À ne pas faire
 - ❌ **Ne change jamais le prix de vente sans prévenir tes vendeurs** — ils risquent de facturer à l'ancien prix.
-- ❌ Ne mets pas un prix d'achat à 0 « pour faire simple » — la marge devient artificiellement énorme et fausse les commissions.
+- ❌ Ne mets pas un prix d'achat à 0 « pour faire simple » — la marge devient artificiellement énorme et fausse le bénéfice net en compta.
 - ❌ N'utilise pas l'ajustement manuel pour « rattraper » un bug Discord — préviens d'abord la direction (peut-être que le bot est en panne).
 - ❌ Ne réinitialise pas le catalogue par habitude — c'est une opération massive qui efface ton travail de tarification.
 
