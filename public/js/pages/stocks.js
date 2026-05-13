@@ -112,6 +112,8 @@ const html = `
         <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
         <option value="fabrication">🔧 Produit de fabrication (issu du craft)</option>
       </select>
+      <label>Fournisseur <span class="muted" style="font-size:0.75rem;">— optionnel (ex. "Yootool", "GB Foundry")</span></label>
+      <input type="text" id="new-produit-fournisseur" placeholder="Vide si pas applicable" maxlength="60" />
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-creer-produit">Créer le produit</button>
         <button class="btn btn-ghost" id="btn-cancel-nouveau">Annuler</button>
@@ -137,6 +139,8 @@ const html = `
         <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
         <option value="fabrication">🔧 Produit de fabrication (issu du craft)</option>
       </select>
+      <label>Fournisseur <span class="muted" style="font-size:0.75rem;">— apparaît aussi dans l'onglet Achat fournisseur</span></label>
+      <input type="text" id="edit-fournisseur" placeholder="ex. Yootool, GB Foundry" maxlength="60" />
       <label>Ajustement manuel du stock</label>
       <div class="field-row">
         <div><input type="number" id="edit-delta" placeholder="+/− unités" /></div>
@@ -225,7 +229,7 @@ await chargerProduits();
 
 listenStocks(s => { stocks = s; renderTable(); });
 
-function ligneProduit({ p, qte, seuil, statut }) {
+function ligneProduit({ p, qte, seuil, statut, section }) {
   const marge = (p.prixVente || 0) - (p.prixAchat || 0);
   const cls = qte < 0 ? 'alert-out' : (statut === 'rupture' ? 'alert-out' : (statut === 'bas' ? 'alert-low' : ''));
   const badge = qte < 0
@@ -233,9 +237,18 @@ function ligneProduit({ p, qte, seuil, statut }) {
     : (statut === 'rupture'
         ? '<span class="badge danger">RUPTURE</span>'
         : (statut === 'bas' ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>'));
+  // Badge fournisseur (si defini)
+  const fournisseurBadge = p.fournisseur && String(p.fournisseur).trim()
+    ? ` <span class="badge neutral" title="Acheté chez ${escapeHtml(p.fournisseur)}" style="font-size:0.65rem;">📦 ${escapeHtml(p.fournisseur)}</span>`
+    : '';
+  // Sur l'onglet achat_fournisseur, on ajoute la section principale
+  // (utile car un produit avec fournisseur peut "vivre" dans vente_epicerie/pro/fabrication)
+  const sectionBadge = (sectionActive === 'achat_fournisseur' && section !== 'achat_fournisseur')
+    ? ` <span class="badge ok" style="font-size:0.65rem;" title="Section principale">${SECTION_LABELS[section]?.titre.split(' — ')[0] || section}</span>`
+    : '';
   return `
     <tr class="${cls}">
-      <td>${escapeHtml(p.nom)}</td>
+      <td>${escapeHtml(p.nom)}${fournisseurBadge}${sectionBadge}</td>
       <td><span class="muted">${CATEGORY_LABELS[p.categorie] || p.categorie}</span></td>
       <td class="right mono ${qte < 0 ? 'alerte-fort' : ''}">${num(qte)}</td>
       <td class="right mono">${moneyPrecis(p.prixAchat || 0)}</td>
@@ -317,15 +330,31 @@ function renderTable() {
   });
 
   // Compteurs par section pour les badges des onglets
+  // Note : achat_fournisseur inclut les intrants ET les produits avec un
+  // fournisseur defini (peuvent etre AUSSI dans vente_epicerie/vente_pro).
   const counts = { vente_epicerie: 0, vente_pro: 0, achat_fournisseur: 0, fabrication: 0 };
   for (const r of allRows) counts[r.section] = (counts[r.section] || 0) + 1;
+  // Pour achat_fournisseur, on rajoute les produits avec fournisseur defini
+  // mais qui appartiennent a une autre section principale.
+  counts.achat_fournisseur += allRows.filter(r =>
+    r.section !== 'achat_fournisseur' && r.p.fournisseur && String(r.p.fournisseur).trim()
+  ).length;
   for (const [s, c] of Object.entries(counts)) {
     const el = document.querySelector(`[data-count="${s}"]`);
     if (el) el.textContent = c;
   }
 
-  // Filtre par section active
-  let rows = allRows.filter(r => r.section === sectionActive);
+  // Filtre par section active : achat_fournisseur affiche intrants + tout
+  // produit avec fournisseur defini (meme s'il vit dans une autre section)
+  let rows;
+  if (sectionActive === 'achat_fournisseur') {
+    rows = allRows.filter(r =>
+      r.section === 'achat_fournisseur' ||
+      (r.p.fournisseur && String(r.p.fournisseur).trim())
+    );
+  } else {
+    rows = allRows.filter(r => r.section === sectionActive);
+  }
 
   // Filtres globaux
   if (cat) rows = rows.filter(r => r.p.categorie === cat);
@@ -393,6 +422,7 @@ function ouvrirEdition(id) {
   document.getElementById('edit-prix-vente').value = p.prixVente || 0;
   document.getElementById('edit-seuil').value = p.seuilAlerte || 0;
   document.getElementById('edit-section').value = sectionProduit(p);
+  document.getElementById('edit-fournisseur').value = p.fournisseur || '';
   document.getElementById('edit-delta').value = '';
   document.getElementById('edit-raison').value = '';
   document.getElementById('modal-edit').classList.remove('hidden');
@@ -416,6 +446,7 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     pourPro:       section === 'vente_pro',
     intrant:       section === 'achat_fournisseur',
     enFabrication: section === 'fabrication',
+    fournisseur:   document.getElementById('edit-fournisseur').value.trim(),
     categorie: p.categorie
   };
   const delta = Number(document.getElementById('edit-delta').value);
@@ -535,6 +566,7 @@ if (btnNouveauProduit) {
     document.getElementById('new-produit-stock').value = 0;
     // Section : par defaut, on prefill avec la section active
     document.getElementById('new-produit-section').value = sectionActive === 'mouvements' ? 'vente_epicerie' : sectionActive;
+    document.getElementById('new-produit-fournisseur').value = '';
     modalNouveau.classList.remove('hidden');
     setTimeout(() => inputNom.focus(), 50);
   });
@@ -555,6 +587,7 @@ if (btnNouveauProduit) {
     const pourPro       = section === 'vente_pro';
     const intrant       = section === 'achat_fournisseur';
     const enFabrication = section === 'fabrication';
+    const fournisseur   = document.getElementById('new-produit-fournisseur').value.trim();
 
     if (!nom)          return toastError("Nom obligatoire.");
     if (!/^[a-z0-9-]+$/.test(id)) return toastError("Identifiant invalide (lettres minuscules, chiffres, tirets uniquement).");
@@ -572,7 +605,7 @@ if (btnNouveauProduit) {
     }
 
     try {
-      await setProduit(id, { nom, categorie, prixAchat, prixVente, seuilAlerte, pourPro, intrant, enFabrication });
+      await setProduit(id, { nom, categorie, prixAchat, prixVente, seuilAlerte, pourPro, intrant, enFabrication, fournisseur });
       // Stock initial : ajustement avec raison "création"
       if (stockInit > 0) {
         const me = getCurrentUser();
