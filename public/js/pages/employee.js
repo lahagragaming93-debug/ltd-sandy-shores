@@ -6,11 +6,11 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
-  getQuotaPompiste, getConfig, listenAvertissements,
+  getQuotaPompiste, getConfig, listenAvertissements, getUserDoc,
   collection, query, where, orderBy, limit, onSnapshot
 } from '../api.js';
 import { db } from '../firebase-config.js';
-import { ROLE_LABELS, isVendeur, isPompiste, PLAFOND_SALAIRE,
+import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
 import { salaireVendeur, salairePompiste, scorePompiste } from '../utils/paie.js';
 import { money, num, pct, datetime, escapeHtml,
@@ -18,20 +18,53 @@ import { money, num, pct, datetime, escapeHtml,
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { ouvrirModalNouvelleVente } from '../utils/vente-modal.js';
 
-const { profile } = await requireAuth('employee');
+const { profile: callerProfile } = await requireAuth('employee');
+
+// === Mode "Voir comme..." : direction/DRH/admin-technique peut consulter
+// l'espace personnel de n'importe quel employe (lecture seule) via ?asUser=UID
+// Pour debugger ou verifier ce qu'un employe voit en cas de probleme.
+const urlParams = new URLSearchParams(location.search);
+const asUserId = urlParams.get('asUser');
+const canVoirComme = (r) => isDirection(r) || isSuperAdmin(r) || r === 'drh';
+
+let profile = callerProfile;
+let viewedUserId = getCurrentUser().uid;
+let modeVoirComme = false;
+
+if (asUserId && asUserId !== viewedUserId && canVoirComme(callerProfile.role)) {
+  const target = await getUserDoc(asUserId);
+  if (target) {
+    profile = target;
+    viewedUserId = asUserId;
+    modeVoirComme = true;
+  }
+}
+
 const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
 const wId   = weekId();
 
 const html = `
+  ${modeVoirComme ? `
+    <div class="alert" style="background:rgba(70,130,200,0.18);border:2px solid #4a90e2;margin-bottom:12px;font-size:0.95rem;">
+      🔍 <strong>Mode débug</strong> — Tu consultes l'espace personnel de
+      <strong>${escapeHtml(profile.prenom)} ${escapeHtml(profile.nom)}</strong>
+      (${ROLE_LABELS[profile.role] || profile.role}).
+      Données en temps réel. <strong>Lecture seule</strong> — aucune action n'est possible depuis cette vue.
+      <a href="rh.html" style="margin-left:10px;color:var(--color-bone);text-decoration:underline;">← Retour aux RH</a>
+    </div>
+  ` : ''}
+
   <div class="panel framed mb-3" style="text-align:center;">
-    <h2 style="margin:0;">Salut <span style="color:var(--color-blood-light);">${escapeHtml(profile.prenom)}</span> !</h2>
+    <h2 style="margin:0;">${modeVoirComme ? '👁 Espace de' : 'Salut'} <span style="color:var(--color-blood-light);">${escapeHtml(profile.prenom)}${modeVoirComme ? ' ' + escapeHtml(profile.nom) : ''}</span>${modeVoirComme ? '' : ' !'}</h2>
     <div class="muted" style="margin-top:6px;">
       ${ROLE_LABELS[profile.role]} · Semaine du ${debut.toLocaleDateString('fr-FR')} au ${fin.toLocaleDateString('fr-FR')}
     </div>
-    <div class="row center mt-3" style="gap:10px;justify-content:center;">
-      <button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">📝 Déclarer une vente</button>
-    </div>
+    ${!modeVoirComme ? `
+      <div class="row center mt-3" style="gap:10px;justify-content:center;">
+        <button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">📝 Déclarer une vente</button>
+      </div>
+    ` : ''}
   </div>
 
   <div id="bloc-sorties-attente"></div>
@@ -62,24 +95,24 @@ const html = `
 `;
 renderShell(profile, 'employee', html);
 
-const me = getCurrentUser();
+const me = getCurrentUser(); // utilisateur connecte (toujours soi-meme, jamais l'employe vise)
 const config = await getConfig().catch(() => ({}));
 
 const [allVentes, ventesAvecCachees, allServices, allMyServices, quota] = await Promise.all([
   listVentesSemaine(debut, fin).catch(() => []),
   listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
-  listAllServicesEmploye(me.uid).catch(() => []),
+  listAllServicesEmploye(viewedUserId).catch(() => []),
   // Charge le quota pour TOUS les roles (les non-pompistes peuvent aussi
   // produire des bidons/caoutchoucs en bossant a la station - bonus info).
-  getQuotaPompiste(me.uid, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 }))
+  getQuotaPompiste(viewedUserId, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 }))
 ]);
 
 // === Ventes IG (bot Discord) non encore declarees par l'employe ===
 // Filtre : vendeur=moi, source!=manuelle, non cachee, moins de 24h
 const il_y_a_24h = Date.now() - 24 * 3600 * 1000;
 const nonDeclarees = ventesAvecCachees.filter(v =>
-  v.vendeurId === me.uid &&
+  v.vendeurId === viewedUserId &&
   v.source !== 'manuelle' &&
   !v.cachee &&
   (v.timestamp?.toMillis?.() || 0) >= il_y_a_24h
@@ -122,7 +155,9 @@ function renderNonDeclarees() {
                 <td class="right mono"><strong>${money(v.montant || 0)}</strong></td>
                 <td class="muted" style="font-size:0.78rem;">${escapeHtml((v.raison || '').slice(0, 50))}</td>
                 <td class="center">
-                  <button class="btn btn-primary btn-sm" data-declarer-bot="${v.id}">📝 Déclarer</button>
+                  ${modeVoirComme
+                    ? '<span class="muted" style="font-size:0.78rem;">— vue admin —</span>'
+                    : `<button class="btn btn-primary btn-sm" data-declarer-bot="${v.id}">📝 Déclarer</button>`}
                 </td>
               </tr>
             `;
@@ -143,8 +178,8 @@ function renderNonDeclarees() {
 }
 renderNonDeclarees();
 
-const myVentes = allVentes.filter(v => v.vendeurId === me.uid);
-const myServices = allServices.filter(s => s.employeId === me.uid);
+const myVentes = allVentes.filter(v => v.vendeurId === viewedUserId);
+const myServices = allServices.filter(s => s.employeId === viewedUserId);
 const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0);
 
 // Cumul depuis embauche (tous services) + heures aujourd'hui
@@ -346,7 +381,7 @@ if (btnVente) {
 // l'alerte resolue ou que le doc /sorties_en_cours n'est pas regularise.
 const sortiesQ = query(
   collection(db, 'sorties_en_cours'),
-  where('employeId', '==', me.uid),
+  where('employeId', '==', viewedUserId),
   where('statut', 'in', ['en_attente', 'alerte']),
   orderBy('dateSortie', 'desc'),
   limit(20)
@@ -402,7 +437,7 @@ onSnapshot(sortiesQ, (snap) => {
 // === Avertissements (temps reel) ===
 // L'employe voit ses propres averts. 3 actifs = compte bloque (banniere rouge).
 // Le retrait par le patron debloque immediatement (listener Firestore).
-listenAvertissements(me.uid, (list) => {
+listenAvertissements(viewedUserId, (list) => {
   const div = document.getElementById('bloc-averts');
   const actifs = list.filter(a => a.actif);
   const n = actifs.length;

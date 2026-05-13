@@ -70,6 +70,7 @@ const html = `
       <div id="emp-content">—</div>
       <div class="row mt-3">
         ${editable ? '<button class="btn btn-primary" id="btn-decide-salaire" title="Décider un salaire fixe (responsables/direction)">💰 Décider salaire</button>' : ''}
+        <button class="btn" id="btn-voir-espace" title="Ouvrir l'espace personnel de cet employé (lecture seule, debug)">👁 Voir son espace</button>
         <button class="btn btn-ghost" id="btn-close-emp">Fermer</button>
       </div>
     </div>
@@ -352,6 +353,13 @@ function ouvrirDetail(uid) {
 
 document.getElementById('btn-close-emp').addEventListener('click', () => {
   document.getElementById('modal-employe').classList.add('hidden');
+});
+
+// Bouton "Voir son espace" : ouvre employee.html?asUser=UID en mode debug
+document.getElementById('btn-voir-espace').addEventListener('click', () => {
+  const uid = document.getElementById('modal-employe').dataset.uid;
+  if (!uid) return;
+  window.location.href = `employee.html?asUser=${encodeURIComponent(uid)}`;
 });
 
 const btnDecide = document.getElementById('btn-decide-salaire');
