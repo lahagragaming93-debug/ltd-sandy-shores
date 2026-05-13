@@ -1586,6 +1586,458 @@ export const pompisteDeclarerCaoutchoucs = onRequest({
   }
 });
 
+// ----------------------------------------------------------------
+// declarerVente — Employe declare une vente manuelle sur le site.
+// ----------------------------------------------------------------
+// Source de verite cote serveur :
+//   - prixAchat resolu depuis /produits/{id} (l'employe ne peut pas le faker)
+//   - benefice = montantEncaisse - coutTotal (calcul serveur)
+//   - factureId genere serveur (format "M{YYYYMMDD}-{NNNN}")
+//   - Decrement /stocks/{produitId} en transaction atomique
+//   - Reconcile /sorties_en_cours en_attente (anti-vol 30min)
+// La vente est verrouillee cote employe (verrouille=true). Modification
+// reservee aux roles canAdmin/respVente/DRH via modifierVente.
+// ----------------------------------------------------------------
+export const declarerVente = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if ((caller.statut || 'actif') !== 'actif') {
+      return res.status(403).json({ error: 'Compte non actif.' });
+    }
+    const role = caller.role || '';
+    const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+    if (!isDir && (caller.avertsActifs || 0) >= 3) {
+      return res.status(403).json({ error: 'Compte bloque (3 avertissements actifs). Contacte la direction.' });
+    }
+
+    const { clientNom, moyenPaiement, montantEncaisse, lignes } = req.body || {};
+    if (!clientNom || !String(clientNom).trim()) return res.status(400).json({ error: 'clientNom obligatoire' });
+    if (!moyenPaiement || !String(moyenPaiement).trim()) return res.status(400).json({ error: 'moyenPaiement obligatoire' });
+    const montant = Number(montantEncaisse);
+    if (!Number.isFinite(montant) || montant <= 0) {
+      return res.status(400).json({ error: 'montantEncaisse doit etre > 0' });
+    }
+    if (!Array.isArray(lignes) || lignes.length === 0) {
+      return res.status(400).json({ error: 'Ajoute au moins une ligne de produit' });
+    }
+    if (lignes.length > 50) {
+      return res.status(400).json({ error: 'Maximum 50 lignes par vente' });
+    }
+
+    // Resolution des produits + prixAchat serveur (anti-fraude)
+    const lignesResolues = [];
+    let coutTotal = 0;
+    for (const l of lignes) {
+      const pid = String(l.produitId || '').trim();
+      const qte = Number(l.quantite);
+      if (!pid) return res.status(400).json({ error: 'produitId manquant dans une ligne' });
+      if (!Number.isFinite(qte) || qte <= 0 || !Number.isInteger(qte)) {
+        return res.status(400).json({ error: `Quantite invalide pour ${pid}` });
+      }
+      const prodSnap = await db.collection('produits').doc(pid).get();
+      if (!prodSnap.exists) return res.status(400).json({ error: `Produit inconnu : ${pid}` });
+      const prod = prodSnap.data();
+      const prixAchat = Number(prod.prixAchat || 0);
+      lignesResolues.push({
+        produitId: pid,
+        produitNom: prod.nom || pid,
+        quantite: qte,
+        prixAchat
+      });
+      coutTotal += qte * prixAchat;
+    }
+    const benefice = montant - coutTotal;
+
+    // factureId genere serveur : M{YYYYMMDD}-{NNNN} (4 chiffres seq jour)
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const cntRef = db.collection('counters').doc(`ventes-manuelles-${dateStr}`);
+    let factureId;
+    await db.runTransaction(async (tx) => {
+      const cnt = await tx.get(cntRef);
+      const next = (cnt.exists ? (cnt.data().value || 0) : 0) + 1;
+      tx.set(cntRef, { value: next }, { merge: true });
+      factureId = `M${dateStr}-${String(next).padStart(4, '0')}`;
+    });
+
+    const vendeurNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+    const docId = `man-${factureId}`;
+
+    // Transaction atomique : creation /ventes + decrement /stocks pour chaque ligne
+    await db.runTransaction(async (tx) => {
+      const stockRefs = lignesResolues.map(l => db.collection('stocks').doc(l.produitId));
+      const stockSnaps = await Promise.all(stockRefs.map(r => tx.get(r)));
+      const venteRef = db.collection('ventes').doc(docId);
+
+      stockSnaps.forEach((s, i) => {
+        const l = lignesResolues[i];
+        const cur = s.exists ? Number(s.data().quantite || 0) : 0;
+        tx.set(stockRefs[i], {
+          quantite: cur - l.quantite,
+          nom: s.exists ? (s.data().nom || l.produitNom) : l.produitNom,
+          derniereMaj: FieldValue.serverTimestamp(),
+          par: vendeurNom + ' (vente)'
+        }, { merge: true });
+      });
+
+      tx.set(venteRef, {
+        factureId,
+        source: 'manuelle',
+        vendeurId: decoded.uid,
+        vendeurNom,
+        client: String(clientNom).trim(),
+        paiement: String(moyenPaiement).trim(),
+        montant,
+        coutTotal,
+        benefice,
+        lignes: lignesResolues,
+        items: lignesResolues.map(l => ({ id: l.produitId, nom: l.produitNom, quantite: l.quantite })),
+        verrouille: true,
+        modifiePar: null,
+        modifieParNom: null,
+        motifModification: null,
+        dateModification: null,
+        timestamp: FieldValue.serverTimestamp()
+      });
+    });
+
+    // Audit /mouvementsStock (hors transaction, append-only)
+    for (const l of lignesResolues) {
+      await db.collection('mouvementsStock').add({
+        type: 'vente-manuelle',
+        item: l.produitId,
+        itemNom: l.produitNom,
+        quantite: -l.quantite,
+        par: vendeurNom,
+        parUid: decoded.uid,
+        source: `vente:${factureId}`,
+        timestamp: FieldValue.serverTimestamp()
+      });
+    }
+
+    // Reconcile /sorties_en_cours : marque vendu les sorties recentes de cet
+    // employe sur ces produits (anti-vol 30min). Best effort, non bloquant.
+    try {
+      await reconcileSortiesAvecVente(decoded.uid, lignesResolues, factureId);
+    } catch (e) {
+      console.error('[declarerVente] reconcile error', e);
+    }
+
+    return res.status(200).json({ ok: true, factureId, coutTotal, benefice, montant });
+  } catch (err) {
+    console.error('[declarerVente]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// Marque comme "vendu" les sorties_en_cours en_attente de cet employe qui
+// correspondent aux lignes vendues (meme produitId, dans la limite des
+// quantites). Best-effort : on ne refuse pas la vente si reconcile foire.
+async function reconcileSortiesAvecVente(employeId, lignes, factureId) {
+  const qParProduit = {};
+  for (const l of lignes) qParProduit[l.produitId] = (qParProduit[l.produitId] || 0) + l.quantite;
+
+  for (const [pid, qteRestante] of Object.entries(qParProduit)) {
+    let q = qteRestante;
+    const snap = await db.collection('sorties_en_cours')
+      .where('employeId', '==', employeId)
+      .where('produitId', '==', pid)
+      .where('statut', '==', 'en_attente')
+      .orderBy('dateSortie', 'asc')
+      .get();
+    for (const d of snap.docs) {
+      if (q <= 0) break;
+      const data = d.data();
+      const qSortie = Number(data.quantite || 0);
+      if (q >= qSortie) {
+        await d.ref.update({
+          statut: 'vendu',
+          factureId,
+          dateReconcile: FieldValue.serverTimestamp()
+        });
+        q -= qSortie;
+      } else {
+        // Vente partielle : on splitte logiquement (decrement quantite, garde le doc)
+        await d.ref.update({ quantite: qSortie - q });
+        q = 0;
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------
+// modifierVente — Admin (canAdmin/respVente/DRH) modifie une vente.
+// ----------------------------------------------------------------
+// L'employe ne peut PAS modifier ses propres ventes (verrouille=true).
+// Recalcul serveur du benefice. Trace modifiePar + motifModification.
+// Si lignes changent, reajuste /stocks (delta entre ancien et nouveau).
+// ----------------------------------------------------------------
+export const modifierVente = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    const allowed = role === 'patron' || role === 'co-patron' || role === 'admin-technique'
+                 || role === 'drh' || role === 'responsable-vente';
+    if (!allowed) return res.status(403).json({ error: 'Seuls la direction, le DRH et le responsable vente peuvent modifier une vente.' });
+
+    const { venteId, clientNom, moyenPaiement, montantEncaisse, lignes, motifModification } = req.body || {};
+    if (!venteId) return res.status(400).json({ error: 'venteId manquant' });
+    if (!motifModification || !String(motifModification).trim()) {
+      return res.status(400).json({ error: 'Motif de modification obligatoire' });
+    }
+    const montant = Number(montantEncaisse);
+    if (!Number.isFinite(montant) || montant <= 0) return res.status(400).json({ error: 'montantEncaisse invalide' });
+    if (!Array.isArray(lignes) || lignes.length === 0) return res.status(400).json({ error: 'lignes manquantes' });
+
+    const venteRef = db.collection('ventes').doc(venteId);
+    const venteSnap = await venteRef.get();
+    if (!venteSnap.exists) return res.status(404).json({ error: 'Vente introuvable' });
+    const ancienne = venteSnap.data();
+
+    // Resolution + recalcul serveur
+    const lignesResolues = [];
+    let coutTotal = 0;
+    for (const l of lignes) {
+      const pid = String(l.produitId || '').trim();
+      const qte = Number(l.quantite);
+      if (!pid) return res.status(400).json({ error: 'produitId manquant dans une ligne' });
+      if (!Number.isFinite(qte) || qte <= 0 || !Number.isInteger(qte)) {
+        return res.status(400).json({ error: `Quantite invalide pour ${pid}` });
+      }
+      const prodSnap = await db.collection('produits').doc(pid).get();
+      if (!prodSnap.exists) return res.status(400).json({ error: `Produit inconnu : ${pid}` });
+      const prod = prodSnap.data();
+      const prixAchat = Number(prod.prixAchat || 0);
+      lignesResolues.push({ produitId: pid, produitNom: prod.nom || pid, quantite: qte, prixAchat });
+      coutTotal += qte * prixAchat;
+    }
+    const benefice = montant - coutTotal;
+
+    // Delta stock = ancien - nouveau (positif si on annule du stock sorti)
+    const deltaParProduit = {};
+    for (const l of (ancienne.lignes || [])) deltaParProduit[l.produitId] = (deltaParProduit[l.produitId] || 0) + Number(l.quantite || 0);
+    for (const l of lignesResolues) deltaParProduit[l.produitId] = (deltaParProduit[l.produitId] || 0) - l.quantite;
+
+    const modifieParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+
+    await db.runTransaction(async (tx) => {
+      // Lit + update stocks
+      for (const [pid, delta] of Object.entries(deltaParProduit)) {
+        if (!delta) continue;
+        const sRef = db.collection('stocks').doc(pid);
+        const sSnap = await tx.get(sRef);
+        const cur = sSnap.exists ? Number(sSnap.data().quantite || 0) : 0;
+        tx.set(sRef, {
+          quantite: cur + delta,
+          derniereMaj: FieldValue.serverTimestamp(),
+          par: `${modifieParNom} (modif vente ${ancienne.factureId || venteId})`
+        }, { merge: true });
+      }
+      tx.set(venteRef, {
+        client: String(clientNom || ancienne.client || '').trim(),
+        paiement: String(moyenPaiement || ancienne.paiement || '').trim(),
+        montant,
+        coutTotal,
+        benefice,
+        lignes: lignesResolues,
+        items: lignesResolues.map(l => ({ id: l.produitId, nom: l.produitNom, quantite: l.quantite })),
+        modifiePar: decoded.uid,
+        modifieParNom,
+        motifModification: String(motifModification).trim(),
+        dateModification: FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+
+    // Audit append-only
+    await db.collection('mouvementsStock').add({
+      type: 'modification-vente',
+      par: modifieParNom,
+      parUid: decoded.uid,
+      source: `modif:${ancienne.factureId || venteId}`,
+      motif: String(motifModification).trim(),
+      ancienMontant: ancienne.montant || 0,
+      nouveauMontant: montant,
+      timestamp: FieldValue.serverTimestamp()
+    });
+
+    return res.status(200).json({ ok: true, coutTotal, benefice, montant });
+  } catch (err) {
+    console.error('[modifierVente]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// ----------------------------------------------------------------
+// onMouvementStockCreated — Tracker sorties pour anti-vol 30min.
+// ----------------------------------------------------------------
+// Quand un employe sort un item d'un coffre LTD (type=inventory-remove +
+// source=action-XXXXX matching SOURCES_LTD_PREFIXES), on cree un doc
+// /sorties_en_cours/{auto}. 3 issues :
+//   A) L'employe declare une vente avec ce produit  -> statut=vendu
+//   B) Il redepose le produit dans le coffre        -> statut=depose
+//   C) Au bout de 30min                              -> statut=alerte + notif
+//
+// Branche aussi sur inventory-add (cas B) : si l'employe redepose, marque
+// les sorties en_attente correspondantes comme "depose".
+// ----------------------------------------------------------------
+const SOURCES_LTD_PREFIXES_FN = ['action-27310', 'action-27166', 'action-30439'];
+function isLTDCoffreSource(source) {
+  if (!source) return false;
+  return SOURCES_LTD_PREFIXES_FN.some(p => String(source).startsWith(p));
+}
+
+export const onMouvementStockCreated = onDocumentCreated({
+  document: 'mouvementsStock/{id}',
+  region: 'europe-west1'
+}, async (event) => {
+  const m = event.data?.data();
+  if (!m) return;
+  const type = m.type;
+  if (type !== 'inventory-remove' && type !== 'inventory-add') return;
+  // Identifie coffre LTD via source ou owner
+  if (!isLTDCoffreSource(m.source) && !isLTDCoffreSource(m.owner)) return;
+
+  // Resoud l'employe : par parUid si fourni, sinon resolveEmployeeIdByName(par)
+  let employeId = m.parUid || null;
+  if (!employeId && m.par) employeId = await resolveEmployeeIdByName(m.par);
+  if (!employeId) return;
+
+  const uSnap = await db.collection('users').doc(employeId).get();
+  if (!uSnap.exists) return;
+  const u = uSnap.data();
+  const role = u.role || '';
+  const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+  if (isDir) return; // direction non surveillee
+
+  const employeNom = `${u.prenom || ''} ${u.nom || ''}`.trim();
+  const produitId = m.item;
+  const produitNom = m.itemNom || produitId;
+  const quantite = Math.abs(Number(m.quantite || 0));
+  if (!produitId || quantite <= 0) return;
+
+  if (type === 'inventory-remove') {
+    // Cree une sortie en_attente
+    await db.collection('sorties_en_cours').add({
+      employeId,
+      employeNom,
+      produitId,
+      produitNom,
+      quantite,
+      dateSortie: FieldValue.serverTimestamp(),
+      statut: 'en_attente',
+      source: m.source || ''
+    });
+  } else if (type === 'inventory-add') {
+    // Reconcile : marque "depose" les sorties en_attente correspondantes
+    let qRestant = quantite;
+    const snap = await db.collection('sorties_en_cours')
+      .where('employeId', '==', employeId)
+      .where('produitId', '==', produitId)
+      .where('statut', '==', 'en_attente')
+      .orderBy('dateSortie', 'asc')
+      .get();
+    for (const d of snap.docs) {
+      if (qRestant <= 0) break;
+      const data = d.data();
+      const qSortie = Number(data.quantite || 0);
+      if (qRestant >= qSortie) {
+        await d.ref.update({ statut: 'depose', dateReconcile: FieldValue.serverTimestamp() });
+        qRestant -= qSortie;
+      } else {
+        await d.ref.update({ quantite: qSortie - qRestant });
+        qRestant = 0;
+      }
+    }
+  }
+});
+
+// ----------------------------------------------------------------
+// verifierSortiesExpirees — Cron toutes les 5 min : detecte > 30min en_attente
+// ----------------------------------------------------------------
+// Cree 1 alerte /alertes par sortie expiree + envoie webhook Discord vers
+// la direction si configure (config.global.webhookAntiVol).
+// Marque la sortie statut='alerte' pour eviter de re-alerter.
+// ----------------------------------------------------------------
+export const verifierSortiesExpirees = onSchedule({
+  schedule: '*/5 * * * *',
+  timeZone: 'Europe/Paris',
+  region: 'europe-west1'
+}, async () => {
+  const limit = new Date(Date.now() - 30 * 60 * 1000);
+  const snap = await db.collection('sorties_en_cours')
+    .where('statut', '==', 'en_attente')
+    .where('dateSortie', '<=', Timestamp.fromDate(limit))
+    .get();
+  if (snap.empty) return;
+
+  const cfg = (await db.collection('config').doc('global').get()).data() || {};
+  const webhook = cfg.webhookAntiVol || cfg.webhookAlertes || '';
+
+  for (const d of snap.docs) {
+    const s = d.data();
+    const ds = s.dateSortie?.toDate ? s.dateSortie.toDate() : new Date();
+    const minutes = Math.round((Date.now() - ds.getTime()) / 60000);
+    const msg = `🚨 ${s.employeNom} a sorti ${s.produitNom} x${s.quantite} il y a ${minutes} min sans declaration de vente ni depot en coffre.`;
+
+    await db.collection('alertes').add({
+      type: 'sortie-non-regularisee',
+      message: msg,
+      gravite: 'danger',
+      metadata: {
+        sortieId: d.id,
+        employeId: s.employeId,
+        employeNom: s.employeNom,
+        produitId: s.produitId,
+        produitNom: s.produitNom,
+        quantite: s.quantite,
+        dateSortie: s.dateSortie
+      },
+      resolue: false,
+      timestamp: FieldValue.serverTimestamp()
+    });
+    await d.ref.update({ statut: 'alerte', dateAlerte: FieldValue.serverTimestamp() });
+
+    if (webhook) {
+      try {
+        await fetch(webhook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: msg,
+            username: 'LTD Anti-vol',
+            allowed_mentions: { parse: ['users', 'roles'] }
+          })
+        });
+      } catch (e) {
+        console.error('[verifierSortiesExpirees] webhook err', e);
+      }
+    }
+  }
+  console.log(`[anti-vol] ${snap.size} sortie(s) expirees -> alertes crees`);
+});
+
 export const comptaExport = onRequest({
   region: 'europe-west1',
   cors: true,                  // Sheets fait des requêtes cross-origin

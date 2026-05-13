@@ -7,6 +7,10 @@ import { renderShell } from '../layout.js';
 import { listenVentesSemaine, listUsers, listProduits } from '../api.js';
 import { money, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
+import { ouvrirModalModifierVente } from '../utils/vente-modal.js';
+
+// Roles autorises a modifier une vente apres verrouillage
+const PEUT_MODIFIER = ['patron', 'co-patron', 'admin-technique', 'drh', 'responsable-vente'];
 
 const { profile } = await requireAuth('ventes');
 
@@ -41,9 +45,10 @@ const html = `
             <th data-sort="paiement">Paiement</th>
             <th data-sort="raison">Raison</th>
             <th class="center" data-sort="verif">Vérif. stock</th>
+            <th class="center">Source / Action</th>
           </tr>
         </thead>
-        <tbody id="tbody-ventes"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
+        <tbody id="tbody-ventes"><tr><td colspan="10" class="muted text-center">Chargement…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -104,14 +109,24 @@ function renderTable() {
 
   const tbody = document.getElementById('tbody-ventes');
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="muted text-center">Aucune vente (logs Discord à venir).</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="muted text-center">Aucune vente (logs Discord à venir).</td></tr>`;
     return;
   }
+  const peutModifier = PEUT_MODIFIER.includes(profile.role);
   tbody.innerHTML = rows.map(v => {
     const vendeur = usersById[v.vendeurId];
     const verif = v.stockVerifie === false
       ? '<span class="badge danger">⚠ Discordance</span>'
       : (v.stockVerifie === true ? '<span class="badge ok">OK</span>' : '<span class="badge neutral">—</span>');
+    const sourceTag = v.source === 'manuelle'
+      ? '<span class="badge info" title="Vente déclarée sur le site">📝 manuelle</span>'
+      : '<span class="badge neutral" title="Importée depuis #suivi-facture / #factures">🤖 Discord</span>';
+    const modifTag = v.modifieParNom
+      ? `<div class="muted" style="font-size:0.72rem;margin-top:2px;" title="${escapeHtml(v.motifModification || '')}">✏ modifiée par ${escapeHtml(v.modifieParNom)}</div>`
+      : '';
+    const btnModif = peutModifier
+      ? `<button class="btn btn-ghost btn-modif-vente" data-id="${escapeHtml(v.id)}" style="padding:2px 8px;font-size:0.78rem;margin-top:3px;">✏ Modifier</button>`
+      : '';
     return `
       <tr>
         <td class="mono">${datetime(v.timestamp)}</td>
@@ -123,9 +138,26 @@ function renderTable() {
         <td><span class="badge neutral">${escapeHtml(v.paiement || '—')}</span></td>
         <td class="muted">${escapeHtml(v.raison || '')}</td>
         <td class="center">${verif}</td>
+        <td class="center">${sourceTag}${modifTag}${btnModif}</td>
       </tr>
     `;
   }).join('');
+
+  // Bind boutons modifier
+  if (peutModifier) {
+    tbody.querySelectorAll('.btn-modif-vente').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const vente = ventes.find(x => x.id === id);
+        if (!vente) return;
+        ouvrirModalModifierVente(vente, {
+          onSuccess: () => {
+            // listenVentesSemaine va re-rendre tout seul
+          }
+        });
+      });
+    });
+  }
 }
 
 function renderKpis() {

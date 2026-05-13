@@ -114,10 +114,32 @@ service cloud.firestore {
     }
 
     // === Ventes ===
+    // create/update sont fait par les Cloud Functions (declarerVente,
+    // modifierVente) avec Admin SDK qui bypass les rules. Cote client : seul
+    // canAdmin peut ecrire directement (cas legacy si besoin).
     match /ventes/{id} {
       allow read:   if isAuth() && isActif();
       allow create: if canAdmin();
       allow update, delete: if canAdmin();
+    }
+
+    // === Sorties en cours (anti-vol 30min) ===
+    // Lecture : direction, DRH, responsable vente + l'employe concerne.
+    // Ecriture interdite cote client : seul le trigger Cloud Function ecrit
+    // (Admin SDK ignore les rules).
+    match /sorties_en_cours/{id} {
+      allow read:  if isAuth() && (
+        canAdmin() || isDRH() || isRespVente() ||
+        resource.data.employeId == request.auth.uid
+      );
+      allow write: if false;
+    }
+
+    // === Counters (compteurs sequentiels factures, etc.) ===
+    // Ecriture via Function uniquement. Lecture pour debug admin.
+    match /counters/{id} {
+      allow read:  if canAdmin();
+      allow write: if false;
     }
 
     // === Stations essence ===

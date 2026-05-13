@@ -55,6 +55,33 @@
         { "fieldPath": "employeId",    "order": "ASCENDING" },
         { "fieldPath": "dateCreation", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "sorties_en_cours",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeId",  "order": "ASCENDING" },
+        { "fieldPath": "produitId",  "order": "ASCENDING" },
+        { "fieldPath": "statut",     "order": "ASCENDING" },
+        { "fieldPath": "dateSortie", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sorties_en_cours",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "statut",     "order": "ASCENDING" },
+        { "fieldPath": "dateSortie", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sorties_en_cours",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeId",  "order": "ASCENDING" },
+        { "fieldPath": "statut",     "order": "ASCENDING" },
+        { "fieldPath": "dateSortie", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

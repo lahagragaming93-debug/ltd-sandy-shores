@@ -19,10 +19,34 @@ top produits, niveaux des stations, historique 6 dernières semaines.
 - Stock cumulé et alertes automatiques
 
 ### Ventes
-- Liste des factures de la semaine en cours (logs `suivi-facture`)
+- Liste des factures de la semaine en cours (logs `suivi-facture` + ventes
+  manuelles déclarées sur le site)
+- Colonne **Source** : 🤖 Discord (import auto FiveM) vs 📝 manuelle
+  (déclarée sur le site)
 - Filtres par vendeur / paiement / texte libre
 - Détection automatique des **discordances** (vente sans sortie de stock)
+- Bouton **✏ Modifier** sur chaque ligne — réservé aux rôles autorisés
+  (voir *Modification d'une vente*)
+- Indicateur "✏ modifiée par X" affiché sous la facture après modification
 - Export CSV de la semaine
+
+### Modification d'une vente
+Rôles autorisés : **patron, co-patron, admin technique, DRH,
+responsable-vente**.
+
+1. Page **Ventes** → bouton **✏ Modifier** sur la ligne concernée
+2. Le modal s'ouvre **pré-rempli** avec les anciennes valeurs
+3. Modifier les lignes / le montant / le client / le paiement
+4. Saisir un **motif de modification obligatoire** (audit)
+5. Valider → la facture est mise à jour :
+   - bénéfice **recalculé serveur** depuis les prix d'achat actuels
+   - delta de stock réajusté (transaction atomique)
+   - champs `modifiePar`, `modifieParNom`, `motifModification`,
+     `dateModification` remplis
+   - mouvement `modification-vente` dans `/mouvementsStock` (audit)
+
+L'historique est immuable : on garde le doc `/ventes` initial enrichi de
+ses métadonnées de modification (jamais de delete).
 
 ### Comptabilité
 - Postes hebdomadaires conformes TTE Chap. IV — Secteur 2
@@ -48,12 +72,61 @@ top produits, niveaux des stations, historique 6 dernières semaines.
 ## Pour les employés (vendeurs / pompistes)
 
 ### Mon espace
+- Bouton **📝 Déclarer une vente** en haut de la page (voir section
+  *Déclaration de vente* plus bas)
 - **Vendeur** : ton CA, ton bénéfice, **KPI quota CA hebdo** (30 000 $ par
   défaut, configurable) avec barre de progression, salaire estimé
 - **Pompiste** : bidons réalisés, caoutchoucs réalisés, score, salaire estimé
 - **Mes avertissements** : bannière graduée (jaune 1 / orange 2 / rouge 3 =
   compte BLOQUÉ) + liste détaillée (voir section *Avertissements*)
+- **Sorties en attente / non régularisées** : bandeau qui s'affiche si tu as
+  sorti un produit d'un coffre LTD sans l'avoir vendu ni redéposé (voir
+  section *Anti-vol 30 min*)
 - Heures de service de la semaine (information uniquement)
+
+### Déclaration de vente
+L'employé déclare lui-même chaque vente sur le site. Source de vérité :
+le **bénéfice est calculé serveur** (le prix d'achat vient de `/produits`
+et ne peut pas être trafiqué côté client).
+
+1. Page **Mon espace** → bouton **📝 Déclarer une vente**
+2. Ajouter une ou plusieurs **lignes produit** (menu déroulant par catégorie,
+   triées alphabétiquement) avec quantité
+3. Saisir le **montant encaissé** (ce que le client a payé)
+4. Choisir le **moyen de paiement** (espèces / carte / autre)
+5. Renseigner le **nom du client** (obligatoire)
+6. Le **coût total** et le **bénéfice** se calculent en direct dans le modal
+7. **Valider la vente** → la facture est créée dans `/ventes` avec :
+   - `factureId` auto au format `M{YYYYMMDD}-{NNNN}` (M = manuelle)
+   - `source: 'manuelle'`, `verrouille: true`
+   - décrément automatique de `/stocks` (transaction atomique)
+   - mouvement `vente-manuelle` dans `/mouvementsStock` (audit)
+
+Une fois validée, **l'employé ne peut plus modifier la vente**. Seuls la
+direction, le DRH et le responsable vente peuvent (voir section
+*Modification d'une vente*).
+
+### Anti-vol 30 min
+Quand un employé sort un produit d'un coffre LTD (Discord
+`#logs-ig` → `inventory-remove`), un compte à rebours de 30 minutes
+démarre. Trois issues possibles :
+
+| Issue | Effet |
+|---|---|
+| A) L'employé **déclare une vente** incluant ce produit | timer annulé ✅ |
+| B) L'employé **redépose** le produit dans le coffre | timer annulé ✅ |
+| C) Ni A ni B au bout de 30 min | 🚨 alerte automatique |
+
+En cas d'alerte (C) :
+- 📢 **Bandeau rouge** sur le *Mon espace* de l'employé : "Sortie non
+  régularisée — régularise immédiatement"
+- 📋 1 alerte créée dans `/alertes` (type `sortie-non-regularisee`)
+- 🪝 Webhook Discord vers la direction si `config.global.webhookAntiVol`
+  est configuré
+
+La direction est **exemptée** de ce système (anti-deadlock). Les sorties
+ne sont trackées que pour les coffres LTD reconnus (préfixes `action-27310`
+épicerie, `action-27166` matériel, `action-30439` entrepôt).
 
 ### Mode pompiste — déclaration manuelle des caoutchoucs
 Les caoutchoucs ne sont **plus comptés automatiquement** depuis les logs

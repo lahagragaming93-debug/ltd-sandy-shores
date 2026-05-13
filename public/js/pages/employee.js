@@ -6,14 +6,17 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listServicesSemaine, listAllServicesEmploye, getQuotaPompiste, getConfig,
-  listenAvertissements
+  listenAvertissements,
+  collection, query, where, orderBy, limit, onSnapshot
 } from '../api.js';
+import { db } from '../firebase-config.js';
 import { ROLE_LABELS, isVendeur, isPompiste, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
 import { salaireVendeur, salairePompiste, scorePompiste } from '../utils/paie.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
+import { ouvrirModalNouvelleVente } from '../utils/vente-modal.js';
 
 const { profile } = await requireAuth('employee');
 const debut = startOfWeekRP();
@@ -26,7 +29,12 @@ const html = `
     <div class="muted" style="margin-top:6px;">
       ${ROLE_LABELS[profile.role]} · Semaine du ${debut.toLocaleDateString('fr-FR')} au ${fin.toLocaleDateString('fr-FR')}
     </div>
+    <div class="row center mt-3" style="gap:10px;justify-content:center;">
+      <button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">📝 Déclarer une vente</button>
+    </div>
   </div>
+
+  <div id="bloc-sorties-attente"></div>
 
   <div class="kpi-grid" id="kpis-emp">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
@@ -237,6 +245,78 @@ if (isVendeur(profile.role)) {
   }
   document.getElementById('detail').innerHTML = detailHtml;
 }
+
+// === Bouton "Declarer une vente" ===
+// Bloque si compte bloque (>= 3 averts), sinon ouvre le modal.
+const btnVente = document.getElementById('btn-declarer-vente');
+if (btnVente) {
+  btnVente.addEventListener('click', () => {
+    if ((profile.avertsActifs || 0) >= 3 && !['patron', 'co-patron', 'admin-technique'].includes(profile.role)) {
+      alert('Compte bloqué (3 avertissements actifs). Contacte la direction pour qu\'elle retire un avertissement avant de pouvoir déclarer une vente.');
+      return;
+    }
+    ouvrirModalNouvelleVente({
+      onSuccess: () => {
+        // Recharge la page pour rafraichir le tableau "Mes ventes" + KPIs.
+        // Le listener sorties_en_cours se mettra a jour tout seul.
+        window.location.reload();
+      }
+    });
+  });
+}
+
+// === Sorties en cours non regularisees (anti-vol 30min) ===
+// Affiche un bandeau si l'employe a une sortie statut='alerte' (>30min sans
+// vente ni redepot). Reste affiche tant que la direction n'a pas marque
+// l'alerte resolue ou que le doc /sorties_en_cours n'est pas regularise.
+const sortiesQ = query(
+  collection(db, 'sorties_en_cours'),
+  where('employeId', '==', me.uid),
+  where('statut', 'in', ['en_attente', 'alerte']),
+  orderBy('dateSortie', 'desc'),
+  limit(20)
+);
+onSnapshot(sortiesQ, (snap) => {
+  const div = document.getElementById('bloc-sorties-attente');
+  if (!div) return;
+  const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (list.length === 0) { div.innerHTML = ''; return; }
+
+  const alertes = list.filter(s => s.statut === 'alerte');
+  const enAttente = list.filter(s => s.statut === 'en_attente');
+
+  let html = '';
+  if (alertes.length > 0) {
+    html += `
+      <div class="alert" style="background:rgba(220,40,40,0.18);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:8px;">
+        🚨 <strong>Sortie non régularisée — ${alertes.length}</strong> : tu as sorti
+        des produits du coffre il y a plus de 30 minutes sans les vendre ni les redéposer.
+        <strong>Régularise immédiatement</strong> (déclare la vente ou redépose le produit).
+        La direction a été notifiée.
+        <ul style="margin:6px 0 0 18px;font-weight:normal;">
+          ${alertes.map(s => {
+            const d = s.dateSortie?.toDate ? s.dateSortie.toDate() : null;
+            return `<li>${escapeHtml(s.produitNom)} × ${s.quantite}${d ? ` — sorti à ${d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})}` : ''}</li>`;
+          }).join('')}
+        </ul>
+      </div>`;
+  }
+  if (enAttente.length > 0) {
+    html += `
+      <div class="alert" style="background:rgba(220,180,40,0.12);border:1px solid #c93;margin-bottom:8px;font-size:0.9rem;">
+        ⏱ <strong>${enAttente.length} sortie${enAttente.length > 1 ? 's' : ''} en attente</strong> de
+        régularisation (vente ou redépôt). Tu as 30 min à partir de la sortie du coffre.
+        <ul style="margin:4px 0 0 18px;">
+          ${enAttente.map(s => {
+            const d = s.dateSortie?.toDate ? s.dateSortie.toDate() : null;
+            const tRest = d ? Math.max(0, 30 - Math.round((Date.now() - d.getTime()) / 60000)) : '?';
+            return `<li>${escapeHtml(s.produitNom)} × ${s.quantite} — ${tRest} min restantes</li>`;
+          }).join('')}
+        </ul>
+      </div>`;
+  }
+  div.innerHTML = html;
+});
 
 // === Avertissements (temps reel) ===
 // L'employe voit ses propres averts. 3 actifs = compte bloque (banniere rouge).
