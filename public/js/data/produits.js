@@ -119,7 +119,7 @@ export const CATALOGUE = [
   { id: 'fertilisant',             nom: 'Fertilisant',             categorie: 'jardinage',        prixVente: 10,   pourPro: false },
   { id: 'tas-terre',               nom: 'Tas de terre',            categorie: 'jardinage',        prixVente: 14,   pourPro: false },
   { id: 'bac-jardinage',           nom: 'Bac de jardinage',        categorie: 'jardinage',        prixVente: 20,   pourPro: true },
-  { id: 'fillet',                  nom: 'Fillet',                  categorie: 'jardinage',        prixVente: 10,   pourPro: true },
+  { id: 'fillet',                  nom: 'Fillet',                  categorie: 'jardinage',        prixVente: 12.50, pourPro: true },
   { id: 'sac-jute',                nom: 'Sac en Jute',             categorie: 'jardinage',        prixVente: 0,    pourPro: true,
     note: 'Rupture possible — prix à confirmer' },
 
