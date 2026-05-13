@@ -132,7 +132,8 @@ export const CATALOGUE = [
 
   // ÉLECTRONIQUE
   { id: 'batterie',                nom: 'Batterie',                categorie: 'electronique',     prixVente: 10,   pourPro: true },
-  { id: 'pile',                    nom: 'Pile',                    categorie: 'electronique',     prixVente: 2,    pourPro: true },
+  { id: 'pile',                    nom: 'Pile',                    categorie: 'electronique',     prixVente: 2,    pourPro: false, intrant: true,
+    note: 'Pile verte — achat Yootool, usage interne uniquement (non vendue)' },
 
   // AUTO
   { id: 'huile',                   nom: 'Huile',                   categorie: 'auto',             prixVente: 8,    pourPro: true },
@@ -179,7 +180,8 @@ export const CATALOGUE = [
   { id: 'trottinette-electrique',  nom: 'Trottinette électrique',  categorie: 'divers',           prixVente: 500,  pourPro: true },
   { id: 'ballon-foot',             nom: 'Ballon de Foot',          categorie: 'divers',           prixVente: 40,   pourPro: false },
   { id: 'ballon-basket',           nom: 'Ballon de Basket',        categorie: 'divers',           prixVente: 40,   pourPro: false },
-  { id: 'croquette',               nom: 'Croquette',               categorie: 'divers',           prixVente: 30,   pourPro: true },
+  { id: 'croquette',               nom: 'Croquette',               categorie: 'divers',           prixVente: 30,   pourPro: false,
+    note: 'Achat Yootool — vendable particuliers (commission). Prix d\'achat à renseigner par le patron.' },
   { id: 'herisson',                nom: 'Hérisson',                categorie: 'divers',           prixVente: 2,    pourPro: false },
   { id: 'elastique',               nom: 'Élastique',               categorie: 'divers',           prixVente: 20,   pourPro: true },
   { id: 'bidon-peinture',          nom: 'Bidon de Peinture',       categorie: 'divers',           prixVente: 4,    pourPro: true }

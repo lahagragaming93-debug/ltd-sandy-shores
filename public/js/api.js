@@ -122,6 +122,17 @@ export function listenVentesSemaine(dateDebut, dateFin, cb) {
     s.docs.map(d => ({ id: d.id, ...d.data() })).filter(v => !v.cachee)
   ));
 }
+// Variante : inclut TOUTES les ventes (cachees comprises). Utilise pour la
+// page RH (detail employe) ou l'audit : permet de comparer bot vs declaration
+// manuelle et identifier les doublons caches.
+export async function listVentesSemaineIncluantCachees(dateDebut, dateFin) {
+  const q = query(collection(db, 'ventes'),
+    where('timestamp', '>=', Timestamp.fromDate(dateDebut)),
+    where('timestamp', '<=', Timestamp.fromDate(dateFin)),
+    orderBy('timestamp', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
 // ----- Mouvements de stock -----
 export async function listMouvementsRecents(n = 50) {

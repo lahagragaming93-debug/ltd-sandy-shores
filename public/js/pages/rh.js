@@ -5,7 +5,7 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
-  listUsers, listVentesSemaine, listServicesSemaine, listQuotasSemaine,
+  listUsers, listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listQuotasSemaine,
   listPaiesSemaine, getConfig, updateUser, listRedistributionsSemaine
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isResponsable, isDirection,
@@ -65,7 +65,7 @@ const html = `
 
   <!-- Modal détail employé -->
   <div id="modal-employe" class="modal-backdrop hidden">
-    <div class="modal" style="max-width: 640px;">
+    <div class="modal" style="max-width: 920px;max-height:92vh;overflow-y:auto;">
       <h3 id="emp-nom">—</h3>
       <div id="emp-content">—</div>
       <div class="row mt-3">
@@ -83,9 +83,10 @@ const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
 const wId   = weekId();
 
-const [users, ventes, services, quotas, paies, config, redistributions] = await Promise.all([
+const [users, ventes, ventesAvecCachees, services, quotas, paies, config, redistributions] = await Promise.all([
   listUsers().catch(() => []),
   listVentesSemaine(debut, fin).catch(() => []),
+  listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
   listQuotasSemaine(wId).catch(() => []),
   listPaiesSemaine(debut, fin).catch(() => []),
@@ -263,6 +264,79 @@ function ouvrirDetail(uid) {
     `;
   }
   html += `</tbody></table>`;
+
+  // === Table des factures (vendeurs uniquement) ===
+  // Affiche TOUTES les factures (manuelles + bot, y compris les cachees en
+  // doublon) pour permettre la comparaison "ce que le bot a vu" vs "ce que
+  // le vendeur a declare".
+  if (isVendeur(u.role)) {
+    const mesVentes = ventesAvecCachees
+      .filter(v => v.vendeurId === uid)
+      .sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+
+    if (mesVentes.length === 0) {
+      html += `<p class="muted mt-3">Aucune facture cette semaine.</p>`;
+    } else {
+      const nbBot = mesVentes.filter(v => v.source !== 'manuelle').length;
+      const nbMan = mesVentes.filter(v => v.source === 'manuelle').length;
+      const nbCac = mesVentes.filter(v => v.cachee).length;
+      html += `
+        <h4 class="mt-3" style="margin-bottom:6px;">📋 Factures de la semaine — comparaison bot / manuelle</h4>
+        <p class="muted" style="font-size:0.78rem;margin:0 0 8px;">
+          ${mesVentes.length} factures totales · ${nbBot} bot · ${nbMan} manuelles · ${nbCac > 0 ? `<span class="alerte-fort">${nbCac} cachées (doublons)</span>` : '0 cachée'}
+        </p>
+        <div class="table-scroll" style="max-height:380px;">
+        <table class="data" style="font-size:0.8rem;">
+          <thead><tr>
+            <th>Date</th>
+            <th class="center">Source</th>
+            <th>#Facture</th>
+            <th>Client</th>
+            <th class="right">Montant</th>
+            <th class="right">Bénéf</th>
+            <th class="right">Commissionnable</th>
+            <th class="center">Statut</th>
+          </tr></thead>
+          <tbody>
+            ${mesVentes.map(v => {
+              const date = datetime(v.timestamp);
+              const isManuelle = v.source === 'manuelle';
+              const source = isManuelle
+                ? '<span class="badge ok" title="Déclarée manuellement par le vendeur">📝 Man.</span>'
+                : '<span class="badge neutral" title="Remontée automatiquement par le bot Discord">🤖 Bot</span>';
+              const cm = v.montantParticulier ?? v.montant ?? 0;
+              const benefice = v.benefice != null ? money(v.benefice) : '<span class="muted">—</span>';
+              let statut, trClass = '';
+              if (v.cachee) {
+                statut = `<span class="badge warn" title="Doublon caché — remplacée par #${v.remplaceeParFactureId || '?'}">⚠ Cachée</span>`;
+                trClass = 'muted';
+              } else if (cm === 0 && (v.montant || 0) > 0) {
+                statut = '<span class="badge neutral" title="Ne compte pas dans la commission (produits pro)">CA pro</span>';
+              } else {
+                statut = '<span class="badge ok">✓ Compte</span>';
+              }
+              return `
+                <tr class="${trClass}">
+                  <td class="mono" style="font-size:0.75rem;">${date}</td>
+                  <td class="center">${source}</td>
+                  <td class="mono">#${escapeHtml(String(v.factureId || v.id || ''))}</td>
+                  <td>${escapeHtml(v.client || '—')}</td>
+                  <td class="right mono">${money(v.montant || 0)}</td>
+                  <td class="right mono">${benefice}</td>
+                  <td class="right mono ${cm > 0 ? '' : 'muted'}">${cm > 0 ? money(cm) : '—'}</td>
+                  <td class="center">${statut}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+        </div>
+        <p class="muted" style="font-size:0.74rem;margin:4px 0 0;">
+          💡 <strong>Comparaison</strong> : si tu vois 2 lignes pour la même vente (1 bot + 1 manuelle avec même montant), la bot est cachée (badge ⚠) — seule la manuelle compte. ${nbCac > 0 ? 'Détecte automatiquement les doublons.' : 'Aucun doublon détecté cette semaine pour cet employé.'}
+        </p>
+      `;
+    }
+  }
 
   if (isResponsable(u.role) || isDirection(u.role) || u.role === 'drh') {
     html += `
