@@ -98,25 +98,26 @@ function fermerModal() {
   document.getElementById('modal-vente').classList.add('hidden');
 }
 
-function optionsProduits() {
-  // Tri alpha, regroupement par categorie (optgroup) pour faciliter la recherche
-  const groupes = {};
+// Normalise une chaine pour la recherche (lowercase + sans accents)
+function normSearch(s) {
+  return String(s || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function trouverProduitsParTexte(texte, max = 20) {
+  const q = normSearch(texte);
+  if (!q) return [];
+  const startsWith = [];
+  const contains = [];
   for (const p of (produitsCache || [])) {
-    const cat = p.categorie || 'divers';
-    (groupes[cat] = groupes[cat] || []).push(p);
+    const n = normSearch(p.nom || p.id);
+    if (n.startsWith(q)) startsWith.push(p);
+    else if (n.includes(q)) contains.push(p);
   }
-  const order = Object.keys(groupes).sort();
-  return order.map(cat => `
-    <optgroup label="${escapeHtml(cat)}">
-      ${groupes[cat].sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(p => {
-        const cout = Number(p.prixAchat || 0);
-        const vente = Number(p.prixVente || 0);
-        return `<option value="${escapeHtml(p.id)}" data-achat="${cout}" data-vente="${vente}" data-nom="${escapeHtml(p.nom || p.id)}">
-          ${escapeHtml(p.nom || p.id)}${vente ? ` — ${money(vente)}` : ''}
-        </option>`;
-      }).join('')}
-    </optgroup>
-  `).join('');
+  // Tri alpha dans chaque groupe, startsWith d'abord
+  startsWith.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+  contains.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+  return [...startsWith, ...contains].slice(0, max);
 }
 
 function ajouterLigne(preset = null) {
@@ -124,14 +125,14 @@ function ajouterLigne(preset = null) {
   const idx = wrap.children.length;
   const row = document.createElement('div');
   row.className = 'row vente-ligne';
-  row.style.cssText = 'gap:8px;align-items:flex-end;';
+  row.style.cssText = 'gap:8px;align-items:flex-start;';
   row.innerHTML = `
-    <div style="flex:1;min-width:200px;">
-      ${idx === 0 ? '<label style="font-size:0.78rem;">Produit</label>' : ''}
-      <select class="vente-prod" style="width:100%;">
-        <option value="">— Choisir un produit —</option>
-        ${optionsProduits()}
-      </select>
+    <div class="vente-autocomplete" style="flex:1;min-width:200px;position:relative;">
+      ${idx === 0 ? '<label style="font-size:0.78rem;">Produit (tape une lettre)</label>' : ''}
+      <input type="text" class="vente-prod-input" placeholder="ex: F, bonbon, ticket…"
+             data-product-id="" data-achat="0" data-vente="0" autocomplete="off"
+             style="width:100%;" />
+      <div class="vente-prod-list hidden" style="position:absolute;top:100%;left:0;right:0;z-index:2000;background:var(--color-bg-elev,#222);border:1px solid #555;max-height:240px;overflow-y:auto;border-radius:4px;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,0.4);"></div>
     </div>
     <div style="width:90px;">
       ${idx === 0 ? '<label style="font-size:0.78rem;">Quantité</label>' : ''}
@@ -141,16 +142,83 @@ function ajouterLigne(preset = null) {
       ${idx === 0 ? '<label style="font-size:0.78rem;">Total ligne</label>' : ''}
       <div class="vente-total-ligne mono" style="padding:8px 0;">$0</div>
     </div>
-    <button class="btn btn-danger btn-vente-del" type="button" title="Supprimer la ligne" style="padding:6px 10px;">×</button>
+    <button class="btn btn-danger btn-vente-del" type="button" title="Supprimer la ligne" style="padding:6px 10px;${idx === 0 ? 'margin-top:18px;' : ''}">×</button>
   `;
   wrap.appendChild(row);
-  if (preset) {
-    row.querySelector('.vente-prod').value = preset.produitId || '';
-    row.querySelector('.vente-qte').value = preset.quantite || 1;
+
+  const input = row.querySelector('.vente-prod-input');
+  const liste = row.querySelector('.vente-prod-list');
+  const qteEl = row.querySelector('.vente-qte');
+
+  function applyProduit(p) {
+    input.value = p.nom || p.id;
+    input.dataset.productId = p.id;
+    input.dataset.achat = Number(p.prixAchat || 0);
+    input.dataset.vente = Number(p.prixVente || 0);
+    liste.classList.add('hidden');
+    recalculer();
   }
-  row.querySelector('.vente-prod').addEventListener('change', recalculer);
-  row.querySelector('.vente-qte').addEventListener('input', recalculer);
+
+  function renderListe(items) {
+    if (items.length === 0) {
+      liste.innerHTML = `<div style="padding:8px 12px;color:#999;font-size:0.85rem;">Aucun produit trouvé.</div>`;
+    } else {
+      liste.innerHTML = items.map(p => {
+        const vente = Number(p.prixVente || 0);
+        return `<div class="vente-prod-opt" data-pid="${escapeHtml(p.id)}" style="padding:6px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span>${escapeHtml(p.nom || p.id)}</span>
+          <span class="muted mono" style="font-size:0.78rem;">${vente ? money(vente) : ''}</span>
+        </div>`;
+      }).join('');
+      // Hover + click
+      liste.querySelectorAll('.vente-prod-opt').forEach(el => {
+        el.addEventListener('mouseenter', () => { el.style.background = 'rgba(220,40,40,0.18)'; });
+        el.addEventListener('mouseleave', () => { el.style.background = ''; });
+        el.addEventListener('click', () => {
+          const pid = el.dataset.pid;
+          const prod = produitsCache.find(x => x.id === pid);
+          if (prod) applyProduit(prod);
+        });
+      });
+    }
+    liste.classList.remove('hidden');
+  }
+
+  input.addEventListener('input', () => {
+    // Si l'utilisateur modifie le texte apres avoir choisi -> reset selection
+    input.dataset.productId = '';
+    input.dataset.achat = '0';
+    input.dataset.vente = '0';
+    const items = trouverProduitsParTexte(input.value);
+    renderListe(items);
+    recalculer();
+  });
+  input.addEventListener('focus', () => {
+    if (input.value.trim()) {
+      renderListe(trouverProduitsParTexte(input.value));
+    }
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') liste.classList.add('hidden');
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const items = trouverProduitsParTexte(input.value);
+      if (items.length === 1) applyProduit(items[0]);
+    }
+  });
+  // Click ailleurs -> ferme la liste
+  document.addEventListener('click', (e) => {
+    if (!row.contains(e.target)) liste.classList.add('hidden');
+  });
+
+  qteEl.addEventListener('input', recalculer);
   row.querySelector('.btn-vente-del').addEventListener('click', () => { row.remove(); recalculer(); });
+
+  if (preset?.produitId) {
+    const prod = (produitsCache || []).find(p => p.id === preset.produitId);
+    if (prod) applyProduit(prod);
+    if (preset.quantite) qteEl.value = preset.quantite;
+  }
   recalculer();
 }
 
@@ -158,11 +226,11 @@ function recalculer() {
   let coutTotal = 0;
   let prixVenteTotal = 0;
   document.querySelectorAll('.vente-ligne').forEach(row => {
-    const sel = row.querySelector('.vente-prod');
-    const opt = sel.selectedOptions[0];
+    const input = row.querySelector('.vente-prod-input');
+    const pid = input?.dataset.productId || '';
     const qte = Number(row.querySelector('.vente-qte').value) || 0;
-    const achat = opt ? Number(opt.dataset.achat || 0) : 0;
-    const vente = opt ? Number(opt.dataset.vente || 0) : 0;
+    const achat = pid ? Number(input.dataset.achat || 0) : 0;
+    const vente = pid ? Number(input.dataset.vente || 0) : 0;
     const totalLigne = vente * qte;
     row.querySelector('.vente-total-ligne').textContent = money(totalLigne);
     coutTotal += achat * qte;
@@ -195,9 +263,9 @@ async function soumettre() {
   const lignes = [];
   let erreur = null;
   document.querySelectorAll('.vente-ligne').forEach(row => {
-    const pid = row.querySelector('.vente-prod').value;
+    const pid = row.querySelector('.vente-prod-input')?.dataset.productId || '';
     const qte = Number(row.querySelector('.vente-qte').value);
-    if (!pid) { erreur = "Sélectionne un produit dans toutes les lignes."; return; }
+    if (!pid) { erreur = "Sélectionne un produit dans toutes les lignes (clique sur un résultat de la liste)."; return; }
     if (!Number.isFinite(qte) || qte <= 0) { erreur = "Quantité invalide dans une ligne."; return; }
     lignes.push({ produitId: pid, quantite: qte });
   });
