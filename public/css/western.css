@@ -1004,6 +1004,91 @@ table.data .sort-arrow {
   background: linear-gradient(180deg, var(--color-danger) 0%, #5a0e0e 100%);
   border-color: var(--color-blood-light);
 }
+
+/* === Boutons-icones compacts ===
+   Pour les actions sur lignes de tableau (Modifier, Supprimer, etc.)
+   et la barre d'actions globale d'une page. Affiche une icone Unicode
+   centree, padding reduit, tooltip natif via attribut title=.
+   Sur ecran etroit (<700px), reduit encore la taille pour ne pas casser
+   le layout. */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  padding: 0;
+  font-size: 1.05rem;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.btn-icon.btn-sm { width: 28px; height: 28px; font-size: 0.92rem; }
+.btn-icon.btn-lg { width: 42px; height: 42px; font-size: 1.25rem; }
+
+/* Bouton avec icone + texte court (mode hybride si on garde une action
+   importante comme "Declarer une vente") */
+.btn-compact {
+  padding: 7px 14px;
+  font-size: 0.78rem;
+  letter-spacing: 0.8px;
+}
+
+/* Groupe de boutons-icones dans une cellule d'actions */
+.actions-cell {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.actions-cell .btn { flex-shrink: 0; }
+
+/* Toolbar globale en haut de page : flex avec gap reduit, wrap si necessaire */
+.page-toolbar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.page-toolbar .toolbar-sep {
+  width: 1px; height: 22px;
+  background: var(--color-sand-dark);
+  opacity: 0.5;
+  margin: 0 4px;
+}
+
+/* Tooltip natif - styliser le title browser ne marche pas, mais on
+   ajoute une regle pour les boutons-icones qui ont vraiment besoin d'un
+   tooltip personnalise (data-tooltip="..."). Pour la v1, on laisse le
+   title= natif qui marche partout. */
+.btn-icon[data-tooltip] { position: relative; }
+.btn-icon[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-charcoal-2, #1a1a1a);
+  color: var(--color-bone);
+  padding: 4px 10px;
+  border: 1px solid var(--color-sand-dark);
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: var(--font-body);
+  letter-spacing: 0.3px;
+  text-transform: none;
+  white-space: nowrap;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+@media (max-width: 700px) {
+  .btn { padding: 7px 12px; font-size: 0.78rem; letter-spacing: 0.8px; }
+  .btn-icon { width: 30px; height: 30px; font-size: 0.95rem; padding: 0; }
+  .btn-compact { padding: 5px 10px; font-size: 0.72rem; }
+}
 .btn[disabled], .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;

@@ -24,17 +24,17 @@ const html = `
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
 
-  <div class="row mb-2 wrap">
-    <select id="filtre-role">
-      <option value="">Tous les rôles</option>
+  <div class="page-toolbar">
+    <select id="filtre-role" title="Filtrer par rôle">
+      <option value="">Tous rôles</option>
       ${Object.entries(ROLE_LABELS).map(([k,l]) => `<option value="${k}">${l}</option>`).join('')}
     </select>
-    <select id="filtre-statut">
+    <select id="filtre-statut" title="Filtrer par statut">
       <option value="">Tous statuts</option>
       <option value="actif">Actifs</option>
       <option value="suspendu">Suspendus</option>
     </select>
-    <input type="text" id="filtre-recherche" placeholder="Rechercher (nom, prénom, ID Discord)" style="flex:1;min-width:200px;" />
+    <input type="text" id="filtre-recherche" placeholder="🔍 Rechercher (nom, Discord)" style="flex:1;min-width:160px;" />
   </div>
 
   <div class="panel framed">
@@ -69,7 +69,7 @@ const html = `
       <h3 id="emp-nom">—</h3>
       <div id="emp-content">—</div>
       <div class="row mt-3">
-        ${editable ? '<button class="btn btn-primary" id="btn-decide-salaire">Décider salaire (resp./direction)</button>' : ''}
+        ${editable ? '<button class="btn btn-primary" id="btn-decide-salaire" title="Décider un salaire fixe (responsables/direction)">💰 Décider salaire</button>' : ''}
         <button class="btn btn-ghost" id="btn-close-emp">Fermer</button>
       </div>
     </div>
@@ -196,8 +196,8 @@ function renderTable() {
         <td class="right mono">${progressLabel}</td>
         <td class="right mono">${money(m.salaireEstime || 0)} <span class="muted" style="font-size:0.7rem;">/ ${money(plafond)}</span></td>
         <td><span class="badge ${u.statut === 'actif' ? 'ok' : 'warn'}">${u.statut || 'actif'}</span></td>
-        <td class="center">
-          <button class="btn btn-sm btn-ghost" data-detail="${u.id}">Détail</button>
+        <td class="actions-cell">
+          <button class="btn btn-icon btn-sm btn-ghost" data-detail="${u.id}" title="Voir le détail (heures, ventes, salaire estimé)" data-tooltip="Détail">👁</button>
         </td>
       </tr>
     `;

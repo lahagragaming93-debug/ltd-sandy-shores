@@ -23,21 +23,21 @@ const editable = isDirection(profile.role) || isSuperAdmin(profile.role);
 const canCreate = canCreateProduit(profile.role);
 
 const html = `
-  <div class="row mb-2 wrap">
-    <select id="filtre-categorie">
-      <option value="">Toutes les catégories</option>
+  <div class="page-toolbar">
+    <select id="filtre-categorie" title="Filtrer par catégorie">
+      <option value="">Toutes catégories</option>
       ${Object.entries(CATEGORY_LABELS).map(([k, l]) =>
         `<option value="${k}">${l}</option>`).join('')}
     </select>
-    <select id="filtre-alerte">
-      <option value="">Tous les niveaux</option>
+    <select id="filtre-alerte" title="Filtrer par niveau">
+      <option value="">Tous niveaux</option>
       <option value="rupture">⚠ Ruptures</option>
       <option value="bas">⚠ Sous seuil</option>
       <option value="ok">OK</option>
     </select>
-    <input type="text" id="filtre-recherche" placeholder="Rechercher un produit…" style="flex:1;min-width:200px;" />
+    <input type="text" id="filtre-recherche" placeholder="🔍 Rechercher…" style="flex:1;min-width:160px;" />
     ${canCreate ? `
-      <button class="btn btn-primary" id="btn-nouveau-produit">+ Ajouter un produit</button>
+      <button class="btn btn-primary btn-icon" id="btn-nouveau-produit" title="Ajouter un produit au catalogue" data-tooltip="Ajouter produit">➕</button>
     ` : ''}
   </div>
 
@@ -226,9 +226,9 @@ function renderTable() {
           <td class="right mono ${marge >= 0 ? '' : 'muted'}">${money(marge)}</td>
           <td class="right mono">${num(seuil)}</td>
           <td class="center">${badge}</td>
-          ${editable ? `<td class="center">
-            <button class="btn btn-sm btn-ghost" data-edit="${p.id}">Modifier</button>
-            ${canCreate ? `<button class="btn btn-sm btn-danger" data-delete-produit="${p.id}" title="Supprimer ce produit du catalogue">×</button>` : ''}
+          ${editable ? `<td class="actions-cell">
+            <button class="btn btn-icon btn-sm btn-ghost" data-edit="${p.id}" title="Modifier le produit (prix, seuil, stock)" data-tooltip="Modifier">✏</button>
+            ${canCreate ? `<button class="btn btn-icon btn-sm btn-danger" data-delete-produit="${p.id}" title="Supprimer du catalogue" data-tooltip="Supprimer">🗑</button>` : ''}
           </td>` : ''}
         </tr>
       `;

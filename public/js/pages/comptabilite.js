@@ -37,14 +37,14 @@ const html = `
   </div>
 
   <!-- Toolbar -->
-  <div class="row mb-2" style="flex-wrap:wrap;gap:8px;">
-    <select id="select-semaine" style="min-width:200px;">
+  <div class="page-toolbar">
+    <select id="select-semaine" title="Choisir la semaine" style="min-width:200px;">
       <option value="courante">📅 Semaine en cours</option>
     </select>
-    <button class="btn" id="btn-export-csv">📥 Exporter CSV</button>
-    <button class="btn" id="btn-export-pdf">🖨 Imprimer / PDF</button>
+    <button class="btn btn-icon" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
+    <button class="btn btn-icon" id="btn-export-pdf" title="Imprimer / Exporter en PDF" data-tooltip="Imprimer PDF">🖨</button>
     <span class="spacer"></span>
-    ${editable ? '<button class="btn btn-primary" id="btn-add-depense">+ Ajouter une dépense</button>' : ''}
+    ${editable ? '<button class="btn btn-primary btn-icon" id="btn-add-depense" title="Ajouter une dépense" data-tooltip="Ajouter dépense">➕</button>' : ''}
   </div>
 
   <!-- Templates de dépenses fréquentes (uniquement si éditable) -->
@@ -86,7 +86,7 @@ const html = `
   <div class="panel framed">
     <div class="panel-title">
       <span>💰 Salaires & paies de la semaine</span>
-      <button class="btn btn-sm" id="btn-copy-recap" title="Copie un récap formaté pour le coller dans Discord">📋 Copier récap Discord</button>
+      <button class="btn btn-icon btn-sm" id="btn-copy-recap" title="Copier un récap formaté pour Discord" data-tooltip="Copier récap Discord">📋</button>
     </div>
     <div id="salaires-zone"><p class="muted">Chargement…</p></div>
   </div>

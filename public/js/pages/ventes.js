@@ -19,15 +19,15 @@ const html = `
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
 
-  <div class="row mb-2 wrap">
-    <select id="filtre-vendeur"><option value="">Tous les vendeurs</option></select>
-    <select id="filtre-paiement">
+  <div class="page-toolbar">
+    <select id="filtre-vendeur" title="Filtrer par vendeur"><option value="">Tous les vendeurs</option></select>
+    <select id="filtre-paiement" title="Filtrer par paiement">
       <option value="">Tous paiements</option>
       <option value="especes">Espèces</option>
       <option value="carte">Carte</option>
     </select>
-    <input type="text" id="filtre-recherche" placeholder="Rechercher (client, produit…)" style="flex:1;min-width:200px;" />
-    <button class="btn" id="btn-export">Exporter CSV</button>
+    <input type="text" id="filtre-recherche" placeholder="🔍 Rechercher…" style="flex:1;min-width:160px;" />
+    <button class="btn btn-icon" id="btn-export" title="Exporter en CSV" data-tooltip="Exporter CSV">📤</button>
   </div>
 
   <div class="panel framed">
@@ -44,11 +44,12 @@ const html = `
             <th class="right" data-sort="benefice">Bénéfice</th>
             <th data-sort="paiement">Paiement</th>
             <th data-sort="raison">Raison</th>
-            <th class="center" data-sort="verif">Vérif. stock</th>
-            <th class="center">Source / Action</th>
+            <th class="center" data-sort="verif">Vérif.</th>
+            <th class="center">Source</th>
+            <th class="center">Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody-ventes"><tr><td colspan="10" class="muted text-center">Chargement…</td></tr></tbody>
+        <tbody id="tbody-ventes"><tr><td colspan="11" class="muted text-center">Chargement…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -109,23 +110,23 @@ function renderTable() {
 
   const tbody = document.getElementById('tbody-ventes');
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="muted text-center">Aucune vente (logs Discord à venir).</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="muted text-center">Aucune vente (logs Discord à venir).</td></tr>`;
     return;
   }
   const peutModifier = PEUT_MODIFIER.includes(profile.role);
   tbody.innerHTML = rows.map(v => {
     const vendeur = usersById[v.vendeurId];
     const verif = v.stockVerifie === false
-      ? '<span class="badge danger">⚠ Discordance</span>'
-      : (v.stockVerifie === true ? '<span class="badge ok">OK</span>' : '<span class="badge neutral">—</span>');
+      ? '<span class="badge danger" title="Vente sans sortie de stock corrélée">⚠</span>'
+      : (v.stockVerifie === true ? '<span class="badge ok" title="Stock vérifié">✓</span>' : '<span class="muted">—</span>');
     const sourceTag = v.source === 'manuelle'
-      ? '<span class="badge info" title="Vente déclarée sur le site">📝 manuelle</span>'
-      : '<span class="badge neutral" title="Importée depuis #suivi-facture / #factures">🤖 Discord</span>';
-    const modifTag = v.modifieParNom
-      ? `<div class="muted" style="font-size:0.72rem;margin-top:2px;" title="${escapeHtml(v.motifModification || '')}">✏ modifiée par ${escapeHtml(v.modifieParNom)}</div>`
+      ? '<span title="Vente déclarée sur le site">📝</span>'
+      : '<span title="Importée depuis #suivi-facture / #factures">🤖</span>';
+    const modifIcon = v.modifieParNom
+      ? `<span title="Modifiée par ${escapeHtml(v.modifieParNom)} — ${escapeHtml(v.motifModification || '')}" style="margin-left:4px;">✏</span>`
       : '';
     const btnModif = peutModifier
-      ? `<button class="btn btn-ghost btn-modif-vente" data-id="${escapeHtml(v.id)}" style="padding:2px 8px;font-size:0.78rem;margin-top:3px;">✏ Modifier</button>`
+      ? `<button class="btn btn-icon btn-sm btn-modif-vente" data-id="${escapeHtml(v.id)}" title="Modifier la vente" data-tooltip="Modifier">✏</button>`
       : '';
     return `
       <tr>
@@ -138,7 +139,8 @@ function renderTable() {
         <td><span class="badge neutral">${escapeHtml(v.paiement || '—')}</span></td>
         <td class="muted">${escapeHtml(v.raison || '')}</td>
         <td class="center">${verif}</td>
-        <td class="center">${sourceTag}${modifTag}${btnModif}</td>
+        <td class="center">${sourceTag}${modifIcon}</td>
+        <td class="actions-cell">${btnModif}</td>
       </tr>
     `;
   }).join('');

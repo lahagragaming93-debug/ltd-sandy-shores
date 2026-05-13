@@ -25,10 +25,10 @@ const html = `
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
 
-  <div class="row mb-2">
-    ${fullEdit ? '<button class="btn btn-primary" id="btn-ajouter-station">+ Ajouter une station</button>' : ''}
-    ${fullEdit ? '<button class="btn" id="btn-config-essence">⚙ Configuration</button>' : ''}
-    ${stockOnly ? '<button class="btn btn-primary" id="btn-declarer-caoutchoucs">📦 Déclarer des caoutchoucs fabriqués</button>' : ''}
+  <div class="page-toolbar">
+    ${fullEdit ? '<button class="btn btn-primary btn-icon" id="btn-ajouter-station" title="Ajouter une station essence" data-tooltip="Ajouter station">➕</button>' : ''}
+    ${fullEdit ? '<button class="btn btn-icon" id="btn-config-essence" title="Configuration quotas et prix essence" data-tooltip="Configuration">⚙</button>' : ''}
+    ${stockOnly ? '<button class="btn btn-primary btn-compact" id="btn-declarer-caoutchoucs" title="Déclarer le nombre de caoutchoucs fabriqués">📦 Déclarer caoutchoucs</button>' : ''}
     <span class="spacer"></span>
     <span class="muted mono" id="stations-count">—</span>
   </div>
@@ -99,8 +99,8 @@ const html = `
         <input type="text" id="st-fivem-pompe" placeholder="ex: 16060" />
       `}
       <div class="row mt-3">
-        <button class="btn btn-primary" id="btn-save-station">${stockOnly ? 'Valider le ravitaillement' : 'Enregistrer'}</button>
-        ${fullEdit ? '<button class="btn btn-danger" id="btn-delete-station" style="display:none;">Supprimer</button>' : ''}
+        <button class="btn btn-primary" id="btn-save-station">${stockOnly ? '⛽ Valider le ravitaillement' : '💾 Enregistrer'}</button>
+        ${fullEdit ? '<button class="btn btn-icon btn-danger" id="btn-delete-station" style="display:none;" title="Supprimer la station" data-tooltip="Supprimer">🗑</button>' : ''}
         <button class="btn btn-ghost" id="btn-cancel-station">Annuler</button>
       </div>
     </div>

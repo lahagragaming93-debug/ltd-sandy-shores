@@ -20,15 +20,15 @@ const html = `
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
 
-  <div class="row mb-2" style="flex-wrap:wrap;gap:8px;">
-    <select id="filtre-type">
+  <div class="page-toolbar">
+    <select id="filtre-type" title="Filtrer par type de mouvement">
       <option value="">Tous types</option>
-      <option value="add">🟢 Entrées (recettes)</option>
-      <option value="remove">🔴 Sorties (dépenses)</option>
+      <option value="add">🟢 Entrées</option>
+      <option value="remove">🔴 Sorties</option>
     </select>
-    <input type="text" id="filtre-recherche" placeholder="Filtrer par raison…" style="flex:1;min-width:200px;" />
-    <button class="btn" id="btn-recharger">🔄 Recharger</button>
-    <button class="btn" id="btn-export">📥 Export CSV</button>
+    <input type="text" id="filtre-recherche" placeholder="🔍 Filtrer par raison…" style="flex:1;min-width:160px;" />
+    <button class="btn btn-icon" id="btn-recharger" title="Recharger les données" data-tooltip="Recharger">🔄</button>
+    <button class="btn btn-icon" id="btn-export" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
     <span class="spacer"></span>
     <span class="muted mono" id="stats-mvts">—</span>
   </div>

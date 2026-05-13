@@ -1,5 +1,11 @@
 # 5 — Guide d'utilisation
 
+> 💡 **Interface compacte** : la plupart des actions sont représentées par
+> une **icône** (➕ créer, ✏ modifier, 🗑 supprimer, 🔍 chercher, ⚙ config,
+> 📥 export, 📋 copier, 👁 détail, ▶ activer, ⏸ suspendre, 🔑 nouveau MDP,
+> 🎭 voir comme…). **Survole avec la souris** pour afficher le nom complet
+> de l'action.
+
 ## Pour le Patron / Co-Patron
 
 ### Tableau de bord

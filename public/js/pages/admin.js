@@ -35,30 +35,21 @@ const html = `
     <span>${perimetreText(profile.role)} Les comptes hors de ton périmètre sont visibles en lecture seule (actions grisées).</span>
   </div>
 
-  <div class="row mb-2" style="flex-wrap:wrap;gap:8px;">
-    ${canCreate ? `<button class="btn btn-primary" id="btn-nouveau">+ Créer un compte</button>` : ''}
-    ${canEditCfg ? `<button class="btn" id="btn-config-globale">⚙ Configuration globale</button>` : ''}
-    ${canEditCfg ? `<button class="btn" id="btn-export-sheets">📊 Export Google Sheets</button>` : ''}
-    ${canEditCfg ? `<a href="decouverte-items.html" class="btn">🔍 Découverte items FiveM</a>` : ''}
+  <div class="page-toolbar">
+    ${canCreate ? `<button class="btn btn-primary btn-compact" id="btn-nouveau" title="Créer un compte employé" data-tooltip="Créer un compte">➕</button>` : ''}
+    ${canEditCfg ? `<button class="btn btn-icon" id="btn-config-globale" title="Configuration globale" data-tooltip="Config globale">⚙</button>` : ''}
+    ${canEditCfg ? `<button class="btn btn-icon" id="btn-export-sheets" title="Export Google Sheets" data-tooltip="Export Sheets">📊</button>` : ''}
+    ${canEditCfg ? `<a href="decouverte-items.html" class="btn btn-icon" title="Découverte items FiveM" data-tooltip="Découverte items">🔍</a>` : ''}
+    ${['patron', 'co-patron', 'admin-technique'].includes(profile.roleReel) ? `
+      <span class="toolbar-sep"></span>
+      <select id="select-view-as" title="Voir le site comme un autre rôle (test, ne change rien en base)" style="max-width:240px;">
+        <option value="">🎭 Voir comme… (${escapeHtml(ROLE_LABELS[profile.roleReel])})</option>
+        ${Object.entries(ROLE_LABELS)
+          .filter(([r]) => r !== profile.roleReel)
+          .map(([r, label]) => `<option value="${escapeHtml(r)}">${escapeHtml(label)}</option>`).join('')}
+      </select>
+    ` : ''}
   </div>
-
-  ${['patron', 'co-patron', 'admin-technique'].includes(profile.roleReel) ? `
-    <div class="panel mb-2" style="background:rgba(180,120,40,0.08);border:1px dashed #c93;">
-      <div class="row" style="flex-wrap:wrap;gap:10px;align-items:center;">
-        <span style="font-weight:bold;">🎭 Voir le site comme :</span>
-        <select id="select-view-as" style="min-width:240px;">
-          <option value="">— ma vue normale (${escapeHtml(ROLE_LABELS[profile.roleReel])}) —</option>
-          ${Object.entries(ROLE_LABELS)
-            .filter(([r]) => r !== profile.roleReel)
-            .map(([r, label]) => `<option value="${escapeHtml(r)}">${escapeHtml(label)}</option>`).join('')}
-        </select>
-        <span class="muted" style="font-size:0.78rem;">
-          (Ne change rien en base — tes droits réels restent ${escapeHtml(ROLE_LABELS[profile.roleReel])}.
-          Permet de voir ce que verrait un employé de ce rôle.)
-        </span>
-      </div>
-    </div>
-  ` : ''}
 
   <!-- Embauches à traiter (alimentées par #auto-rh) -->
   ${canCreate ? `
@@ -131,7 +122,7 @@ const html = `
       <label>Mot de passe provisoire</label>
       <div class="row">
         <input type="text" id="new-mdp" style="flex:1;" />
-        <button class="btn btn-sm" id="btn-gen-mdp" type="button">Générer</button>
+        <button class="btn btn-icon btn-sm" id="btn-gen-mdp" type="button" title="Générer un mot de passe" data-tooltip="Générer">🎲</button>
       </div>
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-creer">Créer</button>
@@ -439,13 +430,13 @@ function renderUsers() {
       <td class="center" data-averts-cell="${u.id}">
         <span class="muted">…</span>
       </td>
-      <td class="center">
-        <button class="btn btn-sm btn-ghost" data-edit-user="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Modifier</button>
-        <button class="btn btn-sm" data-regen-mdp="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors} title="Régénérer un nouveau mot de passe">🔑</button>
+      <td class="actions-cell">
+        <button class="btn btn-icon btn-sm btn-ghost" data-edit-user="${u.id}" ${canManage ? '' : 'disabled'} title="Modifier les infos" data-tooltip="Modifier">✏</button>
+        <button class="btn btn-icon btn-sm" data-regen-mdp="${u.id}" ${canManage ? '' : 'disabled'} title="Régénérer le mot de passe" data-tooltip="Nouveau MDP">🔑</button>
         ${u.statut !== 'suspendu'
-          ? `<button class="btn btn-sm" data-suspend="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} ${isSelf ? 'title="Tu ne peux pas te suspendre toi-même"' : tooltipHors}>Suspendre</button>`
-          : `<button class="btn btn-sm" data-reactiver="${u.id}" ${canManage ? '' : 'disabled'} ${tooltipHors}>Réactiver</button>`}
-        <button class="btn btn-sm btn-danger" data-delete="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} ${isSelf ? 'title="Tu ne peux pas te supprimer toi-même"' : tooltipHors}>×</button>
+          ? `<button class="btn btn-icon btn-sm" data-suspend="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} title="${isSelf ? 'Tu ne peux pas te suspendre toi-même' : 'Suspendre (licenciement)'}" data-tooltip="Suspendre">⏸</button>`
+          : `<button class="btn btn-icon btn-sm" data-reactiver="${u.id}" ${canManage ? '' : 'disabled'} title="Réactiver" data-tooltip="Réactiver">▶</button>`}
+        <button class="btn btn-icon btn-sm btn-danger" data-delete="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} title="${isSelf ? 'Tu ne peux pas te supprimer toi-même' : 'Supprimer le compte'}" data-tooltip="Supprimer">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -914,9 +905,9 @@ async function chargerEmbauches() {
       <td><strong>${escapeHtml(e.prenom || '')} ${escapeHtml(e.nom || '')}</strong></td>
       <td class="mono">${escapeHtml(e.idDiscord || '—')}</td>
       <td class="mono">${escapeHtml(e.idPerso || '—')}</td>
-      <td class="center">
-        <button class="btn btn-sm btn-primary" data-creer-embauche="${e.id}">+ Créer le compte</button>
-        <button class="btn btn-sm btn-ghost" data-marquer-traitee="${e.id}" title="Marquer comme traité (sans créer le compte)">✓</button>
+      <td class="actions-cell">
+        <button class="btn btn-icon btn-sm btn-primary" data-creer-embauche="${e.id}" title="Créer le compte (formulaire pré-rempli)" data-tooltip="Créer le compte">➕</button>
+        <button class="btn btn-icon btn-sm btn-ghost" data-marquer-traitee="${e.id}" title="Marquer comme traité (sans créer)" data-tooltip="Marquer traité">✓</button>
       </td>
     </tr>
   `).join('');

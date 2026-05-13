@@ -43,17 +43,17 @@ const html = `
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
 
-  <div class="row mb-2 wrap">
-    <select id="filtre-periode">
-      <option value="7j">📅 7 derniers jours (glissant)</option>
-      <option value="30j">30 derniers jours</option>
+  <div class="page-toolbar">
+    <select id="filtre-periode" title="Période d'analyse">
+      <option value="7j">📅 7 derniers jours</option>
+      <option value="30j">📅 30 derniers jours</option>
     </select>
-    <select id="filtre-station">
-      <option value="">Toutes les stations</option>
+    <select id="filtre-station" title="Filtrer par station">
+      <option value="">Toutes stations</option>
     </select>
     <span class="spacer"></span>
     <span class="muted mono" id="stats-carb">—</span>
-    <button class="btn" id="btn-export-csv">📥 Export CSV</button>
+    <button class="btn btn-icon" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
   </div>
 
   <div class="panel framed">

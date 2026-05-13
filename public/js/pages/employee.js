@@ -54,7 +54,7 @@ const html = `
 
   <p class="muted text-center mt-3" style="font-size:0.78rem;">
     Données mises à jour en continu via les logs Discord.<br>
-    Le compteur est remis à zéro chaque dimanche à 00 h 00.
+    Compteurs remis à zéro à la clôture (lundi 00 h 00, juste après dimanche 23 h 59).
   </p>
 `;
 renderShell(profile, 'employee', html);
