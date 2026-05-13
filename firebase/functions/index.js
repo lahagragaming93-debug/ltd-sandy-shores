@@ -91,6 +91,23 @@ export const clotureHebdo = onSchedule({
   }, { merge: true });
 
   console.log('Cloture etape 1 OK', weekKey, { ca, caProduits, caCarburant, depTotal });
+
+  // === Auto-avertissements quotas non atteints ===
+  // Genere AU MOMENT DE LA CLOTURE DES VENTES (dimanche 23:59 -> lundi 00:00).
+  // Logique RP : si l'employe n'a pas rempli ses quotas a la fin de la semaine
+  // (et donc avant que les paies soient versees), il prend l'avert tout de
+  // suite. Pas besoin d'attendre mardi 21h05 (la cloture des paies est une
+  // etape financiere distincte, sans rapport avec la performance hebdo).
+  //
+  // Pompiste : quota bidons OU caoutchoucs partiel -> 1 avert avec motif detaille
+  // Vendeur  : CA hebdo < quotaCAVendeur -> 1 avert
+  // Idempotent : id deterministe auto_{weekKey}_{uid} = max 1 avert auto/sem/user
+  // Direction (patron, co-patron, admin-tech) jamais ciblee.
+  try {
+    await genererAvertissementsAuto(weekKey, debut, fin);
+  } catch (e) {
+    console.error('[avertissements-auto]', e);
+  }
 });
 
 // === Cloture etape 2 : masse salariale + benefice net (mardi 21:05 Paris) ===
@@ -147,17 +164,6 @@ export const clotureHebdoPaies = onSchedule({
   }, { merge: true });
 
   console.log('Cloture etape 2 OK', weekKey, { masse, beneficeNet, nbPaies: paiesSnap.size });
-
-  // === Auto-avertissements quotas non atteints ===
-  // Pompiste : quota bidons OU caoutchoucs partiel -> 1 avert avec motif detaille
-  // Vendeur  : CA hebdo < quotaCAVendeur -> 1 avert
-  // Idempotent : id deterministe auto_{weekKey}_{uid} = max 1 avert auto/sem/user
-  // Direction (patron, co-patron, admin-tech) jamais ciblee.
-  try {
-    await genererAvertissementsAuto(weekKey, debut, fin);
-  } catch (e) {
-    console.error('[avertissements-auto]', e);
-  }
 });
 
 async function genererAvertissementsAuto(weekKey, debutSem, finSem) {

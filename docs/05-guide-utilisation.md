@@ -179,18 +179,19 @@ Salaire = (Score bidons + Score caoutchouc) / 2 × Plafond
 
 Automatique en deux temps via Cloud Function (heure Paris) :
 
-### Étape 1 — `clotureHebdo` : lundi 00 h 00
+### Étape 1 — `clotureHebdo` : lundi 00 h 00 (juste après dimanche 23 h 59)
 Clôt les **ventes** de la semaine écoulée. Une entrée apparaît dans
 `/semaines` avec CA, bénéfice brut, dépenses non-paies. Statut
 `cloturee-partielle` car les paies du dimanche peuvent être versées
 jusqu'au mardi 21 h.
 
+**Dans la foulée**, scan auto des quotas (voir *Avertissements → auto*) —
+l'avertissement tombe **à la fin de la semaine**, pas après les paies.
+
 ### Étape 2 — `clotureHebdoPaies` : mardi 21 h 05
 Récupère **toutes les paies effectivement versées** pour la semaine et
 finalise le doc `/semaines` (masse salariale réelle, bénéfice net).
 Statut `cloturee`.
-
-**Dans la foulée**, scan auto des quotas (voir *Avertissements → auto*).
 
 ## Avertissements
 
@@ -221,7 +222,7 @@ retrait (jamais supprimé). Trois actifs simultanés → compte bloqué.
 - **Direction toujours exemptée** (patron, co-patron, admin technique) —
   anti-deadlock si la direction prend 3 averts
 
-### Auto-avertissements (mardi 21 h 05, après clôture des paies)
+### Auto-avertissements (lundi 00 h 00, dès la clôture des ventes)
 Scan automatique de tous les employés actifs :
 
 - **Pompiste / responsable pompiste** : si bidons < quota OU caoutchoucs

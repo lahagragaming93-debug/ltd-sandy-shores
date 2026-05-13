@@ -91,7 +91,7 @@ if (isVendeur(profile.role)) {
   const salaireEst = salaireVendeur(profile.role, ca, benefice);
   const progressionCA = Math.min(100, (ca / CA_PLAFOND_VENDEUR) * 100);
   const commission = COMMISSION_VENDEUR[profile.role] * 100;
-  // Quota CA hebdo : si non atteint a la cloture mardi 21h05, avert auto.
+  // Quota CA hebdo : si non atteint a la cloture dimanche 23h59, avert auto.
   const quotaCA = Number(config.quotaCAVendeur ?? 30000);
   const pctQuotaCA = quotaCA > 0 ? Math.min(100, (ca / quotaCA) * 100) : 0;
 
@@ -105,7 +105,7 @@ if (isVendeur(profile.role)) {
   document.getElementById('detail').innerHTML = `
     <div class="row" style="gap:14px;flex-direction:column;align-items:stretch;">
       <div>
-        <div class="muted mono mb-1">Quota CA hebdo (avert auto si non atteint mardi 21h)</div>
+        <div class="muted mono mb-1">Quota CA hebdo (avert auto si non atteint à la clôture dimanche 23h59)</div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${pctQuotaCA}%;${ca >= quotaCA ? 'background:var(--color-cactus,#5a8);' : ''}"></div>
           <div class="label">${money(ca)} / ${money(quotaCA)} (${pct(pctQuotaCA, 0)})</div>
