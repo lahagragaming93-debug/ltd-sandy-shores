@@ -23,6 +23,15 @@ const editable = isDirection(profile.role) || isSuperAdmin(profile.role) || prof
 const canCreate = canCreateProduit(profile.role);
 
 const html = `
+  <!-- Onglets de section -->
+  <div class="row mb-2" id="onglets-stocks" style="gap:6px;flex-wrap:wrap;">
+    <button class="btn btn-tab active" data-section="vente_epicerie" title="Stock vendable aux particuliers (commission vendeur)">🛒 Vente épicerie <span class="badge neutral" data-count="vente_epicerie">0</span></button>
+    <button class="btn btn-tab" data-section="vente_pro" title="Stock vendable aux pros (CA LTD)">🏢 Vente fournisseur <span class="badge neutral" data-count="vente_pro">0</span></button>
+    <button class="btn btn-tab" data-section="achat_fournisseur" title="Matières premières achetées (non revendues)">📦 Achat fournisseur <span class="badge neutral" data-count="achat_fournisseur">0</span></button>
+    <button class="btn btn-tab" data-section="fabrication" title="Produits issus du craft (futurs)">🔧 Produits fabrication <span class="badge neutral" data-count="fabrication">0</span></button>
+    <button class="btn btn-tab" data-section="mouvements" title="Historique des derniers mouvements (entrée/sortie/ajustement)">📜 Mouvements</button>
+  </div>
+
   <div class="page-toolbar">
     <select id="filtre-categorie" title="Filtrer par catégorie">
       <option value="">Toutes catégories</option>
@@ -41,14 +50,14 @@ const html = `
     ` : ''}
   </div>
 
-  <!-- Section 1 : Vente LTD (particuliers) -->
-  <div class="panel framed">
+  <!-- Panel unique : affiche la section active -->
+  <div class="panel framed" id="panel-section-actif">
     <div class="panel-title">
-      <span>🛒 Vente LTD — particuliers <span class="muted" style="font-size:0.78rem;">(commission vendeur)</span></span>
-      <span class="muted mono" id="stats-stock-particulier">—</span>
+      <span id="section-titre">🛒 Vente épicerie — particuliers</span>
+      <span class="muted mono" id="stats-stock">—</span>
     </div>
     <div class="table-scroll">
-      <table class="data sortable" id="table-stocks-particulier">
+      <table class="data sortable" id="table-stocks">
         <thead>
           <tr>
             <th data-sort="nom">Produit <span class="sort-arrow"></span></th>
@@ -62,39 +71,14 @@ const html = `
             ${editable ? '<th class="center">Actions</th>' : ''}
           </tr>
         </thead>
-        <tbody id="tbody-stocks-particulier"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
+        <tbody id="tbody-stocks"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
       </table>
     </div>
   </div>
 
-  <!-- Section 2 : Vente fournisseur (pros) -->
-  <div class="panel framed" style="border-color:var(--color-info, #4a90e2);">
-    <div class="panel-title">
-      <span>🏢 Vente fournisseur — professionnels <span class="muted" style="font-size:0.78rem;">(CA LTD uniquement, pas de commission)</span></span>
-      <span class="muted mono" id="stats-stock-pro">—</span>
-    </div>
-    <div class="table-scroll">
-      <table class="data sortable" id="table-stocks-pro">
-        <thead>
-          <tr>
-            <th data-sort="nom">Produit <span class="sort-arrow"></span></th>
-            <th data-sort="categorie">Catégorie <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="qte">Stock <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="prixAchat">Prix achat <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="prixVente">Prix vente <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="marge">Marge <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="seuil">Seuil alerte <span class="sort-arrow"></span></th>
-            <th class="center" data-sort="statut">Statut <span class="sort-arrow"></span></th>
-            ${editable ? '<th class="center">Actions</th>' : ''}
-          </tr>
-        </thead>
-        <tbody id="tbody-stocks-pro"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-title"><span>Derniers mouvements de stock</span></div>
+  <!-- Panel mouvements (affiche uniquement quand section = mouvements) -->
+  <div class="panel framed hidden" id="panel-mouvements">
+    <div class="panel-title"><span>📜 Derniers mouvements de stock</span></div>
     <div id="mouvements">Chargement…</div>
   </div>
 
@@ -121,12 +105,13 @@ const html = `
       </div>
       <label>Stock initial <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
       <input type="number" id="new-produit-stock" min="0" step="1" value="0" />
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
-        <input type="checkbox" id="new-produit-pour-pro" />
-        <span>🏢 Vendu aux <strong>professionnels uniquement</strong>
-          <span class="muted" style="font-size:0.78rem;display:block;">Le CA entre en compta LTD mais ne génère pas de commission vendeur</span>
-        </span>
-      </label>
+      <label>Section de stock</label>
+      <select id="new-produit-section">
+        <option value="vente_epicerie">🛒 Vente épicerie — particuliers (commission vendeur)</option>
+        <option value="vente_pro">🏢 Vente fournisseur — pros (CA LTD, pas de commission)</option>
+        <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
+        <option value="fabrication">🔧 Produit de fabrication (issu du craft)</option>
+      </select>
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-creer-produit">Créer le produit</button>
         <button class="btn btn-ghost" id="btn-cancel-nouveau">Annuler</button>
@@ -145,12 +130,13 @@ const html = `
         <div><label>Prix vente ($)</label><input type="number" id="edit-prix-vente" min="0" step="0.01" /></div>
         <div><label>Seuil alerte</label><input type="number" id="edit-seuil" min="0" step="1" /></div>
       </div>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;">
-        <input type="checkbox" id="edit-pour-pro" />
-        <span>🏢 Vendu aux <strong>professionnels uniquement</strong>
-          <span class="muted" style="font-size:0.78rem;display:block;">Pas de commission vendeur ; CA compté pour le LTD</span>
-        </span>
-      </label>
+      <label>Section de stock</label>
+      <select id="edit-section">
+        <option value="vente_epicerie">🛒 Vente épicerie — particuliers (commission vendeur)</option>
+        <option value="vente_pro">🏢 Vente fournisseur — pros (CA LTD, pas de commission)</option>
+        <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
+        <option value="fabrication">🔧 Produit de fabrication (issu du craft)</option>
+      </select>
       <label>Ajustement manuel du stock</label>
       <div class="field-row">
         <div><input type="number" id="edit-delta" placeholder="+/− unités" /></div>
@@ -169,6 +155,22 @@ renderShell(profile, 'stocks_epicerie', html);
 let produits = [];
 let stocks = {};
 let sortState = { key: 'nom', dir: 'asc' };
+let sectionActive = 'vente_epicerie';
+
+const SECTION_LABELS = {
+  vente_epicerie:    { titre: '🛒 Vente épicerie — particuliers',           sub: '(commission vendeur)' },
+  vente_pro:         { titre: '🏢 Vente fournisseur — professionnels',      sub: '(CA LTD, pas de commission)' },
+  achat_fournisseur: { titre: '📦 Achat fournisseur — matières premières',  sub: '(achetées, non revendues)' },
+  fabrication:       { titre: '🔧 Produits de fabrication',                 sub: '(issus du craft)' }
+};
+
+// Determine la section d'appartenance d'un produit (1 seule)
+function sectionProduit(p) {
+  if (p.enFabrication) return 'fabrication';
+  if (p.intrant)       return 'achat_fournisseur';
+  if (p.pourPro)       return 'vente_pro';
+  return 'vente_epicerie';
+}
 
 const STATUT_ORDER = { rupture: 0, bas: 1, ok: 2 };
 
@@ -197,7 +199,7 @@ function sortRows(rows) {
 }
 
 function updateSortArrows() {
-  document.querySelectorAll('#table-stocks-particulier thead th[data-sort], #table-stocks-pro thead th[data-sort]').forEach(th => {
+  document.querySelectorAll('#table-stocks thead th[data-sort]').forEach(th => {
     const arrow = th.querySelector('.sort-arrow');
     if (!arrow) return;
     if (th.dataset.sort === sortState.key) {
@@ -213,7 +215,7 @@ function updateSortArrows() {
 async function chargerProduits() {
   produits = await listProduits().catch(() => []);
   if (produits.length === 0 && editable) {
-    document.getElementById('tbody-stocks-particulier').innerHTML = `
+    document.getElementById('tbody-stocks').innerHTML = `
       <tr><td colspan="9" class="muted text-center">
         Catalogue vide. Utilise "+ Ajouter un produit" pour commencer.
       </td></tr>`;
@@ -284,20 +286,48 @@ function wireActions(tbody) {
 }
 
 function renderTable() {
+  const panelStocks = document.getElementById('panel-section-actif');
+  const panelMvts   = document.getElementById('panel-mouvements');
+  const toolbar     = document.querySelector('.page-toolbar');
+
+  // === Section "Mouvements" : cache le panel stocks, affiche le panel mouvements ===
+  if (sectionActive === 'mouvements') {
+    panelStocks.classList.add('hidden');
+    panelMvts.classList.remove('hidden');
+    if (toolbar) toolbar.classList.add('hidden');
+    return;
+  }
+  panelStocks.classList.remove('hidden');
+  panelMvts.classList.add('hidden');
+  if (toolbar) toolbar.classList.remove('hidden');
+
+  // === Sections stock : filtre + render table ===
   const cat = document.getElementById('filtre-categorie').value;
   const niveau = document.getElementById('filtre-alerte').value;
   const recherche = document.getElementById('filtre-recherche').value.toLowerCase().trim();
 
-  let rows = produits.map(p => {
+  let allRows = produits.map(p => {
     const stock = stocks[p.id] || { quantite: 0 };
     const qte = stock.quantite || 0;
     const seuil = p.seuilAlerte ?? 0;
     let statut = 'ok';
     if (qte === 0) statut = 'rupture';
     else if (qte <= seuil) statut = 'bas';
-    return { p, qte, seuil, statut };
+    return { p, qte, seuil, statut, section: sectionProduit(p) };
   });
 
+  // Compteurs par section pour les badges des onglets
+  const counts = { vente_epicerie: 0, vente_pro: 0, achat_fournisseur: 0, fabrication: 0 };
+  for (const r of allRows) counts[r.section] = (counts[r.section] || 0) + 1;
+  for (const [s, c] of Object.entries(counts)) {
+    const el = document.querySelector(`[data-count="${s}"]`);
+    if (el) el.textContent = c;
+  }
+
+  // Filtre par section active
+  let rows = allRows.filter(r => r.section === sectionActive);
+
+  // Filtres globaux
   if (cat) rows = rows.filter(r => r.p.categorie === cat);
   if (niveau) rows = rows.filter(r => r.statut === niveau);
   if (recherche) rows = rows.filter(r => r.p.nom.toLowerCase().includes(recherche));
@@ -305,43 +335,43 @@ function renderTable() {
   rows = sortRows(rows);
   updateSortArrows();
 
-  const rowsPart = rows.filter(r => !r.p.pourPro);
-  const rowsPro  = rows.filter(r =>  r.p.pourPro);
+  // Titre + stats
+  const lbl = SECTION_LABELS[sectionActive];
+  document.getElementById('section-titre').innerHTML = `${lbl.titre} <span class="muted" style="font-size:0.78rem;">${lbl.sub}</span>`;
+  const out = rows.filter(r => r.statut === 'rupture').length;
+  const low = rows.filter(r => r.statut === 'bas').length;
+  const neg = rows.filter(r => r.qte < 0).length;
+  const parts = [`${rows.length} réf.`];
+  if (neg > 0) parts.push(`<span class="alerte-fort">${neg} négatif${neg>1?'s':''}</span>`);
+  if (out > 0) parts.push(`${out} rupture${out>1?'s':''}`);
+  if (low > 0) parts.push(`${low} bas`);
+  document.getElementById('stats-stock').innerHTML = parts.join(' · ');
 
-  const tbodyPart = document.getElementById('tbody-stocks-particulier');
-  const tbodyPro  = document.getElementById('tbody-stocks-pro');
+  const tbody = document.getElementById('tbody-stocks');
+  tbody.innerHTML = rows.length === 0
+    ? `<tr><td colspan="9" class="muted text-center">Aucun produit dans cette section.</td></tr>`
+    : rows.map(ligneProduit).join('');
 
-  tbodyPart.innerHTML = rowsPart.length === 0
-    ? `<tr><td colspan="9" class="muted text-center">Aucun produit "particulier".</td></tr>`
-    : rowsPart.map(ligneProduit).join('');
-  tbodyPro.innerHTML = rowsPro.length === 0
-    ? `<tr><td colspan="9" class="muted text-center">Aucun produit "professionnel".</td></tr>`
-    : rowsPro.map(ligneProduit).join('');
-
-  wireActions(tbodyPart);
-  wireActions(tbodyPro);
-
-  // Stats compactes par section
-  const statTxt = (list) => {
-    const out = list.filter(r => r.statut === 'rupture').length;
-    const low = list.filter(r => r.statut === 'bas').length;
-    const neg = list.filter(r => r.qte < 0).length;
-    const parts = [`${list.length} réf.`];
-    if (neg > 0) parts.push(`<span class="alerte-fort">${neg} négatif${neg>1?'s':''}</span>`);
-    if (out > 0) parts.push(`${out} rupture${out>1?'s':''}`);
-    if (low > 0) parts.push(`${low} bas`);
-    return parts.join(' · ');
-  };
-  document.getElementById('stats-stock-particulier').innerHTML = statTxt(rowsPart);
-  document.getElementById('stats-stock-pro').innerHTML = statTxt(rowsPro);
+  wireActions(tbody);
 }
+
+// Onglets de section
+document.querySelectorAll('#onglets-stocks .btn-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#onglets-stocks .btn-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sectionActive = btn.dataset.section;
+    renderTable();
+    if (sectionActive === 'mouvements') chargerMouvements();
+  });
+});
 
 document.getElementById('filtre-categorie').addEventListener('change', renderTable);
 document.getElementById('filtre-alerte').addEventListener('change', renderTable);
 document.getElementById('filtre-recherche').addEventListener('input', renderTable);
 
-// Tri par colonne (click sur en-tête) — appliqué aux 2 tables
-document.querySelectorAll('#table-stocks-particulier thead th[data-sort], #table-stocks-pro thead th[data-sort]').forEach(th => {
+// Tri par colonne (click sur en-tête)
+document.querySelectorAll('#table-stocks thead th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
     const key = th.dataset.sort;
     if (sortState.key === key) {
@@ -362,7 +392,7 @@ function ouvrirEdition(id) {
   document.getElementById('edit-prix-achat').value = p.prixAchat || 0;
   document.getElementById('edit-prix-vente').value = p.prixVente || 0;
   document.getElementById('edit-seuil').value = p.seuilAlerte || 0;
-  document.getElementById('edit-pour-pro').checked = !!p.pourPro;
+  document.getElementById('edit-section').value = sectionProduit(p);
   document.getElementById('edit-delta').value = '';
   document.getElementById('edit-raison').value = '';
   document.getElementById('modal-edit').classList.remove('hidden');
@@ -376,12 +406,16 @@ document.getElementById('btn-save').addEventListener('click', async () => {
   const id = document.getElementById('edit-id').value;
   const p = produits.find(x => x.id === id);
   if (!p) return;
+  const section = document.getElementById('edit-section').value;
   const patch = {
     nom: document.getElementById('edit-nom').value.trim(),
     prixAchat: Number(document.getElementById('edit-prix-achat').value) || 0,
     prixVente: Number(document.getElementById('edit-prix-vente').value) || 0,
     seuilAlerte: Number(document.getElementById('edit-seuil').value) || 0,
-    pourPro: document.getElementById('edit-pour-pro').checked,
+    // Section -> 3 flags pourPro / intrant / enFabrication (1 seul actif)
+    pourPro:       section === 'vente_pro',
+    intrant:       section === 'achat_fournisseur',
+    enFabrication: section === 'fabrication',
     categorie: p.categorie
   };
   const delta = Number(document.getElementById('edit-delta').value);
@@ -466,7 +500,8 @@ async function chargerMouvements() {
   wrapScroll(tMvts, 400);
   makeSortable(tMvts);
 }
-chargerMouvements();
+// Note : chargerMouvements() est appele uniquement quand l'onglet Mouvements
+// est active (clic sur onglet). Pas de chargement initial.
 
 // === Création d'un nouveau produit (direction + DRH) ===
 function slugify(s) {
@@ -498,7 +533,8 @@ if (btnNouveauProduit) {
     document.getElementById('new-produit-prix-vente').value = 0;
     document.getElementById('new-produit-seuil').value = 5;
     document.getElementById('new-produit-stock').value = 0;
-    document.getElementById('new-produit-pour-pro').checked = false;
+    // Section : par defaut, on prefill avec la section active
+    document.getElementById('new-produit-section').value = sectionActive === 'mouvements' ? 'vente_epicerie' : sectionActive;
     modalNouveau.classList.remove('hidden');
     setTimeout(() => inputNom.focus(), 50);
   });
@@ -515,7 +551,10 @@ if (btnNouveauProduit) {
     const prixVente  = Number(document.getElementById('new-produit-prix-vente').value) || 0;
     const seuilAlerte= Number(document.getElementById('new-produit-seuil').value) || 0;
     const stockInit  = Number(document.getElementById('new-produit-stock').value) || 0;
-    const pourPro    = document.getElementById('new-produit-pour-pro').checked;
+    const section    = document.getElementById('new-produit-section').value;
+    const pourPro       = section === 'vente_pro';
+    const intrant       = section === 'achat_fournisseur';
+    const enFabrication = section === 'fabrication';
 
     if (!nom)          return toastError("Nom obligatoire.");
     if (!/^[a-z0-9-]+$/.test(id)) return toastError("Identifiant invalide (lettres minuscules, chiffres, tirets uniquement).");
@@ -533,7 +572,7 @@ if (btnNouveauProduit) {
     }
 
     try {
-      await setProduit(id, { nom, categorie, prixAchat, prixVente, seuilAlerte, pourPro });
+      await setProduit(id, { nom, categorie, prixAchat, prixVente, seuilAlerte, pourPro, intrant, enFabrication });
       // Stock initial : ajustement avec raison "création"
       if (stockInit > 0) {
         const me = getCurrentUser();

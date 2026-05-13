@@ -1,7 +1,42 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-13 (Distinction produits particulier/pro + anti-doublon vente bot↔manuelle + refonte salaire vendeur)**
+> Dernière mise à jour : **2026-05-13 (Stocks épicerie en 5 onglets : épicerie / pro / achat fournisseur / fabrication / mouvements)**
+
+---
+
+## ✅ Session 2026-05-13 — Stocks en 5 onglets + flag intrant
+
+**Demande patron** : restructurer la page Stocks épicerie en 4 sections distinctes accessibles par onglets (pas de scroll) :
+1. 🛒 Vente épicerie — particuliers (commission vendeur)
+2. 🏢 Vente fournisseur — pros (CA LTD)
+3. 📦 Achat fournisseur — matières premières (achetées, non revendues)
+4. 🔧 Produits de fabrication (issus du craft, à venir)
+
+Puis demande complémentaire : 5e onglet 📜 Mouvements de stock (qui était en panel séparé en bas).
+
+**Implémentation** :
+- `public/js/data/produits.js` : flag `intrant: true` sur acier, cuivre, caoutchouc, corde, feve-cacao. Flag `enFabrication` prévu mais aucun produit actuel ne l'a (en attente du go craft).
+- `public/js/pages/stocks.js` :
+  - 5 onglets en haut (`btn-tab`), avec compteurs par section
+  - 1 seul panel affiché à la fois selon l'onglet actif (`sectionActive`)
+  - Fonction `sectionProduit(p)` détermine la section unique d'un produit : enFabrication > intrant > pourPro > vente_epicerie
+  - Filtres (catégorie / niveau / recherche) appliqués sur la section active
+  - Onglet "Mouvements" : cache le panel stocks + filtres, affiche le panel mouvements (lazy load)
+  - Modale création/édition : select avec 4 sections au lieu de checkbox pourPro
+- `public/css/western.css` : nouveau style `.btn-tab` / `.btn-tab.active` (rouge LTD)
+- `public/js/utils/vente-modal.js` : exclut TOUJOURS les intrants (peu importe le rôle). Vendeur ne voit que !pourPro + !intrant. Direction voit !intrant.
+- Backfill Firestore : 5 produits intrant=true (acier, cuivre, caoutchouc, corde, feve-cacao)
+
+**Pourquoi cette structure** :
+- Les matières premières (acier, cuivre, etc.) ne doivent jamais être vendues — flag `intrant` les sort des modal vente définitivement
+- Les futurs produits craftables auront une section dédiée pour ne pas se mélanger aux produits achetés-revendus standards
+- L'onglet Mouvements remplace l'ancien panel en bas de page → moins de scroll
+
+**Rappels en attente du go patron** :
+- 6+ produits craftables à créer (Visseries, Pioche, Jerrican, Plomberie, Câble électrique, Charbon, Bobine, Tissu) — voir `reminders_a_clarifier_craft.md` en mémoire interne
+- Prix acier (40 $) à actualiser quand GB Foundry rouvre, cuivre à fixer
+- Bidon vide, Tissu, prix Lumière violette : à revoir à l'ouverture du craft
 
 ---
 

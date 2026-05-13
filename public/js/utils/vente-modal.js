@@ -319,11 +319,14 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role } = {}) {
   injectModalIfNeeded();
   if (!produitsCache) produitsCache = await listProduits().catch(() => []);
   // Filtre les produits visibles selon le role :
-  // - Vendeur (Novice/Inter/Exp) ne voit QUE les produits "particulier" (pourPro=false)
-  // - Direction/DRH/Resp Vente/admin-technique voit tout (peut vendre aux pros)
+  // - On exclut TOUJOURS les intrants (matiere premiere achetee, jamais revendue)
+  // - Vendeur (Novice/Inter/Exp) ne voit QUE les produits particulier (pourPro=false)
+  //   et les produits de fabrication (enFabrication=true)
+  // - Direction/DRH/Resp Vente/admin-technique voit tout (sauf intrants)
+  const nonIntrant = produitsCache.filter(p => !p.intrant);
   produitsVisibles = isVendeur(role)
-    ? produitsCache.filter(p => !p.pourPro)
-    : produitsCache;
+    ? nonIntrant.filter(p => !p.pourPro)
+    : nonIntrant;
   onSuccessCb = onSuccess || null;
 
   document.getElementById('modal-vente-title').textContent = '📝 Déclarer une vente';
@@ -347,7 +350,8 @@ export async function ouvrirModalModifierVente(vente, { onSuccess } = {}) {
   injectModalIfNeeded();
   if (!produitsCache) produitsCache = await listProduits().catch(() => []);
   // Edition = admin/direction => acces complet au catalogue (pros + particuliers)
-  produitsVisibles = produitsCache;
+  // mais TOUJOURS exclure les intrants (matieres premieres achetees, non vendues)
+  produitsVisibles = produitsCache.filter(p => !p.intrant);
   onSuccessCb = onSuccess || null;
 
   document.getElementById('modal-vente-title').textContent = `✏ Modifier la vente #${vente.factureId || vente.id}`;

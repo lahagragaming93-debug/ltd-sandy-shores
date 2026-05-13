@@ -5,12 +5,16 @@
 // Catégories alignées sur l'inventaire FiveM réel (export 2026-05-10)
 // ============================================================
 // pourPro = true  : produit vendu uniquement aux professionnels (autres
-//                   entreprises, en gros / matiere premiere). Direction/DRH/
-//                   Resp Vente gerent ces ventes. Pas de commission vendeur :
-//                   le CA n'entre pas dans le calcul du salaire estime, mais
-//                   reste dans le CA LTD pour la compta.
+//                   entreprises, en gros). Direction/DRH/Resp Vente gerent
+//                   ces ventes. Pas de commission vendeur, mais CA LTD compte.
 // pourPro = false : produit vendu aux particuliers par les vendeurs.
 //                   Commission calculee dessus (CA × commission).
+// intrant = true  : matiere premiere achetee mais JAMAIS revendue. Sert
+//                   uniquement comme intrant pour le craft. Section "Achat
+//                   fournisseur" dans Stocks epicerie. Invisible dans toutes
+//                   les modal de vente. (cf [[projet_matieres_premieres_intrants]])
+// enFabrication = true : produit issu du craft (futur). Section "Produits
+//                   de fabrication" dans Stocks epicerie.
 // ============================================================
 
 export const CATEGORIES = [
@@ -140,14 +144,14 @@ export const CATALOGUE = [
     note: 'Compté pour quota pompiste' },
 
   // MATIÈRE PREMIÈRE
-  { id: 'caoutchouc',              nom: 'Caoutchouc',              categorie: 'matiere_premiere', prixVente: 6,    pourPro: true,
-    note: 'Compté pour quota pompiste' },
-  { id: 'acier',                   nom: 'Acier',                   categorie: 'matiere_premiere', prixVente: 0,    pourPro: true,
-    note: 'Prix à confirmer' },
-  { id: 'cuivre',                  nom: 'Cuivre',                  categorie: 'matiere_premiere', prixVente: 0,    pourPro: true,
-    note: 'Prix à confirmer' },
-  { id: 'feve-cacao',              nom: 'Fève de Cacao',           categorie: 'matiere_premiere', prixVente: 0,    pourPro: true,
-    note: 'Prix à confirmer' },
+  { id: 'caoutchouc',              nom: 'Caoutchouc',              categorie: 'matiere_premiere', prixVente: 6,    pourPro: true, intrant: true,
+    note: 'Compté pour quota pompiste — intrant craft Jerrican' },
+  { id: 'acier',                   nom: 'Acier',                   categorie: 'matiere_premiere', prixVente: 0,    pourPro: true, intrant: true,
+    note: 'GB Foundry — 40$ achat (60$ TEMP pénurie)' },
+  { id: 'cuivre',                  nom: 'Cuivre',                  categorie: 'matiere_premiere', prixVente: 0,    pourPro: true, intrant: true,
+    note: 'GB Foundry — prix à confirmer à réouverture' },
+  { id: 'feve-cacao',              nom: 'Fève de Cacao',           categorie: 'matiere_premiere', prixVente: 0,    pourPro: true, intrant: true,
+    note: 'Intrant craft chocolat' },
 
   // PÊCHE
   { id: 'canne-peche',             nom: 'Canne à pêche',           categorie: 'peche',            prixVente: 64,   pourPro: false },
@@ -163,7 +167,8 @@ export const CATALOGUE = [
   { id: 'trousseau-clefs',         nom: 'Trousseau de Clefs',      categorie: 'divers',           prixVente: 80,   pourPro: false },
   { id: 'colle',                   nom: 'Colle',                   categorie: 'divers',           prixVente: 2,    pourPro: false },
   { id: 'encre',                   nom: 'Encre',                   categorie: 'divers',           prixVente: 4,    pourPro: true },
-  { id: 'corde',                   nom: 'Corde',                   categorie: 'divers',           prixVente: 10,   pourPro: true },
+  { id: 'corde',                   nom: 'Corde',                   categorie: 'divers',           prixVente: 10,   pourPro: true, intrant: true,
+    note: 'Intrant craft Filet / Jerrican / Sac jute' },
   { id: 'lumiere-violette',        nom: 'Lumière Violette',        categorie: 'divers',           prixVente: 20,   pourPro: false },
   { id: 'solvant',                 nom: 'Solvant',                 categorie: 'divers',           prixVente: 25,   pourPro: true },
   { id: 'eponge-nettoyage',        nom: 'Éponge Nettoyage',        categorie: 'divers',           prixVente: 1000, pourPro: true },

@@ -1005,6 +1005,28 @@ table.data .sort-arrow {
   border-color: var(--color-blood-light);
 }
 
+/* === Onglets de section (style "tab" pour pages a 4+ vues) === */
+.btn-tab {
+  padding: 7px 14px;
+  font-size: 0.78rem;
+  border-color: var(--color-charcoal-2);
+  background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%);
+  color: var(--color-sand);
+  opacity: 0.78;
+}
+.btn-tab:hover {
+  opacity: 1;
+  border-color: var(--color-blood-light);
+}
+.btn-tab.active {
+  background: linear-gradient(180deg, var(--color-blood) 0%, var(--color-blood-dark) 100%);
+  border-color: var(--color-blood-light);
+  color: var(--color-bone);
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(180, 30, 30, 0.35);
+}
+.btn-tab .badge { margin-left: 6px; font-size: 0.7rem; }
+
 /* === Boutons-icones compacts ===
    Pour les actions sur lignes de tableau (Modifier, Supprimer, etc.)
    et la barre d'actions globale d'une page. Affiche une icone Unicode
