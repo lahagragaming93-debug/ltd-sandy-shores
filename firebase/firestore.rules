@@ -146,19 +146,20 @@ service cloud.firestore {
     // canAdmin toujours OK (direction exemptee du blocage). isRespPompiste
     // soumis a isNotBlocked pour eviter qu'un responsable cumule 3 averts
     // mais continue a modifier les stations.
+    // 2026-05-13 : DRH ajoute en ecriture (alignement Direction sur demande patron).
     match /stations/{id} {
       allow read:  if isAuth() && isActif();
-      allow write: if canAdmin() || (isRespPompiste() && isNotBlocked());
+      allow write: if canAdmin() || isDRH() || (isRespPompiste() && isNotBlocked());
     }
     match /redistributions/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || (isRespPompiste() && isNotBlocked());
-      allow update, delete: if canAdmin();
+      allow create: if canAdmin() || isDRH() || (isRespPompiste() && isNotBlocked());
+      allow update, delete: if canAdmin() || isDRH();
     }
     match /declarationsCaoutchouc/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || (isRespPompiste() && isNotBlocked());
-      allow update, delete: if canAdmin();
+      allow create: if canAdmin() || isDRH() || (isRespPompiste() && isNotBlocked());
+      allow update, delete: if canAdmin() || isDRH();
     }
 
     // === Avertissements (3 actifs = compte bloque) ===

@@ -16,10 +16,10 @@ import { confirmCritique } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('stocks_epicerie');
-// 2026-05-11 : restreint a Direction + Admin Technique uniquement (sur demande
-// du patron, pour audit inventaire hebdo physique). Responsable Vente et DRH
-// ne peuvent plus modifier les stocks epicerie.
-const editable = isDirection(profile.role) || isSuperAdmin(profile.role);
+// 2026-05-11 : restreint a Direction + Admin Technique (audit inventaire hebdo).
+// 2026-05-13 : DRH re-autorise sur demande du patron (alignement Direction).
+//              Responsable Vente reste exclu de la modification.
+const editable = isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh';
 const canCreate = canCreateProduit(profile.role);
 
 const html = `

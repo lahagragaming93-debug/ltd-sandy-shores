@@ -1,7 +1,27 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-11 (suite 5 : factures #factures, permissions pompiste, mentions GitHub retirées)**
+> Dernière mise à jour : **2026-05-13 (DRH aligné Direction sur stocks épicerie + stations essence)**
+
+---
+
+## ✅ Session 2026-05-13 — DRH peut modifier les stocks (alignement Direction)
+
+**Demande patron** : le DRH doit avoir les mêmes droits que Patron / Co-Patron / Admin Technique pour modifier les stocks (épicerie + essence).
+
+**Contexte** : depuis 2026-05-11, le DRH ne pouvait plus modifier les stocks épicerie (restriction posée pour audit inventaire hebdo physique). Il ne pouvait pas non plus modifier les stations essence (`fullEdit` réservé à direction + admin-technique). Le patron revient sur ces deux restrictions.
+
+**Fichiers modifiés** :
+- `public/js/pages/stocks.js` ligne 22 : `editable` inclut désormais `'drh'`
+- `public/js/pages/stations.js` ligne 20 : `fullEdit` inclut désormais `'drh'` (peut ajouter/supprimer station, modifier prix/capacité/stock/N° pompe)
+- `firebase/firestore.rules` : ajout `isDRH()` en écriture sur `/stations`, `/redistributions`, `/declarationsCaoutchouc`
+- `public/guide/02-drh.md` : tableau modules + section "Ce que tu peux AUSSI faire" mis à jour pour refléter les stocks essence
+
+**Non touché (volontairement)** :
+- `comptabilite_edit` reste exclusif à Direction + admin-technique (audit financier — pas dans la demande)
+- Le Responsable Vente reste exclu de la modification des stocks épicerie (la restriction 2026-05-11 le concernait aussi, et le patron n'a parlé que du DRH)
+
+**Déploiement** : rules Firestore redéployées (`firebase deploy --only firestore:rules`), site re-déployé.
 
 ---
 

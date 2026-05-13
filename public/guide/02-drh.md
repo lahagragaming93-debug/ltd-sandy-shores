@@ -11,16 +11,19 @@
 | Module | Accès | Rôle |
 |--------|-------|------|
 | 📊 Dashboard | Lecture | Vue d'ensemble (CA, masse, alertes) |
-| 🛒 Stocks épicerie | Lecture + écriture | Voir, modifier, **et créer de nouveaux produits** au catalogue |
+| 🛒 Stocks épicerie | **Lecture + écriture** | Voir, modifier les stocks, **et créer de nouveaux produits** au catalogue |
+| ⛽ Stations essence | **Lecture + écriture** | Modifier capacité / prix / stock / N° pompe, ajouter ou supprimer une station |
 | 💵 Ventes | Lecture | Voir les factures de la semaine |
 | 📋 Comptabilité | Lecture | Voir les comptes (pas modifier) |
 | 🧑‍💼 **Ressources humaines** | **Lecture + écriture** | Gérer effectif et salaires décidés |
 | ⚙ **Administration** | **Lecture + écriture (sauf direction)** | Créer / modifier / suspendre / supprimer des comptes |
 | 👤 Mon espace + 💰 Mes paies | Lecture | Tes infos perso |
 
-> 🔒 Tu **n'as pas accès** à : Stations essence (privilège pompiste), **Configuration globale** dans Administration (réservée à la direction).
+> 🔒 Tu n'as pas accès à : **Configuration globale** dans Administration (réservée à la direction).
 >
 > 🔐 **Périmètre Administration** : tu peux gérer **tous les comptes sauf le Patron et le Co-Patron** (les comptes hors périmètre apparaissent en lecture seule, actions grisées). Tu peux gérer un autre DRH.
+>
+> 🆕 **2026-05-13** : tu peux désormais modifier les stocks épicerie et essence (alignement avec la direction sur décision du patron).
 
 ---
 
@@ -76,10 +79,12 @@ Une ligne par employé avec :
 
 > ⚠ Tu peux décider **ton propre salaire** (DRH = 20 000 $ max). Logiquement ça doit être validé tacitement avec le Patron.
 
-### Ce que tu peux AUSSI faire (catalogue produits)
+### Ce que tu peux AUSSI faire (stocks épicerie + essence)
 - ✅ **Ajouter un nouveau produit** au catalogue (Stocks épicerie → « + Ajouter un produit »)
 - ✅ **Modifier** les fiches produits existantes (nom, prix achat/vente, seuil)
-- ✅ Les Responsables Vente peuvent modifier mais **pas créer** de nouveaux produits — c'est ton rôle (et celui de la direction)
+- ✅ **Ajuster manuellement les stocks** épicerie (avec justification obligatoire — tracé dans les mouvements)
+- ✅ **Gérer les stations essence** : ajouter / supprimer une station, modifier sa capacité, son prix, son stock actuel, son N° de pompe
+- ✅ Les Responsables Vente peuvent modifier les fiches mais **pas créer** de nouveaux produits — c'est ton rôle (et celui de la direction)
 
 ### Ce que tu ne peux PAS faire
 

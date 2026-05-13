@@ -16,7 +16,8 @@ import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 const { profile } = await requireAuth('stocks_essence');
 // fullEdit  = peut TOUT modifier (prix, capacite, seuil, N° pompe, supprimer, ajouter une station)
 // stockOnly = peut UNIQUEMENT toucher stockActuel (pompiste qui ravitaille)
-const fullEdit  = isDirection(profile.role) || isSuperAdmin(profile.role);
+// 2026-05-13 : DRH ajoute dans fullEdit (alignement Direction sur demande patron).
+const fullEdit  = isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh';
 const stockOnly = !fullEdit && (profile.role === 'responsable-pompiste' || isPompiste(profile.role));
 const editable  = fullEdit || stockOnly;
 
