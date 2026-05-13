@@ -291,6 +291,19 @@ Créé pour forcer la quantité (SET absolu, pas increment) après comptage manu
 6. **Compléter les prix** des ~16 nouveaux produits via `/admin` (whey, plats cuisinés, perceuses, matières premières, etc.) — actuellement à 0 avec note "à confirmer".
 7. **IDs des coffres station-essence** à demander à Blake (FiveM `action-XXXXX-X`) pour étendre `SOURCES_LTD_PREFIXES` dans `discord-bot/parsers/items-mapping.js`.
 
+## 🔔 Rappels datés à ne pas manquer
+
+- **2026-09-01 → 2026-09-30** : upgrade Cloud Functions vers **Node 22** +
+  `firebase-functions@latest`. Node 20 sera décommissionné le **2026-10-30**
+  par Google Cloud (plus de redéploiement possible après). Procédure :
+  1. `cd firebase/functions && npm install --save firebase-functions@latest`
+  2. Dans `package.json` : `"engines": { "node": "22" }`
+  3. Tester localement avec l'emulator
+  4. Re-déployer toutes les Functions et vérifier les logs
+  5. Risques : breaking changes possibles sur la syntaxe v2 (`onSchedule`,
+     `onRequest`, `onDocumentCreated`). Voir
+     https://firebase.google.com/docs/functions/beta/release-notes
+
 ## 🔧 Audit/optimisations à faire (non bloquant, mais à planifier)
 
 - **Cloche alertes — règles Firestore restrictives** : `update` sur `/alertes` n'est autorisé que pour `canAdmin || isDRH || isResponsable`. Le bouton "marquer lu" sera bloqué silencieusement pour les autres rôles. Soit étendre les rules pour `lu: true` à tout user actif, soit masquer la cloche/le bouton pour les rôles sans permission.

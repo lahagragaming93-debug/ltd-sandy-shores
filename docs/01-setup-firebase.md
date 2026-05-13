@@ -6,7 +6,7 @@
 ## Prérequis
 
 - Un compte Google
-- Node.js installé (v20+) — vérifier avec `node --version`
+- Node.js installé (v22+ recommandé — Node 20 sera décommissionné par Cloud Functions le **2026-10-30**) — vérifier avec `node --version`
 
 ## Étape 1 : Créer le projet Firebase
 

@@ -24,15 +24,28 @@
    └─────────┬────────────┘
              │  Admin SDK
              ▼
-   ┌──────────────────────┐         ┌──────────────────────┐
-   │  Firestore           │ <─────> │  Cloud Functions     │
-   │  (collections)       │         │  - botIngest         │
-   │                      │         │  - clotureHebdo      │
-   │                      │         │  - comptaExport      │
-   │                      │         │  - alerteStock       │
-   │                      │         │  - alerteStation     │
-   │                      │         │  - alerteVenteSansStock│
-   └─────────┬────────────┘         └──────────────────────┘
+   ┌──────────────────────┐         ┌──────────────────────────────────┐
+   │  Firestore           │ <─────> │  Cloud Functions                 │
+   │  (collections)       │         │  Ingestion :                     │
+   │                      │         │  - botIngest                     │
+   │                      │         │  Cron :                          │
+   │                      │         │  - clotureHebdo (lun 00h)        │
+   │                      │         │  - clotureHebdoPaies (mar 21:05) │
+   │                      │         │  - verifierSortiesExpirees (5min)│
+   │                      │         │  Callables (auth) :              │
+   │                      │         │  - declarerVente / modifierVente │
+   │                      │         │  - pompisteRavitaillerManuel     │
+   │                      │         │  - pompisteDeclarerCaoutchoucs   │
+   │                      │         │  - adminResetPassword            │
+   │                      │         │  - migrateUsername               │
+   │                      │         │  Triggers Firestore :            │
+   │                      │         │  - alerteStock / alerteStation   │
+   │                      │         │  - alerteVenteSansStock          │
+   │                      │         │  - onAvertissementChange         │
+   │                      │         │  - onMouvementStockCreated       │
+   │                      │         │  HTTP public (token) :           │
+   │                      │         │  - comptaExport (Sheets)         │
+   └─────────┬────────────┘         └──────────────────────────────────┘
              │  SDK Web v10 modular
              ▼
    ┌──────────────────────┐
@@ -69,6 +82,10 @@
 | `rapportsPompisteQuotidien` | auto       | Snapshot quotidien CA + niveaux stations |
 | `statsHebdoOfficiels` | weekId           | Récap hebdo FiveM officiel (#statsbank)  |
 | `banqueLtd`          | auto              | Mouvements bancaires LTD                 |
+| `avertissements`     | auto              | Avertissements RH (3 actifs = compte bloqué) |
+| `declarationsCaoutchouc` | auto          | Audit déclaration manuelle caoutchoucs pompiste |
+| `sorties_en_cours`   | auto              | Anti-vol 30min : sortie coffre LTD en attente de régularisation |
+| `counters`           | nom              | Compteurs séquentiels (ex. factures manuelles `M{date}-{seq}`) |
 
 ## Parsers Discord (bot)
 
