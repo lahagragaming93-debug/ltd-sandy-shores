@@ -1622,12 +1622,6 @@ export const declarerVente = onRequest({
     }
 
     const { clientNom, moyenPaiement, montantEncaisse, lignes } = req.body || {};
-    if (!clientNom || !String(clientNom).trim()) return res.status(400).json({ error: 'clientNom obligatoire' });
-    if (!moyenPaiement || !String(moyenPaiement).trim()) return res.status(400).json({ error: 'moyenPaiement obligatoire' });
-    const montant = Number(montantEncaisse);
-    if (!Number.isFinite(montant) || montant <= 0) {
-      return res.status(400).json({ error: 'montantEncaisse doit etre > 0' });
-    }
     if (!Array.isArray(lignes) || lignes.length === 0) {
       return res.status(400).json({ error: 'Ajoute au moins une ligne de produit' });
     }
@@ -1635,9 +1629,12 @@ export const declarerVente = onRequest({
       return res.status(400).json({ error: 'Maximum 50 lignes par vente' });
     }
 
-    // Resolution des produits + prixAchat serveur (anti-fraude)
+    // Resolution des produits + calcul serveur (anti-fraude).
+    // Le montant peut etre fourni (admin) ou calcule auto depuis prixVente
+    // du catalogue (cas declaration employe : tout vient du serveur).
     const lignesResolues = [];
     let coutTotal = 0;
+    let prixVenteTotal = 0;
     for (const l of lignes) {
       const pid = String(l.produitId || '').trim();
       const qte = Number(l.quantite);
@@ -1649,13 +1646,24 @@ export const declarerVente = onRequest({
       if (!prodSnap.exists) return res.status(400).json({ error: `Produit inconnu : ${pid}` });
       const prod = prodSnap.data();
       const prixAchat = Number(prod.prixAchat || 0);
+      const prixVente = Number(prod.prixVente || 0);
       lignesResolues.push({
         produitId: pid,
         produitNom: prod.nom || pid,
         quantite: qte,
-        prixAchat
+        prixAchat,
+        prixVente
       });
       coutTotal += qte * prixAchat;
+      prixVenteTotal += qte * prixVente;
+    }
+    // Si montantEncaisse non fourni, on prend le total prix de vente catalogue.
+    const montantFourni = Number(montantEncaisse);
+    const montant = Number.isFinite(montantFourni) && montantFourni > 0
+      ? montantFourni
+      : prixVenteTotal;
+    if (montant <= 0) {
+      return res.status(400).json({ error: 'Montant total nul (verifie les prix de vente du catalogue).' });
     }
     const benefice = montant - coutTotal;
 
@@ -1696,8 +1704,8 @@ export const declarerVente = onRequest({
         source: 'manuelle',
         vendeurId: decoded.uid,
         vendeurNom,
-        client: String(clientNom).trim(),
-        paiement: String(moyenPaiement).trim(),
+        client: String(clientNom || 'Client comptoir').trim(),
+        paiement: String(moyenPaiement || 'especes').trim(),
         montant,
         coutTotal,
         benefice,

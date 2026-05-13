@@ -85,20 +85,19 @@ ses métadonnées de modification (jamais de delete).
 - Heures de service de la semaine (information uniquement)
 
 ### Déclaration de vente
-L'employé déclare lui-même chaque vente sur le site. Source de vérité :
-le **bénéfice est calculé serveur** (le prix d'achat vient de `/produits`
-et ne peut pas être trafiqué côté client).
+L'employé déclare la vente en saisissant **uniquement les produits + quantités**.
+Le **prix de vente** vient du catalogue `/produits`, le **prix d'achat**
+aussi, et le **bénéfice** est calculé automatiquement par le serveur.
 
 1. Page **Mon espace** → bouton **📝 Déclarer une vente**
 2. Ajouter une ou plusieurs **lignes produit** (menu déroulant par catégorie,
    triées alphabétiquement) avec quantité
-3. Saisir le **montant encaissé** (ce que le client a payé)
-4. Choisir le **moyen de paiement** (espèces / carte / autre)
-5. Renseigner le **nom du client** (obligatoire)
-6. Le **coût total** et le **bénéfice** se calculent en direct dans le modal
-7. **Valider la vente** → la facture est créée dans `/ventes` avec :
+3. Le **prix de vente catalogue**, le **coût total** et le **bénéfice** se
+   calculent en direct dans le modal
+4. **Valider la vente** → la facture est créée dans `/ventes` avec :
    - `factureId` auto au format `M{YYYYMMDD}-{NNNN}` (M = manuelle)
    - `source: 'manuelle'`, `verrouille: true`
+   - `client: 'Client comptoir'`, `paiement: 'especes'` par défaut
    - décrément automatique de `/stocks` (transaction atomique)
    - mouvement `vente-manuelle` dans `/mouvementsStock` (audit)
 

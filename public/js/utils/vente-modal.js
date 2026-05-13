@@ -20,8 +20,8 @@ const MODAL_HTML = `
       <div class="alert info mb-2" style="font-size:0.82rem;">
         <span class="icon">ℹ</span>
         <span id="modal-vente-info">
-          Saisis chaque produit vendu + le <strong>montant que le client a payé</strong>.
-          Le bénéfice est calculé automatiquement (prix de vente − coût d'achat).
+          Saisis chaque produit vendu et la quantité. Le <strong>prix de vente</strong>
+          et le <strong>bénéfice</strong> sont calculés automatiquement depuis le catalogue.
           La vente sera <strong>verrouillée</strong> après validation.
         </span>
       </div>
@@ -33,24 +33,27 @@ const MODAL_HTML = `
       <div id="vente-lignes" style="display:flex;flex-direction:column;gap:6px;"></div>
       <button class="btn btn-ghost mt-1" id="btn-vente-add-ligne" type="button" style="width:fit-content;">+ Ajouter un produit</button>
 
-      <div class="field-row mt-3">
-        <div>
-          <label>Montant encaissé ($)<span style="color:var(--color-blood-light);">*</span></label>
-          <input type="number" id="vente-montant" min="0" step="0.01" placeholder="ex: 250" />
+      <!-- Champs admin (caches en mode create employe) -->
+      <div id="vente-admin-fields" class="hidden">
+        <div class="field-row mt-3">
+          <div>
+            <label>Montant encaissé ($)<span class="muted" style="font-size:0.75rem;"> — laisser vide = prix catalogue</span></label>
+            <input type="number" id="vente-montant" min="0" step="0.01" placeholder="auto" />
+          </div>
+          <div>
+            <label>Moyen de paiement</label>
+            <select id="vente-paiement">
+              <option value="">— défaut (espèces) —</option>
+              <option value="especes">Espèces</option>
+              <option value="carte">Carte / Virement</option>
+              <option value="autre">Autre</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label>Moyen de paiement<span style="color:var(--color-blood-light);">*</span></label>
-          <select id="vente-paiement">
-            <option value="">— Choisir —</option>
-            <option value="especes">Espèces</option>
-            <option value="carte">Carte / Virement</option>
-            <option value="autre">Autre</option>
-          </select>
-        </div>
-      </div>
 
-      <label class="mt-2">Nom du client<span style="color:var(--color-blood-light);">*</span></label>
-      <input type="text" id="vente-client" placeholder="Prénom Nom" maxlength="120" />
+        <label class="mt-2">Nom du client</label>
+        <input type="text" id="vente-client" placeholder="Client comptoir (par défaut)" maxlength="120" />
+      </div>
 
       <div id="vente-motif-bloc" class="hidden mt-2">
         <label>Motif de modification<span style="color:var(--color-blood-light);">*</span></label>
@@ -58,8 +61,8 @@ const MODAL_HTML = `
       </div>
 
       <div class="panel mt-3" style="margin:0;background:rgba(0,0,0,0.18);">
+        <div class="row between"><span class="muted">Prix de vente total (catalogue)</span><strong id="vente-ca">$0</strong></div>
         <div class="row between"><span class="muted">Coût total (prix achat)</span><strong id="vente-cout">$0</strong></div>
-        <div class="row between"><span class="muted">Montant encaissé</span><strong id="vente-encaisse">$0</strong></div>
         <div class="row between" style="border-top:1px solid rgba(255,255,255,0.1);padding-top:6px;margin-top:4px;">
           <span class="muted"><strong>Bénéfice pour le LTD</strong></span>
           <strong id="vente-benefice" style="font-size:1.1rem;">$0</strong>
@@ -87,7 +90,8 @@ function injectModalIfNeeded() {
   document.getElementById('btn-vente-annuler').addEventListener('click', () => fermerModal());
   document.getElementById('btn-vente-add-ligne').addEventListener('click', () => ajouterLigne());
   document.getElementById('btn-vente-valider').addEventListener('click', () => soumettre());
-  document.getElementById('vente-montant').addEventListener('input', recalculer);
+  const elMontant = document.getElementById('vente-montant');
+  if (elMontant) elMontant.addEventListener('input', recalculer);
 }
 
 function fermerModal() {
@@ -133,9 +137,9 @@ function ajouterLigne(preset = null) {
       ${idx === 0 ? '<label style="font-size:0.78rem;">Quantité</label>' : ''}
       <input type="number" class="vente-qte" min="1" step="1" value="1" />
     </div>
-    <div style="width:110px;text-align:right;">
-      ${idx === 0 ? '<label style="font-size:0.78rem;">Prix achat</label>' : ''}
-      <div class="vente-cout-ligne mono muted" style="padding:8px 0;">$0</div>
+    <div style="width:120px;text-align:right;">
+      ${idx === 0 ? '<label style="font-size:0.78rem;">Total ligne</label>' : ''}
+      <div class="vente-total-ligne mono" style="padding:8px 0;">$0</div>
     </div>
     <button class="btn btn-danger btn-vente-del" type="button" title="Supprimer la ligne" style="padding:6px 10px;">×</button>
   `;
@@ -152,19 +156,24 @@ function ajouterLigne(preset = null) {
 
 function recalculer() {
   let coutTotal = 0;
+  let prixVenteTotal = 0;
   document.querySelectorAll('.vente-ligne').forEach(row => {
     const sel = row.querySelector('.vente-prod');
     const opt = sel.selectedOptions[0];
     const qte = Number(row.querySelector('.vente-qte').value) || 0;
     const achat = opt ? Number(opt.dataset.achat || 0) : 0;
-    const cout = achat * qte;
-    row.querySelector('.vente-cout-ligne').textContent = money(cout);
-    coutTotal += cout;
+    const vente = opt ? Number(opt.dataset.vente || 0) : 0;
+    const totalLigne = vente * qte;
+    row.querySelector('.vente-total-ligne').textContent = money(totalLigne);
+    coutTotal += achat * qte;
+    prixVenteTotal += totalLigne;
   });
-  const montant = Number(document.getElementById('vente-montant').value) || 0;
+  // En mode edit, si l'admin saisit un montant, prend le sien. Sinon prixVenteTotal.
+  const montantSaisi = Number(document.getElementById('vente-montant')?.value) || 0;
+  const montantEffectif = montantSaisi > 0 ? montantSaisi : prixVenteTotal;
+  document.getElementById('vente-ca').textContent = money(prixVenteTotal);
   document.getElementById('vente-cout').textContent = money(coutTotal);
-  document.getElementById('vente-encaisse').textContent = money(montant);
-  const benefice = montant - coutTotal;
+  const benefice = montantEffectif - coutTotal;
   const el = document.getElementById('vente-benefice');
   el.textContent = money(benefice);
   el.style.color = benefice >= 0 ? 'var(--color-cactus,#5a8)' : 'var(--color-blood-light)';
@@ -173,16 +182,12 @@ function recalculer() {
 async function soumettre() {
   const mode = document.getElementById('vente-mode').value;
   const venteId = document.getElementById('vente-id').value;
-  const clientNom = document.getElementById('vente-client').value.trim();
-  const moyenPaiement = document.getElementById('vente-paiement').value;
-  const montantEncaisse = Number(document.getElementById('vente-montant').value);
+  const clientNom = document.getElementById('vente-client')?.value.trim() || '';
+  const moyenPaiement = document.getElementById('vente-paiement')?.value || '';
+  const montantSaisi = Number(document.getElementById('vente-montant')?.value);
+  const montantEncaisse = Number.isFinite(montantSaisi) && montantSaisi > 0 ? montantSaisi : null;
   const motifModification = document.getElementById('vente-motif').value.trim();
 
-  if (!clientNom) return toastError("Nom du client obligatoire.");
-  if (!moyenPaiement) return toastError("Moyen de paiement obligatoire.");
-  if (!Number.isFinite(montantEncaisse) || montantEncaisse <= 0) {
-    return toastError("Montant encaissé doit être > 0.");
-  }
   if (mode === 'edit' && !motifModification) {
     return toastError("Motif de modification obligatoire.");
   }
@@ -208,8 +213,8 @@ async function soumettre() {
       ? `${FUNCTIONS_BASE}/modifierVente`
       : `${FUNCTIONS_BASE}/declarerVente`;
     const body = mode === 'edit'
-      ? { venteId, clientNom, moyenPaiement, montantEncaisse, lignes, motifModification }
-      : { clientNom, moyenPaiement, montantEncaisse, lignes };
+      ? { venteId, clientNom, moyenPaiement, montantEncaisse: montantEncaisse || 0, lignes, motifModification }
+      : { lignes, clientNom: clientNom || undefined, moyenPaiement: moyenPaiement || undefined, montantEncaisse: montantEncaisse || undefined };
 
     const resp = await fetch(url, {
       method: 'POST',
@@ -251,6 +256,8 @@ export async function ouvrirModalNouvelleVente({ onSuccess } = {}) {
   document.getElementById('vente-montant').value = '';
   document.getElementById('vente-motif').value = '';
   document.getElementById('vente-motif-bloc').classList.add('hidden');
+  // Mode employe : on cache les champs admin (montant/client/paiement)
+  document.getElementById('vente-admin-fields').classList.add('hidden');
   document.getElementById('btn-vente-valider').textContent = 'Valider la vente';
   document.getElementById('vente-lignes').innerHTML = '';
   ajouterLigne();
@@ -271,6 +278,8 @@ export async function ouvrirModalModifierVente(vente, { onSuccess } = {}) {
   document.getElementById('vente-montant').value = vente.montant || '';
   document.getElementById('vente-motif').value = '';
   document.getElementById('vente-motif-bloc').classList.remove('hidden');
+  // Mode admin : on affiche les champs montant/client/paiement
+  document.getElementById('vente-admin-fields').classList.remove('hidden');
   document.getElementById('btn-vente-valider').textContent = 'Enregistrer la modification';
   document.getElementById('vente-lignes').innerHTML = '';
 
