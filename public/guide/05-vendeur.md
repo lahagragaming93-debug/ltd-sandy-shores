@@ -69,10 +69,15 @@ Toutes tes prises et fins de service de la semaine, avec durée totale.
 commission = 32,5 % (Novice) / 35 % (Inter) / 37,5 % (Exp)
 plafond    = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 
-CA retenu = MIN( CA généré, 40 000 $ )
+CA commissionnable = somme des ventes "particulier" (hors produits pro)
+CA retenu          = MIN( CA commissionnable, 40 000 $ )
 
 Salaire = MIN( CA retenu × commission, plafond )
 ```
+
+> ⚠ **Important** : ton salaire est calculé uniquement sur les ventes de produits **particulier** (bonbons, tickets à gratter, ballons, outils, etc.). Les produits **professionnels** (eau purifiée, whey, huile, matières premières…) sont vendus uniquement par la direction aux autres entreprises — ils alimentent le CA du LTD mais **ne te rapportent pas de commission**.
+>
+> Si tu vois un badge **PRO** sur un produit dans le catalogue, il est invisible dans ta modal de déclaration de vente (réservé direction).
 
 ### En clair
 

@@ -9,7 +9,7 @@ import {
   listUsers
 } from '../api.js';
 import { CATEGORIES, CATEGORY_LABELS } from '../data/produits.js';
-import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
+import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin, canCreateProduit } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
@@ -41,13 +41,14 @@ const html = `
     ` : ''}
   </div>
 
+  <!-- Section 1 : Vente LTD (particuliers) -->
   <div class="panel framed">
     <div class="panel-title">
-      <span>Inventaire épicerie</span>
-      <span class="muted mono" id="stats-stock">—</span>
+      <span>🛒 Vente LTD — particuliers <span class="muted" style="font-size:0.78rem;">(commission vendeur)</span></span>
+      <span class="muted mono" id="stats-stock-particulier">—</span>
     </div>
-    <div class="table-scroll" id="table-scroll-stocks">
-      <table class="data sortable" id="table-stocks">
+    <div class="table-scroll">
+      <table class="data sortable" id="table-stocks-particulier">
         <thead>
           <tr>
             <th data-sort="nom">Produit <span class="sort-arrow"></span></th>
@@ -61,7 +62,33 @@ const html = `
             ${editable ? '<th class="center">Actions</th>' : ''}
           </tr>
         </thead>
-        <tbody id="tbody-stocks"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
+        <tbody id="tbody-stocks-particulier"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 2 : Vente fournisseur (pros) -->
+  <div class="panel framed" style="border-color:var(--color-info, #4a90e2);">
+    <div class="panel-title">
+      <span>🏢 Vente fournisseur — professionnels <span class="muted" style="font-size:0.78rem;">(CA LTD uniquement, pas de commission)</span></span>
+      <span class="muted mono" id="stats-stock-pro">—</span>
+    </div>
+    <div class="table-scroll">
+      <table class="data sortable" id="table-stocks-pro">
+        <thead>
+          <tr>
+            <th data-sort="nom">Produit <span class="sort-arrow"></span></th>
+            <th data-sort="categorie">Catégorie <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="qte">Stock <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="prixAchat">Prix achat <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="prixVente">Prix vente <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="marge">Marge <span class="sort-arrow"></span></th>
+            <th class="right" data-sort="seuil">Seuil alerte <span class="sort-arrow"></span></th>
+            <th class="center" data-sort="statut">Statut <span class="sort-arrow"></span></th>
+            ${editable ? '<th class="center">Actions</th>' : ''}
+          </tr>
+        </thead>
+        <tbody id="tbody-stocks-pro"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -88,12 +115,18 @@ const html = `
         ${Object.entries(CATEGORY_LABELS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}
       </select>
       <div class="field-row">
-        <div><label>Prix achat ($)</label><input type="number" id="new-produit-prix-achat" min="0" step="1" value="0" /></div>
-        <div><label>Prix vente ($)</label><input type="number" id="new-produit-prix-vente" min="0" step="1" value="0" /></div>
+        <div><label>Prix achat ($)</label><input type="number" id="new-produit-prix-achat" min="0" step="0.01" value="0" /></div>
+        <div><label>Prix vente ($)</label><input type="number" id="new-produit-prix-vente" min="0" step="0.01" value="0" /></div>
         <div><label>Seuil alerte</label><input type="number" id="new-produit-seuil" min="0" step="1" value="5" /></div>
       </div>
       <label>Stock initial <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
       <input type="number" id="new-produit-stock" min="0" step="1" value="0" />
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
+        <input type="checkbox" id="new-produit-pour-pro" />
+        <span>🏢 Vendu aux <strong>professionnels uniquement</strong>
+          <span class="muted" style="font-size:0.78rem;display:block;">Le CA entre en compta LTD mais ne génère pas de commission vendeur</span>
+        </span>
+      </label>
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-creer-produit">Créer le produit</button>
         <button class="btn btn-ghost" id="btn-cancel-nouveau">Annuler</button>
@@ -108,10 +141,16 @@ const html = `
       <input type="hidden" id="edit-id" />
       <label>Nom</label><input type="text" id="edit-nom" />
       <div class="field-row">
-        <div><label>Prix achat ($)</label><input type="number" id="edit-prix-achat" min="0" step="1" /></div>
-        <div><label>Prix vente ($)</label><input type="number" id="edit-prix-vente" min="0" step="1" /></div>
+        <div><label>Prix achat ($)</label><input type="number" id="edit-prix-achat" min="0" step="0.01" /></div>
+        <div><label>Prix vente ($)</label><input type="number" id="edit-prix-vente" min="0" step="0.01" /></div>
         <div><label>Seuil alerte</label><input type="number" id="edit-seuil" min="0" step="1" /></div>
       </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;">
+        <input type="checkbox" id="edit-pour-pro" />
+        <span>🏢 Vendu aux <strong>professionnels uniquement</strong>
+          <span class="muted" style="font-size:0.78rem;display:block;">Pas de commission vendeur ; CA compté pour le LTD</span>
+        </span>
+      </label>
       <label>Ajustement manuel du stock</label>
       <div class="field-row">
         <div><input type="number" id="edit-delta" placeholder="+/− unités" /></div>
@@ -158,7 +197,7 @@ function sortRows(rows) {
 }
 
 function updateSortArrows() {
-  document.querySelectorAll('#table-stocks thead th[data-sort]').forEach(th => {
+  document.querySelectorAll('#table-stocks-particulier thead th[data-sort], #table-stocks-pro thead th[data-sort]').forEach(th => {
     const arrow = th.querySelector('.sort-arrow');
     if (!arrow) return;
     if (th.dataset.sort === sortState.key) {
@@ -174,7 +213,7 @@ function updateSortArrows() {
 async function chargerProduits() {
   produits = await listProduits().catch(() => []);
   if (produits.length === 0 && editable) {
-    document.getElementById('tbody-stocks').innerHTML = `
+    document.getElementById('tbody-stocks-particulier').innerHTML = `
       <tr><td colspan="9" class="muted text-center">
         Catalogue vide. Utilise "+ Ajouter un produit" pour commencer.
       </td></tr>`;
@@ -183,6 +222,66 @@ async function chargerProduits() {
 await chargerProduits();
 
 listenStocks(s => { stocks = s; renderTable(); });
+
+function ligneProduit({ p, qte, seuil, statut }) {
+  const marge = (p.prixVente || 0) - (p.prixAchat || 0);
+  const cls = qte < 0 ? 'alert-out' : (statut === 'rupture' ? 'alert-out' : (statut === 'bas' ? 'alert-low' : ''));
+  const badge = qte < 0
+    ? `<span class="badge danger" title="Stock négatif — incohérence">⚠ ${num(qte)}</span>`
+    : (statut === 'rupture'
+        ? '<span class="badge danger">RUPTURE</span>'
+        : (statut === 'bas' ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>'));
+  return `
+    <tr class="${cls}">
+      <td>${escapeHtml(p.nom)}</td>
+      <td><span class="muted">${CATEGORY_LABELS[p.categorie] || p.categorie}</span></td>
+      <td class="right mono ${qte < 0 ? 'alerte-fort' : ''}">${num(qte)}</td>
+      <td class="right mono">${moneyPrecis(p.prixAchat || 0)}</td>
+      <td class="right mono">${moneyPrecis(p.prixVente || 0)}</td>
+      <td class="right mono ${marge >= 0 ? '' : 'muted'}">${moneyPrecis(marge)}</td>
+      <td class="right mono">${num(seuil)}</td>
+      <td class="center">${badge}</td>
+      ${editable ? `<td class="actions-cell">
+        <button class="btn btn-icon btn-sm btn-ghost" data-edit="${p.id}" title="Modifier le produit (prix, seuil, stock)" data-tooltip="Modifier">✏</button>
+        ${canCreate ? `<button class="btn btn-icon btn-sm btn-danger" data-delete-produit="${p.id}" title="Supprimer du catalogue" data-tooltip="Supprimer">🗑</button>` : ''}
+      </td>` : ''}
+    </tr>
+  `;
+}
+
+function wireActions(tbody) {
+  tbody.querySelectorAll('[data-edit]').forEach(btn => {
+    btn.addEventListener('click', () => ouvrirEdition(btn.dataset.edit));
+  });
+  tbody.querySelectorAll('[data-delete-produit]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.deleteProduit;
+      const p = produits.find(x => x.id === id);
+      const stock = stocks[id]?.quantite || 0;
+      const ok = await confirmCritique({
+        titre: 'Supprimer un produit du catalogue',
+        message: `Le produit <strong>${escapeHtml(p?.nom || id)}</strong> sera supprimé du catalogue.<br><br>
+          • Stock actuel : <strong>${stock}</strong> unités (le stock est conservé en base mais ne sera plus visible)<br>
+          • Les ventes passées avec ce produit restent dans l'historique<br>
+          • L'historique des prix (audit) reste consultable<br><br>
+          ⚠ Si ce produit a encore des stocks ou apparaît dans les logs FiveM, il sera <strong>recréé automatiquement</strong> par le bot.`,
+        btnConfirm: 'Supprimer le produit',
+        delaiSec: 3,
+        requireType: 'SUPPRIMER'
+      });
+      if (!ok) return;
+      try {
+        await deleteProduit(id);
+        toastSuccess(`Produit "${p?.nom || id}" supprimé.`);
+        await chargerProduits();
+        renderTable();
+      } catch (e) {
+        console.error(e);
+        toastError(e?.message || e?.code || "Erreur à la suppression.");
+      }
+    });
+  });
+}
 
 function renderTable() {
   const cat = document.getElementById('filtre-categorie').value;
@@ -206,83 +305,43 @@ function renderTable() {
   rows = sortRows(rows);
   updateSortArrows();
 
-  const tbody = document.getElementById('tbody-stocks');
-  if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="muted text-center">Aucun produit.</td></tr>`;
-  } else {
-    tbody.innerHTML = rows.map(({ p, qte, seuil, statut }) => {
-      const marge = (p.prixVente || 0) - (p.prixAchat || 0);
-      const cls = statut === 'rupture' ? 'alert-out' : (statut === 'bas' ? 'alert-low' : '');
-      const badge = statut === 'rupture'
-        ? '<span class="badge danger">RUPTURE</span>'
-        : (statut === 'bas' ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>');
-      return `
-        <tr class="${cls}">
-          <td>${escapeHtml(p.nom)}</td>
-          <td><span class="muted">${CATEGORY_LABELS[p.categorie] || p.categorie}</span></td>
-          <td class="right mono">${num(qte)}</td>
-          <td class="right mono">${money(p.prixAchat || 0)}</td>
-          <td class="right mono">${money(p.prixVente || 0)}</td>
-          <td class="right mono ${marge >= 0 ? '' : 'muted'}">${money(marge)}</td>
-          <td class="right mono">${num(seuil)}</td>
-          <td class="center">${badge}</td>
-          ${editable ? `<td class="actions-cell">
-            <button class="btn btn-icon btn-sm btn-ghost" data-edit="${p.id}" title="Modifier le produit (prix, seuil, stock)" data-tooltip="Modifier">✏</button>
-            ${canCreate ? `<button class="btn btn-icon btn-sm btn-danger" data-delete-produit="${p.id}" title="Supprimer du catalogue" data-tooltip="Supprimer">🗑</button>` : ''}
-          </td>` : ''}
-        </tr>
-      `;
-    }).join('');
+  const rowsPart = rows.filter(r => !r.p.pourPro);
+  const rowsPro  = rows.filter(r =>  r.p.pourPro);
 
-    // Wire edit buttons
-    tbody.querySelectorAll('[data-edit]').forEach(btn => {
-      btn.addEventListener('click', () => ouvrirEdition(btn.dataset.edit));
-    });
+  const tbodyPart = document.getElementById('tbody-stocks-particulier');
+  const tbodyPro  = document.getElementById('tbody-stocks-pro');
 
-    // Wire delete buttons (direction + DRH uniquement)
-    tbody.querySelectorAll('[data-delete-produit]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.deleteProduit;
-        const p = produits.find(x => x.id === id);
-        const stock = stocks[id]?.quantite || 0;
-        const ok = await confirmCritique({
-          titre: 'Supprimer un produit du catalogue',
-          message: `Le produit <strong>${escapeHtml(p?.nom || id)}</strong> sera supprimé du catalogue.<br><br>
-            • Stock actuel : <strong>${stock}</strong> unités (le stock est conservé en base mais ne sera plus visible)<br>
-            • Les ventes passées avec ce produit restent dans l'historique<br>
-            • L'historique des prix (audit) reste consultable<br><br>
-            ⚠ Si ce produit a encore des stocks ou apparaît dans les logs FiveM, il sera <strong>recréé automatiquement</strong> par le bot. Pour ça utilise plutôt le mapping des items.`,
-          btnConfirm: 'Supprimer le produit',
-          delaiSec: 3,
-          requireType: 'SUPPRIMER'
-        });
-        if (!ok) return;
-        try {
-          await deleteProduit(id);
-          toastSuccess(`Produit "${p?.nom || id}" supprimé.`);
-          await chargerProduits();
-          renderTable();
-        } catch (e) {
-          console.error(e);
-          toastError(e?.message || e?.code || "Erreur à la suppression.");
-        }
-      });
-    });
-  }
+  tbodyPart.innerHTML = rowsPart.length === 0
+    ? `<tr><td colspan="9" class="muted text-center">Aucun produit "particulier".</td></tr>`
+    : rowsPart.map(ligneProduit).join('');
+  tbodyPro.innerHTML = rowsPro.length === 0
+    ? `<tr><td colspan="9" class="muted text-center">Aucun produit "professionnel".</td></tr>`
+    : rowsPro.map(ligneProduit).join('');
 
-  // Stats
-  const ruptures = rows.filter(r => r.statut === 'rupture').length;
-  const bas = rows.filter(r => r.statut === 'bas').length;
-  document.getElementById('stats-stock').textContent =
-    `${rows.length} produits — ${ruptures} ruptures, ${bas} sous seuil`;
+  wireActions(tbodyPart);
+  wireActions(tbodyPro);
+
+  // Stats compactes par section
+  const statTxt = (list) => {
+    const out = list.filter(r => r.statut === 'rupture').length;
+    const low = list.filter(r => r.statut === 'bas').length;
+    const neg = list.filter(r => r.qte < 0).length;
+    const parts = [`${list.length} réf.`];
+    if (neg > 0) parts.push(`<span class="alerte-fort">${neg} négatif${neg>1?'s':''}</span>`);
+    if (out > 0) parts.push(`${out} rupture${out>1?'s':''}`);
+    if (low > 0) parts.push(`${low} bas`);
+    return parts.join(' · ');
+  };
+  document.getElementById('stats-stock-particulier').innerHTML = statTxt(rowsPart);
+  document.getElementById('stats-stock-pro').innerHTML = statTxt(rowsPro);
 }
 
 document.getElementById('filtre-categorie').addEventListener('change', renderTable);
 document.getElementById('filtre-alerte').addEventListener('change', renderTable);
 document.getElementById('filtre-recherche').addEventListener('input', renderTable);
 
-// Tri par colonne (click sur en-tête)
-document.querySelectorAll('#table-stocks thead th[data-sort]').forEach(th => {
+// Tri par colonne (click sur en-tête) — appliqué aux 2 tables
+document.querySelectorAll('#table-stocks-particulier thead th[data-sort], #table-stocks-pro thead th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
     const key = th.dataset.sort;
     if (sortState.key === key) {
@@ -303,6 +362,7 @@ function ouvrirEdition(id) {
   document.getElementById('edit-prix-achat').value = p.prixAchat || 0;
   document.getElementById('edit-prix-vente').value = p.prixVente || 0;
   document.getElementById('edit-seuil').value = p.seuilAlerte || 0;
+  document.getElementById('edit-pour-pro').checked = !!p.pourPro;
   document.getElementById('edit-delta').value = '';
   document.getElementById('edit-raison').value = '';
   document.getElementById('modal-edit').classList.remove('hidden');
@@ -321,6 +381,7 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     prixAchat: Number(document.getElementById('edit-prix-achat').value) || 0,
     prixVente: Number(document.getElementById('edit-prix-vente').value) || 0,
     seuilAlerte: Number(document.getElementById('edit-seuil').value) || 0,
+    pourPro: document.getElementById('edit-pour-pro').checked,
     categorie: p.categorie
   };
   const delta = Number(document.getElementById('edit-delta').value);
@@ -437,6 +498,7 @@ if (btnNouveauProduit) {
     document.getElementById('new-produit-prix-vente').value = 0;
     document.getElementById('new-produit-seuil').value = 5;
     document.getElementById('new-produit-stock').value = 0;
+    document.getElementById('new-produit-pour-pro').checked = false;
     modalNouveau.classList.remove('hidden');
     setTimeout(() => inputNom.focus(), 50);
   });
@@ -453,6 +515,7 @@ if (btnNouveauProduit) {
     const prixVente  = Number(document.getElementById('new-produit-prix-vente').value) || 0;
     const seuilAlerte= Number(document.getElementById('new-produit-seuil').value) || 0;
     const stockInit  = Number(document.getElementById('new-produit-stock').value) || 0;
+    const pourPro    = document.getElementById('new-produit-pour-pro').checked;
 
     if (!nom)          return toastError("Nom obligatoire.");
     if (!/^[a-z0-9-]+$/.test(id)) return toastError("Identifiant invalide (lettres minuscules, chiffres, tirets uniquement).");
@@ -470,7 +533,7 @@ if (btnNouveauProduit) {
     }
 
     try {
-      await setProduit(id, { nom, categorie, prixAchat, prixVente, seuilAlerte });
+      await setProduit(id, { nom, categorie, prixAchat, prixVente, seuilAlerte, pourPro });
       // Stock initial : ajustement avec raison "création"
       if (stockInit > 0) {
         const me = getCurrentUser();

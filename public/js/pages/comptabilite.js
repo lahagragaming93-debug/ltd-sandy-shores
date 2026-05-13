@@ -208,13 +208,11 @@ async function chargerTout() {
   let masseEstimee = 0;
   for (const usr of users.filter(x => compteEnFinance(x.role) && x.statut === 'actif')) {
     const myV = ventes.filter(v => v.vendeurId === usr.id);
-    const myCa = myV.reduce((s, v) => s + (v.montant || 0), 0);
-    const myBenef = myV.reduce((s, v) => s + (v.benefice || 0), 0);
+    const myCaParticulier = myV.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
     const q = quotas.find(qu => qu.employeId === usr.id) || { bidons: 0, caoutchoucs: 0 };
     masseEstimee += salaireEstime({
       role: usr.role,
-      caGenere: myCa,
-      beneficeGenere: myBenef,
+      caGenere: myCaParticulier,
       bidonsRealises: q.bidons,
       caoutchoucsRealises: q.caoutchoucs,
       salaireDecide: usr.salaireDecide

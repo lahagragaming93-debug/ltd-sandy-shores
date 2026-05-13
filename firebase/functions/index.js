@@ -573,6 +573,33 @@ async function onFacture(p) {
   const docId = p.factureId ? `fac-${p.factureId}` : `fac-msg-${Date.now()}`;
   const montantBot = Number(p.montant) || 0;
 
+  // Calcul de la part "particulier" (commissionnable) a partir des items.
+  // L'utilisateur a confirme qu'une facture est jamais mixte particulier+pro,
+  // mais on calcule au pro-rata par precaution. Si on n'a pas d'items, on
+  // suppose particulier par defaut (legacy bot).
+  let montantParticulierBot = montantBot;
+  const items = Array.isArray(p.items) ? p.items : [];
+  if (items.length > 0) {
+    try {
+      let totalQte = 0;
+      let qteParticulier = 0;
+      for (const it of items) {
+        const pid = String(it.id || it.produitId || '').trim();
+        const qte = Number(it.quantite || 0);
+        if (!pid || qte <= 0) continue;
+        totalQte += qte;
+        const prodSnap = await db.collection('produits').doc(pid).get();
+        const pourPro = prodSnap.exists ? !!prodSnap.data().pourPro : true;
+        if (!pourPro) qteParticulier += qte;
+      }
+      if (totalQte > 0) {
+        montantParticulierBot = Math.round((qteParticulier / totalQte) * montantBot * 100) / 100;
+      }
+    } catch (e) {
+      console.error('[onFacture] calcul montantParticulier error', e);
+    }
+  }
+
   // Detection doublon : si une declaration manuelle correspondante existe
   // (meme vendeur, meme montant, dans les 15 minutes precedentes), on cree
   // la vente bot directement marquee cachee:true. Le bot peut remonter la
@@ -611,6 +638,7 @@ async function onFacture(p) {
     enServiceAuMomentDeLaVente: enService,
     client: p.clientNom || '',
     montant: montantBot,
+    montantParticulier: montantParticulierBot,
     benefice: p.benefice ?? null,
     raison: p.raison || '',
     paiement: p.paiement || '',
@@ -1674,9 +1702,13 @@ export const declarerVente = onRequest({
     // Resolution des produits + calcul serveur (anti-fraude).
     // Le montant peut etre fourni (admin) ou calcule auto depuis prixVente
     // du catalogue (cas declaration employe : tout vient du serveur).
+    // pourPro est snapshote sur la ligne pour figer le statut au moment de la vente
+    // (si le patron rebascule le produit en particulier plus tard, ca ne reecrit pas
+    // l'historique).
     const lignesResolues = [];
     let coutTotal = 0;
     let prixVenteTotal = 0;
+    let prixVenteTotalParticulier = 0;
     for (const l of lignes) {
       const pid = String(l.produitId || '').trim();
       const qte = Number(l.quantite);
@@ -1689,15 +1721,18 @@ export const declarerVente = onRequest({
       const prod = prodSnap.data();
       const prixAchat = Number(prod.prixAchat || 0);
       const prixVente = Number(prod.prixVente || 0);
+      const pourPro   = !!prod.pourPro;
       lignesResolues.push({
         produitId: pid,
         produitNom: prod.nom || pid,
         quantite: qte,
         prixAchat,
-        prixVente
+        prixVente,
+        pourPro
       });
       coutTotal += qte * prixAchat;
       prixVenteTotal += qte * prixVente;
+      if (!pourPro) prixVenteTotalParticulier += qte * prixVente;
     }
     // Si montantEncaisse non fourni, on prend le total prix de vente catalogue.
     const montantFourni = Number(montantEncaisse);
@@ -1708,6 +1743,11 @@ export const declarerVente = onRequest({
       return res.status(400).json({ error: 'Montant total nul (verifie les prix de vente du catalogue).' });
     }
     const benefice = montant - coutTotal;
+    // Part particulier (commissionnable) : pro-rata si l'admin a saisi un montant
+    // total different du prix catalogue (rabais, remise, etc.).
+    const montantParticulier = prixVenteTotal > 0
+      ? Math.round((prixVenteTotalParticulier / prixVenteTotal) * montant * 100) / 100
+      : 0;
 
     // factureId genere serveur : M{YYYYMMDD}-{NNNN} (4 chiffres seq jour)
     const now = new Date();
@@ -1749,6 +1789,7 @@ export const declarerVente = onRequest({
         client: String(clientNom || 'Client comptoir').trim(),
         paiement: String(moyenPaiement || 'especes').trim(),
         montant,
+        montantParticulier,
         coutTotal,
         benefice,
         lignes: lignesResolues,
@@ -1816,7 +1857,7 @@ export const declarerVente = onRequest({
       console.error('[declarerVente] cachage doublon error', e);
     }
 
-    return res.status(200).json({ ok: true, factureId, coutTotal, benefice, montant });
+    return res.status(200).json({ ok: true, factureId, coutTotal, benefice, montant, montantParticulier });
   } catch (err) {
     console.error('[declarerVente]', err);
     return res.status(500).json({ error: err.message || 'Internal error' });
@@ -1901,6 +1942,8 @@ export const modifierVente = onRequest({
     // Resolution + recalcul serveur
     const lignesResolues = [];
     let coutTotal = 0;
+    let prixVenteTotal = 0;
+    let prixVenteTotalParticulier = 0;
     for (const l of lignes) {
       const pid = String(l.produitId || '').trim();
       const qte = Number(l.quantite);
@@ -1912,10 +1955,17 @@ export const modifierVente = onRequest({
       if (!prodSnap.exists) return res.status(400).json({ error: `Produit inconnu : ${pid}` });
       const prod = prodSnap.data();
       const prixAchat = Number(prod.prixAchat || 0);
-      lignesResolues.push({ produitId: pid, produitNom: prod.nom || pid, quantite: qte, prixAchat });
+      const prixVente = Number(prod.prixVente || 0);
+      const pourPro   = !!prod.pourPro;
+      lignesResolues.push({ produitId: pid, produitNom: prod.nom || pid, quantite: qte, prixAchat, prixVente, pourPro });
       coutTotal += qte * prixAchat;
+      prixVenteTotal += qte * prixVente;
+      if (!pourPro) prixVenteTotalParticulier += qte * prixVente;
     }
     const benefice = montant - coutTotal;
+    const montantParticulier = prixVenteTotal > 0
+      ? Math.round((prixVenteTotalParticulier / prixVenteTotal) * montant * 100) / 100
+      : 0;
 
     // Delta stock = ancien - nouveau (positif si on annule du stock sorti)
     const deltaParProduit = {};
@@ -1945,6 +1995,7 @@ export const modifierVente = onRequest({
         client: String(clientNom || ancienne.client || '').trim(),
         paiement: String(moyenPaiement || ancienne.paiement || '').trim(),
         montant,
+        montantParticulier,
         coutTotal,
         benefice,
         lignes: lignesResolues,

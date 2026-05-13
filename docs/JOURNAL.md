@@ -1,7 +1,46 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-13 (Refonte calcul salaire vendeur : CA × commission au lieu de bénéfice × commission)**
+> Dernière mise à jour : **2026-05-13 (Distinction produits particulier/pro + anti-doublon vente bot↔manuelle + refonte salaire vendeur)**
+
+---
+
+## ✅ Session 2026-05-13 — Distinction produits particulier / professionnel
+
+**Demande patron** : le LTD vend à deux canaux :
+- **Particuliers** : les vendeurs déclarent leurs ventes manuellement → commission
+- **Professionnels** : direction/DRH/Resp Vente vendent en gros (matières premières, eau purifiée, etc.) → CA LTD mais pas de commission vendeur
+
+**Implémentation** :
+- `public/js/data/produits.js` : flag `pourPro` sur chaque produit. 26 produits = `false` (particulier), 66 = `true` (pro)
+- `public/js/pages/stocks.js` : split du tableau en 2 panels distincts (Vente LTD vs Vente fournisseur). Toggle "pourPro" dans modal édition/création. Stock négatif mis en évidence (badge ⚠ rouge). Décimaux supportés (step 0.01) + affichage `moneyPrecis` pour permettre les prix tels que 1,25 $
+- `public/js/utils/vente-modal.js` : filtre les produits visibles selon le `role` du caller. Vendeur ne voit que pourPro=false. Direction voit tout
+- `public/js/pages/employee.js` : passe `profile.role` à la modal vente
+- `firebase/functions/index.js` : `declarerVente`, `modifierVente`, `onFacture` calculent et stockent `montantParticulier` sur chaque /ventes (pro-rata si vente mixte)
+- `public/js/utils/paie.js` : `salaireVendeur(role, caGenere)` reste inchangé — c'est l'appelant qui passe `caParticulier` au lieu de `ca`
+- Pages `rh.js`, `comptabilite.js`, `dashboard.js`, `employee.js` : utilisent `montantParticulier ?? montant` (fallback historique) pour le calcul du salaire
+- Mon espace : 4 KPIs distincts (CA total / CA commissionnable / Quota / Salaire estimé) + badges PRO dans la modal vente
+- RH : détail employé montre CA total + CA particulier + CA pro séparément
+
+**Backfill** :
+- `scripts/init-pourpro.js` : 92 produits Firestore mis à jour
+- `scripts/backfill-montant-particulier.js` : 107 ventes des 30 derniers jours recalculées (98,1% en particulier, 800 $ CA pro identifiés)
+
+**Bug stock cola-zero connu** : 351 unités d'écart entre cumul mouvements et stock affiché. Cause = bot Discord ne loggue pas `inventory-remove` pour cet item (mapping FiveM manquant). Workaround actuel : ajustements manuels. À traiter dans une session dédiée.
+
+---
+
+## ✅ Session 2026-05-13 — Anti-doublon facture bot vs déclaration manuelle
+
+**Problème** : quand un vendeur déclare une vente manuellement, le bot Discord remonte aussi la même facture (avant ou après, selon latence). Résultat : 2 lignes pour 1 vente réelle dans Mon espace / Ventes / RH / Compta.
+
+**Implémentation** :
+- `declarerVente` : après création, marque `cachee:true` sur la vente bot correspondante (15 min avant, même vendeur+montant)
+- `botIngest/onFacture` : à la création d'une facture bot, check si manuelle correspondante existe → crée directement avec `cachee:true`
+- `public/js/api.js` : `listVentesSemaine` + `listenVentesSemaine` filtrent `v.cachee` automatiquement pour toutes les pages
+- `scripts/backfill-doublons-bot-manuelle.js` : 5 doublons historiques cachés (Noé Varga ×2, Kyle Jackson, Ilyes Chaifi ×2)
+
+Audit préservé via les champs `cachee`, `remplaceeParId`, `remplaceeParFactureId`, `dateCachage`.
 
 ---
 

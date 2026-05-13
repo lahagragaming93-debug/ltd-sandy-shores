@@ -6,9 +6,10 @@
 // ============================================================
 
 import { listProduits } from '../api.js';
-import { money, escapeHtml } from './formatters.js';
+import { money, moneyPrecis, escapeHtml } from './formatters.js';
 import { toastSuccess, toastError } from './toast.js';
 import { auth } from '../firebase-config.js';
+import { isVendeur } from './permissions.js';
 
 const FUNCTIONS_BASE = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
 
@@ -78,6 +79,7 @@ const MODAL_HTML = `
 `;
 
 let produitsCache = null;
+let produitsVisibles = null; // sous-ensemble filtre selon le role caller
 let modalInjected = false;
 let onSuccessCb = null;
 
@@ -109,7 +111,8 @@ function trouverProduitsParTexte(texte, max = 20) {
   if (!q) return [];
   const startsWith = [];
   const contains = [];
-  for (const p of (produitsCache || [])) {
+  const source = produitsVisibles || produitsCache || [];
+  for (const p of source) {
     const n = normSearch(p.nom || p.id);
     if (n.startsWith(q)) startsWith.push(p);
     else if (n.includes(q)) contains.push(p);
@@ -165,9 +168,10 @@ function ajouterLigne(preset = null) {
     } else {
       liste.innerHTML = items.map(p => {
         const vente = Number(p.prixVente || 0);
+        const badge = p.pourPro ? ' <span class="badge neutral" style="font-size:0.65rem;">PRO</span>' : '';
         return `<div class="vente-prod-opt" data-pid="${escapeHtml(p.id)}" style="padding:6px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,0.05);">
-          <span>${escapeHtml(p.nom || p.id)}</span>
-          <span class="muted mono" style="font-size:0.78rem;">${vente ? money(vente) : ''}</span>
+          <span>${escapeHtml(p.nom || p.id)}${badge}</span>
+          <span class="muted mono" style="font-size:0.78rem;">${vente ? moneyPrecis(vente) : ''}</span>
         </div>`;
       }).join('');
       // Hover + click
@@ -232,18 +236,18 @@ function recalculer() {
     const achat = pid ? Number(input.dataset.achat || 0) : 0;
     const vente = pid ? Number(input.dataset.vente || 0) : 0;
     const totalLigne = vente * qte;
-    row.querySelector('.vente-total-ligne').textContent = money(totalLigne);
+    row.querySelector('.vente-total-ligne').textContent = moneyPrecis(totalLigne);
     coutTotal += achat * qte;
     prixVenteTotal += totalLigne;
   });
   // En mode edit, si l'admin saisit un montant, prend le sien. Sinon prixVenteTotal.
   const montantSaisi = Number(document.getElementById('vente-montant')?.value) || 0;
   const montantEffectif = montantSaisi > 0 ? montantSaisi : prixVenteTotal;
-  document.getElementById('vente-ca').textContent = money(prixVenteTotal);
-  document.getElementById('vente-cout').textContent = money(coutTotal);
+  document.getElementById('vente-ca').textContent = moneyPrecis(prixVenteTotal);
+  document.getElementById('vente-cout').textContent = moneyPrecis(coutTotal);
   const benefice = montantEffectif - coutTotal;
   const el = document.getElementById('vente-benefice');
-  el.textContent = money(benefice);
+  el.textContent = moneyPrecis(benefice);
   el.style.color = benefice >= 0 ? 'var(--color-cactus,#5a8)' : 'var(--color-blood-light)';
 }
 
@@ -311,9 +315,15 @@ async function soumettre() {
 // API publique
 // ============================================================
 
-export async function ouvrirModalNouvelleVente({ onSuccess } = {}) {
+export async function ouvrirModalNouvelleVente({ onSuccess, role } = {}) {
   injectModalIfNeeded();
   if (!produitsCache) produitsCache = await listProduits().catch(() => []);
+  // Filtre les produits visibles selon le role :
+  // - Vendeur (Novice/Inter/Exp) ne voit QUE les produits "particulier" (pourPro=false)
+  // - Direction/DRH/Resp Vente/admin-technique voit tout (peut vendre aux pros)
+  produitsVisibles = isVendeur(role)
+    ? produitsCache.filter(p => !p.pourPro)
+    : produitsCache;
   onSuccessCb = onSuccess || null;
 
   document.getElementById('modal-vente-title').textContent = '📝 Déclarer une vente';
@@ -336,6 +346,8 @@ export async function ouvrirModalNouvelleVente({ onSuccess } = {}) {
 export async function ouvrirModalModifierVente(vente, { onSuccess } = {}) {
   injectModalIfNeeded();
   if (!produitsCache) produitsCache = await listProduits().catch(() => []);
+  // Edition = admin/direction => acces complet au catalogue (pros + particuliers)
+  produitsVisibles = produitsCache;
   onSuccessCb = onSuccess || null;
 
   document.getElementById('modal-vente-title').textContent = `✏ Modifier la vente #${vente.factureId || vente.id}`;

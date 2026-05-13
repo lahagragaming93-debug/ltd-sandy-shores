@@ -131,10 +131,19 @@ Bouton **« + Créer un compte »**. Remplis :
 commission = 32,5 % (Novice) / 35 % (Inter) / 37,5 % (Exp)
 plafond    = 13 000 / 14 000 / 15 000 $ (Novice / Inter / Exp)
 
-CA retenu = MIN( CA généré, 40 000 $ )
+CA commissionnable = somme des ventes "particulier" (hors produits pro)
+CA retenu          = MIN( CA commissionnable, 40 000 $ )
 
 Salaire = MIN( CA retenu × commission , plafond )
 ```
+
+> 🏢 **Distinction particulier / professionnel**
+>
+> Chaque produit du catalogue a un flag `pourPro` :
+> - **Particulier** (pourPro=false) : vendu par les vendeurs aux clients → entre dans le CA commissionnable
+> - **Professionnel** (pourPro=true) : vendu par la direction (Patron, Co-Patron, DRH, Resp Vente) à d'autres entreprises → entre dans le CA LTD pour la compta mais **pas dans la commission vendeur**
+>
+> Tu peux basculer un produit entre les 2 régimes à tout moment depuis **Stocks → Modifier produit → checkbox "Vendu aux professionnels uniquement"**.
 
 **Exemple concret** (Vendeur Intermédiaire) :
 - CA : 25 000 $

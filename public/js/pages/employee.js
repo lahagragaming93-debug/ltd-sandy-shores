@@ -87,35 +87,37 @@ const plafondSalaire = PLAFOND_SALAIRE[profile.role] || 0;
 
 if (isVendeur(profile.role)) {
   const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
+  const caParticulier = myVentes.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
+  const caPro = ca - caParticulier;
   const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
-  const salaireEst = salaireVendeur(profile.role, ca);
-  const progressionCA = Math.min(100, (ca / CA_PLAFOND_VENDEUR) * 100);
+  const salaireEst = salaireVendeur(profile.role, caParticulier);
+  const progressionCA = Math.min(100, (caParticulier / CA_PLAFOND_VENDEUR) * 100);
   const commission = COMMISSION_VENDEUR[profile.role] * 100;
   // Quota CA hebdo : si non atteint a la cloture dimanche 23h59, avert auto.
   const quotaCA = Number(config.quotaCAVendeur ?? 30000);
-  const pctQuotaCA = quotaCA > 0 ? Math.min(100, (ca / quotaCA) * 100) : 0;
+  const pctQuotaCA = quotaCA > 0 ? Math.min(100, (caParticulier / quotaCA) * 100) : 0;
 
   document.getElementById('kpis-emp').innerHTML = `
-    <div class="kpi"><div class="label">Ton CA</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes</div></div>
-    <div class="kpi"><div class="label">Quota CA hebdo</div><div class="value">${pct(pctQuotaCA, 0)}</div><div class="delta ${ca >= quotaCA ? 'up' : 'down'}">${money(ca)} / ${money(quotaCA)}</div></div>
-    <div class="kpi"><div class="label">Bénéfice généré</div><div class="value">${money(benefice)}</div><div class="delta">commission ${commission}%</div></div>
-    <div class="kpi"><div class="label">Salaire estimé</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
+    <div class="kpi"><div class="label">Ton CA</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes${caPro > 0 ? ` · ${money(caPro)} hors commission` : ''}</div></div>
+    <div class="kpi"><div class="label">CA commissionnable</div><div class="value">${money(caParticulier)}</div><div class="delta">base du salaire</div></div>
+    <div class="kpi"><div class="label">Quota CA hebdo</div><div class="value">${pct(pctQuotaCA, 0)}</div><div class="delta ${caParticulier >= quotaCA ? 'up' : 'down'}">${money(caParticulier)} / ${money(quotaCA)}</div></div>
+    <div class="kpi"><div class="label">Salaire estimé</div><div class="value">${money(salaireEst)}</div><div class="delta">${commission}% · plafond ${money(plafondSalaire)}</div></div>
   `;
 
   document.getElementById('detail').innerHTML = `
     <div class="row" style="gap:14px;flex-direction:column;align-items:stretch;">
       <div>
-        <div class="muted mono mb-1">Quota CA hebdo (avert auto si non atteint à la clôture dimanche 23h59)</div>
+        <div class="muted mono mb-1">Quota CA hebdo (sur CA commissionnable — avert auto si non atteint à la clôture)</div>
         <div class="progress" style="height:24px;">
-          <div class="fill" style="width:${pctQuotaCA}%;${ca >= quotaCA ? 'background:var(--color-cactus,#5a8);' : ''}"></div>
-          <div class="label">${money(ca)} / ${money(quotaCA)} (${pct(pctQuotaCA, 0)})</div>
+          <div class="fill" style="width:${pctQuotaCA}%;${caParticulier >= quotaCA ? 'background:var(--color-cactus,#5a8);' : ''}"></div>
+          <div class="label">${money(caParticulier)} / ${money(quotaCA)} (${pct(pctQuotaCA, 0)})</div>
         </div>
       </div>
       <div>
-        <div class="muted mono mb-1">Progression vers plafond CA (${money(CA_PLAFOND_VENDEUR)} — au-delà, le bénéfice n'est plus commissionné)</div>
+        <div class="muted mono mb-1">Progression vers plafond CA (${money(CA_PLAFOND_VENDEUR)} — au-delà, plus de commission)</div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${progressionCA}%"></div>
-          <div class="label">${money(ca)} / ${money(CA_PLAFOND_VENDEUR)}</div>
+          <div class="label">${money(caParticulier)} / ${money(CA_PLAFOND_VENDEUR)}</div>
         </div>
       </div>
       <div>
@@ -256,6 +258,7 @@ if (btnVente) {
       return;
     }
     ouvrirModalNouvelleVente({
+      role: profile.role,
       onSuccess: () => {
         // Recharge la page pour rafraichir le tableau "Mes ventes" + KPIs.
         // Le listener sorties_en_cours se mettra a jour tout seul.

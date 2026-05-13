@@ -94,10 +94,14 @@ const [users, ventes, services, quotas, paies, config, redistributions] = await 
 ]);
 
 // === Calculer les métriques par employé ===
+// caTotal : tout le CA (sert au LTD pour la compta)
+// caParticulier : seulement les ventes "particulier" (sert au calcul de la commission vendeur)
+//                 Fallback sur v.montant si montantParticulier n'existe pas encore (vente historique)
 const metricsByUser = {};
 users.forEach(u => {
   const myVentes = ventes.filter(v => v.vendeurId === u.id);
   const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
+  const caParticulier = myVentes.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
   const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
 
   const myServices = services.filter(s => s.employeId === u.id);
@@ -110,8 +114,7 @@ users.forEach(u => {
 
   const employe = {
     role: u.role,
-    caGenere: ca,
-    beneficeGenere: benefice,
+    caGenere: caParticulier, // commission sur particulier seulement
     bidonsRealises: myQuota.bidons || 0,
     caoutchoucsRealises: myQuota.caoutchoucs || 0,
     salaireDecide: u.salaireDecide || 0
@@ -119,7 +122,7 @@ users.forEach(u => {
   const estime = salaireEstime(employe, config);
 
   metricsByUser[u.id] = {
-    ca, benefice, heuresMs, ventes: myVentes,
+    ca, caParticulier, benefice, heuresMs, ventes: myVentes,
     bidons: myQuota.bidons || 0,
     caoutchoucs: myQuota.caoutchoucs || 0,
     salaireEstime: estime,
@@ -179,7 +182,11 @@ function renderTable() {
 
     let progressLabel = '—';
     if (isVendeur(u.role)) {
-      progressLabel = `${money(m.ca || 0)} / ${money(40000)}`;
+      const cp = m.caParticulier ?? m.ca ?? 0;
+      const part = m.ca > 0 && cp < m.ca
+        ? ` <span class="muted" style="font-size:0.72rem;">(sur ${money(m.ca)} total)</span>`
+        : '';
+      progressLabel = `${money(cp)} / ${money(40000)}${part}`;
     } else if (isPompiste(u.role)) {
       const score = scorePompiste(m.bidons, m.caoutchoucs, config.quotaBidons, config.quotaCaoutchoucs);
       progressLabel = `${pct(score, 0)}`;
@@ -237,9 +244,13 @@ function ouvrirDetail(uid) {
         <tr><td>Plafond TTE</td><td class="right mono">${money(PLAFOND_SALAIRE[u.role] || 0)}</td></tr>
   `;
   if (isVendeur(u.role)) {
+    const cp = m.caParticulier ?? m.ca ?? 0;
+    const caPro = (m.ca || 0) - cp;
     html += `
-      <tr><td>CA généré</td><td class="right mono">${money(m.ca || 0)}</td></tr>
-      <tr><td>Bénéfice généré</td><td class="right mono">${money(m.benefice || 0)}</td></tr>
+      <tr><td>CA total généré</td><td class="right mono">${money(m.ca || 0)}</td></tr>
+      <tr><td>↳ CA particulier <span class="muted">(commissionnable)</span></td><td class="right mono">${money(cp)}</td></tr>
+      ${caPro > 0 ? `<tr><td>↳ CA pro <span class="muted">(non commissionné)</span></td><td class="right mono">${money(caPro)}</td></tr>` : ''}
+      <tr><td>Bénéfice généré pour le LTD</td><td class="right mono">${money(m.benefice || 0)}</td></tr>
       <tr><td>Nombre de ventes</td><td class="right mono">${(m.ventes || []).length}</td></tr>
     `;
   }
