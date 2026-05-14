@@ -43,9 +43,38 @@ const html = `
     </select>
     <button class="btn btn-icon" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
     <button class="btn btn-icon" id="btn-export-pdf" title="Imprimer / Exporter en PDF" data-tooltip="Imprimer PDF">🖨</button>
+    ${editable ? '<button class="btn btn-icon" id="btn-refresh-dashboard" title="Rafraîchir le Dashboard du Google Sheet" data-tooltip="Rafraîchir Dashboard Sheet">🔄</button>' : ''}
+    ${editable ? '<button class="btn btn-icon" id="btn-cloturer-semaine" title="Clôturer la semaine (uniquement après dimanche 23h59)" data-tooltip="Clôturer la semaine">🔒</button>' : ''}
     <span class="spacer"></span>
     ${editable ? '<button class="btn btn-primary btn-icon" id="btn-add-depense" title="Ajouter une dépense" data-tooltip="Ajouter dépense">➕</button>' : ''}
   </div>
+
+  ${editable ? `
+  <!-- Modal clôture semaine -->
+  <div id="modal-cloture" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:560px;">
+      <h3>🔒 Clôturer la semaine</h3>
+      <p class="muted" style="font-size:0.85rem;">
+        Cette action fige les chiffres de la semaine écoulée (lundi → dimanche) dans la collection
+        <code>/semaines</code>. Le Dashboard reflètera la clôture officielle.
+      </p>
+      <div class="alert info" style="font-size:0.85rem;margin:8px 0;">
+        ⚠ Clôture possible <strong>uniquement après dimanche 23h59</strong>. Avant ça, la semaine n'est pas terminée.
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-top:12px;">
+        <input type="checkbox" id="cloture-confirmation-irs" style="margin-top:4px;" />
+        <span><strong>✅ Je confirme avoir soumis ma déclaration fiscale sur le site IRS</strong>
+        <br><span class="muted" style="font-size:0.78rem;">(Art. 4-3.3 — déclaration à soumettre avant mardi 21h)</span></span>
+      </label>
+      <label class="mt-2">Note de clôture <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
+      <input type="text" id="cloture-note" placeholder="Ex : Semaine standard, RAS." />
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="btn-confirm-cloture" disabled>🔒 Clôturer définitivement</button>
+        <button class="btn btn-ghost" id="btn-cancel-cloture">Annuler</button>
+      </div>
+    </div>
+  </div>
+  ` : ''}
 
   <!-- Templates de dépenses fréquentes (uniquement si éditable) -->
   ${editable ? `
@@ -1058,3 +1087,94 @@ async function chargerStatsbank() {
   makeSortable(document.getElementById('table-statsbank'));
 }
 chargerStatsbank();
+
+
+// ============================================================
+// Bouton 🔄 Rafraîchir Dashboard Sheet
+// ============================================================
+document.getElementById("btn-refresh-dashboard")?.addEventListener("click", async () => {
+  const btn = document.getElementById("btn-refresh-dashboard");
+  btn.disabled = true;
+  const ancien = btn.textContent;
+  btn.textContent = "⏳";
+  try {
+    const { auth } = await import("../firebase-config.js");
+    const idToken = await auth.currentUser.getIdToken();
+    const resp = await fetch("https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/refreshDashboardNow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+      body: "{}"
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    toastSuccess(`Dashboard rafraîchi (${json.rowCount} lignes)`);
+  } catch (e) {
+    toastError(e.message || "Erreur refresh Dashboard");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = ancien;
+  }
+});
+
+// ============================================================
+// Bouton 🔒 Clôturer la semaine
+// ============================================================
+function isPostDimancheSoir() {
+  // Clôture possible uniquement à partir de lundi 00h00 (en France)
+  // = dimanche soir 23h59 passé
+  const now = new Date();
+  const day = now.getDay(); // 0=dim, 1=lun, ...
+  if (day === 0) {
+    // Dimanche : OK uniquement après 23h59
+    return now.getHours() === 23 && now.getMinutes() >= 59;
+  }
+  return day >= 1; // lundi à samedi : OK
+}
+
+document.getElementById("btn-cloturer-semaine")?.addEventListener("click", () => {
+  if (!isPostDimancheSoir()) {
+    toastError("Tu ne peux clôturer une semaine quaprès dimanche 23h59 (la semaine doit être terminée).");
+    return;
+  }
+  document.getElementById("modal-cloture").classList.remove("hidden");
+  document.getElementById("cloture-confirmation-irs").checked = false;
+  document.getElementById("cloture-note").value = "";
+  document.getElementById("btn-confirm-cloture").disabled = true;
+});
+
+document.getElementById("cloture-confirmation-irs")?.addEventListener("change", (e) => {
+  document.getElementById("btn-confirm-cloture").disabled = !e.target.checked;
+});
+
+document.getElementById("btn-cancel-cloture")?.addEventListener("click", () => {
+  document.getElementById("modal-cloture").classList.add("hidden");
+});
+
+document.getElementById("btn-confirm-cloture")?.addEventListener("click", async () => {
+  const confirmationIRS = document.getElementById("cloture-confirmation-irs").checked;
+  const noteCloture = document.getElementById("cloture-note").value.trim();
+  if (!confirmationIRS) {
+    toastError("Tu dois confirmer avoir fait la déclaration IRS");
+    return;
+  }
+  const btn = document.getElementById("btn-confirm-cloture");
+  btn.disabled = true; btn.textContent = "⏳ Clôture...";
+  try {
+    const { auth } = await import("../firebase-config.js");
+    const idToken = await auth.currentUser.getIdToken();
+    const resp = await fetch("https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/cloturerSemaine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+      body: JSON.stringify({ confirmationIRS, noteCloture })
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    toastSuccess(json.message || `Semaine clôturée (CA ${json.ca}$, bénéfice net ${json.beneficeNet}$).`);
+    document.getElementById("modal-cloture").classList.add("hidden");
+    setTimeout(() => window.location.reload(), 1500);
+  } catch (e) {
+    toastError(e.message || "Erreur clôture");
+    btn.disabled = false; btn.textContent = "🔒 Clôturer définitivement";
+  }
+});
+

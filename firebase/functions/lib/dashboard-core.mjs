@@ -298,42 +298,46 @@ function buildDashboard(data) {
   }
   rows.push(['', '', '', '', '', '', '', '', '']); // spacer
 
-  // === CONFORMITÉ TTE ===
-  rows.push(['📊 CONFORMITÉ TTE — Indicateurs clés', null, null, null, null, null, null, null, null]); // header section
+  // === CONFORMITÉ TTE — Échéances semaine ===
+  // Refonte 2026-05-14 : on simplifie à 2 indicateurs vraiment lisibles
+  // (masse salariale + échéances déclaration) au lieu de 4 lignes mélangées.
+  rows.push(['📊 CONFORMITÉ TTE — Échéances de la semaine', null, null, null, null, null, null, null, null]);
 
-  const conformiteRows = [
-    {
-      label: 'Masse salariale ≤ 90 % du CA',
-      ref:   'Art. 4-1.13',
-      ok:    ratioMasseSal <= 0.90,
-      detail: `Actuel : ${pct(masseSalariale, caTotal)}`
-    },
-    {
-      label: 'Comptabilité tenue et conservée min 6 sem',
-      ref:   'Art. 4-1.1',
-      ok:    true,
-      detail: 'Conservation 100 % historique activée'
-    },
-    {
-      label: 'Justificatifs par dépense (audit IRS)',
-      ref:   'Art. 4-1.5',
-      ok:    depenses.every(d => d.raison && d.raison.length > 0),
-      detail: `${depenses.filter(d => d.raison).length}/${depenses.length} dépenses avec justification`
-    },
-    {
-      label: 'Déclaration fiscale avant mardi 21h',
-      ref:   'Art. 4-3.3',
-      ok:    true,
-      detail: 'À soumettre via comptaExport — deadline mardi 21h'
-    }
-  ];
-  for (const c of conformiteRows) {
-    rows.push([
-      c.ok ? '🟢' : '🔴', c.label, null, null,
-      c.ref, null,
-      c.detail, null, null
-    ]);
+  // Indicateur 1 : Masse salariale (le seul vraiment dynamique)
+  const ratioMasseSalPct = caTotal > 0 ? Math.round((masseSalariale / caTotal) * 100) : 0;
+  const masseStatut = ratioMasseSal <= 0.90
+    ? `🟢 Conforme (${ratioMasseSalPct} % du CA, seuil ≤ 90 %)`
+    : `🔴 DÉPASSEMENT TTE (${ratioMasseSalPct} % du CA, doit rester ≤ 90 %)`;
+  rows.push(['Masse salariale', null, null, masseStatut, null, null, null, null, null]);
+
+  // Indicateur 2 : Échéance déclaration fiscale (mardi 21h)
+  const maintenantParis = new Date();
+  const dayOfWeek = maintenantParis.getDay(); // 0=dim, 1=lun, 2=mar
+  let statutDecla;
+  if (dayOfWeek === 1) {
+    statutDecla = '🟡 À soumettre AUJOURD\'HUI ou MARDI 21h max — site IRS';
+  } else if (dayOfWeek === 2) {
+    statutDecla = '🟠 ÉCHÉANCE AUJOURD\'HUI 21h — site IRS';
+  } else if (dayOfWeek === 3) {
+    statutDecla = '🔴 RETARD — soumettre IMMÉDIATEMENT (pénalité +10% par 24h)';
+  } else if (dayOfWeek === 0) {
+    statutDecla = '⏳ Semaine en cours, déclaration dès lundi';
+  } else {
+    statutDecla = '✓ Déclaration de la semaine N-1 normalement faite';
   }
+  rows.push(['Déclaration fiscale (Art. 4-3.3)', null, null, statutDecla, null, null, null, null, null]);
+
+  // Indicateur 3 : Paiement impôts (mercredi 21h)
+  let statutPaiement;
+  if (dayOfWeek === 3) {
+    statutPaiement = '🟠 PAIEMENT IMPÔTS AUJOURD\'HUI 21h max';
+  } else if (dayOfWeek >= 4 || dayOfWeek === 0) {
+    statutPaiement = '✓ Délai impôts dépassé pour la semaine N-1';
+  } else {
+    statutPaiement = '✓ Délai paiement : mercredi 21h';
+  }
+  rows.push(['Paiement impôts (Art. 4-3.4)', null, null, statutPaiement, null, null, null, null, null]);
+
   rows.push(['', '', '', '', '', '', '', '', '']); // spacer
 
   // === 5 DERNIÈRES VENTES + 5 DERNIÈRES DÉPENSES === (côte à côte)
@@ -638,41 +642,24 @@ function buildFormatRequests(sheetId, rows) {
     }
   });
 
-  // 4 lignes conformité (rows 17-20) : fusion par sections
-  for (let r = 17; r <= 20; r++) {
-    // Col A = icône
+  // 3 lignes conformité (rows 17-19) : Label (cols A-C) | Statut texte (cols D-I)
+  for (let r = 17; r <= 19; r++) {
+    // Cols A-C : label (fusion)
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 0, endColumnIndex: 3 }, mergeType: 'MERGE_ALL' } });
     reqs.push({
       repeatCell: {
-        range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 0, endColumnIndex: 1 },
-        cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', textFormat: { fontSize: 14 } } },
-        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+        range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 0, endColumnIndex: 3 },
+        cell: { userEnteredFormat: { backgroundColor: C.grayL, textFormat: { bold: true, fontSize: 11 }, horizontalAlignment: 'LEFT', verticalAlignment: 'MIDDLE', padding: { left: 12, top: 6, bottom: 6 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,padding)'
       }
     });
-    // Cols B-D = label (fusion)
-    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 1, endColumnIndex: 4 }, mergeType: 'MERGE_ALL' } });
+    // Cols D-I : statut (fusion, texte large lisible)
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 3, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
     reqs.push({
       repeatCell: {
-        range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 1, endColumnIndex: 4 },
-        cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 10 }, padding: { left: 4 } } },
-        fields: 'userEnteredFormat(textFormat,padding)'
-      }
-    });
-    // Cols E-F = ref article (fusion)
-    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 4, endColumnIndex: 6 }, mergeType: 'MERGE_ALL' } });
-    reqs.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 4, endColumnIndex: 6 },
-        cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', textFormat: { fontSize: 9, italic: true, foregroundColor: C.gray } } },
-        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
-      }
-    });
-    // Cols G-I = détail (fusion)
-    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 6, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
-    reqs.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 6, endColumnIndex: 9 },
-        cell: { userEnteredFormat: { textFormat: { fontSize: 9, foregroundColor: C.gray }, padding: { right: 8 } } },
-        fields: 'userEnteredFormat(textFormat,padding)'
+        range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 3, endColumnIndex: 9 },
+        cell: { userEnteredFormat: { textFormat: { fontSize: 11 }, horizontalAlignment: 'LEFT', verticalAlignment: 'MIDDLE', padding: { left: 8, top: 6, bottom: 6 } } },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment,padding)'
       }
     });
     // Bordure basse fine
@@ -684,43 +671,47 @@ function buildFormatRequests(sheetId, rows) {
     });
   }
 
-  // === 5 dernières ventes/dépenses === ligne header (row 22)
+  // === 5 dernières ventes/dépenses === (indices dynamiques via findIndex)
   // Section "VENTES" : cols 0-3, section "DÉPENSES" : cols 4-8
-  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 22, endRowIndex: 23, startColumnIndex: 0, endColumnIndex: 4 }, mergeType: 'MERGE_ALL' } });
-  reqs.push({
-    repeatCell: {
-      range: { sheetId, startRowIndex: 22, endRowIndex: 23, startColumnIndex: 0, endColumnIndex: 4 },
-      cell: { userEnteredFormat: { backgroundColor: C.green, textFormat: { foregroundColor: C.white, bold: true, fontSize: 11 }, horizontalAlignment: 'CENTER', padding: { top: 6, bottom: 6 } } },
-      fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
-    }
-  });
-  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 22, endRowIndex: 23, startColumnIndex: 4, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
-  reqs.push({
-    repeatCell: {
-      range: { sheetId, startRowIndex: 22, endRowIndex: 23, startColumnIndex: 4, endColumnIndex: 9 },
-      cell: { userEnteredFormat: { backgroundColor: C.red, textFormat: { foregroundColor: C.white, bold: true, fontSize: 11 }, horizontalAlignment: 'CENTER', padding: { top: 6, bottom: 6 } } },
-      fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
-    }
-  });
-  // Sub-header (row 23)
-  reqs.push({
-    repeatCell: {
-      range: { sheetId, startRowIndex: 23, endRowIndex: 24, startColumnIndex: 0, endColumnIndex: 9 },
-      cell: { userEnteredFormat: { backgroundColor: C.grayL, textFormat: { bold: true, fontSize: 9 }, horizontalAlignment: 'CENTER', padding: { top: 3, bottom: 3 } } },
-      fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
-    }
-  });
-
-  // Données ventes/dépenses (rows 24+ jusqu'à juste avant historique) : centrage horizontal
-  const idxHistoriqueData = rows.findIndex(r => String(r[0]).includes('📚 HISTORIQUE'));
-  if (idxHistoriqueData > 24) {
+  const idxVDheader = rows.findIndex(r => String(r[0]).includes('💵 5 DERNIÈRES VENTES'));
+  if (idxVDheader >= 0) {
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: idxVDheader, endRowIndex: idxVDheader + 1, startColumnIndex: 0, endColumnIndex: 4 }, mergeType: 'MERGE_ALL' } });
     reqs.push({
       repeatCell: {
-        range: { sheetId, startRowIndex: 24, endRowIndex: idxHistoriqueData - 1, startColumnIndex: 0, endColumnIndex: 9 },
-        cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', textFormat: { fontSize: 10 } } },
-        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+        range: { sheetId, startRowIndex: idxVDheader, endRowIndex: idxVDheader + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        cell: { userEnteredFormat: { backgroundColor: C.green, textFormat: { foregroundColor: C.white, bold: true, fontSize: 11 }, horizontalAlignment: 'CENTER', padding: { top: 6, bottom: 6 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
       }
     });
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: idxVDheader, endRowIndex: idxVDheader + 1, startColumnIndex: 4, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
+    reqs.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: idxVDheader, endRowIndex: idxVDheader + 1, startColumnIndex: 4, endColumnIndex: 9 },
+        cell: { userEnteredFormat: { backgroundColor: C.red, textFormat: { foregroundColor: C.white, bold: true, fontSize: 11 }, horizontalAlignment: 'CENTER', padding: { top: 6, bottom: 6 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+      }
+    });
+    // Sub-header (ligne suivante)
+    reqs.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: idxVDheader + 1, endRowIndex: idxVDheader + 2, startColumnIndex: 0, endColumnIndex: 9 },
+        cell: { userEnteredFormat: { backgroundColor: C.grayL, textFormat: { bold: true, fontSize: 9 }, horizontalAlignment: 'CENTER', padding: { top: 3, bottom: 3 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+      }
+    });
+    // Données ventes/dépenses : centrage horizontal
+    const idxEngagementsData = rows.findIndex(r => String(r[0]).includes('📋 ENGAGEMENTS'));
+    const idxHistoriqueData = rows.findIndex(r => String(r[0]).includes('📚 HISTORIQUE'));
+    const finData = idxEngagementsData > idxVDheader ? idxEngagementsData : idxHistoriqueData;
+    if (finData > idxVDheader + 2) {
+      reqs.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: idxVDheader + 2, endRowIndex: finData - 1, startColumnIndex: 0, endColumnIndex: 9 },
+          cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', textFormat: { fontSize: 10 } } },
+          fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+        }
+      });
+    }
   }
 
   // === Section "ENGAGEMENTS DE REMBOURSEMENT" ===

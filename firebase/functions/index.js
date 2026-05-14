@@ -3378,39 +3378,185 @@ export const reclasserDepense = onRequest({
 
 
 // ============================================================
-// Auto-refresh Dashboard Sheet — toutes les minutes
+// Dashboard Sheet : 2 endpoints HTTP (refresh manuel + clôture semaine)
 // ============================================================
-// Régénère l'onglet 📊 Dashboard du Sheet Compta toutes les minutes pour
-// avoir un visuel quasi temps réel (latence max 1 minute après une vente
-// ou dépense). Utilise le secret DASHBOARD_SA_KEY (service account avec
-// accès en écriture au Sheet — partagé manuellement par le patron).
+// 2026-05-14 : suppression du cron 'every 1 minutes' qui était trop
+// invasif visuellement. Le patron déclenche maintenant le refresh à la
+// demande via un bouton sur la page Comptabilité du site.
 //
-// Latence type : ~5-10 sec après l'écriture en base.
-// Coût : ~60 exécutions/heure × ~5s = 5 minutes/heure de Cloud Functions.
+// Auth admin (direction) via Bearer token Firebase Auth.
 // ============================================================
 import { google as googleapis } from 'googleapis';
 import { regenererDashboard } from './lib/dashboard-core.mjs';
 
-export const refreshDashboardCron = onSchedule({
-  schedule: 'every 1 minutes',
-  timeZone: 'Europe/Paris',
+// Helper : crée un client Sheets API avec le service account stocké en secret
+function getSheetsClient() {
+  const saKey = JSON.parse(DASHBOARD_SA_KEY.value());
+  const auth = new googleapis.auth.GoogleAuth({
+    credentials: saKey,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  });
+  return googleapis.sheets({ version: 'v4', auth });
+}
+
+// Helper : vérifie le token Bearer et que l'appelant est direction
+async function requireDirection(req) {
+  const authHeader = req.get('Authorization') || '';
+  const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!idToken) throw { status: 401, error: 'Missing Authorization Bearer token' };
+  const decoded = await adminAuth.verifyIdToken(idToken);
+  const callerSnap = await db.collection('users').doc(decoded.uid).get();
+  if (!callerSnap.exists) throw { status: 403, error: 'Caller profile not found' };
+  const caller = callerSnap.data();
+  const role = caller.role || '';
+  if (!['patron', 'co-patron', 'admin-technique'].includes(role)) {
+    throw { status: 403, error: 'Direction uniquement' };
+  }
+  return { uid: decoded.uid, caller };
+}
+
+// Refresh Dashboard à la demande (bouton site)
+export const refreshDashboardNow = onRequest({
   region: 'europe-west1',
+  cors: true,
   secrets: [DASHBOARD_SA_KEY],
   timeoutSeconds: 120,
   memory: '512MiB'
-}, async (event) => {
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
   try {
-    const saKey = JSON.parse(DASHBOARD_SA_KEY.value());
-    const auth = new googleapis.auth.GoogleAuth({
-      credentials: saKey,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets']
-    });
-    const sheets = googleapis.sheets({ version: 'v4', auth });
+    await requireDirection(req);
+    const sheets = getSheetsClient();
     const result = await regenererDashboard({ db, sheets });
-    console.log(`[refreshDashboardCron] OK: ${result.rowCount} lignes, ${result.requestsCount} requests`);
+    return res.status(200).json({ ok: true, ...result });
   } catch (e) {
-    console.error('[refreshDashboardCron] error:', e.message);
-    throw e;
+    if (e.status) return res.status(e.status).json({ error: e.error });
+    console.error('[refreshDashboardNow] error:', e.message);
+    return res.status(500).json({ error: e.message || 'Internal error' });
+  }
+});
+
+// Clôture manuelle de la semaine (après dimanche 23h59 + confirm IRS)
+//
+// Workflow patron :
+//   1. Patron fait sa déclaration fiscale sur le site IRS (externe)
+//   2. Revient sur le site LTD → page Compta → bouton "🔒 Clôturer la semaine"
+//   3. Modal confirmation : checkbox "J'ai bien soumis ma déclaration IRS"
+//   4. Si checkbox cochée + on est après dimanche 23h59 → semaine clôturée
+//   5. Dashboard se met à jour (chiffres figés dans /semaines)
+//
+// Restrictions :
+//   - Direction uniquement
+//   - Ne peut clôturer que la semaine PRÉCÉDENTE (= déjà finie)
+//   - Doit avoir confirmationIRS=true dans le payload
+export const cloturerSemaine = onRequest({
+  region: 'europe-west1',
+  cors: true,
+  secrets: [DASHBOARD_SA_KEY],
+  timeoutSeconds: 60
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const { uid, caller } = await requireDirection(req);
+    const { confirmationIRS, noteCloture } = req.body || {};
+    if (confirmationIRS !== true) {
+      return res.status(400).json({ error: 'Tu dois confirmer que ta déclaration IRS a été faite avant de clôturer.' });
+    }
+
+    // Calcule la semaine à clôturer = la semaine qui vient de finir
+    // (lundi → dimanche, fin = dimanche 23:59:59.999 le plus récent passé)
+    const now = new Date();
+    // En timezone Paris (compute via offset implicit pour Cloud Functions UTC)
+    // Trouve le dernier dimanche 23:59 passé
+    const finSemainePassee = new Date(now);
+    const day = finSemainePassee.getDay();
+    // day=0 dim, 1 lun, ..., 6 sam. On veut atteindre le dimanche 23:59
+    if (day === 0) {
+      // Aujourd'hui dimanche : la semaine N en cours s'est terminée hier soir (semaine N-1)
+      // si on est avant 23:59:59 aujourd'hui, sinon c'est aujourd'hui
+      const seuil = new Date(finSemainePassee);
+      seuil.setHours(23, 59, 0, 0);
+      if (now < seuil) {
+        // Semaine en cours pas encore finie
+        return res.status(400).json({ error: 'Tu ne peux pas clôturer une semaine avant dimanche 23h59. La semaine en cours se termine à la fin du dimanche.' });
+      }
+    }
+    // Recule jusqu'au dernier dimanche
+    const diffJours = day === 0 ? 0 : day; // si lundi (1), on recule 1 jour pour dimanche
+    finSemainePassee.setDate(finSemainePassee.getDate() - diffJours);
+    finSemainePassee.setHours(23, 59, 59, 999);
+    const debutSemainePassee = new Date(finSemainePassee);
+    debutSemainePassee.setDate(debutSemainePassee.getDate() - 6);
+    debutSemainePassee.setHours(0, 0, 0, 0);
+    const weekKey = debutSemainePassee.toISOString().slice(0, 10);
+
+    // Agrège les chiffres de la semaine
+    const [ventesSnap, redistSnap, depensesSnap, paiesSnap] = await Promise.all([
+      db.collection('ventes')
+        .where('timestamp', '>=', Timestamp.fromDate(debutSemainePassee))
+        .where('timestamp', '<=', Timestamp.fromDate(finSemainePassee)).get(),
+      db.collection('redistributions')
+        .where('timestamp', '>=', Timestamp.fromDate(debutSemainePassee))
+        .where('timestamp', '<=', Timestamp.fromDate(finSemainePassee)).get(),
+      db.collection('depenses')
+        .where('timestamp', '>=', Timestamp.fromDate(debutSemainePassee))
+        .where('timestamp', '<=', Timestamp.fromDate(finSemainePassee)).get(),
+      db.collection('paies')
+        .where('timestamp', '>=', Timestamp.fromDate(debutSemainePassee))
+        .where('timestamp', '<=', Timestamp.fromDate(finSemainePassee)).get()
+    ]);
+
+    const ventes = ventesSnap.docs.map(d => d.data()).filter(v => !v.cachee);
+    const caProduits = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+    const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
+    const ca = caProduits + caCarburant;
+    const beneficeBrut = ventes.reduce((s, v) => s + (v.benefice || 0), 0);
+    const depReelles = depensesSnap.docs.map(d => d.data()).filter(d => d.type !== 'paie');
+    const depTotal = depReelles.reduce((s, d) => s + (d.montant || 0), 0);
+    const dedu = depReelles.filter(d => d.deductible !== false).reduce((s, d) => s + (d.montant || 0), 0);
+    const masseSalariale = paiesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
+    const beneficeNet = ca - depTotal - masseSalariale;
+
+    await db.collection('semaines').doc(weekKey).set({
+      numero: weekKey,
+      dateDebut: Timestamp.fromDate(debutSemainePassee),
+      dateFin:   Timestamp.fromDate(finSemainePassee),
+      ca, caProduits, caCarburant,
+      beneficeBrut,
+      depenses: depTotal,
+      depensesTotales: depTotal,
+      chargesDeductibles: dedu,
+      masseSalariale,
+      beneficeNet,
+      nbVentes: ventes.length + redistSnap.size,
+      nbDepenses: depReelles.length,
+      statut: 'cloturee-manuelle',
+      clotureManuelle: true,
+      confirmationIRS: true,
+      cloturePar: uid,
+      cloturParNom: `${caller.prenom || ''} ${caller.nom || ''}`.trim(),
+      dateClotureManuelle: FieldValue.serverTimestamp(),
+      noteCloture: noteCloture || ''
+    }, { merge: true });
+
+    // Refresh Dashboard tant qu'on y est
+    try {
+      const sheets = getSheetsClient();
+      await regenererDashboard({ db, sheets });
+    } catch (e) {
+      console.error('[cloturerSemaine] refresh Dashboard error:', e.message);
+    }
+
+    return res.status(200).json({
+      ok: true,
+      weekKey,
+      ca, beneficeNet, masseSalariale,
+      message: `Semaine ${weekKey} clôturée manuellement par ${caller.prenom || ''} ${caller.nom || ''}.`
+    });
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.error });
+    console.error('[cloturerSemaine] error:', e.message);
+    return res.status(500).json({ error: e.message || 'Internal error' });
   }
 });
 
