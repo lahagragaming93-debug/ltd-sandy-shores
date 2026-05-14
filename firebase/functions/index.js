@@ -19,8 +19,9 @@ initializeApp();
 const db = getFirestore();
 const adminAuth = getAdminAuth();
 
-const BOT_TOKEN     = defineSecret('LTD_BOT_INGEST_TOKEN');
-const COMPTA_TOKEN  = defineSecret('LTD_COMPTA_EXPORT_TOKEN');
+const BOT_TOKEN       = defineSecret('LTD_BOT_INGEST_TOKEN');
+const COMPTA_TOKEN    = defineSecret('LTD_COMPTA_EXPORT_TOKEN');
+const DASHBOARD_SA_KEY = defineSecret('DASHBOARD_SA_KEY');
 
 // ----------------------------------------------------------------
 // 1. Clôture hebdomadaire — Lundi 00h00 Paris
@@ -3207,3 +3208,42 @@ export const reclasserDepense = onRequest({
     return res.status(500).json({ error: err.message || 'Internal error' });
   }
 });
+
+
+// ============================================================
+// Auto-refresh Dashboard Sheet — toutes les minutes
+// ============================================================
+// Régénère l'onglet 📊 Dashboard du Sheet Compta toutes les minutes pour
+// avoir un visuel quasi temps réel (latence max 1 minute après une vente
+// ou dépense). Utilise le secret DASHBOARD_SA_KEY (service account avec
+// accès en écriture au Sheet — partagé manuellement par le patron).
+//
+// Latence type : ~5-10 sec après l'écriture en base.
+// Coût : ~60 exécutions/heure × ~5s = 5 minutes/heure de Cloud Functions.
+// ============================================================
+import { google as googleapis } from 'googleapis';
+import { regenererDashboard } from './lib/dashboard-core.mjs';
+
+export const refreshDashboardCron = onSchedule({
+  schedule: 'every 1 minutes',
+  timeZone: 'Europe/Paris',
+  region: 'europe-west1',
+  secrets: [DASHBOARD_SA_KEY],
+  timeoutSeconds: 120,
+  memory: '512MiB'
+}, async (event) => {
+  try {
+    const saKey = JSON.parse(DASHBOARD_SA_KEY.value());
+    const auth = new googleapis.auth.GoogleAuth({
+      credentials: saKey,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets']
+    });
+    const sheets = googleapis.sheets({ version: 'v4', auth });
+    const result = await regenererDashboard({ db, sheets });
+    console.log(`[refreshDashboardCron] OK: ${result.rowCount} lignes, ${result.requestsCount} requests`);
+  } catch (e) {
+    console.error('[refreshDashboardCron] error:', e.message);
+    throw e;
+  }
+});
+
