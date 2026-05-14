@@ -14,7 +14,7 @@ import {
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId } from '../utils/formatters.js';
 import { checkMasseSalariale, primeHebdo, primeMensuelle, salaireEstime } from '../utils/paie.js';
-import { isDirection, isVendeur, isPompiste, isResponsable, isSuperAdmin, compteEnFinance, ROLE_LABELS, PLAFOND_SALAIRE } from '../utils/permissions.js';
+import { isDirection, isVendeur, isPompiste, isResponsable, isSuperAdmin, compteEnFinance, ROLE_LABELS, PLAFOND_SALAIRE, DRH_SALAIRE_FIXE } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
@@ -335,11 +335,25 @@ function renderSalaires(users, paies) {
     const verse = verseParUser[u.id] || verseParUser[u.idPerso] || verseParUser[u.idDiscord] || 0;
     const plafond = PLAFOND_SALAIRE[u.role] || 0;
     let estime, source;
-    if (isDirection(u.role) || u.role === 'drh' || isResponsable(u.role)) {
-      estime = u.salaireDecide ?? plafond;
-      source = u.salaireDecide ? '<span class="badge ok">décidé</span>' : '<span class="badge warn">plafond par défaut</span>';
+    if (u.role === 'drh') {
+      // DRH : salaire FIXE 18 000 \$ (decision patron 2026-05-14)
+      estime = DRH_SALAIRE_FIXE;
+      source = '<span class="badge ok">fixe imposé</span>';
+    } else if (u.role === 'responsable-vente') {
+      // RV : pro-rata sur CA personnel — calcul detaille en RH
+      estime = null;
+      source = '<span class="badge neutral">auto (RH — CA)</span>';
+    } else if (isDirection(u.role) || u.role === 'responsable-pompiste') {
+      // Patron / Co-Patron / Resp Pompiste : salaire decide
+      // Si salaireDecide est 0 (saisi par erreur) on bascule au plafond pour ne pas
+      // afficher 0 \$ en compta — l'utilisateur peut toujours l'editer en RH.
+      const decide = u.salaireDecide;
+      estime = (decide != null && decide > 0) ? decide : plafond;
+      source = (decide != null && decide > 0)
+        ? '<span class="badge ok">décidé</span>'
+        : '<span class="badge warn">plafond par défaut</span>';
     } else {
-      estime = null; // calculé en RH selon CA/quotas
+      estime = null; // vendeurs/pompistes : calcule en RH selon CA/quotas
       source = '<span class="badge neutral">auto (RH)</span>';
     }
     const reste = (estime ?? 0) - verse;
@@ -367,8 +381,11 @@ function renderSalaires(users, paies) {
   const sectionGroupe = (titre, list, totalEstime = true) => {
     if (list.length === 0) return '';
     const totEst = list.reduce((s, u) => {
-      if (isDirection(u.role) || u.role === 'drh' || isResponsable(u.role)) {
-        return s + (u.salaireDecide ?? PLAFOND_SALAIRE[u.role] ?? 0);
+      if (u.role === 'drh') return s + DRH_SALAIRE_FIXE;
+      if (u.role === 'responsable-vente') return s; // calcule en RH (CA dependant)
+      if (isDirection(u.role) || u.role === 'responsable-pompiste') {
+        const decide = u.salaireDecide;
+        return s + ((decide != null && decide > 0) ? decide : PLAFOND_SALAIRE[u.role] || 0);
       }
       return s;
     }, 0);
@@ -595,14 +612,26 @@ document.getElementById('btn-copy-recap').addEventListener('click', async () => 
 
   const ligne = (u) => {
     const verse = verseParUser[u.id] || 0;
-    const estime = u.salaireDecide ?? PLAFOND_SALAIRE[u.role] ?? 0;
+    let estime;
+    if (u.role === 'drh') estime = DRH_SALAIRE_FIXE;
+    else if (u.role === 'responsable-vente') return `• ${u.prenom} ${u.nom} — calculé auto en RH (CA personnel)`;
+    else {
+      const decide = u.salaireDecide;
+      estime = (decide != null && decide > 0) ? decide : (PLAFOND_SALAIRE[u.role] ?? 0);
+    }
     const reste = estime - verse;
     if (reste <= 0) return `✓ ${u.prenom} ${u.nom} — déjà versé (${estime} $)`;
     return `• ${u.prenom} ${u.nom} — **${reste} $** à verser (estimé ${estime} $)`;
   };
 
   let total = 0;
-  const restant = (u) => Math.max(0, (u.salaireDecide ?? PLAFOND_SALAIRE[u.role] ?? 0) - (verseParUser[u.id] || 0));
+  const restant = (u) => {
+    if (u.role === 'responsable-vente') return 0; // calcule en RH, hors recap rapide
+    const estime = u.role === 'drh'
+      ? DRH_SALAIRE_FIXE
+      : ((u.salaireDecide != null && u.salaireDecide > 0) ? u.salaireDecide : (PLAFOND_SALAIRE[u.role] ?? 0));
+    return Math.max(0, estime - (verseParUser[u.id] || 0));
+  };
   [...direction, ...respo].forEach(u => total += restant(u));
 
   const txt = `📋 **RÉCAP SALAIRES — semaine ${fmtDate(debut)} au ${fmtDate(fin)}**
