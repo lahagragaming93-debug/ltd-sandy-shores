@@ -1610,6 +1610,107 @@ export const pompisteRavitaillerManuel = onRequest({
 // Le decompte auto via #logs-ig (inventory-add caoutchouc) est neutralise
 // depuis 2026-05-12 — le modal site est la source de verite unique.
 // ----------------------------------------------------------------
+
+// ----------------------------------------------------------------
+// pompisteCorrigerStock — Pompiste corrige le stock d'une station.
+// ----------------------------------------------------------------
+// Cas : incoherence entre le stock affiche sur le site et la valeur reelle in-game.
+// Le pompiste choisit la station + saisit la VRAIE valeur en L + raison obligatoire.
+// Une alerte direction est creee a chaque correction (audit + detection abus).
+// N'incremente PAS le quota perso (c'est une correction, pas un ravitaillement).
+// ----------------------------------------------------------------
+export const pompisteCorrigerStock = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+    const allowed = isDir || role === 'responsable-pompiste' || /^pompiste-/.test(role);
+    if (!allowed) return res.status(403).json({ error: 'Ce role ne peut pas corriger un stock station.' });
+    if (!isDir && (caller.avertsActifs || 0) >= 3) {
+      return res.status(403).json({ error: 'Compte bloque (3 avertissements actifs). Contacte la direction.' });
+    }
+
+    const { stationId, nouveauStock, raison } = req.body || {};
+    if (!stationId) return res.status(400).json({ error: 'Missing stationId' });
+    const valeurCible = Number(nouveauStock);
+    if (!Number.isFinite(valeurCible) || valeurCible < 0) {
+      return res.status(400).json({ error: 'nouveauStock doit etre un nombre >= 0' });
+    }
+    const motif = String(raison || '').trim();
+    if (motif.length < 5) {
+      return res.status(400).json({ error: 'Une raison detaillee est obligatoire (au moins 5 caracteres).' });
+    }
+
+    const stRef = db.collection('stations').doc(stationId);
+    const stSnap = await stRef.get();
+    if (!stSnap.exists) return res.status(404).json({ error: 'Station introuvable' });
+    const station = stSnap.data();
+    const stockAvant = Number(station.stockActuel || 0);
+    const stockMax = Number(station.stockMax || 0);
+    if (stockMax > 0 && valeurCible > stockMax) {
+      return res.status(400).json({ error: `La valeur saisie (${valeurCible} L) depasse la capacite max (${stockMax} L).` });
+    }
+    const ecart = valeurCible - stockAvant;
+    const pompisteNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+
+    // 1. Update station avec la nouvelle valeur
+    await stRef.set({
+      stockActuel: valeurCible,
+      derniereModifPar: { uid: decoded.uid, nom: pompisteNom },
+      sourceMajAuto: 'modal-correction-pompiste',
+      derniereCorrection: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    // 2. Audit /redistributions (avec ecart pour detection)
+    await db.collection('redistributions').add({
+      station: station.nom || stationId,
+      stationId,
+      litres: ecart,
+      bidons: 0,
+      prixLitre: Number(station.prixLitre || 0),
+      montant: 0,
+      stockAvant,
+      stockApres: valeurCible,
+      source: 'correction-pompiste',
+      pompisteId: decoded.uid,
+      pompisteNom,
+      raison: motif,
+      timestamp: FieldValue.serverTimestamp()
+    });
+
+    // 3. Alerte direction (toujours creee — audit obligatoire des corrections)
+    const gravite = Math.abs(ecart) > 5000 ? 'danger' : (Math.abs(ecart) > 1000 ? 'warn' : 'info');
+    await db.collection('alertes').add({
+      type: 'pompiste-correction-stock',
+      message: `📐 ${pompisteNom} a corrige ${station.nom || stationId} : ${stockAvant} L → ${valeurCible} L (ecart ${ecart > 0 ? '+' : ''}${ecart} L). Raison : "${motif}"`,
+      gravite,
+      metadata: {
+        stationId, pompisteId: decoded.uid, pompisteNom,
+        stockAvant, stockApres: valeurCible, ecart, raison: motif
+      },
+      resolue: false,
+      timestamp: FieldValue.serverTimestamp()
+    });
+
+    return res.status(200).json({ ok: true, stockAvant, stockApres: valeurCible, ecart });
+  } catch (err) {
+    console.error('[pompisteCorrigerStock]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// ----------------------------------------------------------------
 export const pompisteDeclarerCaoutchoucs = onRequest({
   region: 'europe-west1',
   cors: true

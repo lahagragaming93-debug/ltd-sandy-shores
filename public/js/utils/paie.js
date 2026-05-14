@@ -47,22 +47,27 @@ export function salaireResponsableVente(caGenere) {
 
 /**
  * Salaire responsable POMPISTE — fixe (saisi manuellement par patron, plafond 17 000)
+ * Si non decide (null) ou setté à 0 par erreur → fallback sur plafond.
  */
 export function salaireResponsablePompiste(salaireDecide) {
   const plafond = PLAFOND_SALAIRE['responsable-pompiste'] ?? 17000;
-  return Math.min(Math.round(salaireDecide ?? 0), plafond);
+  const v = (salaireDecide != null && salaireDecide > 0) ? salaireDecide : plafond;
+  return Math.min(Math.round(v), plafond);
 }
 
 /**
  * Salaire direction — fixe au plafond
  * DRH : montant FIXE (18 000 $) impose par le patron, salaireDecide ignore.
- * Patron / Co-Patron : decide manuellement, plafond 20 000.
+ * Patron / Co-Patron : decide manuellement, plafond 20 000. Si non decide ou
+ * setté à 0 par erreur → fallback sur le plafond (sinon ils n'apparaissent pas
+ * dans la masse salariale, ce qui fausse les stats TTE).
  */
 export function salaireDirection(role, salaireDecide) {
   if (role === 'drh') return DRH_SALAIRE_FIXE;
   if (!isDirection(role)) return 0;
   const plafond = PLAFOND_SALAIRE[role] ?? 0;
-  return Math.min(Math.round(salaireDecide ?? plafond), plafond);
+  const v = (salaireDecide != null && salaireDecide > 0) ? salaireDecide : plafond;
+  return Math.min(Math.round(v), plafond);
 }
 
 /**

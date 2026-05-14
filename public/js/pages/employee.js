@@ -73,7 +73,8 @@ const html = `
           : ''}
         ${isPompiste(profile.role)
           ? `<button class="btn btn-primary" id="btn-ravitailler" style="font-size:1.05rem;">🛢 Ravitailler une station</button>
-             <a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">🪖 Déclarer des caoutchoucs</a>`
+             <a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">🪖 Déclarer des caoutchoucs</a>
+             <button class="btn" id="btn-corriger-stock" style="font-size:0.9rem;" title="Corriger le stock d'une station si écart entre site et IG">📐 Corriger un stock</button>`
           : ''}
       </div>
 
@@ -100,6 +101,37 @@ const html = `
             <div class="row mt-3">
               <button class="btn btn-primary" id="btn-save-ravit">Valider le ravitaillement</button>
               <button class="btn btn-ghost" id="btn-cancel-ravit">Annuler</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal correction stock (incoherence site/IG) -->
+        <div id="modal-correc" class="modal-backdrop hidden">
+          <div class="modal" style="max-width:540px;">
+            <h3>📐 Corriger le stock d'une station</h3>
+            <div class="alert warn mb-2" style="font-size:0.82rem;">
+              <span class="icon">⚠</span>
+              <span>À utiliser <strong>uniquement</strong> en cas d'écart entre le stock affiché sur le site
+              et le stock réel in-game. Une <strong>alerte est envoyée à la direction</strong> à chaque
+              correction (audit obligatoire).</span>
+            </div>
+            <label>Station <span style="color:var(--color-blood-light);">*</span></label>
+            <select id="correc-station" style="width:100%;">
+              <option value="">— Sélectionne une station —</option>
+            </select>
+            <div id="correc-station-info" class="muted" style="font-size:0.78rem;margin:4px 0 8px;"></div>
+
+            <label>Nouvelle valeur du stock (L) <span style="color:var(--color-blood-light);">*</span></label>
+            <input type="number" id="correc-litres" min="0" step="1" placeholder="Ex : 12000" />
+            <div id="correc-preview" class="muted" style="font-size:0.78rem;margin:4px 0 8px;">—</div>
+
+            <label>Raison de la correction <span style="color:var(--color-blood-light);">*</span></label>
+            <input type="text" id="correc-raison" maxlength="200" placeholder="Ex : écart 2000 L IG vs site, j'ai vérifié à la pompe" />
+            <div class="muted" style="font-size:0.72rem;margin:2px 0 0;">Min 5 caractères. Sera visible par la direction dans l'alerte.</div>
+
+            <div class="row mt-3">
+              <button class="btn btn-primary" id="btn-save-correc">Valider la correction</button>
+              <button class="btn btn-ghost" id="btn-cancel-correc">Annuler</button>
             </div>
           </div>
         </div>
@@ -498,6 +530,83 @@ if (isVendeur(profile.role)) {
       } catch (e) {
         alert('Échec : ' + (e?.message || 'erreur inattendue.'));
         btn.disabled = false; btn.textContent = 'Valider le ravitaillement';
+      }
+    });
+  }
+
+  // === Modal Corriger le stock (incoherence) ===
+  const btnCorrec  = document.getElementById('btn-corriger-stock');
+  const modalCor   = document.getElementById('modal-correc');
+  const selCorStat = document.getElementById('correc-station');
+  const inCorLitres= document.getElementById('correc-litres');
+  const inCorRaison= document.getElementById('correc-raison');
+  const elCorInfo  = document.getElementById('correc-station-info');
+  const elCorPrev  = document.getElementById('correc-preview');
+
+  function refreshCorrecInfo() {
+    const sid = selCorStat.value;
+    const s = stationsCache.find(x => x.id === sid);
+    if (!s) { elCorInfo.textContent = ''; refreshCorrecPreview(); return; }
+    elCorInfo.innerHTML = `Stock actuel sur le site : <strong>${num(s.stockActuel || 0)} L</strong> / ${num(s.stockMax || 0)} L`;
+    inCorLitres.value = s.stockActuel || 0;
+    refreshCorrecPreview();
+  }
+  function refreshCorrecPreview() {
+    const sid = selCorStat.value;
+    const s = stationsCache.find(x => x.id === sid);
+    const v = Number(inCorLitres.value);
+    if (!s || !Number.isFinite(v) || v < 0) { elCorPrev.textContent = '—'; elCorPrev.style.color = ''; return; }
+    if (s.stockMax > 0 && v > s.stockMax) {
+      elCorPrev.innerHTML = `⚠ <strong>Dépasse la capacité max</strong> (${num(s.stockMax)} L)`;
+      elCorPrev.style.color = 'var(--color-blood-light)';
+      return;
+    }
+    const ecart = v - (s.stockActuel || 0);
+    elCorPrev.innerHTML = `Écart : <strong>${ecart > 0 ? '+' : ''}${num(ecart)} L</strong> ${ecart === 0 ? '(aucun changement)' : (ecart > 0 ? '(stock ajouté)' : '(stock retiré)')}`;
+    elCorPrev.style.color = ecart === 0 ? 'var(--color-sand)' : '';
+  }
+
+  if (btnCorrec) {
+    btnCorrec.addEventListener('click', () => {
+      selCorStat.innerHTML = '<option value="">— Sélectionne une station —</option>' +
+        stationsCache.map(s => `<option value="${s.id}">${escapeHtml(s.nom)} (${num(s.stockActuel || 0)} L)</option>`).join('');
+      inCorLitres.value = '';
+      inCorRaison.value = '';
+      elCorInfo.textContent = '';
+      elCorPrev.textContent = '—';
+      elCorPrev.style.color = '';
+      modalCor.classList.remove('hidden');
+      setTimeout(() => selCorStat.focus(), 50);
+    });
+    selCorStat.addEventListener('change', refreshCorrecInfo);
+    inCorLitres.addEventListener('input', refreshCorrecPreview);
+    document.getElementById('btn-cancel-correc').addEventListener('click', () => {
+      modalCor.classList.add('hidden');
+    });
+    document.getElementById('btn-save-correc').addEventListener('click', async () => {
+      const stationId = selCorStat.value;
+      const nouveauStock = Number(inCorLitres.value);
+      const raison = inCorRaison.value.trim();
+      if (!stationId) return alert('Sélectionne une station.');
+      if (!Number.isFinite(nouveauStock) || nouveauStock < 0) return alert('Valeur de stock invalide.');
+      if (raison.length < 5) return alert('Raison obligatoire (min 5 caractères).');
+      const btn = document.getElementById('btn-save-correc');
+      btn.disabled = true; btn.textContent = 'Envoi…';
+      try {
+        const { auth } = await import('../firebase-config.js');
+        const idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteCorrigerStock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ stationId, nouveauStock, raison })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+        modalCor.classList.add('hidden');
+        window.location.reload();
+      } catch (e) {
+        alert('Échec : ' + (e?.message || 'erreur inattendue.'));
+        btn.disabled = false; btn.textContent = 'Valider la correction';
       }
     });
   }
