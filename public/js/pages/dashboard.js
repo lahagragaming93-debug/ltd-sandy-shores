@@ -53,10 +53,7 @@ const html = `
       </div>
 
       <div class="panel">
-        <div class="panel-title">
-          <span>🏆 Top 5 produits — semaine</span>
-          <span class="muted mono" id="top-produits-info" style="font-size:0.78rem;">—</span>
-        </div>
+        <div class="panel-title"><span>🏆 Top 5 produits — semaine</span></div>
         <div id="top-produits" class="top-produits-list">
           <p class="muted text-center" style="padding:20px 0;">Chargement…</p>
         </div>
@@ -218,7 +215,7 @@ async function chargerKpis() {
   }));
   const totalCAItems = topAll.reduce((s, t) => s + t.ca, 0);
   const top = topAll.sort((a, b) => b.ca - a.ca).slice(0, 5);
-  renderTopProduits(top, totalCAItems, topAll.length);
+  renderTopProduits(top, totalCAItems);
 
   // === Historique 6 semaines ===
   const semaines = await listSemaines(6).catch(() => []);
@@ -350,16 +347,13 @@ function renderChartVentes(ventesParJour) {
 }
 
 // === Top 5 produits — rendu HTML/CSS (plus lisible qu'un bar chart) ===
-function renderTopProduits(top, totalCA, nbProduitsDistincts) {
+function renderTopProduits(top, totalCA) {
   const div = document.getElementById('top-produits');
-  const info = document.getElementById('top-produits-info');
   if (!div) return;
   if (top.length === 0) {
     div.innerHTML = `<p class="muted text-center" style="padding:30px 0;">Aucune vente cette semaine.</p>`;
-    if (info) info.textContent = '';
     return;
   }
-  if (info) info.textContent = `${nbProduitsDistincts} produits différents · ${money(totalCA)} CA total items`;
 
   const max = top[0].ca || 1;
   const RANGS = [
