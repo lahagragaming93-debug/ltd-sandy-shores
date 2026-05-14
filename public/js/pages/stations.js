@@ -396,12 +396,19 @@ if (stockOnly) {
   const previewCaou = document.getElementById('caou-preview');
   const quotaC = config.quotaCaoutchoucs || 800;
 
-  document.getElementById('btn-declarer-caoutchoucs').addEventListener('click', () => {
+  function ouvrirModalCaou() {
     inputCaou.value = '';
     previewCaou.textContent = `Quota hebdo : ${num(quotaC)} caoutchoucs.`;
     previewCaou.style.color = '';
     modalCaou.classList.remove('hidden');
-  });
+    setTimeout(() => inputCaou.focus(), 50);
+  }
+  document.getElementById('btn-declarer-caoutchoucs').addEventListener('click', ouvrirModalCaou);
+
+  // Auto-ouverture si on arrive depuis Mon espace (lien stations.html#caoutchoucs)
+  if (location.hash === '#caoutchoucs') {
+    setTimeout(ouvrirModalCaou, 100);
+  }
 
   inputCaou.addEventListener('input', () => {
     const n = parseInt(inputCaou.value, 10);

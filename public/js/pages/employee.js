@@ -67,8 +67,14 @@ const html = `
       ${ROLE_LABELS[profile.role]} · Semaine du ${debut.toLocaleDateString('fr-FR')} au ${fin.toLocaleDateString('fr-FR')}
     </div>
     ${!modeVoirComme ? `
-      <div class="row center mt-3" style="gap:10px;justify-content:center;">
-        <button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">📝 Déclarer une vente</button>
+      <div class="row center mt-3" style="gap:10px;justify-content:center;flex-wrap:wrap;">
+        ${isVendeur(profile.role)
+          ? '<button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">📝 Déclarer une vente</button>'
+          : ''}
+        ${isPompiste(profile.role)
+          ? `<a class="btn btn-primary" href="stations.html" style="font-size:1.05rem;">🛢 Ravitailler une station</a>
+             <a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">🪖 Déclarer des caoutchoucs</a>`
+          : ''}
       </div>
     ` : ''}
   </div>

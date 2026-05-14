@@ -50,7 +50,7 @@ export const ACCESS = {
   comptabilite:      LECTURE_COMPTA,
   comptabilite_edit: [...DIRECTION, ...SUPER_ADMINS],
   rh:                RH_FULL,
-  stations:          [...DIRECTION, 'responsable-pompiste', ...SUPER_ADMINS],
+  stations:          [...DIRECTION, 'drh', 'responsable-pompiste', ...POMPISTES, ...SUPER_ADMINS],
   // Banque LTD : direction + DRH + super-admin (audit financier sensible)
   banque:            [...DIRECTION, 'drh', ...SUPER_ADMINS],
   // Revenus carburant : direction + DRH + responsable pompiste (pilotage stations)
