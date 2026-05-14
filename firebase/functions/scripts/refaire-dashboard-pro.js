@@ -144,6 +144,28 @@ async function chargerDonnees() {
     .get();
   const semaines = semSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+  // Subventions reçues semaine (Art. 4-2.16 — non imposable, remboursable via contrat)
+  // Captées via /banqueLtd où categorieEntree='subvention' (marqué manuellement
+  // par le patron via le script marquer-subvention.js ou la modale admin).
+  const subSnap = await db.collection('banqueLtd')
+    .where('timestamp', '>=', Timestamp.fromDate(debut))
+    .where('timestamp', '<=', Timestamp.fromDate(fin))
+    .get();
+  const subventions = subSnap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(b => b.categorieEntree === 'subvention');
+  const totalSubventions = subventions.reduce((s, b) => s + (Number(b.montant) || 0), 0);
+
+  // Solde banque LTD courant (le plus récent)
+  let soldeBanque = 0;
+  const dernierSnap = await db.collection('banqueLtd')
+    .orderBy('timestamp', 'desc')
+    .limit(1)
+    .get();
+  if (!dernierSnap.empty) {
+    soldeBanque = Number(dernierSnap.docs[0].data().soldeApres) || 0;
+  }
+
   // Calculs
   const caProduits  = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redis.reduce((s, r) => s + (Number(r.montant) || 0), 0);
@@ -163,7 +185,8 @@ async function chargerDonnees() {
     caProduits, caCarburant, caTotal,
     totalDep, chargesDedu, chargesNonDedu,
     masseSalariale, ratioMasseSal,
-    resultatImposable, beneficeNet, impot
+    resultatImposable, beneficeNet, impot,
+    subventions, totalSubventions, soldeBanque
   };
 }
 
@@ -176,7 +199,8 @@ function buildDashboard(data) {
     caProduits, caCarburant, caTotal,
     totalDep, chargesDedu, chargesNonDedu,
     masseSalariale, ratioMasseSal,
-    resultatImposable, beneficeNet, impot
+    resultatImposable, beneficeNet, impot,
+    subventions, totalSubventions, soldeBanque
   } = data;
 
   const maintenant = new Date().toLocaleString('fr-FR', {
@@ -234,8 +258,31 @@ function buildDashboard(data) {
   ]); // 11
   rows.push(['', '', '', '', '', '', '', '', '']); // 12 spacer
 
-  // === CONFORMITÉ TTE === (rows 13-18)
-  rows.push(['📊 CONFORMITÉ TTE — Indicateurs clés', null, null, null, null, null, null, null, null]); // 13 (header section)
+  // === SUBVENTIONS & TRÉSORERIE === (rows 13-15) — toujours présent
+  // Compense le bénéfice net négatif qui inquiète : la subvention couvre
+  // les achats véhicules / matières premières liés à la reprise.
+  rows.push([
+    '🏛 SUBVENTIONS REÇUES', null, null,
+    '💼 TRÉSORERIE BANQUE LTD', null, null,
+    '📊 SOLDE OPÉRATIONNEL', null, null
+  ]); // 13 labels
+  rows.push([
+    money(totalSubventions), null, null,
+    money(soldeBanque), null, null,
+    money(soldeBanque - totalSubventions), null, null
+  ]); // 14 valeurs
+  const subDetails = subventions.length > 0
+    ? subventions.map(s => `+${money(s.montant)}`).join(' · ')
+    : 'Aucune cette semaine';
+  rows.push([
+    `Non imposable (Art. 4-2.16) · ${subDetails}`, null, null,
+    'Solde temps réel inclut subventions reçues', null, null,
+    'Trésorerie hors subventions (activité pure)', null, null
+  ]); // 15 détails
+  rows.push(['', '', '', '', '', '', '', '', '']); // 16 spacer
+
+  // === CONFORMITÉ TTE ===
+  rows.push(['📊 CONFORMITÉ TTE — Indicateurs clés', null, null, null, null, null, null, null, null]); // header section
 
   const conformiteRows = [
     {
@@ -512,11 +559,48 @@ function buildFormatRequests(sheetId, rows) {
     });
   }
 
-  // === Section "CONFORMITÉ TTE" — header (row 12)
-  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 12, endRowIndex: 13, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
+  // === SUBVENTIONS & TRÉSORERIE (rows 12-14) ===
+  // 3 blocs côte à côte (subv / trésorerie / opérationnel)
+  const subBlocks = [
+    { col0: 0, color: C.gold2,  borderColor: C.gold }, // Subventions
+    { col0: 3, color: C.blueL,  borderColor: C.blue }, // Trésorerie
+    { col0: 6, color: C.greenL, borderColor: C.green } // Solde op
+  ];
+  for (const blk of subBlocks) {
+    // Label (row 12)
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 12, endRowIndex: 13, startColumnIndex: blk.col0, endColumnIndex: blk.col0 + 3 }, mergeType: 'MERGE_ALL' } });
+    reqs.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 12, endRowIndex: 13, startColumnIndex: blk.col0, endColumnIndex: blk.col0 + 3 },
+        cell: { userEnteredFormat: { backgroundColor: blk.borderColor, textFormat: { foregroundColor: C.white, bold: true, fontSize: 10 }, horizontalAlignment: 'CENTER', padding: { top: 4, bottom: 4 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+      }
+    });
+    // Valeur (row 13)
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 13, endRowIndex: 14, startColumnIndex: blk.col0, endColumnIndex: blk.col0 + 3 }, mergeType: 'MERGE_ALL' } });
+    reqs.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 13, endRowIndex: 14, startColumnIndex: blk.col0, endColumnIndex: blk.col0 + 3 },
+        cell: { userEnteredFormat: { backgroundColor: blk.color, textFormat: { foregroundColor: C.black, bold: true, fontSize: 16, fontFamily: 'Georgia' }, horizontalAlignment: 'CENTER', padding: { top: 8, bottom: 8 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+      }
+    });
+    // Détail (row 14)
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 14, endRowIndex: 15, startColumnIndex: blk.col0, endColumnIndex: blk.col0 + 3 }, mergeType: 'MERGE_ALL' } });
+    reqs.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 14, endRowIndex: 15, startColumnIndex: blk.col0, endColumnIndex: blk.col0 + 3 },
+        cell: { userEnteredFormat: { backgroundColor: blk.color, textFormat: { foregroundColor: C.gray, fontSize: 9, italic: true }, horizontalAlignment: 'CENTER', padding: { top: 2, bottom: 4 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+      }
+    });
+  }
+
+  // === Section "CONFORMITÉ TTE" — header (row 16)
+  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 16, endRowIndex: 17, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
   reqs.push({
     repeatCell: {
-      range: { sheetId, startRowIndex: 12, endRowIndex: 13, startColumnIndex: 0, endColumnIndex: 9 },
+      range: { sheetId, startRowIndex: 16, endRowIndex: 17, startColumnIndex: 0, endColumnIndex: 9 },
       cell: {
         userEnteredFormat: {
           backgroundColor: C.gold,
@@ -529,8 +613,8 @@ function buildFormatRequests(sheetId, rows) {
     }
   });
 
-  // 4 lignes conformité (rows 13-16) : fusion par sections
-  for (let r = 13; r <= 16; r++) {
+  // 4 lignes conformité (rows 17-20) : fusion par sections
+  for (let r = 17; r <= 20; r++) {
     // Col A = icône
     reqs.push({
       repeatCell: {
@@ -575,28 +659,28 @@ function buildFormatRequests(sheetId, rows) {
     });
   }
 
-  // === 5 dernières ventes/dépenses === ligne header (row 18)
+  // === 5 dernières ventes/dépenses === ligne header (row 22)
   // Section "VENTES" : cols 0-3, section "DÉPENSES" : cols 4-8
-  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 18, endRowIndex: 19, startColumnIndex: 0, endColumnIndex: 4 }, mergeType: 'MERGE_ALL' } });
+  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 22, endRowIndex: 23, startColumnIndex: 0, endColumnIndex: 4 }, mergeType: 'MERGE_ALL' } });
   reqs.push({
     repeatCell: {
-      range: { sheetId, startRowIndex: 18, endRowIndex: 19, startColumnIndex: 0, endColumnIndex: 4 },
+      range: { sheetId, startRowIndex: 22, endRowIndex: 23, startColumnIndex: 0, endColumnIndex: 4 },
       cell: { userEnteredFormat: { backgroundColor: C.green, textFormat: { foregroundColor: C.white, bold: true, fontSize: 11 }, horizontalAlignment: 'CENTER', padding: { top: 6, bottom: 6 } } },
       fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
     }
   });
-  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 18, endRowIndex: 19, startColumnIndex: 4, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
+  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 22, endRowIndex: 23, startColumnIndex: 4, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
   reqs.push({
     repeatCell: {
-      range: { sheetId, startRowIndex: 18, endRowIndex: 19, startColumnIndex: 4, endColumnIndex: 9 },
+      range: { sheetId, startRowIndex: 22, endRowIndex: 23, startColumnIndex: 4, endColumnIndex: 9 },
       cell: { userEnteredFormat: { backgroundColor: C.red, textFormat: { foregroundColor: C.white, bold: true, fontSize: 11 }, horizontalAlignment: 'CENTER', padding: { top: 6, bottom: 6 } } },
       fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
     }
   });
-  // Sub-header (row 19)
+  // Sub-header (row 23)
   reqs.push({
     repeatCell: {
-      range: { sheetId, startRowIndex: 19, endRowIndex: 20, startColumnIndex: 0, endColumnIndex: 9 },
+      range: { sheetId, startRowIndex: 23, endRowIndex: 24, startColumnIndex: 0, endColumnIndex: 9 },
       cell: { userEnteredFormat: { backgroundColor: C.grayL, textFormat: { bold: true, fontSize: 9 }, horizontalAlignment: 'CENTER', padding: { top: 3, bottom: 3 } } },
       fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
     }
@@ -668,6 +752,8 @@ function buildFormatRequests(sheetId, rows) {
   // KPI valeurs grandes (rows 5, 9)
   reqs.push({ updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: 5, endIndex: 6 }, properties: { pixelSize: 60 }, fields: 'pixelSize' } });
   reqs.push({ updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: 9, endIndex: 10 }, properties: { pixelSize: 60 }, fields: 'pixelSize' } });
+  // Subventions valeurs (row 13) - un peu plus petit que les KPIs principaux
+  reqs.push({ updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: 13, endIndex: 14 }, properties: { pixelSize: 45 }, fields: 'pixelSize' } });
 
   // Largeurs de colonnes
   for (let c = 0; c < nbCols; c++) {
