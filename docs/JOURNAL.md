@@ -1,11 +1,58 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-14 (Grand lissage : backup, suppression scripts jetables, MAJ guide, ROADMAP créée)**
+> Dernière mise à jour : **2026-05-14 — partie 2 (suppression Jeff Taylor, fix heures + DRH/Blake 0$, modal pompiste ravitailler+corriger, salaires fixes, Vente partenaire 2.1×)**
 
 ---
 
-## ✅ Session 2026-05-14 — Grand lissage + Quincaillerie + anti-fraude vente
+## ✅ Session 2026-05-14 (partie 2) — Salaires + Pompiste UX + Cleanup
+
+**Demandes patron** :
+1. DRH = salaire fixe 18 000 $ (plus de "Décider", imposé)
+2. Responsable Vente = pro-rata sur CA personnel (formule (CA/40k)×17k, plafond 17k)
+3. Responsable Pompiste = inchangé (décidé par patron, max 17k)
+4. "Vente fournisseur" → "Vente partenaire" (renommage)
+5. Vente partenaire = prix vente auto = 2,1× prix achat (modal live + backfill 33 produits)
+6. Espace pompiste = état stations live + décomposition salaire bidons/caoutchoucs
+7. Bouton "Déclarer une vente" retiré pour les pompistes (ils ne vendent rien)
+8. Modal "Ravitailler" sur Mon espace (select station + saisie litres) — pas besoin d'aller sur Stations
+9. Modal "Corriger stock" pour incohérences IG vs site (avec raison + alerte direction)
+10. Pompistes ont accès à la page Stations (mode stockOnly)
+11. Bug DRH/Blake "0 $" en compta : fix `salaireDecide ?? plafond` ne kick pas sur 0
+12. Bug heures Teodomiro : `cumul=0` (index manquant) + service en cours non inclus
+13. Suppression compte Jeff TAYLOR (admin-technique) — Firestore + Auth, aucune donnée orpheline
+
+**Fichiers principaux modifiés** :
+- `public/js/utils/permissions.js` : `PLAFOND_SALAIRE.drh = 18000`, constantes `DRH_SALAIRE_FIXE`, `CA_PLAFOND_RESP_VENTE`. ACCESS.stations inclut pompistes + DRH.
+- `public/js/utils/paie.js` : `salaireResponsableVente(ca)`, `salaireResponsablePompiste(decide)`, `salaireDirection` retourne 18000 fixe pour DRH. Fallback plafond si salaireDecide=0/null.
+- `public/js/pages/stocks.js` : "Vente fournisseur" → "Vente partenaire", auto-calc 2,1× live dans la modale (création + édition).
+- `public/js/pages/employee.js` : modal Ravitailler (select+litres), modal Corriger stock, bandeau "🟢 En service depuis HHhMM", calculs heures incluent service en cours, décomposition salaire pompiste, état stations live.
+- `public/js/pages/comptabilite.js` : renderSalaires + sectionGroupe + récap Discord forcent `DRH_SALAIRE_FIXE` pour DRH, fallback plafond pour patron/co-patron/RP si salaireDecide=0, RV "auto (RH)".
+- `public/js/pages/rh.js` : modale détail employé : encart info pour DRH ("fixe imposé") et RV ("calculé auto"), pas de "Décider salaire" pour ces 2 rôles.
+- `public/js/pages/stations.js` : auto-ouverture modal caoutchoucs si `#caoutchoucs` dans URL.
+- `public/js/api.js` : `listAllServicesEmploye` sans orderBy server-side (tri client, plus d'index requis), nouvelle `getServiceOuvert(uid)`.
+- `public/guide/06-pompiste.md` : refonte complète (Ravitailler, Corriger, état stations, valeurs unitaires).
+- `public/guide/02-drh.md` + `01-direction.md` : MAJ plafonds (DRH 18k, RV calculé), mode "Voir son espace".
+
+**Cloud Functions déployées** :
+- `pompisteRavitaillerManuel` : accepte litres OU bidons (avant : bidons uniquement)
+- `pompisteCorrigerStock` (NOUVELLE) : set valeur stock + raison + alerte direction
+- `declarerVente` + `botIngest` (déjà déployées partie 1)
+
+**Backfills** :
+- 33 produits Vente partenaire ajustés à prixVente = 2,1 × prixAchat
+- 20 produits skipés (prixAchat=0 à renseigner manuellement)
+
+**Bugs résolus** :
+- Heures de service : index Firestore manquant + service en cours ignoré → `cumul=0` corrigé
+- Salaire DRH/Blake `0 $` : fallback `salaireDecide ?? plafond` ne kick pas sur 0 → fix avec `(decide != null && decide > 0)`
+- Compte Jeff Taylor (admin-technique) supprimé totalement (Firestore + Auth)
+
+**Backup** : nouveau snapshot 2026-05-14 complet généré, anciennes versions supprimées.
+
+---
+
+## ✅ Session 2026-05-14 (partie 1) — Grand lissage + Quincaillerie + anti-fraude vente
 
 **Demandes patron du jour** :
 1. Quincaillerie : créer 8 nouveaux produits crafts + déplacer 4 existants (filet, sac jute, lumière violette, bidon-essence)

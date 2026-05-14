@@ -117,7 +117,12 @@ Bouton **« Modifier / redistribuer »** sur une station :
 - Modifie : nom, stock actuel, stock max, seuil, prix
 - Bouton **Supprimer** (modal CRITIQUE 3 sec + tape `SUPPRIMER`)
 
-> 💡 Le **stock baisse automatiquement** à chaque vente (les FiveM logs `#suivi-essence` ne sont pas parsés actuellement — seules les redistributions le sont). Tu peux ajuster le stock manuellement ici si besoin.
+> 💡 Le **stock baisse automatiquement** à chaque vente carburant (canal `xbankaccount` "Redistribution N°X" → décrément via `onBankAccount`).
+> Le **stock monte** uniquement via :
+> - La modal "🛢 Ravitailler" depuis Mon espace pompiste (saisie en litres + select station, depuis 2026-05-14)
+> - La modal "Ravitailler" sur cette page Stations (saisie en bidons)
+> - L'édition manuelle direction (modifier station)
+> - La modal "📐 Corriger un stock" pour incohérence IG/site (alerte direction obligatoire)
 
 #### ⚙ Configuration globale (essence)
 Bouton **« ⚙ Configuration »** — modale globale :

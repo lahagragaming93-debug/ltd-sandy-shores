@@ -1,60 +1,115 @@
 # 🚗 Guide Pompiste
 
-> Tu es **pompiste** au LTD (Novice, Intermédiaire ou Expérimenté). Ton job : **redistribuer l'essence** aux 8 stations et **fournir des bidons et caoutchoucs** aux clients. Le site te montre ta progression et ta paie.
+> Tu es **pompiste** au LTD (Novice, Intermédiaire ou Expérimenté). Ton job : **ravitailler les 8 stations** en essence et **fabriquer des caoutchoucs**. Toutes tes déclarations se font sur le site (depuis 2026-05-12, c'est la source de vérité — pas les logs Discord).
 
 ---
 
-## 🎯 Tes 2 pages
+## 🎯 Tes 3 pages
 
 | Page | Contenu |
 |------|---------|
-| 👤 **Mon espace** | Tes performances de la semaine (bidons, caoutchoucs, score, salaire) |
-| 💰 **Mes paies** | L'historique des paies que tu as reçues |
+| 👤 **Mon espace** | Tes performances + déclarations rapides (ravitailler, caoutchoucs, corriger stock) |
+| ⛽ **Stations essence** | Niveaux des 8 stations + ravitaillement par station + déclaration caoutchoucs |
+| 💰 **Mes paies** | Historique des paies reçues |
 
-C'est tout. Pas d'accès aux stations, aux ventes, aux comptes — uniquement tes propres chiffres.
+> 🔒 Pas d'accès aux ventes, à la compta, à l'admin, etc. Tu vois uniquement ce qui te concerne.
 
 ---
 
-## 👤 Mon espace
+## 👤 Mon espace — la page principale
 
-### Ce que tu vois en haut
-- 👋 Message de bienvenue
-- **Ton rôle** (Pompiste Novice / Inter / Exp)
+### Bandeau "En service" (si tu es en service)
+Quand tu es en service (commencé via Discord), un **bandeau vert** s'affiche en haut :
+> 🟢 **En service** depuis 14h27 (2h15 écoulées). Les compteurs ci-dessous incluent ce service en cours.
 
-### KPI pompiste
+Les KPIs **montent en live** sans attendre la fin de service. Pas besoin de finir + recommencer pour voir tes heures évoluer.
 
+### Les 4 KPIs principaux
 | KPI | Signification |
 |-----|---------------|
-| **Bidons réalisés** | Nombre de bidons que tu as fournis cette semaine (compté depuis `#logs-ig`) |
-| **Caoutchoucs réalisés** | Nombre de caoutchoucs fournis cette semaine |
-| **Score %** | Moyenne (% bidons + % caoutchoucs) — c'est ton indicateur principal |
-| **Salaire estimé** | Score × plafond de ton grade |
+| 🛢 **Bidons ravitaillés** | Nombre de bidons d'essence que tu as déclarés cette semaine |
+| 🪖 **Caoutchoucs produits** | Nombre de caoutchoucs déclarés cette semaine |
+| 📊 **Score global** | Moyenne (% bidons + % caoutchoucs) — ton indicateur principal |
+| 💰 **Salaire estimé** | Score × plafond de ton grade |
 
-### Les 2 progress bars
-- **Bidons** : `X / quota` (par défaut quota = 1 700/sem)
-- **Caoutchoucs** : `Y / quota` (par défaut quota = 800/sem)
+### Détail de ta semaine
 
-> Les quotas sont définis par la direction et le Responsable Pompiste dans **Configuration globale**. Ils peuvent évoluer.
+#### Bidons + valeur unitaire
+```
+🛢 Bidons d'essence ravitaillés        +3,82 $/bidon
+[================        ] 850 / 1700 → 3 250 $
+```
+Tu vois directement **combien rapporte 1 bidon** à ton grade. Chaque bidon que tu fais ajoute ce montant à ton salaire estimé.
 
-### Heures de service
-Comme pour les vendeurs : toutes tes prises et fins de service de la semaine.
-- ✅ Si total ≥ 7h : marqueur OK
-- ⚠ Si < 7h : tu n'es pas considéré comme actif sur la semaine
+#### Caoutchoucs + valeur unitaire
+```
+🪖 Caoutchoucs produits                +8,13 $/caoutchouc
+[============            ] 400 / 800 → 4 065 $
+```
 
-### Ce que tu peux faire
-- **Lecture seule.** Pas d'action sur cette page. Tout vient des logs Discord.
+#### Salaire estimé total
+```
+💰 Salaire estimé / plafond Pompiste Novice
+[==================      ] 7 315 $ / 13 000 $
+```
+
+> 💡 **Tu touches dès le 1er bidon ou caoutchouc.** Pas besoin d'attendre d'avoir tout fait. Si tu ravitailles 50 bidons sans encore faire de caoutchouc, tu vois déjà ~191 $ apparaître (50 × 3,82 $ Novice).
+
+### État des stations en temps réel
+Sous ton détail, tu vois la liste des **8 stations** triées par % stock croissant (les plus basses en haut, pour savoir où aller en priorité).
+
+Chaque station affiche :
+- Stock actuel / Capacité max + % rempli
+- Badge **OK** / **BAS** / **⚠ ALERTE** selon le seuil
+
+### 3 boutons en haut de Mon espace
+
+#### 🛢 Ravitailler une station
+Modal directe sans devoir aller sur la page Stations :
+1. **Sélectionne la station** dans le menu déroulant (avec son stock actuel affiché)
+2. Saisis le **nombre de litres ajoutés**
+3. **Preview live** : conversion en bidons (1 bidon = 15 L) + nouveau stock après
+4. Si tu dépasses la capacité : alerte rouge avant validation
+5. Click **Valider** → stock station mis à jour automatiquement + tes bidons incrémentés (+1 bidon par 15 L)
+
+#### 🪖 Déclarer des caoutchoucs
+Lien vers Stations avec auto-ouverture de la modal caoutchoucs :
+- Saisis le **nombre de caoutchoucs** que tu viens de fabriquer
+- Validation → ton quota perso est incrémenté
+
+#### 📐 Corriger un stock (en cas d'incohérence)
+À utiliser **uniquement** si le stock affiché sur le site ne colle pas avec le stock réel in-game (par exemple le site dit 14 000 L mais en pompe il y en a 12 000 L) :
+1. Sélectionne la station
+2. Saisis la **vraie valeur du stock** (en litres)
+3. **Raison obligatoire** (au moins 5 caractères, ex : "écart 2000 L IG vs site")
+4. Validation → stock mis à jour + **alerte direction** (audit obligatoire)
+
+> ⚠ Une alerte est envoyée à la direction à chaque correction. Utilise cette fonction de manière justifiée — c'est tracé.
+
+---
+
+## ⛽ Page Stations essence
+
+Tu y vois les 8 stations avec :
+- Stock actuel + capacité max + barre de progression
+- Prix au litre
+- Badge alerte si stock < seuil
+- Bouton **« Ravitailler »** sur chaque station (saisie en bidons)
+- Bouton **« 📦 Déclarer caoutchoucs »** en haut
+
+Cette page est utile si tu veux voir l'ensemble + ravitailler en mode "1 station après l'autre". Mais le bouton Ravitailler de Mon espace est plus rapide pour les corrections ponctuelles.
 
 ---
 
 ## 💰 Mes paies
 
 Identique à la page Vendeur :
-- Paie de la semaine en cours
+- Paie de la semaine en cours + plafond grade
 - Paie du mois
 - Total reçu depuis ton entrée
-- Tableau historique : date, payeur, montant, période
+- Tableau historique : date, payeur, montant
 
-> Si une paie manque, vérifie que **ton ID Perso est bien renseigné** dans ton profil (le bot Discord matche les paies sur l'ID Perso). Sinon, contacte la direction.
+> Si une paie manque : vérifie que **ton ID Perso est renseigné** dans ton profil (le bot matche les paies via l'ID Perso). Sinon contacte la direction.
 
 ---
 
@@ -70,122 +125,91 @@ Salaire = score moyen × plafond
 ```
 
 ### En clair : ton salaire est divisé en 2 moitiés
-- **Moitié bidons** : si tu fais les 1700 bidons → tu gagnes la moitié du plafond.
-- **Moitié caoutchoucs** : si tu fais les 800 caoutchoucs → tu gagnes l'autre moitié.
+- **Moitié bidons** : si tu fais les 1700 bidons → tu gagnes la moitié du plafond
+- **Moitié caoutchoucs** : si tu fais les 800 caoutchoucs → tu gagnes l'autre moitié
 
-**Combien rapporte 1 unité ?** (Novice = plafond 13 000 $, donc moitié = 6 500 $) :
-- 1 bidon ravitaillé = `6 500 / 1700` = **3,82 $**
-- 1 caoutchouc produit = `6 500 / 800` = **8,13 $**
+### Combien rapporte 1 unité
 
-**Pareil pour Inter (14k → 4,12$ + 8,75$) et Exp (15k → 4,41$ + 9,38$).**
+| Grade | Plafond | 1 bidon | 1 caoutchouc |
+|-------|--------:|--------:|-------------:|
+| Novice | 13 000 $ | 3,82 $ | 8,13 $ |
+| Inter | 14 000 $ | 4,12 $ | 8,75 $ |
+| Exp | 15 000 $ | 4,41 $ | 9,38 $ |
 
-> 💡 Tu touches **dès le 1er bidon ou caoutchouc**. Tu peux faire d'abord tous tes bidons (et toucher 6 500 $ Novice = ½ du plafond), puis t'attaquer aux caoutchoucs. Chaque ajout incrémente ton salaire estimé en temps réel.
-
-### Plafonds
-- Pompiste Novice : **13 000 $/sem**
-- Pompiste Intermédiaire : **14 000 $/sem**
-- Pompiste Expérimenté : **15 000 $/sem**
-
-### En clair
+### Cas concrets
 
 #### Cas 1 — Quotas atteints à 100 %
-Tu touches le **plafond plein**.
-
-**Pompiste Inter** :
-- Bidons : 1 700 / 1 700 = 100 %
-- Caoutchoucs : 800 / 800 = 100 %
-- Score = 100 %
-- Salaire = **14 000 $**
+**Pompiste Inter** : 1700 bidons + 800 caoutchoucs = 100 % score = **14 000 $** (plafond plein)
 
 #### Cas 2 — Une catégorie en retard
-La moyenne baisse mais tu touches quand même quelque chose.
-
-**Pompiste Inter** :
-- Bidons : 1 700 / 1 700 = 100 % ✓
-- Caoutchoucs : 400 / 800 = 50 %
-- Score moyen = (100 + 50) / 2 = 75 %
+**Pompiste Inter** : 1700 bidons + 400 caoutchoucs
+- Score = (100 % + 50 %) / 2 = 75 %
 - Salaire = 75 % × 14 000 = **10 500 $**
 
 #### Cas 3 — Largement au-dessus du quota
-Le score est **plafonné à 100 % par catégorie** — pas de bonus pour faire plus que le quota.
+Pas de bonus pour faire plus que le quota — score plafonné à 100 % par catégorie.
+**Pompiste Exp** : 3000 bidons (vs 1700) + 800 caoutchoucs → **15 000 $** (plafond Exp).
 
-**Pompiste Exp** :
-- Bidons : 3 000 (vs quota 1 700) → 176 % → **plafonné à 100 %**
-- Caoutchoucs : 800 / 800 = 100 %
-- Score moyen = 100 %
-- Salaire = **15 000 $** (plafond Exp)
-
-> 💡 Une fois ton quota atteint, **arrête pas pour autant** — tu rends service à l'équipe et au LTD, mais ton salaire ne montera plus. Si tu veux gagner plus, demande à monter en grade.
+> 💡 Une fois ton quota atteint, **continue quand même** — tu rends service à l'équipe et au LTD. Mais si tu veux gagner plus, demande à monter en grade.
 
 ---
 
 ## 📈 Comment maximiser ta paie
 
 ### 1. Équilibre les 2 catégories
-Le score est une **moyenne**. Faire 200 % en bidons et 0 en caoutchoucs te donne 50 % de score, pas 100 %.
+Le score est une **moyenne**. 200 % en bidons + 0 % en caoutchoucs = 50 % de score, pas 100 %. Vise les deux.
 
-### 2. Monte en grade
-Le **plafond** est fixe par grade :
+### 2. Surveille les stations en temps réel
+Le bloc "État des stations" sur Mon espace montre les stations triées par % stock croissant. Vise celles en alerte ou au-dessous de 30 %.
+
+### 3. Déclare immédiatement après chaque ravitaillement
+Plus tu déclares vite, plus ton salaire estimé monte vite, et plus la liste des stations est à jour pour tes collègues.
+
+### 4. Monte en grade
+Plafond fixe par grade :
 - Novice : 13 000 $ max
 - Inter : 14 000 $ max
 - Exp : 15 000 $ max
 
 Pour passer Inter ou Exp, il faut le faire valider par la direction (ancienneté + performance).
 
-### 3. Vérifie tes IDs
+### 5. Vérifie tes IDs
 Ton compte doit avoir :
-- **ID Discord** renseigné → pour que les bidons / caoutchoucs comptés depuis Discord te soient attribués
-- **ID Perso** (in-game) renseigné → pour que les paies te soient attribuées
+- **ID Discord** renseigné (pour matcher les services)
+- **ID Perso** (in-game) renseigné (pour matcher les paies)
 
-Sans ces deux IDs, tes performances ne sont pas comptabilisées.
+Sans ces IDs, tes performances ne sont pas comptabilisées correctement.
 
-### 4. Fais tes heures de service
-Si tu n'es pas en service quand tu produis des bidons, tes activités peuvent ne pas être comptées correctement. Toujours **commencer ton service** sur Discord avant de bosser.
+### 6. Fais tes heures de service
+Vise au moins **7h/semaine**. Le compteur "Heures de service" inclut maintenant le service en cours en live (le bandeau vert "En service" l'indique).
 
 ---
 
 ## ⚠ Ce que tu ne peux PAS faire
 
-- ❌ Voir les autres pompistes (uniquement la direction et ton responsable peuvent)
-- ❌ Modifier les niveaux des stations
+- ❌ Modifier le **prix au litre** d'une station (réservé direction)
+- ❌ Modifier la **capacité max** d'une station (réservé direction)
+- ❌ Modifier le **seuil d'alerte** d'une station (réservé direction)
+- ❌ Ajouter ou supprimer une station (réservé direction)
+- ❌ Voir les autres pompistes (uniquement la direction et ton responsable)
 - ❌ Changer les quotas (responsable pompiste / direction)
-- ❌ Voir les chiffres globaux du LTD
-- ❌ Décider ton propre salaire (c'est calculé)
 
----
-
-## 📅 Ta semaine type
-
-### Tous les jours en service
-- Avant de commencer → check **Mon espace** : où j'en suis sur le quota ?
-- En cours de service, regarde régulièrement (1× par heure) ta progression
-
-### Fin de service
-- Vérifie que tes bidons / caoutchoucs sont bien comptés
-- Si le compteur ne bouge pas après un gros bloc de production → préviens ton responsable (peut-être un bug bot)
-
-### Dimanche soir → Lundi 00h00
-- Clôture automatique
-- Compteurs remis à 0
-- Paie de la semaine consultable dans **Mes paies**
+> Si un quota change, ton salaire estimé est recalculé automatiquement à ton prochain refresh.
 
 ---
 
 ## ❓ Questions fréquentes
 
-**« Pourquoi mes bidons n'augmentent pas ? »**
-Le bot Discord scrute le canal `#logs-ig` pour détecter les inventaire-add de bidons d'essence. Si tu produis bien et que ça ne monte pas :
-- Vérifie que tu es bien en service
-- Vérifie ton ID Discord dans ton profil (sinon le bot ne sait pas que c'est toi)
-- Préviens ton responsable
+**« Mon stock affiché ne correspond pas à ce que je vois en jeu »**
+Utilise le bouton **« 📐 Corriger un stock »** sur Mon espace. Renseigne la vraie valeur + une raison claire. La direction est notifiée.
 
-**« Pourquoi je n'ai pas reçu de paie ce mois-ci ? »**
-Vérifie ton **ID Perso** dans ton profil. Le bot matche les paies via l'ID Perso (in-game). Sans ça, l'argent versé ne te sera pas attribué.
+**« J'ai ravitaillé mais mon salaire ne bouge pas »**
+Tu as bien validé la modal "🛢 Ravitailler" ? Si oui, recharge la page (F5). Sinon, refais la déclaration.
 
-**« Si je dépasse le quota, je gagne plus ? »**
-Non, le score est plafonné à 100 % par catégorie. Pour gagner plus, il faut monter en grade.
+**« Pourquoi je ne vois pas mes heures d'aujourd'hui ? »**
+Si tu es encore en service, tu devrais voir un bandeau vert "🟢 En service depuis HHhMM" qui inclut le temps écoulé en live. Sinon, ton service n'a pas été détecté — vérifie ton ID Discord.
 
-**« Et les heures de service, c'est obligatoire ? »**
-Pas obligatoire au sens strict, mais en dessous de 7h/semaine tu es noté comme « inactif » par la direction et tes performances apparaîtront comme anormales dans les rapports.
+**« Mes caoutchoucs ne sont pas comptés depuis Discord »**
+Depuis 2026-05-12, le bot Discord ne compte plus les caoutchoucs automatiquement. **Tu dois les déclarer toi-même** via le bouton "🪖 Déclarer caoutchoucs" (sur Stations, accessible aussi depuis Mon espace).
 
 Plus de questions ? Va voir [08-faq-depannage.md](08-faq-depannage.md).

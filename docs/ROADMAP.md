@@ -1,7 +1,16 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-14**
+> Dernière MAJ : **2026-05-14 (soir)**
+
+## ✅ Résolus depuis dernière MAJ
+- Bug DRH/Blake "0 $" salaire estimé → fix `salaireDecide ?? plafond` (commit 712ba34)
+- Bug heures Teodomiro `cumul=0` (index Firestore manquant + service en cours ignoré) → fix (commit 267f433)
+- Compte Jeff Taylor supprimé totalement (Firestore + Auth)
+- Pompiste peut corriger stock en cas d'incohérence IG/site (avec raison + alerte direction)
+- Pompiste a sa modal Ravitailler directe sur Mon espace (litres + select station)
+- Vente partenaire = 2,1× automatique (33 produits backfillés)
+- Salaire DRH = 18 000 $ fixe / Salaire RV = pro-rata CA
 
 ---
 
