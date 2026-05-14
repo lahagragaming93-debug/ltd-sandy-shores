@@ -1027,6 +1027,86 @@ table.data .sort-arrow {
 }
 .btn-tab .badge { margin-left: 6px; font-size: 0.7rem; }
 
+/* === Top 5 produits (dashboard) — classement visuel === */
+.top-produits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+.top-produit-row {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.10) 100%);
+  border-left: 3px solid var(--color-charcoal-2);
+  border-radius: 4px;
+  transition: transform 0.15s, background 0.15s;
+}
+.top-produit-row:hover {
+  transform: translateX(2px);
+  background: linear-gradient(90deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.15) 100%);
+}
+.top-rang {
+  font-size: 1.6rem;
+  text-align: center;
+  font-family: var(--font-heading);
+  color: var(--color-sand);
+}
+.rang-or     { border-left-color: #ffd24a; }
+.rang-or     .top-rang { color: #ffd24a; }
+.rang-argent { border-left-color: #c8c8d0; }
+.rang-argent .top-rang { color: #c8c8d0; }
+.rang-bronze { border-left-color: #d18b4a; }
+.rang-bronze .top-rang { color: #d18b4a; }
+.rang-autre  { border-left-color: var(--color-blood); }
+.rang-autre  .top-rang { color: var(--color-sand); font-size: 1.1rem; }
+
+.top-info { min-width: 0; }
+.top-nom {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  color: var(--color-bone);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.top-meta {
+  font-size: 0.72rem;
+  color: var(--color-sand);
+  opacity: 0.75;
+  margin: 2px 0 6px;
+}
+.top-sep { margin: 0 6px; opacity: 0.4; }
+.top-part { color: #ffd24a; font-weight: bold; }
+.top-bar-wrap {
+  height: 6px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.top-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.rang-or     .top-bar { background: linear-gradient(90deg, #ffd24a 0%, #ffac1a 100%); }
+.rang-argent .top-bar { background: linear-gradient(90deg, #d8d8e0 0%, #a0a0b0 100%); }
+.rang-bronze .top-bar { background: linear-gradient(90deg, #e0a060 0%, #c87530 100%); }
+.rang-autre  .top-bar { background: linear-gradient(90deg, var(--color-blood-light) 0%, var(--color-blood) 100%); }
+
+.top-ca {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--color-bone);
+  white-space: nowrap;
+}
+.rang-or .top-ca { color: #ffd24a; }
+
 /* === Boutons-icones compacts ===
    Pour les actions sur lignes de tableau (Modifier, Supprimer, etc.)
    et la barre d'actions globale d'une page. Affiche une icone Unicode

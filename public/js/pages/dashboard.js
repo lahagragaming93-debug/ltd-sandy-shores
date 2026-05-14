@@ -53,9 +53,12 @@ const html = `
       </div>
 
       <div class="panel">
-        <div class="panel-title"><span>Top produits (CA)</span></div>
-        <div id="top-produits" style="position:relative;height:240px;">
-          <canvas id="chart-top"></canvas>
+        <div class="panel-title">
+          <span>🏆 Top 5 produits — semaine</span>
+          <span class="muted mono" id="top-produits-info" style="font-size:0.78rem;">—</span>
+        </div>
+        <div id="top-produits" class="top-produits-list">
+          <p class="muted text-center" style="padding:20px 0;">Chargement…</p>
         </div>
       </div>
 
@@ -195,17 +198,27 @@ async function chargerKpis() {
   });
   renderChartVentes(ventesParJour);
 
-  // === Chart 2 — Top produits ===
+  // === Top 5 produits (CA + quantité + nombre de factures) ===
   const topMap = {};
   ventes.forEach(v => {
-    (v.items || []).forEach(it => {
-      const k = it.nom || it.produitId || 'Inconnu';
-      // Préférer it.total si dispo, sinon estimer à partir de quantite + prix
-      topMap[k] = (topMap[k] || 0) + (it.total || (it.quantite ?? 1) * (it.prixUnitaire || 0));
+    if (v.cachee) return; // doublons caches : ignores
+    const lignes = Array.isArray(v.lignes) && v.lignes.length > 0 ? v.lignes : (v.items || []);
+    lignes.forEach(it => {
+      const k = it.nom || it.produitNom || it.produitId || it.id || 'Inconnu';
+      const qte = Number(it.quantite || 1);
+      const ca  = Number(it.total ?? (qte * (it.prixVente || it.prixUnitaire || 0)));
+      if (!topMap[k]) topMap[k] = { nom: k, ca: 0, qte: 0, nbFactures: 0, _facturesIds: new Set() };
+      topMap[k].ca  += ca;
+      topMap[k].qte += qte;
+      topMap[k]._facturesIds.add(v.id || v.factureId);
     });
   });
-  const top = Object.entries(topMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  renderChartTop(top);
+  const topAll = Object.values(topMap).map(t => ({
+    nom: t.nom, ca: t.ca, qte: t.qte, nbFactures: t._facturesIds.size
+  }));
+  const totalCAItems = topAll.reduce((s, t) => s + t.ca, 0);
+  const top = topAll.sort((a, b) => b.ca - a.ca).slice(0, 5);
+  renderTopProduits(top, totalCAItems, topAll.length);
 
   // === Historique 6 semaines ===
   const semaines = await listSemaines(6).catch(() => []);
@@ -291,7 +304,6 @@ listenStocks(stockMap => {
 
 // ============ Charts ============
 let chartVentes = null;
-let chartTop    = null;
 
 function renderChartVentes(ventesParJour) {
   const ctx = document.getElementById('chart-ventes')?.getContext('2d');
@@ -337,43 +349,51 @@ function renderChartVentes(ventesParJour) {
   });
 }
 
-function renderChartTop(topArr) {
-  const ctx = document.getElementById('chart-top')?.getContext('2d');
-  if (!ctx) return;
-  if (chartTop) chartTop.destroy();
-  if (topArr.length === 0) {
-    ctx.canvas.parentElement.innerHTML = '<p class="muted text-center" style="padding-top:80px;">Aucune donnée produit (logs à venir).</p>';
+// === Top 5 produits — rendu HTML/CSS (plus lisible qu'un bar chart) ===
+function renderTopProduits(top, totalCA, nbProduitsDistincts) {
+  const div = document.getElementById('top-produits');
+  const info = document.getElementById('top-produits-info');
+  if (!div) return;
+  if (top.length === 0) {
+    div.innerHTML = `<p class="muted text-center" style="padding:30px 0;">Aucune vente cette semaine.</p>`;
+    if (info) info.textContent = '';
     return;
   }
-  chartTop = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: topArr.map(([n]) => n.length > 22 ? n.slice(0, 20) + '…' : n),
-      datasets: [{
-        data: topArr.map(([, m]) => m),
-        backgroundColor: [CH_COLORS.blood, CH_COLORS.bloodLt, CH_COLORS.gold, CH_COLORS.sand, CH_COLORS.sandLt],
-        borderWidth: 0
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#1a1a1a',
-          titleColor: CH_COLORS.gold,
-          bodyColor: CH_COLORS.bone,
-          callbacks: { label: (ctx) => money(ctx.raw) }
-        }
-      },
-      scales: {
-        x: { beginAtZero: true, grid: { color: CH_COLORS.grid }, ticks: { callback: v => money(v) } },
-        y: { grid: { display: false } }
-      }
-    }
-  });
+  if (info) info.textContent = `${nbProduitsDistincts} produits différents · ${money(totalCA)} CA total items`;
+
+  const max = top[0].ca || 1;
+  const RANGS = [
+    { medaille: '🥇', cls: 'rang-or' },
+    { medaille: '🥈', cls: 'rang-argent' },
+    { medaille: '🥉', cls: 'rang-bronze' },
+    { medaille: '4',  cls: 'rang-autre' },
+    { medaille: '5',  cls: 'rang-autre' }
+  ];
+
+  div.innerHTML = top.map((t, i) => {
+    const r = RANGS[i] || RANGS[4];
+    const pct = max > 0 ? Math.round((t.ca / max) * 100) : 0;
+    const partTotal = totalCA > 0 ? Math.round((t.ca / totalCA) * 100) : 0;
+    return `
+      <div class="top-produit-row ${r.cls}">
+        <div class="top-rang">${r.medaille}</div>
+        <div class="top-info">
+          <div class="top-nom" title="${escapeHtml(t.nom)}">${escapeHtml(t.nom)}</div>
+          <div class="top-meta">
+            <span class="top-qte">${num(t.qte)} unité${t.qte > 1 ? 's' : ''}</span>
+            <span class="top-sep">·</span>
+            <span class="top-fact">${t.nbFactures} facture${t.nbFactures > 1 ? 's' : ''}</span>
+            <span class="top-sep">·</span>
+            <span class="top-part">${partTotal}% du total</span>
+          </div>
+          <div class="top-bar-wrap">
+            <div class="top-bar" style="width:${pct}%"></div>
+          </div>
+        </div>
+        <div class="top-ca">${money(t.ca)}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 // === Alertes ===
