@@ -3147,14 +3147,14 @@ async function csvVentes(usersByDiscord) {
   //     manuelles (declaration site), on affiche factureBotRef = N° IG
   //     d'origine. Pour les ventes bot non doublees (direction), c'est
   //     directement factureId.
-  const lines = [csvRow('Date', 'N° Facture site', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Bénéfice', 'Paiement', 'Raison')];
+  // Bénéfice retiré du CSV (demande patron) — info interne, pas utile au contrôleur IRS.
+  // Le bénéfice reste calculé/stocké dans /ventes (utile pour la compta interne et
+  // le Dashboard) mais n'apparaît plus dans l'export.
+  const lines = [csvRow('Date', 'N° Facture site', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison')];
   for (const d of snap.docs) {
     const v = d.data();
     if (v.cachee) continue; // doublon — on n'affiche que la version visible
     const vendeur = v.vendeurNom || resolveUserLabel(v.vendeurDiscord, usersByDiscord);
-    // N° Facture IG : factureBotRef pour les manuelles, factureId pour les bot directes.
-    // Si une vente manuelle n'a pas de factureBotRef (cas direction qui declare sans
-    // reference bot), on laisse vide.
     const factureIG = v.factureBotRef || (v.source === 'discord' ? v.factureId : '') || '';
     lines.push(csvRow(
       dateIso(v.timestamp),
@@ -3163,7 +3163,6 @@ async function csvVentes(usersByDiscord) {
       vendeur,
       v.clientNom || v.client || '',
       v.montant || 0,
-      v.benefice || 0,
       v.paiement || '',
       v.raison || ''
     ));
