@@ -46,22 +46,46 @@ const ONGLETS_CIBLES = ['Resume', 'Depenses', 'Ventes', 'Paies', 'Banque'];
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🤠 LTD')
-    .addItem('🎨 Reformater tout', 'formaterEtDashboard')
-    .addItem('📊 Recréer le Dashboard', 'creerDashboard')
+    .addItem('🎨 Reformater entêtes onglets', 'formaterEntetes')
+    .addItem('ℹ️ Info Dashboard', 'infoDashboard')
     .addToUi();
 }
 
 // ============================================================
 // FONCTION PRINCIPALE — à lancer 1 fois après installation
+// 2026-05-14 : le Dashboard est désormais regenere depuis Node.js
+// (script refaire-dashboard-pro.js). Cette fonction NE TOUCHE PLUS au
+// Dashboard pour eviter l'ecrasement du visuel pro deploye par notre
+// service account Firebase.
 // ============================================================
 function formaterEtDashboard() {
   formaterEntetes();
-  creerDashboard();
   SpreadsheetApp.getActiveSpreadsheet().toast(
-    'Terminé ! Dashboard créé + trigger horaire activé.',
+    'Entêtes reformatées. Le Dashboard est géré côté script Node.js (visuel pro).',
     '🤠 LTD',
     4
   );
+}
+
+function infoDashboard() {
+  SpreadsheetApp.getUi().alert(
+    'ℹ️ Dashboard',
+    'Le Dashboard est désormais régénéré depuis Firestore via un script Node.js (visuel comptable pro). ' +
+    'Pour le mettre à jour, demande au gérant de lancer le script refaire-dashboard-pro.js, ' +
+    'ou attends le prochain refresh automatique programmé.\n\n' +
+    'Cette fonction (Apps Script) ne touche plus au Dashboard pour éviter l\'écrasement du visuel pro.',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+}
+
+// ============================================================
+// creerDashboard / lireDonneesSources / ecrireDashboard
+// ============================================================
+// 2026-05-14 : NEUTRALISÉ. L'ancien Dashboard basique écrasait le visuel
+// pro. Ces fonctions ne font plus rien. Le Dashboard est régénéré
+// depuis le script Node.js (refaire-dashboard-pro.js).
+function creerDashboard() {
+  console.log('creerDashboard NEUTRALISÉ (Dashboard géré côté Node.js depuis 2026-05-14)');
 }
 
 // ============================================================
