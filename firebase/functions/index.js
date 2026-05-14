@@ -3119,31 +3119,52 @@ export const reclasserDepense = onRequest({
       noteAudit: noteAudit || null
     }, { merge: true });
 
-    // Mémorisation optionnelle d'un nouveau pattern fournisseur
-    if (memoriserPattern && memoriserPattern.id && memoriserPattern.matchType && memoriserPattern.matchValue) {
+    // Mémorisation : soit ajout à un pattern existant, soit création d'un nouveau
+    if (memoriserPattern) {
       const cfgRef = db.collection('config').doc('global');
       const cfgSnap = await cfgRef.get();
       const existing = cfgSnap.exists ? (cfgSnap.data().fournisseurs || []) : [];
-      const existingIdx = existing.findIndex(p => p.id === memoriserPattern.id);
-      const nouveauPattern = {
-        id: memoriserPattern.id,
-        label: memoriserPattern.label || memoriserPattern.id,
-        matchType: memoriserPattern.matchType,
-        matchValue: String(memoriserPattern.matchValue),
-        categorie,
-        deductible,
-        raisonClassification: raisonClassification || '',
-        ajoutePar: decoded.uid,
-        dateAjout: new Date().toISOString()
-      };
-      let merged;
-      if (existingIdx >= 0) {
-        merged = [...existing];
-        merged[existingIdx] = nouveauPattern;
-      } else {
-        merged = [...existing, nouveauPattern];
+
+      if (memoriserPattern.action === 'ajouter-au-pattern' && memoriserPattern.patternIdExistant && memoriserPattern.matchValue) {
+        // Mode "ajouter au pattern existant" : on enrichit le matchValue (CSV)
+        const patIdx = existing.findIndex(p => p.id === memoriserPattern.patternIdExistant);
+        if (patIdx >= 0) {
+          const pat = existing[patIdx];
+          const valeurs = String(pat.matchValue || '').split(',').map(v => v.trim()).filter(Boolean);
+          const nouvelleValeur = String(memoriserPattern.matchValue).trim();
+          if (!valeurs.includes(nouvelleValeur)) {
+            valeurs.push(nouvelleValeur);
+            existing[patIdx] = {
+              ...pat,
+              matchValue: valeurs.join(','),
+              dateAjout: new Date().toISOString()
+            };
+            await cfgRef.set({ fournisseurs: existing }, { merge: true });
+          }
+        }
+      } else if (memoriserPattern.id && memoriserPattern.matchType && memoriserPattern.matchValue) {
+        // Mode "créer un nouveau pattern"
+        const existingIdx = existing.findIndex(p => p.id === memoriserPattern.id);
+        const nouveauPattern = {
+          id: memoriserPattern.id,
+          label: memoriserPattern.label || memoriserPattern.id,
+          matchType: memoriserPattern.matchType,
+          matchValue: String(memoriserPattern.matchValue),
+          categorie,
+          deductible,
+          raisonClassification: raisonClassification || '',
+          ajoutePar: decoded.uid,
+          dateAjout: new Date().toISOString()
+        };
+        let merged;
+        if (existingIdx >= 0) {
+          merged = [...existing];
+          merged[existingIdx] = nouveauPattern;
+        } else {
+          merged = [...existing, nouveauPattern];
+        }
+        await cfgRef.set({ fournisseurs: merged }, { merge: true });
       }
-      await cfgRef.set({ fournisseurs: merged }, { merge: true });
     }
 
     return res.status(200).json({ ok: true });

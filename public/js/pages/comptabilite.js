@@ -175,17 +175,25 @@ const html = `
           <span class="muted" style="font-size:0.75rem;">— toutes les futures dépenses similaires seront auto-classées</span>
         </label>
         <div id="reclasser-memoriser-form" class="hidden" style="margin-top:8px;padding:8px;background:rgba(255,200,80,0.08);border-radius:4px;">
-          <label style="font-size:0.8rem;">Label fournisseur</label>
-          <input type="text" id="memoriser-label" placeholder="Ex : HDM (Heavy Duty Motors)" />
-          <label style="font-size:0.8rem;margin-top:4px;">Type de match</label>
-          <select id="memoriser-matchtype">
-            <option value="account-id-cible">⭐ Account ID compte cible (ex: 67978 pour HDM — recommandé)</option>
-            <option value="compte-cible">Nom du compte cible (ex: HDM, Dynasty 8)</option>
-            <option value="boutique-id">Numéro de boutique (ex: 263)</option>
-            <option value="facture-id">Numéro de facture (ex: 1910769)</option>
-            <option value="raison-regex">Regex sur la raison (ex: ^achat essence$)</option>
+          <label style="font-size:0.8rem;"><strong>Ajouter à un pattern existant</strong> (recommandé si tu as déjà créé un fournisseur)</label>
+          <select id="memoriser-pattern-existant">
+            <option value="">— Créer un NOUVEAU pattern —</option>
           </select>
-          <label style="font-size:0.8rem;margin-top:4px;">Valeur à matcher</label>
+
+          <div id="memoriser-nouveau-fields">
+            <label style="font-size:0.8rem;margin-top:8px;">Label fournisseur</label>
+            <input type="text" id="memoriser-label" placeholder="Ex : HDM (Heavy Duty Motors)" />
+            <label style="font-size:0.8rem;margin-top:4px;">Type de match</label>
+            <select id="memoriser-matchtype">
+              <option value="account-id-cible">⭐ Account ID compte cible (ex: 67978 pour HDM — recommandé)</option>
+              <option value="compte-cible">Nom du compte cible (ex: HDM, Dynasty 8)</option>
+              <option value="boutique-id">Numéro de boutique (ex: 263)</option>
+              <option value="facture-id">Numéro de facture (ex: 1910769)</option>
+              <option value="raison-regex">Regex sur la raison (ex: ^achat essence$)</option>
+            </select>
+          </div>
+
+          <label style="font-size:0.8rem;margin-top:4px;">Valeur à matcher <span class="muted" style="font-size:0.7rem;">— sera ajoutée au pattern</span></label>
           <input type="text" id="memoriser-matchvalue" placeholder="Auto-rempli depuis la dépense" />
         </div>
       </div>
@@ -261,6 +269,8 @@ async function chargerTout() {
     getConfig().catch(() => ({}))
   ]);
   users = u;
+  // Cache les patterns fournisseurs pour la modale Reclasser
+  window._cfgFournisseurs = cfg.fournisseurs || [];
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
@@ -441,6 +451,24 @@ function ouvrirModalReclasser(dep) {
   document.getElementById('reclasser-memoriser').checked = false;
   document.getElementById('reclasser-memoriser-form').classList.add('hidden');
 
+  // Remplit le select "Ajouter à un pattern existant" avec les patterns en cfg
+  const selectExistant = document.getElementById('memoriser-pattern-existant');
+  selectExistant.innerHTML = '<option value="">— Créer un NOUVEAU pattern —</option>';
+  const patternsExistants = (window._cfgFournisseurs || []);
+  for (const p of patternsExistants) {
+    const valueTronquee = String(p.matchValue || '').length > 40
+      ? String(p.matchValue).slice(0, 40) + '…'
+      : String(p.matchValue || '');
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.label} (${p.matchType}=${valueTronquee})`;
+    opt.dataset.matchType = p.matchType;
+    opt.dataset.categorie = p.categorie;
+    opt.dataset.deductible = p.deductible ? '1' : '0';
+    selectExistant.appendChild(opt);
+  }
+  selectExistant.value = ''; // par défaut, nouveau pattern
+
   // Pré-remplissage du formulaire mémoriser : on privilégie le compte cible
   // identifié (plus stable que boutiqueId/factureId pour les paiements de
   // facture, et permet d'auto-classer toutes les futures factures du même
@@ -479,6 +507,13 @@ document.getElementById('reclasser-memoriser')?.addEventListener('change', (e) =
   document.getElementById('reclasser-memoriser-form').classList.toggle('hidden', !e.target.checked);
 });
 
+// Quand on choisit un pattern existant dans le select, masquer les champs
+// "nouveau pattern" (Label + Type match) car on hérite du pattern existant.
+document.getElementById('memoriser-pattern-existant')?.addEventListener('change', (e) => {
+  const ajouterAExistant = !!e.target.value;
+  document.getElementById('memoriser-nouveau-fields').style.display = ajouterAExistant ? 'none' : '';
+});
+
 document.getElementById('btn-save-reclasser')?.addEventListener('click', async () => {
   if (!depenseEnCoursReclasser) return;
   const categorie = document.getElementById('reclasser-categorie').value;
@@ -496,19 +531,34 @@ document.getElementById('btn-save-reclasser')?.addEventListener('click', async (
   };
 
   if (memoriser) {
-    const label = document.getElementById('memoriser-label').value.trim();
-    const matchType = document.getElementById('memoriser-matchtype').value;
+    const patternExistantId = document.getElementById('memoriser-pattern-existant').value;
     const matchValue = document.getElementById('memoriser-matchvalue').value.trim();
-    if (!label || !matchValue) {
-      toastError('Label et valeur du pattern requis pour mémoriser');
+    if (!matchValue) {
+      toastError('Valeur à matcher requise pour mémoriser');
       return;
     }
-    payload.memoriserPattern = {
-      id: label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
-      label,
-      matchType,
-      matchValue
-    };
+    if (patternExistantId) {
+      // Mode "ajouter au pattern existant" : on indique juste l'id + la nouvelle valeur
+      payload.memoriserPattern = {
+        action: 'ajouter-au-pattern',
+        patternIdExistant: patternExistantId,
+        matchValue
+      };
+    } else {
+      // Mode "créer un nouveau pattern"
+      const label = document.getElementById('memoriser-label').value.trim();
+      const matchType = document.getElementById('memoriser-matchtype').value;
+      if (!label) {
+        toastError('Label requis pour créer un nouveau pattern');
+        return;
+      }
+      payload.memoriserPattern = {
+        id: label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        label,
+        matchType,
+        matchValue
+      };
+    }
   }
 
   try {
