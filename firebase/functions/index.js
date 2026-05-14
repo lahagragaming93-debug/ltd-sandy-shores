@@ -732,6 +732,23 @@ async function onDepense(p) {
 
   const rawRaison = String(p.raison || '');
 
+  // 2026-05-14 : auto-détection remboursement engagement.
+  // Si la raison contient "remboursement" + (subvention|engagement|essence|dette),
+  // on cherche un engagement actif et on décrémente le montant restant.
+  // Le doc /depenses normal est créé en plus (audit).
+  if (/remboursement/i.test(rawRaison) &&
+      /(subvention|engagement|essence|dette|gouvernement|irs)/i.test(rawRaison)) {
+    try {
+      await detecterRemboursementEngagement({
+        montant: Number(p.montant) || 0,
+        raison: rawRaison,
+        utilisateur
+      });
+    } catch (e) {
+      console.error('[onDepense] detect remboursement error', e.message);
+    }
+  }
+
   // 2026-05-11 : detection paie/salaire en doublon avec /paies.
   // FiveM log les paies sur DEUX canaux : #paie (-> /paies) ET #depenses (sortie
   // d'argent) avec raison "Paye ponctuelle de membre" ou "Salaire". On marque
@@ -873,6 +890,66 @@ async function onDepense(p) {
 //   - 'raison-regex'  : applique new RegExp(matchValue, 'i') sur la raison
 //   - 'compte-cible'  : TODO Phase 2 (nécessite enrichissement xbankaccount
 //                       avec toPropername)
+// 2026-05-14 : auto-détection remboursement engagement (subvention essence,
+// dettes…). Quand une dépense match le pattern de remboursement, on cherche
+// un engagement actif dont le montant restant correspond, et on décrémente.
+async function detecterRemboursementEngagement({ montant, raison, utilisateur }) {
+  if (!montant || montant <= 0) return;
+  // Cherche les engagements actifs, sort par montant restant croissant
+  const snap = await db.collection('engagements')
+    .where('statut', '==', 'actif')
+    .get();
+  if (snap.empty) return;
+
+  // Match : on prend le premier engagement actif qui a montantRestant >= montant
+  // (priorité aux engagements dont la mention apparaît dans la raison)
+  let target = null;
+  const candidats = snap.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
+  // Filtre par mots-clés du label
+  const raisonLower = raison.toLowerCase();
+  const matched = candidats.filter(c => {
+    const objet = (c.objet || '').toLowerCase();
+    const bene = (c.beneficiaire || '').toLowerCase();
+    return raisonLower.includes(objet.split(' ')[0]) ||
+           raisonLower.includes(bene.split(' ')[0]) ||
+           /essence/i.test(c.objet || '') && /essence/i.test(raison);
+  });
+  target = matched[0] || candidats[0];
+  if (!target) return;
+
+  const ancienRembourse = Number(target.montantRembourse) || 0;
+  const ancienRestant = Number(target.montantRestant) || 0;
+  const nouveauRembourse = ancienRembourse + montant;
+  const nouveauRestant = Math.max(0, ancienRestant - montant);
+  const nouveauStatut = nouveauRestant <= 0 ? 'rembourse' : 'actif';
+
+  await target.ref.set({
+    montantRembourse: nouveauRembourse,
+    montantRestant: nouveauRestant,
+    statut: nouveauStatut,
+    dateMaj: FieldValue.serverTimestamp(),
+    historiqueRemboursements: FieldValue.arrayUnion({
+      montant,
+      raison,
+      utilisateur,
+      timestamp: new Date().toISOString()
+    })
+  }, { merge: true });
+
+  console.log(`[detecterRemboursementEngagement] ${target.id} : -${montant}$ → restant ${nouveauRestant}$ (statut ${nouveauStatut})`);
+
+  if (nouveauStatut === 'rembourse') {
+    await db.collection('alertes').add({
+      type: 'engagement-rembourse',
+      message: `🟢 Engagement "${target.objet}" intégralement remboursé (${ancienRembourse + montant}$).`,
+      gravite: 'info',
+      metadata: { engagementId: target.id, montantTotal: ancienRembourse + montant },
+      resolue: false,
+      timestamp: FieldValue.serverTimestamp()
+    });
+  }
+}
+
 function matchesFournisseurPattern(pat, payload, raison) {
   if (!pat || !pat.matchType || !pat.matchValue) return false;
   // 2026-05-14 : matchValue peut contenir PLUSIEURS valeurs séparées par

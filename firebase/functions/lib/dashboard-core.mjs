@@ -143,6 +143,13 @@ async function chargerDonnees(db) {
     soldeBanque = Number(dernierSnap.docs[0].data().soldeApres) || 0;
   }
 
+  // Engagements de remboursement actifs (subventions à rembourser, dettes…)
+  const engSnap = await db.collection('engagements')
+    .where('statut', '==', 'actif')
+    .get();
+  const engagements = engSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const totalDettesRestantes = engagements.reduce((s, e) => s + (Number(e.montantRestant) || 0), 0);
+
   // Calculs
   const caProduits  = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redis.reduce((s, r) => s + (Number(r.montant) || 0), 0);
@@ -163,7 +170,8 @@ async function chargerDonnees(db) {
     totalDep, chargesDedu, chargesNonDedu,
     masseSalariale, ratioMasseSal,
     resultatImposable, beneficeNet, impot,
-    subventions, totalSubventions, soldeBanque
+    subventions, totalSubventions, soldeBanque,
+    engagements, totalDettesRestantes
   };
 }
 
@@ -177,14 +185,16 @@ function buildDashboard(data) {
     totalDep, chargesDedu, chargesNonDedu,
     masseSalariale, ratioMasseSal,
     resultatImposable, beneficeNet, impot,
-    subventions, totalSubventions, soldeBanque
+    subventions, totalSubventions, soldeBanque,
+    engagements, totalDettesRestantes
   } = data;
 
   const maintenant = new Date().toLocaleString('fr-FR', {
+    timeZone: 'Europe/Paris',
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
-  const semainePeriode = `Semaine du ${debut.toLocaleDateString('fr-FR')} au ${fin.toLocaleDateString('fr-FR')}`;
+  const semainePeriode = `Semaine du ${debut.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })} au ${fin.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })}`;
 
   // Layout 9 colonnes (A-I). Largeur Dashboard ~1200px.
   // Chaque "row" : tableau de 9 cellules (string OU null).
@@ -258,6 +268,36 @@ function buildDashboard(data) {
   ]); // 15 détails
   rows.push(['', '', '', '', '', '', '', '', '']); // 16 spacer
 
+  // === ENGAGEMENTS DE REMBOURSEMENT (subventions, dettes…) ===
+  rows.push(['📋 ENGAGEMENTS DE REMBOURSEMENT — Suivi des dettes', null, null, null, null, null, null, null, null]); // header (row 17)
+  rows.push(['Bénéficiaire', 'Objet', 'Montant initial', 'Remboursé', 'Restant', 'Échéance', 'Jours restants', 'Statut', null]); // sub-header (row 18)
+
+  if (engagements.length === 0) {
+    rows.push(['—', 'Aucun engagement actif', null, null, null, null, null, null, null]);
+  } else {
+    for (const e of engagements) {
+      const ech = e.dateEcheance?.toDate?.();
+      const joursRest = ech ? Math.ceil((ech.getTime() - Date.now()) / (24 * 3600 * 1000)) : null;
+      let statutLabel = '🟢 OK';
+      if (joursRest != null) {
+        if (joursRest < 0)       statutLabel = '🔴 EN RETARD';
+        else if (joursRest <= 7) statutLabel = '🟠 ÉCHÉANCE PROCHE';
+      }
+      rows.push([
+        e.beneficiaire || '—',
+        e.objet || '—',
+        money(e.montantInitial || 0),
+        money(e.montantRembourse || 0),
+        money(e.montantRestant || 0),
+        ech ? ech.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) : '—',
+        joursRest != null ? `${joursRest} j` : '—',
+        statutLabel,
+        null
+      ]);
+    }
+  }
+  rows.push(['', '', '', '', '', '', '', '', '']); // spacer
+
   // === CONFORMITÉ TTE ===
   rows.push(['📊 CONFORMITÉ TTE — Indicateurs clés', null, null, null, null, null, null, null, null]); // header section
 
@@ -306,13 +346,21 @@ function buildDashboard(data) {
   for (let i = 0; i < maxRows; i++) {
     const v = ventesSlice[i];
     const d = depensesSlice[i];
+    // Pour les dépenses : afficher le FOURNISSEUR identifié plutôt que le N°
+    // technique (ex: "HDM (Heavy Duty Motors)" au lieu de "Paiement facture N°1915056").
+    // Fallback sur la raison brute si pas de fournisseur identifié.
+    const depRaisonAffichee = d
+      ? (d.fournisseurLabel
+          ? `${d.fournisseurLabel}`
+          : (d.raison || '—').slice(0, 35))
+      : '';
     rows.push([
-      v ? v.timestamp?.toDate?.()?.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) || '' : '',
+      v ? v.timestamp?.toDate?.()?.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) || '' : '',
       v ? (v.vendeurNom || '—') : '',
       v ? money(v.montant) : '',
       null,
-      d ? d.timestamp?.toDate?.()?.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) || '' : '',
-      d ? (d.raison || '—').slice(0, 35) : '',
+      d ? d.timestamp?.toDate?.()?.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) || '' : '',
+      depRaisonAffichee,
       d ? money(d.montant) : '',
       d ? (d.type || '') : '',
       null
@@ -663,6 +711,50 @@ function buildFormatRequests(sheetId, rows) {
     }
   });
 
+  // Données ventes/dépenses (rows 24+ jusqu'à juste avant historique) : centrage horizontal
+  const idxHistoriqueData = rows.findIndex(r => String(r[0]).includes('📚 HISTORIQUE'));
+  if (idxHistoriqueData > 24) {
+    reqs.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 24, endRowIndex: idxHistoriqueData - 1, startColumnIndex: 0, endColumnIndex: 9 },
+        cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', textFormat: { fontSize: 10 } } },
+        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+      }
+    });
+  }
+
+  // === Section "ENGAGEMENTS DE REMBOURSEMENT" ===
+  const idxEngagements = rows.findIndex(r => String(r[0]).includes('📋 ENGAGEMENTS'));
+  if (idxEngagements >= 0) {
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: idxEngagements, endRowIndex: idxEngagements + 1, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
+    reqs.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: idxEngagements, endRowIndex: idxEngagements + 1, startColumnIndex: 0, endColumnIndex: 9 },
+        cell: { userEnteredFormat: { backgroundColor: C.red, textFormat: { foregroundColor: C.white, bold: true, fontSize: 12 }, horizontalAlignment: 'LEFT', padding: { top: 6, bottom: 6, left: 10 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+      }
+    });
+    // Sub-header (colonnes)
+    reqs.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: idxEngagements + 1, endRowIndex: idxEngagements + 2, startColumnIndex: 0, endColumnIndex: 9 },
+        cell: { userEnteredFormat: { backgroundColor: C.grayL, textFormat: { bold: true, fontSize: 9 }, horizontalAlignment: 'CENTER', padding: { top: 3, bottom: 3 } } },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+      }
+    });
+    // Lignes data centrées (jusqu'à idxConformite-1)
+    const idxConformite = rows.findIndex(r => String(r[0]).includes('📊 CONFORMITÉ TTE'));
+    if (idxConformite > idxEngagements + 2) {
+      reqs.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: idxEngagements + 2, endRowIndex: idxConformite - 1, startColumnIndex: 0, endColumnIndex: 9 },
+          cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', textFormat: { fontSize: 10 }, backgroundColor: C.redL } },
+          fields: 'userEnteredFormat(horizontalAlignment,textFormat,backgroundColor)'
+        }
+      });
+    }
+  }
+
   // Header section historique
   const lastRow = rows.length;
   // Trouve la ligne de "📚 HISTORIQUE..."
@@ -684,6 +776,18 @@ function buildFormatRequests(sheetId, rows) {
         fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
       }
     });
+
+    // Données historique (rows idxHistorique+2 jusqu'à audit) : centrage
+    const idxAuditTmp = rows.findIndex(r => String(r[0]).includes('🔎 Audit IRS'));
+    if (idxAuditTmp > idxHistorique + 2) {
+      reqs.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: idxHistorique + 2, endRowIndex: idxAuditTmp - 1, startColumnIndex: 0, endColumnIndex: 9 },
+          cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', textFormat: { fontSize: 10 } } },
+          fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+        }
+      });
+    }
   }
 
   // Footer AUDIT IRS (compact, 2 lignes discrètes)

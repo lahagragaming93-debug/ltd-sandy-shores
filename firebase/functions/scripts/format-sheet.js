@@ -95,8 +95,8 @@ async function main() {
       }
     });
 
-    // 2. Cellules data : pas de wrap par défaut (CLIP). On force WRAP
-    //    uniquement sur les colonnes Justification + Raison plus bas.
+    // 2. Cellules data : pas de wrap par défaut (CLIP) + centrage horizontal.
+    //    On force WRAP + alignement LEFT uniquement sur Justification + Raison.
     if (nbRows > 1) {
       requests.push({
         repeatCell: {
@@ -111,14 +111,15 @@ async function main() {
             userEnteredFormat: {
               wrapStrategy: 'CLIP',
               verticalAlignment: 'MIDDLE',
+              horizontalAlignment: 'CENTER',
               padding: { top: 3, bottom: 3, left: 4, right: 4 }
             }
           },
-          fields: 'userEnteredFormat(wrapStrategy,verticalAlignment,padding)'
+          fields: 'userEnteredFormat(wrapStrategy,verticalAlignment,horizontalAlignment,padding)'
         }
       });
 
-      // 2b. Colonne Justification + Raison : forcer le WRAP (texte long)
+      // 2b. Colonne Justification + Raison : WRAP + alignement LEFT (texte long, lisible)
       for (const idx of [idxJustification, idxRaison]) {
         if (idx < 0) continue;
         requests.push({
@@ -133,10 +134,11 @@ async function main() {
             cell: {
               userEnteredFormat: {
                 wrapStrategy: 'WRAP',
-                verticalAlignment: 'MIDDLE'
+                verticalAlignment: 'MIDDLE',
+                horizontalAlignment: 'LEFT'
               }
             },
-            fields: 'userEnteredFormat(wrapStrategy,verticalAlignment)'
+            fields: 'userEnteredFormat(wrapStrategy,verticalAlignment,horizontalAlignment)'
           }
         });
       }
