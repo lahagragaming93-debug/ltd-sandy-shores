@@ -3436,6 +3436,58 @@ export const refreshDashboardNow = onRequest({
   }
 });
 
+// Cron horaire : check intégrité Dashboard, restaure si écrasé par Apps Script
+//
+// Le Sheet user a un trigger Apps Script qui appelle creerDashboard() toutes
+// les heures et écrase le visuel pro. Plutôt que demander au patron de
+// désactiver son trigger manuellement, on met en place une garde côté serveur :
+//   - Cron à H:02 chaque heure (laisse 2 min à l'Apps Script de finir)
+//   - Lit la cellule A1 du Dashboard
+//   - Si elle ne contient PAS notre titre signature → on régénère
+//   - Sinon → skip (aucun refresh, pas de gêne visuelle pour le patron)
+//
+// Bénéfice : le patron voit l'ancien Dashboard max 2 min/heure si l'Apps
+// Script tourne, sinon zéro refresh.
+const SIGNATURE_DASHBOARD = '🤠 LTD SANDY SHORES';
+
+export const dashboardKeepAlive = onSchedule({
+  schedule: '2 * * * *',         // toutes les heures à H:02
+  timeZone: 'Europe/Paris',
+  region: 'europe-west1',
+  secrets: [DASHBOARD_SA_KEY],
+  timeoutSeconds: 120,
+  memory: '512MiB'
+}, async () => {
+  try {
+    const sheets = getSheetsClient();
+    // Lit la cellule A1 du Dashboard
+    const SHEET_ID = '1mD-N3e_JpcLceiLSzDgGe01VKVf4KoO5vedM0OsnwtY';
+    const DASHBOARD_NAME = '📊 Dashboard';
+    let cellA1 = '';
+    try {
+      const resp = await sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: `${DASHBOARD_NAME}!A1`
+      });
+      cellA1 = (resp.data.values?.[0]?.[0] || '').toString();
+    } catch (e) {
+      console.error('[dashboardKeepAlive] read A1 error:', e.message);
+      return;
+    }
+    if (cellA1.includes(SIGNATURE_DASHBOARD)) {
+      console.log(`[dashboardKeepAlive] Dashboard intact (A1="${cellA1.slice(0, 40)}…") — skip`);
+      return;
+    }
+    // Écrasé par Apps Script → régénère
+    console.log(`[dashboardKeepAlive] Dashboard ÉCRASÉ (A1="${cellA1.slice(0, 40)}…") — régénération`);
+    const result = await regenererDashboard({ db, sheets });
+    console.log(`[dashboardKeepAlive] Restauré : ${result.rowCount} lignes`);
+  } catch (e) {
+    console.error('[dashboardKeepAlive] error:', e.message);
+    throw e;
+  }
+});
+
 // Clôture manuelle de la semaine (après dimanche 23h59 + confirm IRS)
 //
 // Workflow patron :
