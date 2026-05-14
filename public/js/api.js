@@ -176,12 +176,20 @@ export async function listServicesSemaine(dateDebut, dateFin) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 // Tous les services d'un employe (sans filtre date) — pour le cumul depuis embauche
+// Pas d'orderBy cote serveur (eviterait un index composite employeId+debut),
+// on trie cote client.
 export async function listAllServicesEmploye(employeId) {
-  const q = query(collection(db, 'services'),
-    where('employeId', '==', employeId),
-    orderBy('debut', 'desc'));
+  const q = query(collection(db, 'services'), where('employeId', '==', employeId));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  list.sort((a, b) => (b.debut?.toMillis?.() || 0) - (a.debut?.toMillis?.() || 0));
+  return list;
+}
+
+// Service en cours d'un employe (1 seul max, doc /servicesOuverts/{employeId})
+export async function getServiceOuvert(employeId) {
+  const snap = await getDoc(doc(db, 'servicesOuverts', employeId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 // ----- Quotas pompistes -----

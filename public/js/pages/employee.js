@@ -6,7 +6,7 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
-  getQuotaPompiste, getConfig, listenAvertissements, getUserDoc, listenStations
+  getServiceOuvert, getQuotaPompiste, getConfig, listenAvertissements, getUserDoc, listenStations
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
@@ -169,14 +169,16 @@ renderShell(profile, 'employee', html);
 const me = getCurrentUser(); // utilisateur connecte (toujours soi-meme, jamais l'employe vise)
 const config = await getConfig().catch(() => ({}));
 
-const [allVentes, ventesAvecCachees, allServices, allMyServices, quota] = await Promise.all([
+const [allVentes, ventesAvecCachees, allServices, allMyServices, quota, serviceOuvert] = await Promise.all([
   listVentesSemaine(debut, fin).catch(() => []),
   listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
-  listAllServicesEmploye(viewedUserId).catch(() => []),
+  listAllServicesEmploye(viewedUserId).catch(e => { console.error('[employee] listAllServicesEmploye', e); return []; }),
   // Charge le quota pour TOUS les roles (les non-pompistes peuvent aussi
   // produire des bidons/caoutchoucs en bossant a la station - bonus info).
-  getQuotaPompiste(viewedUserId, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 }))
+  getQuotaPompiste(viewedUserId, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 })),
+  // Service en cours (s'il y en a un) — pour ajouter le temps live au calcul
+  getServiceOuvert(viewedUserId).catch(() => null)
 ]);
 
 // === Ventes IG (bot Discord) non encore declarees par l'employe ===
@@ -261,15 +263,29 @@ renderNonDeclarees();
 
 const myVentes = allVentes.filter(v => v.vendeurId === viewedUserId);
 const myServices = allServices.filter(s => s.employeId === viewedUserId);
-const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0);
 
-// Cumul depuis embauche (tous services) + heures aujourd'hui
-const cumulMs = allMyServices.reduce((s, x) => s + (x.duree || 0), 0);
+// Service en cours : si l'employe est actuellement en service, on calcule la
+// duree ecoulee depuis son debut. Sinon 0. Cette duree est INCLUSE dans les
+// 3 KPIs (jour / semaine / cumul) pour que le compteur monte en live, sans
+// attendre la fin de service pour voir l'increment.
+const debutOuvert = serviceOuvert?.debut?.toDate?.() || null;
+const dureeOuvertMs = debutOuvert ? Math.max(0, Date.now() - debutOuvert.getTime()) : 0;
+
 const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+
+// Heures cette semaine : services TERMINES + service en cours s'il a commence cette semaine
+const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0)
+  + (debutOuvert && debutOuvert >= debut ? dureeOuvertMs : 0);
+
+// Cumul depuis embauche (tous services TERMINES) + service en cours
+const cumulMs = allMyServices.reduce((s, x) => s + (x.duree || 0), 0)
+  + dureeOuvertMs;
+
+// Aujourd'hui : services TERMINES qui ont commence aujourd'hui + service en cours s'il a commence aujourd'hui
 const heuresJourMs = allMyServices.reduce((s, x) => {
   const d = x.debut?.toDate?.();
   return d && d >= startOfDay ? s + (x.duree || 0) : s;
-}, 0);
+}, 0) + (debutOuvert && debutOuvert >= startOfDay ? dureeOuvertMs : 0);
 
 const plafondSalaire = PLAFOND_SALAIRE[profile.role] || 0;
 
@@ -732,11 +748,18 @@ listenAvertissements(viewedUserId, (list) => {
 });
 
 // === Heures de service : 3 KPIs (jour / semaine / cumul depuis embauche) ===
+// Inclut le service en cours s'il y en a un (compteur live qui monte tout seul).
 const sDiv = document.getElementById('services');
-const heuresStatsHtml = `
+const enServiceBadge = serviceOuvert
+  ? `<div class="alert" style="background:rgba(70,180,90,0.18);border:1px solid #5a8;font-size:0.85rem;margin-bottom:8px;">
+       🟢 <strong>En service</strong> depuis ${debutOuvert.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}
+       (${durationHM(dureeOuvertMs)} écoulées). Les compteurs ci-dessous incluent ce service en cours.
+     </div>`
+  : '';
+const heuresStatsHtml = enServiceBadge + `
   <div class="kpi-grid mb-2">
     <div class="kpi"><div class="label">⏱ Aujourd'hui</div><div class="value">${durationHM(heuresJourMs)}</div><div class="delta">depuis 00h00</div></div>
-    <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServices.length} sessions</div></div>
+    <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServices.length} session${myServices.length>1?'s':''} terminée${myServices.length>1?'s':''}${serviceOuvert ? ' + 1 en cours' : ''}</div></div>
     <div class="kpi"><div class="label">🗂 Cumul depuis embauche</div><div class="value">${durationHM(cumulMs)}</div><div class="delta">${allMyServices.length} sessions total</div></div>
   </div>
 `;
