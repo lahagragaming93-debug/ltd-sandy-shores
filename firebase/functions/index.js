@@ -3451,7 +3451,11 @@ export const refreshDashboardNow = onRequest({
 const SIGNATURE_DASHBOARD = '🤠 LTD SANDY SHORES';
 
 export const dashboardKeepAlive = onSchedule({
-  schedule: '2 * * * *',         // toutes les heures à H:02
+  // Check toutes les minutes mais ne RÉGÉNÈRE QUE si l'Apps Script a écrasé
+  // (= si la cellule A1 ne contient plus notre signature). En pratique : la
+  // lecture A1 est instantanée et gratuite, donc 60 reads/heure c'est rien.
+  // Si écrasement → restauration dans la minute. Si tout est bon → zéro action.
+  schedule: 'every 1 minutes',
   timeZone: 'Europe/Paris',
   region: 'europe-west1',
   secrets: [DASHBOARD_SA_KEY],
