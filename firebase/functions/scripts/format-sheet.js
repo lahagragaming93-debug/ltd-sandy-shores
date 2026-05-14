@@ -64,7 +64,10 @@ async function main() {
     const idxJustification = headers.findIndex(h => /justif/i.test(h));
     const idxRaison        = headers.findIndex(h => /^raison$/i.test(h));
 
-    // 1. HEADER en rouge sang, texte blanc bold center
+    // 1. HEADER en rouge sang, texte blanc bold center, SANS WRAP
+    //    (sinon "Montant" se coupe en "Montan / t" — moche).
+    //    L'auto-resize plus bas va calculer la largeur nécessaire pour
+    //    tenir le header sur 1 ligne.
     requests.push({
       repeatCell: {
         range: {
@@ -84,7 +87,7 @@ async function main() {
             },
             horizontalAlignment: 'CENTER',
             verticalAlignment: 'MIDDLE',
-            wrapStrategy: 'WRAP',
+            wrapStrategy: 'OVERFLOW_CELL',   // pas de wrap sur le header
             padding: { top: 6, bottom: 6, left: 4, right: 4 }
           }
         },
@@ -92,7 +95,8 @@ async function main() {
       }
     });
 
-    // 2. Toutes les cellules data : wrap par défaut
+    // 2. Cellules data : pas de wrap par défaut (CLIP). On force WRAP
+    //    uniquement sur les colonnes Justification + Raison plus bas.
     if (nbRows > 1) {
       requests.push({
         repeatCell: {
@@ -105,7 +109,7 @@ async function main() {
           },
           cell: {
             userEnteredFormat: {
-              wrapStrategy: 'WRAP',
+              wrapStrategy: 'CLIP',
               verticalAlignment: 'MIDDLE',
               padding: { top: 3, bottom: 3, left: 4, right: 4 }
             }
@@ -113,6 +117,29 @@ async function main() {
           fields: 'userEnteredFormat(wrapStrategy,verticalAlignment,padding)'
         }
       });
+
+      // 2b. Colonne Justification + Raison : forcer le WRAP (texte long)
+      for (const idx of [idxJustification, idxRaison]) {
+        if (idx < 0) continue;
+        requests.push({
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 1,
+              endRowIndex: nbRows,
+              startColumnIndex: idx,
+              endColumnIndex: idx + 1
+            },
+            cell: {
+              userEnteredFormat: {
+                wrapStrategy: 'WRAP',
+                verticalAlignment: 'MIDDLE'
+              }
+            },
+            fields: 'userEnteredFormat(wrapStrategy,verticalAlignment)'
+          }
+        });
+      }
     }
 
     // 3. Freeze ligne 1
