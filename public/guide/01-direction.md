@@ -38,14 +38,14 @@ Ce guide couvre **les 9 modules** auxquels tu as accès, dans l'ordre où tu les
 
 ## 🛒 2. Stocks épicerie
 
-> Catalogue des **100+ produits** rangés en **5 onglets** : Vente épicerie, Vente fournisseur, Achat fournisseur, Quincaillerie, Mouvements.
+> Catalogue des **100+ produits** rangés en **5 onglets** : Vente épicerie, Vente partenaire, Achat fournisseur, Quincaillerie, Mouvements.
 
 ### Les 5 onglets
 
 | Onglet | Contenu | Commission vendeur ? |
 |--------|---------|----------------------|
 | 🛒 **Vente épicerie** | Produits vendus aux particuliers (bonbons, tickets, ballons, outils légers…) | ✅ Oui (CA × commission) |
-| 🏢 **Vente fournisseur** | Produits vendus aux pros / autres entreprises (eau purifiée, whey, huile…) | ❌ Non (CA LTD seulement) |
+| 🏢 **Vente partenaire** | Produits vendus aux pros / autres entreprises (eau purifiée, whey, huile…) | ❌ Non (CA LTD seulement) |
 | 📦 **Achat fournisseur** | Matières premières achetées (acier, cuivre, corde, caoutchouc, charbon…) — **non revendues** | — (jamais vendues) |
 | 🔧 **Quincaillerie** | Produits craftés par les vendeurs (Visseries, Pioche, Jerrican, Filet, Lumière violette…) | ✅ Oui (commission) |
 | 📜 **Mouvements** | Historique 20 derniers mouvements de stock |
@@ -230,7 +230,8 @@ Voir aussi : **[02-drh.md](02-drh.md)** pour le détail.
 - Clique sur **« Détail »** sur n'importe quelle ligne
 - Modale : infos perso, heures, salaires, KPIs spécifiques au rôle
 - Si l'employé est **Direction / Responsable / DRH** : champ **« Salaire décidé »** avec validation plafond
-  - Direction (Patron/Co-Patron/DRH) : plafond **20 000 $**/semaine
+  - Patron / Co-Patron : plafond **20 000 $**/semaine
+  - DRH : **18 000 $ fixe** (imposé, non modifiable)
   - Responsable : plafond **17 000 $**/semaine
 - Bouton **« Décider salaire »** → met à jour le salaire fixe
 

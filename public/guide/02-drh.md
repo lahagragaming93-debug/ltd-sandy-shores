@@ -83,11 +83,13 @@ Une ligne par employé avec :
 - Saisis le montant dans le champ
 - Le système refuse si > plafond du rôle
 - Plafonds :
-  - Direction (Patron/Co-Patron/DRH) : **20 000 $/sem**
-  - Responsable (Vente/Pompiste) : **17 000 $/sem**
+  - Patron / Co-Patron : **20 000 $/sem**
+  - DRH : **18 000 $/sem FIXE** (non modifiable, imposé patron)
+  - Responsable Vente : **calculé auto** depuis CA personnel (pas de saisie)
+  - Responsable Pompiste : **17 000 $/sem max** (à toi de décider)
 - Clique **« Décider salaire »** → enregistré immédiatement
 
-> ⚠ Tu peux décider **ton propre salaire** (DRH = 20 000 $ max). Logiquement ça doit être validé tacitement avec le Patron.
+> ⚠ Ton salaire DRH est **fixe à 18 000 $**, tu n'as pas à le décider.
 
 ### Ce que tu peux AUSSI faire (stocks épicerie + essence)
 - ✅ **Ajouter un nouveau produit** au catalogue (Stocks épicerie → « + Ajouter un produit »)
@@ -181,11 +183,21 @@ Salaire = score moyen × plafond
 - Score moyen = (100 + 75) / 2 = **87,5 %**
 - Salaire = 87,5 % × 14 000 = **12 250 $**
 
-### Responsable (Vente / Pompiste)
-- Salaire fixe **décidé par toi** (DRH) ou la direction
-- Plafond : **17 000 $/semaine** (refusé au-delà)
+### Responsable Vente
+- **Calculé automatiquement** depuis son CA personnel (depuis 2026-05-14)
+- Formule : `(CA / 40 000) × 17 000`, plafonné à **17 000 $/semaine**
+- Mêmes règles d'attribution du CA qu'un vendeur (caParticulier — exclut les ventes pro)
+- **Pas de saisie manuelle** dans la modale
 
-### Direction (Patron / Co-Patron / DRH)
+### Responsable Pompiste
+- Salaire fixe **décidé** par le patron (ou toi)
+- Plafond : **17 000 $/semaine**
+
+### DRH (toi)
+- **Salaire FIXE 18 000 $/semaine** — imposé par le patron, non modifiable.
+- Pas besoin de faire de CA, c'est ta rémunération de garant des employés.
+
+### Direction (Patron / Co-Patron)
 - Salaire fixe décidé
 - Plafond : **20 000 $/semaine**
 
@@ -203,7 +215,9 @@ Salaire = score moyen × plafond
 | Pompiste Intermédiaire | 14 000 $ |
 | Pompiste Expérimenté | 15 000 $ |
 | Responsable Vente / Pompiste | 17 000 $ |
-| DRH / Co-Patron / Patron | 20 000 $ |
+| DRH (fixe) | 18 000 $ |
+| Patron / Co-Patron | 20 000 $ |
+| Responsable Vente / Pompiste | 17 000 $ |
 
 ### Masse salariale globale
 - **≤ 85 %** : OK (vert)

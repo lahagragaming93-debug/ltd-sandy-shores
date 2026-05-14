@@ -339,7 +339,25 @@ function ouvrirDetail(uid) {
     }
   }
 
-  if (isResponsable(u.role) || isDirection(u.role) || u.role === 'drh') {
+  // === Bloc salaire ===
+  // DRH : montant FIXE 18 000 $ (decision patron) — pas de saisie
+  // Responsable Vente : pro-rata CA perso (calcule auto) — pas de saisie
+  // Responsable Pompiste : decide manuellement par patron
+  // Patron / Co-Patron : decide manuellement
+  if (u.role === 'drh') {
+    html += `
+      <div class="alert info" style="font-size:0.85rem;">
+        💼 <strong>Salaire DRH fixe : 18 000 $/semaine</strong> — imposé par le patron, non modifiable.
+      </div>
+    `;
+  } else if (u.role === 'responsable-vente') {
+    html += `
+      <div class="alert info" style="font-size:0.85rem;">
+        🛒 <strong>Salaire calculé automatiquement</strong> selon le CA personnel généré par le Responsable Vente.<br>
+        Formule : <code>(CA / 40 000) × 17 000</code>, plafonné à 17 000 $.
+      </div>
+    `;
+  } else if (isResponsable(u.role) || isDirection(u.role)) {
     html += `
       <label>Salaire décidé (max ${money(PLAFOND_SALAIRE[u.role])}) — pour ${ROLE_LABELS[u.role]}</label>
       <input type="number" id="emp-salaire-decide" min="0" value="${u.salaireDecide || PLAFOND_SALAIRE[u.role]}" />

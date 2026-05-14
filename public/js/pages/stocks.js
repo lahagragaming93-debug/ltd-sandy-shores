@@ -26,7 +26,7 @@ const html = `
   <!-- Onglets de section -->
   <div class="row mb-2" id="onglets-stocks" style="gap:6px;flex-wrap:wrap;">
     <button class="btn btn-tab active" data-section="vente_epicerie" title="Stock vendable aux particuliers (commission vendeur)">🛒 Vente épicerie <span class="badge neutral" data-count="vente_epicerie">0</span></button>
-    <button class="btn btn-tab" data-section="vente_pro" title="Stock vendable aux pros (CA LTD)">🏢 Vente fournisseur <span class="badge neutral" data-count="vente_pro">0</span></button>
+    <button class="btn btn-tab" data-section="vente_pro" title="Stock vendable aux partenaires pros (CA LTD)">🏢 Vente partenaire <span class="badge neutral" data-count="vente_pro">0</span></button>
     <button class="btn btn-tab" data-section="achat_fournisseur" title="Matières premières achetées (non revendues)">📦 Achat fournisseur <span class="badge neutral" data-count="achat_fournisseur">0</span></button>
     <button class="btn btn-tab" data-section="fabrication" title="Quincaillerie — produits craftés par les vendeurs">🔧 Quincaillerie <span class="badge neutral" data-count="fabrication">0</span></button>
     <button class="btn btn-tab" data-section="mouvements" title="Historique des derniers mouvements (entrée/sortie/ajustement)">📜 Mouvements</button>
@@ -96,7 +96,7 @@ const html = `
       <label>Section de stock</label>
       <select id="new-produit-section">
         <option value="vente_epicerie">🛒 Vente épicerie — particuliers (commission vendeur)</option>
-        <option value="vente_pro">🏢 Vente fournisseur — pros (CA LTD, pas de commission)</option>
+        <option value="vente_pro">🏢 Vente partenaire — pros (CA LTD, pas de commission)</option>
         <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
         <option value="fabrication">🔧 Quincaillerie (produit crafté par les vendeurs)</option>
       </select>
@@ -123,7 +123,7 @@ const html = `
       <label>Section de stock</label>
       <select id="edit-section">
         <option value="vente_epicerie">🛒 Vente épicerie — particuliers (commission vendeur)</option>
-        <option value="vente_pro">🏢 Vente fournisseur — pros (CA LTD, pas de commission)</option>
+        <option value="vente_pro">🏢 Vente partenaire — pros (CA LTD, pas de commission)</option>
         <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
         <option value="fabrication">🔧 Quincaillerie (produit crafté par les vendeurs)</option>
       </select>
@@ -151,7 +151,7 @@ let sectionActive = 'vente_epicerie';
 
 const SECTION_LABELS = {
   vente_epicerie:    { titre: '🛒 Vente épicerie — particuliers',           sub: '(commission vendeur)' },
-  vente_pro:         { titre: '🏢 Vente fournisseur — professionnels',      sub: '(CA LTD, pas de commission)' },
+  vente_pro:         { titre: '🏢 Vente partenaire — professionnels',       sub: '(CA LTD, pas de commission)' },
   achat_fournisseur: { titre: '📦 Achat fournisseur — matières premières',  sub: '(achetées, non revendues)' },
   fabrication:       { titre: '🔧 Quincaillerie',                            sub: '(produits craftés par les vendeurs)' }
 };
@@ -456,6 +456,20 @@ function ouvrirEdition(id) {
   document.getElementById('edit-section').value = sectionProduit(p);
   document.getElementById('edit-fournisseur').value = p.fournisseur || '';
   document.getElementById('edit-delta').value = '';
+
+  // Auto-calc Vente partenaire : prix vente = 2.1 × prix achat (live).
+  // L'utilisateur peut surcharger en editant le champ prix vente apres.
+  // Reset des handlers a chaque ouverture pour ne pas en empiler.
+  const inAchat   = document.getElementById('edit-prix-achat');
+  const inVente   = document.getElementById('edit-prix-vente');
+  const inSection = document.getElementById('edit-section');
+  function autoCalcVentePartenaire() {
+    if (inSection.value !== 'vente_pro') return;
+    const a = Number(inAchat.value) || 0;
+    inVente.value = (a * 2.1).toFixed(2);
+  }
+  inAchat.oninput = autoCalcVentePartenaire;
+  inSection.onchange = autoCalcVentePartenaire;
   document.getElementById('edit-raison').value = '';
   document.getElementById('modal-edit').classList.remove('hidden');
 }
@@ -599,6 +613,19 @@ if (btnNouveauProduit) {
     // Section : par defaut, on prefill avec la section active
     document.getElementById('new-produit-section').value = sectionActive === 'mouvements' ? 'vente_epicerie' : sectionActive;
     document.getElementById('new-produit-fournisseur').value = '';
+
+    // Auto-calc Vente partenaire : prix vente = 2.1 × prix achat
+    const inA = document.getElementById('new-produit-prix-achat');
+    const inV = document.getElementById('new-produit-prix-vente');
+    const inS = document.getElementById('new-produit-section');
+    function autoCalc() {
+      if (inS.value !== 'vente_pro') return;
+      const a = Number(inA.value) || 0;
+      inV.value = (a * 2.1).toFixed(2);
+    }
+    inA.oninput = autoCalc;
+    inS.onchange = autoCalc;
+
     modalNouveau.classList.remove('hidden');
     setTimeout(() => inputNom.focus(), 50);
   });

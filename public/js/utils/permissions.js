@@ -142,10 +142,11 @@ export function defaultLandingPage(role) {
 
 // Plafonds salaire (TTE Chap. IV - Secteur 2)
 // admin-technique : 0 — il ne perçoit aucun salaire (rôle technique non rémunéré)
+// drh : 18 000 $ FIXE (decision patron 2026-05-14, pas de variable)
 export const PLAFOND_SALAIRE = {
   'patron':                   20000,
   'co-patron':                20000,
-  'drh':                      20000,
+  'drh':                      18000,
   'responsable-vente':        17000,
   'responsable-pompiste':     17000,
   'vendeur-novice':           13000,
@@ -156,6 +157,13 @@ export const PLAFOND_SALAIRE = {
   'pompiste-experimente':     15000,
   'admin-technique':          0
 };
+
+// Salaire DRH : montant FIXE (pas decide). Decision patron 2026-05-14.
+export const DRH_SALAIRE_FIXE = 18000;
+
+// Plafond CA pour Responsable Vente : a 40 000 $ de CA perso il atteint
+// son plafond salaire (17 000 $). Formule pro-rata = (CA / 40 000) × 17 000.
+export const CA_PLAFOND_RESP_VENTE = 40000;
 
 export const COMMISSION_VENDEUR = {
   'vendeur-novice':         0.325,

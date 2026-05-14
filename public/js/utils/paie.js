@@ -4,6 +4,7 @@
 // ============================================================
 
 import { PLAFOND_SALAIRE, COMMISSION_VENDEUR, CA_PLAFOND_VENDEUR,
+         CA_PLAFOND_RESP_VENTE, DRH_SALAIRE_FIXE,
          isVendeur, isPompiste, isResponsable, isDirection } from './permissions.js';
 
 /**
@@ -34,19 +35,32 @@ export function salairePompiste(role, bidonsRealises, caoutchoucsRealises,
 }
 
 /**
- * Salaire responsable — fixe (saisi manuellement par patron)
+ * Salaire responsable VENTE — pro-rata sur CA personnel
+ * Formule (decision patron 2026-05-14) : (CA / 40 000) × 17 000, plafonne a 17 000.
+ * Memes regles d'attribution du CA qu'un vendeur (caParticulier).
  */
-export function salaireResponsable(role, salaireDecide) {
-  if (!isResponsable(role)) return 0;
-  const plafond = PLAFOND_SALAIRE[role] ?? 0;
+export function salaireResponsableVente(caGenere) {
+  const plafond = PLAFOND_SALAIRE['responsable-vente'] ?? 17000;
+  const ratio = Math.min(1, (caGenere || 0) / CA_PLAFOND_RESP_VENTE);
+  return Math.min(Math.round(ratio * plafond), plafond);
+}
+
+/**
+ * Salaire responsable POMPISTE — fixe (saisi manuellement par patron, plafond 17 000)
+ */
+export function salaireResponsablePompiste(salaireDecide) {
+  const plafond = PLAFOND_SALAIRE['responsable-pompiste'] ?? 17000;
   return Math.min(Math.round(salaireDecide ?? 0), plafond);
 }
 
 /**
  * Salaire direction — fixe au plafond
+ * DRH : montant FIXE (18 000 $) impose par le patron, salaireDecide ignore.
+ * Patron / Co-Patron : decide manuellement, plafond 20 000.
  */
 export function salaireDirection(role, salaireDecide) {
-  if (!isDirection(role) && role !== 'drh') return 0;
+  if (role === 'drh') return DRH_SALAIRE_FIXE;
+  if (!isDirection(role)) return 0;
   const plafond = PLAFOND_SALAIRE[role] ?? 0;
   return Math.min(Math.round(salaireDecide ?? plafond), plafond);
 }
@@ -68,8 +82,12 @@ export function salaireEstime(e, cfg = {}) {
                            e.caoutchoucsRealises ?? 0,
                            quotaBidons, quotaCaoutchoucs);
   }
-  if (isResponsable(e.role)) {
-    return salaireResponsable(e.role, e.salaireDecide ?? 0);
+  if (e.role === 'responsable-vente') {
+    // Pro-rata sur CA personnel (depuis 2026-05-14)
+    return salaireResponsableVente(e.caGenere ?? 0);
+  }
+  if (e.role === 'responsable-pompiste') {
+    return salaireResponsablePompiste(e.salaireDecide ?? 0);
   }
   if (isDirection(e.role) || e.role === 'drh') {
     return salaireDirection(e.role, e.salaireDecide ?? PLAFOND_SALAIRE[e.role]);
