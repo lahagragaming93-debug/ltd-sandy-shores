@@ -6,12 +6,12 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
-  getQuotaPompiste, getConfig, listenAvertissements, getUserDoc
+  getQuotaPompiste, getConfig, listenAvertissements, getUserDoc, listenStations
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
 import { salaireVendeur, salairePompiste, scorePompiste } from '../utils/paie.js';
-import { money, num, pct, datetime, escapeHtml,
+import { money, moneyPrecis, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { ouvrirModalNouvelleVente } from '../utils/vente-modal.js';
@@ -284,38 +284,97 @@ if (isVendeur(profile.role)) {
   const pctB = Math.min(100, (bidons / qB) * 100);
   const pctC = Math.min(100, (caoutchoucs / qC) * 100);
 
+  // Decomposition salaire : moitie plafond pour chaque quota.
+  // Exemple Novice (13000) : moitie = 6500.
+  //   1 bidon       = (1/1700) × 6500 = 3.82 \$
+  //   1 caoutchouc  = (1/800)  × 6500 = 8.13 \$
+  const partPlafond = plafondSalaire / 2;
+  const partBidons = Math.min(partPlafond, (bidons / qB) * partPlafond);
+  const partCaouts = Math.min(partPlafond, (caoutchoucs / qC) * partPlafond);
+  const valeurUnitBidon = qB > 0 ? partPlafond / qB : 0;
+  const valeurUnitCaout = qC > 0 ? partPlafond / qC : 0;
+
   document.getElementById('kpis-emp').innerHTML = `
-    <div class="kpi"><div class="label">Bidons</div><div class="value">${num(bidons)}</div><div class="delta">/ ${num(qB)} (${pct(pctB,0)})</div></div>
-    <div class="kpi"><div class="label">Caoutchoucs</div><div class="value">${num(caoutchoucs)}</div><div class="delta">/ ${num(qC)} (${pct(pctC,0)})</div></div>
-    <div class="kpi"><div class="label">Score global</div><div class="value">${pct(score,1)}</div><div class="delta">moyenne des 2</div></div>
-    <div class="kpi"><div class="label">Salaire estimé</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
+    <div class="kpi"><div class="label">🛢 Bidons ravitaillés</div><div class="value">${num(bidons)}</div><div class="delta">/ ${num(qB)} (${pct(pctB,0)})</div></div>
+    <div class="kpi"><div class="label">🪖 Caoutchoucs produits</div><div class="value">${num(caoutchoucs)}</div><div class="delta">/ ${num(qC)} (${pct(pctC,0)})</div></div>
+    <div class="kpi"><div class="label">📊 Score global</div><div class="value">${pct(score,1)}</div><div class="delta">moyenne des 2 quotas</div></div>
+    <div class="kpi"><div class="label">💰 Salaire estimé</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
   `;
 
   document.getElementById('detail').innerHTML = `
     <div style="display:grid;gap:14px;">
       <div>
-        <div class="muted mono mb-1">Bidons d'essence ravitaillés</div>
+        <div class="muted mono mb-1">🛢 Bidons d'essence ravitaillés <span style="float:right;color:var(--color-cactus,#5a8);">+${moneyPrecis(valeurUnitBidon)}/bidon</span></div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${pctB}%"></div>
-          <div class="label">${num(bidons)} / ${num(qB)} bidons</div>
+          <div class="label">${num(bidons)} / ${num(qB)} bidons → ${money(partBidons)}</div>
         </div>
       </div>
       <div>
-        <div class="muted mono mb-1">Caoutchoucs produits</div>
+        <div class="muted mono mb-1">🪖 Caoutchoucs produits <span style="float:right;color:var(--color-cactus,#5a8);">+${moneyPrecis(valeurUnitCaout)}/caoutchouc</span></div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${pctC}%"></div>
-          <div class="label">${num(caoutchoucs)} / ${num(qC)} unités</div>
+          <div class="label">${num(caoutchoucs)} / ${num(qC)} unités → ${money(partCaouts)}</div>
         </div>
       </div>
       <div>
-        <div class="muted mono mb-1">Salaire estimé / plafond</div>
-        <div class="progress" style="height:24px;">
-          <div class="fill" style="width:${plafondSalaire ? (salaireEst/plafondSalaire)*100 : 0}%"></div>
-          <div class="label">${money(salaireEst)} / ${money(plafondSalaire)}</div>
+        <div class="muted mono mb-1">💰 Salaire estimé / plafond ${ROLE_LABELS[profile.role]}</div>
+        <div class="progress" style="height:28px;">
+          <div class="fill" style="width:${plafondSalaire ? (salaireEst/plafondSalaire)*100 : 0}%;background:linear-gradient(90deg,#ffd24a,#ffac1a);"></div>
+          <div class="label" style="font-weight:bold;">${money(salaireEst)} / ${money(plafondSalaire)}</div>
         </div>
+      </div>
+      <div class="alert info" style="font-size:0.82rem;margin-top:4px;">
+        💡 <strong>Comment ton salaire est calculé</strong> : moitié sur les bidons + moitié sur les caoutchoucs.
+        Atteindre les 2 quotas (1700 bidons + 800 caoutchoucs) = plafond ${money(plafondSalaire)}.
+        Tu touches déjà même si tu n'as fait qu'un seul des deux — chaque bidon et chaque caoutchouc compte.
+      </div>
+
+      <!-- État des stations en temps réel -->
+      <div>
+        <div class="muted mono mb-1">⛽ État des stations en temps réel</div>
+        <div id="pompiste-stations">Chargement…</div>
       </div>
     </div>
   `;
+
+  // Listener temps reel sur les stations
+  listenStations(stations => {
+    const div = document.getElementById('pompiste-stations');
+    if (!div) return;
+    if (stations.length === 0) {
+      div.innerHTML = '<p class="muted">Aucune station configurée.</p>';
+      return;
+    }
+    // Tri : alerte d'abord, puis bas, puis OK. Au sein d'une categorie, par % stock asc.
+    const sorted = [...stations].sort((a, b) => {
+      const pctA = a.stockMax ? (a.stockActuel / a.stockMax) * 100 : 0;
+      const pctB = b.stockMax ? (b.stockActuel / b.stockMax) * 100 : 0;
+      return pctA - pctB;
+    });
+    div.innerHTML = sorted.map(s => {
+      const niveau = s.stockMax ? (s.stockActuel / s.stockMax) * 100 : 0;
+      const sousAlerte = s.stockActuel < (s.seuilAlerte || 0);
+      const cls = sousAlerte ? 'alerte-fort' : (niveau < 30 ? 'gold' : '');
+      const badge = sousAlerte
+        ? '<span class="badge danger">⚠ ALERTE</span>'
+        : (niveau < 30 ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>');
+      return `
+        <div class="row" style="margin-bottom:6px;gap:10px;align-items:center;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:var(--font-heading);font-size:0.85rem;display:flex;justify-content:space-between;gap:8px;">
+              <span>${escapeHtml(s.nom)}</span>
+              ${badge}
+            </div>
+            <div class="progress" style="height:14px;">
+              <div class="fill" style="width:${Math.min(niveau, 100)}%;${sousAlerte ? 'background:var(--color-blood);' : ''}"></div>
+              <div class="label ${cls}">${num(s.stockActuel || 0)} / ${num(s.stockMax || 0)} L (${pct(niveau, 0)})</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  });
 } else {
   // Direction / Resp / DRH / Admin Tech : salaire FIXE, mais peuvent aussi
   // vendre / ravitailler. On affiche leurs stats personnelles a titre INFO

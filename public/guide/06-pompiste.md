@@ -62,12 +62,24 @@ Identique à la page Vendeur :
 
 ### Formule
 ```
-score bidons     = bidons / quotaBidons (max 100 %)
-score caoutchouc = caoutchoucs / quotaCaoutchoucs (max 100 %)
-score moyen      = (bidons + caoutchouc) / 2
+score bidons     = MIN(1, bidons / 1700)
+score caoutchouc = MIN(1, caoutchoucs / 800)
+score moyen      = (score bidons + score caoutchouc) / 2
 
 Salaire = score moyen × plafond
 ```
+
+### En clair : ton salaire est divisé en 2 moitiés
+- **Moitié bidons** : si tu fais les 1700 bidons → tu gagnes la moitié du plafond.
+- **Moitié caoutchoucs** : si tu fais les 800 caoutchoucs → tu gagnes l'autre moitié.
+
+**Combien rapporte 1 unité ?** (Novice = plafond 13 000 $, donc moitié = 6 500 $) :
+- 1 bidon ravitaillé = `6 500 / 1700` = **3,82 $**
+- 1 caoutchouc produit = `6 500 / 800` = **8,13 $**
+
+**Pareil pour Inter (14k → 4,12$ + 8,75$) et Exp (15k → 4,41$ + 9,38$).**
+
+> 💡 Tu touches **dès le 1er bidon ou caoutchouc**. Tu peux faire d'abord tous tes bidons (et toucher 6 500 $ Novice = ½ du plafond), puis t'attaquer aux caoutchoucs. Chaque ajout incrémente ton salaire estimé en temps réel.
 
 ### Plafonds
 - Pompiste Novice : **13 000 $/sem**
