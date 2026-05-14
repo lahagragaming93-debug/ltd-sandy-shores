@@ -6,10 +6,8 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
-  getQuotaPompiste, getConfig, listenAvertissements, getUserDoc,
-  collection, query, where, orderBy, limit, onSnapshot
+  getQuotaPompiste, getConfig, listenAvertissements, getUserDoc
 } from '../api.js';
-import { db } from '../firebase-config.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
 import { salaireVendeur, salairePompiste, scorePompiste } from '../utils/paie.js';
@@ -77,9 +75,8 @@ const html = `
     ` : ''}
   </div>
 
-  <div id="bloc-sorties-attente"></div>
-
-  <!-- Bloc ventes IG non declarees (vendeurs uniquement) -->
+  <!-- Bloc ventes IG non declarees (vendeurs uniquement) — affiche apres
+       5 min sans declaration. La cloche direction reste alimentee. -->
   <div id="bloc-non-declarees"></div>
 
   <div class="kpi-grid" id="kpis-emp">
@@ -119,14 +116,24 @@ const [allVentes, ventesAvecCachees, allServices, allMyServices, quota] = await 
 ]);
 
 // === Ventes IG (bot Discord) non encore declarees par l'employe ===
-// Filtre : vendeur=moi, source!=manuelle, non cachee, moins de 24h
-const il_y_a_24h = Date.now() - 24 * 3600 * 1000;
-const nonDeclarees = ventesAvecCachees.filter(v =>
-  v.vendeurId === viewedUserId &&
-  v.source !== 'manuelle' &&
-  !v.cachee &&
-  (v.timestamp?.toMillis?.() || 0) >= il_y_a_24h
-).sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+// Filtre :
+//  - vendeur=moi
+//  - source != manuelle (= vente bot in-game)
+//  - non cachee
+//  - PAS modifiee par admin (modifiePar absent) — sinon admin a deja regularise
+//  - age entre 5 min et 24h : on laisse 5 min de battement avant d'alerter
+//    (le vendeur peut declarer juste apres la facture in-game sans message)
+const il_y_a_24h  = Date.now() - 24 * 3600 * 1000;
+const il_y_a_5min = Date.now() - 5 * 60 * 1000;
+const nonDeclarees = ventesAvecCachees.filter(v => {
+  const ts = v.timestamp?.toMillis?.() || 0;
+  return v.vendeurId === viewedUserId &&
+         v.source !== 'manuelle' &&
+         !v.cachee &&
+         !v.modifiePar &&
+         ts >= il_y_a_24h &&
+         ts <= il_y_a_5min;
+}).sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
 
 function renderNonDeclarees() {
   const bloc = document.getElementById('bloc-non-declarees');
@@ -386,72 +393,19 @@ if (btnVente) {
 }
 
 // === Sorties en cours non regularisees (anti-vol 30min) ===
-// Affiche un bandeau si l'employe a une sortie statut='alerte' (>30min sans
-// vente ni redepot). Reste affiche tant que la direction n'a pas marque
-// l'alerte resolue ou que le doc /sorties_en_cours n'est pas regularise.
-const sortiesQ = query(
-  collection(db, 'sorties_en_cours'),
-  where('employeId', '==', viewedUserId),
-  where('statut', 'in', ['en_attente', 'alerte']),
-  orderBy('dateSortie', 'desc'),
-  limit(20)
-);
-onSnapshot(sortiesQ, (snap) => {
-  const div = document.getElementById('bloc-sorties-attente');
-  if (!div) return;
-  const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  if (list.length === 0) { div.innerHTML = ''; return; }
-
-  const alertes = list.filter(s => s.statut === 'alerte');
-  const enAttente = list.filter(s => s.statut === 'en_attente');
-
-  let html = '';
-  if (alertes.length > 0) {
-    html += `
-      <div class="alert" style="background:rgba(220,40,40,0.18);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:8px;">
-        🚨 <strong>Sortie non régularisée — ${alertes.length} produit${alertes.length > 1 ? 's' : ''}</strong>
-        <ul style="margin:6px 0 0 18px;font-weight:normal;">
-          ${alertes.map(s => {
-            const d = s.dateSortie?.toDate ? s.dateSortie.toDate() : null;
-            return `<li>${escapeHtml(s.produitNom)} × ${s.quantite}${d ? ` — sorti à ${d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})}` : ''}</li>`;
-          }).join('')}
-        </ul>
-        <div style="background:rgba(0,0,0,0.25);padding:8px 10px;margin-top:8px;border-radius:4px;font-weight:normal;font-size:0.88rem;">
-          ⚠ Tu as sorti ${alertes.length > 1 ? 'ces produits' : 'ce produit'} du coffre il y a <strong>plus de 30 minutes</strong> sans déclarer de vente.<br>
-          <strong>Pour faire disparaître ce message, 2 options :</strong>
-          <ol style="margin:4px 0 0 18px;">
-            <li><strong>Déclare la vente</strong> ici (bouton "📝 Déclarer une vente" ci-dessus) en sélectionnant la facture in-game correspondante.</li>
-            <li><strong>Repose ${alertes.length > 1 ? 'les produits' : 'le produit'} dans le coffre LTD</strong> (le bot Discord détectera le redépôt automatiquement).</li>
-          </ol>
-          La direction a été notifiée — régularise vite pour éviter un avertissement.
-        </div>
-      </div>`;
-  }
-  if (enAttente.length > 0) {
-    html += `
-      <div class="alert" style="background:rgba(220,180,40,0.12);border:1px solid #c93;margin-bottom:8px;font-size:0.9rem;">
-        ⏱ <strong>${enAttente.length} sortie${enAttente.length > 1 ? 's' : ''} en attente</strong> de
-        régularisation. Tu as 30 min depuis la sortie du coffre pour déclarer la vente ou reposer le produit.
-        <ul style="margin:4px 0 0 18px;">
-          ${enAttente.map(s => {
-            const d = s.dateSortie?.toDate ? s.dateSortie.toDate() : null;
-            const tRest = d ? Math.max(0, 30 - Math.round((Date.now() - d.getTime()) / 60000)) : '?';
-            return `<li>${escapeHtml(s.produitNom)} × ${s.quantite} — <strong>${tRest} min restantes</strong></li>`;
-          }).join('')}
-        </ul>
-      </div>`;
-  }
-  div.innerHTML = html;
-});
+// Bloc retire de l'espace employe sur demande patron 2026-05-14 :
+// les alertes etaient persistantes et difficiles a faire disparaitre.
+// La cloche direction continue de recevoir les alertes via la cron
+// `verifierSortiesExpirees` cote serveur. L'employe est juste pas notifie ici.
 
 // === Avertissements (temps reel) ===
-// L'employe voit ses propres averts. 3 actifs = compte bloque (banniere rouge).
-// Le retrait par le patron debloque immediatement (listener Firestore).
+// Affiche UNIQUEMENT les avertissements actifs (les retires sont caches).
+// 3 actifs = compte bloque (banniere rouge).
 listenAvertissements(viewedUserId, (list) => {
   const div = document.getElementById('bloc-averts');
   const actifs = list.filter(a => a.actif);
   const n = actifs.length;
-  if (n === 0 && list.length === 0) { div.innerHTML = ''; return; }
+  if (n === 0) { div.innerHTML = ''; return; }
 
   const banniere = n >= 3 ? `
     <div class="alert" style="background:rgba(220,40,40,0.18);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:8px;">
@@ -459,32 +413,28 @@ listenAvertissements(viewedUserId, (list) => {
     </div>` : n === 2 ? `
     <div class="alert" style="background:rgba(220,140,40,0.18);border:1px solid #d88;margin-bottom:8px;">
       ⚠ <strong>${n} avertissements actifs</strong> — au prochain, ton compte sera bloqué.
-    </div>` : n === 1 ? `
+    </div>` : `
     <div class="alert" style="background:rgba(220,180,40,0.12);border:1px solid #c93;margin-bottom:8px;">
       ⚠ <strong>1 avertissement actif</strong> — fais attention.
-    </div>` : '';
+    </div>`;
 
-  const detail = list.length > 0 ? `
+  const detail = `
     <div class="panel mb-3" style="margin:0 0 12px 0;">
-      <div class="panel-title"><span>⚠ Mes avertissements</span><span class="muted mono">${n} actif${n > 1 ? 's' : ''} / ${list.length} total</span></div>
+      <div class="panel-title"><span>⚠ Mes avertissements actifs</span><span class="muted mono">${n} actif${n > 1 ? 's' : ''}</span></div>
       <table class="data" style="margin-top:6px;">
-        <thead><tr><th>Date</th><th>Motif</th><th>Source</th><th class="center">Statut</th></tr></thead>
-        <tbody>${list.map(a => {
+        <thead><tr><th>Date</th><th>Motif</th><th>Source</th></tr></thead>
+        <tbody>${actifs.map(a => {
           const d = a.dateCreation?.toDate ? a.dateCreation.toDate() : null;
           const dateStr = d ? d.toLocaleDateString('fr-FR') : '—';
           const source = a.auto ? '<span class="badge info">auto</span>' : '<span class="badge">manuel</span>';
-          const statut = a.actif
-            ? '<span class="badge danger">⚠ ACTIF</span>'
-            : '<span class="badge ok">retiré</span>';
           return `<tr>
             <td class="mono" style="font-size:0.8rem;">${dateStr}</td>
             <td>${escapeHtml(a.motif || '')}</td>
             <td>${source}</td>
-            <td class="center">${statut}</td>
           </tr>`;
         }).join('')}</tbody>
       </table>
-    </div>` : '';
+    </div>`;
 
   div.innerHTML = banniere + detail;
 });
