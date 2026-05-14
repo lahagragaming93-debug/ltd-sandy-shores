@@ -46,8 +46,6 @@ if (asUserId && asUserId !== viewedUserId && canVoirComme(callerRoleReel)) {
     console.error('[employee] erreur chargement profil cible:', e);
   }
 }
-console.log('[employee] modeVoirComme=', modeVoirComme, 'viewedUserId=', viewedUserId, 'callerRoleReel=', callerRoleReel);
-
 const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
 const wId   = weekId();

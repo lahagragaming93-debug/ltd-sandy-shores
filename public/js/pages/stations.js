@@ -137,7 +137,6 @@ let stations = [];
 let config = await getConfig().catch(() => ({}));
 
 listenStations(s => {
-  console.log('[stations] listener fired —', s.length, 'stations');
   stations = s;
   renderStations();
 });

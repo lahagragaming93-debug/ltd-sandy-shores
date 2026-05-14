@@ -1,7 +1,44 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-13 (Stocks épicerie en 5 onglets : épicerie / pro / achat fournisseur / fabrication / mouvements)**
+> Dernière mise à jour : **2026-05-14 (Grand lissage : backup, suppression scripts jetables, MAJ guide, ROADMAP créée)**
+
+---
+
+## ✅ Session 2026-05-14 — Grand lissage + Quincaillerie + anti-fraude vente
+
+**Demandes patron du jour** :
+1. Quincaillerie : créer 8 nouveaux produits crafts + déplacer 4 existants (filet, sac jute, lumière violette, bidon-essence)
+2. Onglet "Produit fabrication" renommé **"🔧 Quincaillerie"**
+3. Mode "👁 Voir son espace" pour debug employé
+4. Anti-fraude vente : déclaration manuelle DOIT correspondre à une facture in-game (montant exact, < 24h)
+5. Bloc "sortie non régularisée" retiré de l'espace employé (cloche direction conservée)
+6. Avertissements retirés cachés de la liste employé
+7. Ventes à déclarer : délai 5 min minimum + exclusion des modifications admin
+8. Top 5 produits dashboard : refonte avec podium 🥇🥈🥉
+9. Champ "Fournisseur" (Yootool, GB Foundry) avec affichage cross-onglet
+10. Distinction `intrant=true` (matières premières non vendues)
+11. Grand lissage : backup, suppression scripts jetables, MAJ guide, ROADMAP
+
+**Fichiers principaux modifiés** :
+- `public/js/pages/stocks.js` : 5 onglets, modale édition avec select section + fournisseur
+- `public/js/pages/employee.js` : mode "Voir comme", filtres ventes 5min, retrait sorties_en_cours
+- `public/js/pages/dashboard.js` : Top 5 produits HTML/CSS pur
+- `public/js/pages/rh.js` : table factures détail + bouton Voir son espace
+- `public/js/utils/vente-modal.js` : sélection facture bot obligatoire pour vendeurs
+- `firebase/functions/index.js` : declarerVente exige factureBotId, modifierVente calcule montantParticulier
+- `public/js/data/produits.js` : 8 nouveaux produits + flags intrant/enFabrication/fournisseur
+- `public/css/western.css` : styles `.btn-tab`, `.top-produit-row`, podium
+
+**Nettoyage** :
+- 32 scripts one-shot supprimés de `firebase/functions/scripts/` (gardé 11 utilitaires génériques)
+- `docs/05-guide-utilisation.md` supprimé (doublon avec public/guide/)
+- Fichiers racine obsolètes supprimés (ancien backup, prompt initial)
+- Code mort retiré : `chartTop`, listener sorties_en_cours côté employé, imports inutilisés
+
+**Backup** : `backup-2026-05-14-00-3004.json` (3,2 Mo, 24 collections, 9678 docs, 19 users Auth)
+
+**ROADMAP** : nouveau fichier `docs/ROADMAP.md` créé avec les chantiers en suspens.
 
 ---
 

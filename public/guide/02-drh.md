@@ -59,15 +59,25 @@ Une ligne par employé avec :
 ### Ce que tu peux faire
 
 #### 🔍 Voir le détail d'un employé
-- Clique **« Détail »** sur n'importe quelle ligne → modale avec :
+- Clique **« Détail »** (icône 👁) sur n'importe quelle ligne → modale avec :
   - Infos perso : ID Discord, ID Perso, date d'entrée
   - Heures service de la semaine + sessions individuelles
   - Salaires versés cette semaine (depuis `/paies`)
   - Salaire estimé pour la semaine + plafond TTE applicable
 
-  **Pour un vendeur** : CA généré, bénéfice généré, nb de ventes
+  **Pour un vendeur** :
+  - CA total généré, **CA particulier** (commissionnable) et CA pro (non commissionné), bénéfice
+  - **Tableau de TOUTES les factures** (manuelles 📝 + bot 🤖 + cachées ⚠) avec colonnes : date, source, n°, client, montant, bénéfice, commissionnable, statut → permet de comparer "ce que le bot a vu" vs "ce que le vendeur a déclaré"
+
   **Pour un pompiste** : bidons / quota, caoutchoucs / quota, score %
   **Pour responsable / direction / DRH** : champ **« Salaire décidé »** + bouton **« Décider salaire »**
+
+#### 👁 Voir l'espace personnel d'un employé (mode débug)
+- Bouton **« 👁 Voir son espace »** en bas de la modale détail
+- Te redirige sur **employee.html** mais affiche **les données de cet employé** (CA, factures, alertes, etc.) — exactement ce qu'il voit lui-même
+- Bandeau bleu en haut : "🔍 Mode débug — lecture seule"
+- Utile quand un employé dit "j'ai un problème" → tu vois exactement ce qu'il voit et tu identifies le bug
+- Tous les boutons d'action sont désactivés (impossible de déclarer une vente à sa place)
 
 #### 💰 Décider un salaire (responsables, direction, DRH inclus)
 - Saisis le montant dans le champ

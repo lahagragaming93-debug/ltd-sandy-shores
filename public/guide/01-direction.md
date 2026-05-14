@@ -38,39 +38,43 @@ Ce guide couvre **les 9 modules** auxquels tu as accès, dans l'ordre où tu les
 
 ## 🛒 2. Stocks épicerie
 
-> Catalogue des **53+ produits**, leurs prix d'achat et de vente, et le stock en temps réel.
+> Catalogue des **100+ produits** rangés en **5 onglets** : Vente épicerie, Vente fournisseur, Achat fournisseur, Quincaillerie, Mouvements.
 
-### Ce que tu vois
-- **Filtres** : catégorie (Outillage, Document, Agriculture, Mécanique, Nourriture, Divers), niveau d'alerte (rupture / bas / OK), recherche libre.
-- **Tableau produits** : nom, catégorie, stock, prix achat, prix vente, marge, seuil alerte, statut.
-- **Stats** : nb de produits, ruptures, sous seuil.
-- **Mouvements récents** : 20 derniers ajustements (bot Discord ou manuels).
+### Les 5 onglets
+
+| Onglet | Contenu | Commission vendeur ? |
+|--------|---------|----------------------|
+| 🛒 **Vente épicerie** | Produits vendus aux particuliers (bonbons, tickets, ballons, outils légers…) | ✅ Oui (CA × commission) |
+| 🏢 **Vente fournisseur** | Produits vendus aux pros / autres entreprises (eau purifiée, whey, huile…) | ❌ Non (CA LTD seulement) |
+| 📦 **Achat fournisseur** | Matières premières achetées (acier, cuivre, corde, caoutchouc, charbon…) — **non revendues** | — (jamais vendues) |
+| 🔧 **Quincaillerie** | Produits craftés par les vendeurs (Visseries, Pioche, Jerrican, Filet, Lumière violette…) | ✅ Oui (commission) |
+| 📜 **Mouvements** | Historique 20 derniers mouvements de stock |
+
+> 💡 Un produit peut apparaître **dans 2 onglets en même temps** s'il a un fournisseur défini : par exemple, Pince Coupante = Vente épicerie + Achat fournisseur (acheté chez Yootool).
 
 ### Ce que tu peux faire
 
-#### ✏ Modifier un produit (par ligne)
-- Clique sur **« Modifier »** sur la ligne du produit
-- Édite : **Nom**, **Prix achat**, **Prix vente**, **Seuil d'alerte**, **Catégorie**
-- Optionnel : **Ajustement de stock** (champ « delta » = +X ou -X) avec **raison obligatoire** (audit)
+#### ✏ Modifier un produit
+- Édite : **Nom**, **Prix achat**, **Prix vente** (décimaux supportés : 1,25 $), **Seuil d'alerte**, **Section** (épicerie / pro / achat fournisseur / Quincaillerie), **Fournisseur**
+- Optionnel : **Ajustement de stock** (delta) avec **raison obligatoire**
 - Enregistre
 
-> 💡 Chaque changement de prix est **automatiquement loggé** dans `historiquePrix` (audit trail) avec ancien prix → nouveau prix + qui a modifié + quand.
+> 💡 Chaque changement de prix est **loggé** dans `historiquePrix` (audit trail).
 
-#### 🔄 Réinitialiser depuis catalogue
-- Bouton **« Réinitialiser depuis catalogue »** en haut
-- Action **CRITIQUE** (timer 3 secondes) : écrase noms, catégories, prix de vente et seuils par les valeurs par défaut du catalogue
-- ✓ Préserve les **prix d'achat existants** (ne les touche pas)
-- ✓ Ne supprime aucun produit
+#### ➕ Créer un nouveau produit
+- Bouton ➕ en haut à droite
+- Pré-rempli avec la section sur laquelle tu te trouves
+- Tu peux faire passer un produit d'une section à l'autre à tout moment (ex. Spray à tag de "pro" à "épicerie" → les vendeurs touchent commission dessus)
 
 ### À comprendre
-- Le **stock évolue automatiquement** quand un vendeur fait une facture (le bot Discord remonte la sortie de stock).
-- Le **prix d'achat** n'est jamais dans les logs FiveM — c'est à toi de le saisir manuellement (utilisé pour calculer la marge et le bénéfice net du LTD ; n'impacte pas la commission vendeur, qui est sur le CA).
-- La **marge** = prix vente − prix achat. Si elle est rouge ou orange dans le tableau, le produit n'est pas rentable ou peu.
+- Le **stock évolue automatiquement** quand un vendeur déclare une vente (transaction atomique : crée la vente + décrémente le stock).
+- Le **prix d'achat** n'est jamais dans les logs FiveM — saisie manuelle. Sert à la marge LTD et au bénéfice net en compta. **N'impacte pas la commission vendeur** (qui est sur le CA, pas le bénéfice).
+- Les **matières premières** (intrant=true) sont **invisibles dans le modal de vente** — impossible de les vendre par erreur.
 
 ### ⚠ Ne pas faire
-- ❌ Ne change pas un prix de vente sans prévenir tes vendeurs (ils risquent de facturer à l'ancien prix in-game).
-- ❌ Ne mets jamais un prix d'achat à 0 sauf si c'est volontaire (sinon la marge sera artificiellement énorme et fausse le bénéfice net en compta).
-- ❌ Pour les ajustements manuels de stock, **toujours mettre une raison claire** (« inventaire physique constaté », « casse », « erreur de saisie ») — ça reste tracé à vie dans l'audit.
+- ❌ Ne change pas un prix de vente sans prévenir tes vendeurs.
+- ❌ Ne mets jamais un prix d'achat à 0 sauf volontaire (fausse le bénéfice net en compta).
+- ❌ Pour les ajustements manuels de stock, **raison obligatoire** (audit immuable).
 
 ---
 
@@ -114,28 +118,35 @@ Ce guide couvre **les 9 modules** auxquels tu as accès, dans l'ordre où tu les
 
 ## 💵 4. Ventes
 
-> Liste de **toutes les factures** de la semaine en cours avec discordances.
+> Liste de **toutes les factures** de la semaine en cours avec discordances. **2 sources** : ventes bot Discord (🤖) et déclarations manuelles vendeurs (📝).
 
 ### Ce que tu vois
 - **KPI** : CA semaine, bénéfice brut, panier moyen, paiements (espèces vs carte).
 - **Filtres** : par vendeur, par paiement, recherche libre.
-- **Tableau factures** : date, n°, vendeur, client, montant, bénéfice, paiement, raison, vérification stock.
-- **🚨 Discordances** : si une vente a été faite sans sortie de stock corrélée, alerte ici (vente fictive ? bug bot ? vol ?).
+- **Tableau factures** : date, n°, vendeur, client, montant, bénéfice, paiement, raison, source (🤖 / 📝).
+- Les **ventes cachées** (doublons bot remplacés par une manuelle) sont automatiquement filtrées.
+- **🚨 Discordances** : si une vente a été faite sans sortie de stock corrélée.
+
+### Anti-fraude : déclaration manuelle liée à la facture bot
+Depuis 2026-05-13, un vendeur **ne peut plus déclarer une vente from scratch**. Il doit :
+1. Faire la facture in-game (le bot la remonte)
+2. Sur son espace, voir la vente "non déclarée" et cliquer "Déclarer"
+3. Saisir les produits → le **montant total doit matcher exactement** celui de la facture in-game
+4. Validation : la vente bot est remplacée par la manuelle (avec bon bénéfice + flag particulier/pro)
+
+> Toi (direction) peux toujours déclarer une vente sans référence (pour régularisation).
 
 ### Ce que tu peux faire
-
-#### 📥 Exporter CSV
-- Bouton **« Exporter CSV »** → télécharge `ventes-semaine-YYYY-MM-DD.csv`
-- Utilisable pour audit RP, comptabilité externe, archivage perso.
+- **✏ Modifier une vente** (icône crayon sur ligne) — change produits/montant/client/paiement. Motif obligatoire.
+- **📥 Exporter CSV** — pour audit ou archivage.
 
 ### À comprendre
-- Les ventes sont **créées automatiquement** par le bot Discord depuis le canal `#suivi-facture`.
 - Le **vendeur est résolu** depuis son ID Discord (champ `idDiscord` dans son compte).
-- ⚠ Si un vendeur n'apparaît pas dans la colonne « Vendeur » → c'est qu'il **manque son ID Discord** dans son profil. Va dans Admin → Modifier → renseigne-le.
+- ⚠ Si un vendeur n'apparaît pas → ID Discord manquant. Va dans Admin → Modifier.
 
 ### ⚠ Ne pas faire
-- ❌ N'ignore JAMAIS une discordance (vente sans stock). Investigue toujours.
-- ❌ Ne te base pas sur le CA seul pour évaluer un vendeur — regarde aussi le **bénéfice** (un vendeur qui brade les prix fait beaucoup de CA mais peu de profit).
+- ❌ N'ignore JAMAIS une discordance (vente sans stock).
+- ❌ Ne te base pas sur le CA seul — regarde aussi le **bénéfice** (un vendeur qui brade fait du CA mais peu de profit).
 
 ---
 

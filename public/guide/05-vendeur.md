@@ -43,7 +43,36 @@ Toutes tes prises et fins de service de la semaine, avec durée totale.
 - ⚠ Si < 7h : à compléter (sinon ta paie sera ridicule)
 
 ### Ce que tu peux faire
-- **Lecture seule.** Tu ne modifies rien, tout vient des logs Discord.
+- **📝 Déclarer une vente** — bouton en haut de Mon espace (voir section dédiée ci-dessous)
+- Tout le reste est en **lecture seule** (les chiffres viennent des logs Discord + tes déclarations)
+
+---
+
+## 📝 Déclarer une vente (workflow obligatoire)
+
+Pour qu'une vente compte dans ta commission, **tu dois la déclarer toi-même** sur le site. Le bot Discord remonte automatiquement la facture in-game, mais sans détail des produits — c'est toi qui les renseignes pour figer le bénéfice.
+
+### Étapes
+1. **Fais la facture in-game** normalement
+2. Dans les secondes qui suivent, le bot Discord la remonte → elle apparaît dans **Mon espace → "📌 Vente in-game à déclarer"** (après 5 min, pour te laisser le temps de déclarer spontanément)
+3. Clique **"📝 Déclarer"** sur la ligne de la facture
+4. La modal s'ouvre **avec la facture présélectionnée** + le **montant cible affiché**
+5. Saisis les produits que tu as vendus (autocomplete par texte)
+6. Le bouton **"Valider"** est désactivé tant que ton total ne matche pas exactement le montant in-game
+7. Quand ça matche : ✅ Valider → ta vente est enregistrée et compte pour la commission
+
+### Pourquoi c'est obligatoire
+- **Anti-fraude** : impossible de déclarer une fausse vente (sans facture in-game associée)
+- **Précision** : le bénéfice est calculé exactement à partir des produits que tu déclares (pas une estimation)
+
+### Ce que tu vois dans la modal
+- Les produits **"PRO"** (eau purifiée, huile, matières premières, etc.) sont **invisibles** — tu ne peux pas les vendre, c'est réservé direction
+- Les **matières premières** (acier, cuivre, corde…) aussi invisibles — elles servent uniquement aux crafts, jamais à la vente
+- Tu vois : produits **épicerie particuliers** + **Quincaillerie** (Visseries, Pioche, Jerrican, Filet, Lumière violette…)
+
+### Si la facture in-game n'apparaît pas après 30 secondes
+- Vérifie dans Discord que le canal `#suivi-facture` a bien remonté ta vente
+- Si oui mais pas sur le site : préviens la direction (bug bot ou ID Discord mal configuré)
 
 ---
 
