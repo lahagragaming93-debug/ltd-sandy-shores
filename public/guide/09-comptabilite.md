@@ -169,6 +169,65 @@ Panneau noir en bas qui pointe vers les 4 onglets de détail :
 
 ---
 
+## 🏷 5. Auto-classification des dépenses (déductibilité)
+
+Depuis le 14/05/2026, la page Comptabilité utilise un **mapping fournisseurs** qui suggère automatiquement la catégorie et la déductibilité de chaque dépense entrante. Le patron reste **décisionnaire final** (cf. TTE Art. 4-1.4 : seuls avocats, matières premières et entretien véhicules sont déductibles d'office — tout le reste demande validation).
+
+### Comment ça marche
+
+1. **Le bot capte une dépense** (canal `#depenses` ou xbankaccount removemoney)
+2. Le handler `onDepense` lit `/config/global.fournisseurs` (mapping géré en Admin)
+3. Si la dépense match un pattern → **catégorie + déductibilité suggérées** sont enregistrées
+4. La dépense apparaît dans la table avec un badge :
+   - **🔒 Validé** (vert) = le patron a déjà validé
+   - **💡** (gris) = suggestion auto, pas encore validée
+   - **⚠ À classifier** (orange) = aucun pattern n'a matché → décision patron requise
+5. Clic sur **🔄** ouvre la modale qui permet de valider/changer + optionnellement **mémoriser un nouveau pattern**
+
+### Patterns initiaux
+
+| Match | Fournisseur | Catégorie | Déductible |
+|---|---|---|---|
+| Boutique N°263 | Yootool | matières premières | ✅ oui |
+| Boutique N°215 | Fournisseur LTD | matières premières | ✅ oui |
+| Compte cible HDM | HDM (Heavy Duty Motors) | location véhicule | ✅ oui |
+| Compte cible Dynasty 8 | Dynasty 8 | décoration locaux | ❌ non |
+| Raison "achat essence" | Carte entreprise | frais véhicule | ✅ oui (carte pro) |
+
+### Gérer le mapping (page Admin)
+
+Dans **Administration** (direction uniquement), le panneau **🏷 Mapping fournisseurs** liste tous les patterns. Tu peux :
+- ➕ Ajouter un nouveau pattern (label + type match + valeur + catégorie + dédu)
+- ✏ Modifier un pattern existant
+- 🗑 Supprimer un pattern (les dépenses passées déjà classées ne sont pas affectées)
+
+### Workflow recommandé
+
+1. **Une fois par semaine** (avant déclaration fiscale mardi 21h), va dans Comptabilité
+2. Trie le tableau **Charges détaillées** par statut (les ⚠ remontent en premier visuellement)
+3. Clique **🔄** sur chaque ligne ⚠ → valide la catégorie + dédu + coche "Mémoriser ce fournisseur" si c'est un fournisseur récurrent → la prochaine fois sera auto-classée
+4. Les KPIs **Charges déductibles** et **Bénéfice net** se mettent à jour en temps réel
+
+### Cas de figures
+
+- **"Achat boutique N°XXX" non identifié** → ouvre 🔄, regarde quel fournisseur c'est IG, classe + mémorise avec matchType=`boutique-id` et matchValue=`XXX`
+- **"Paiement facture N°XXXXXXX"** → le compte cible est auto-identifié via cross-référence avec `/banqueLtd` (xbankaccount removemoney, champ `toPropername`). La modale pré-remplit `matchType=compte-cible` avec le nom du destinataire — coche "Mémoriser" pour que **toutes les futures factures vers ce destinataire** soient auto-classées (ex : toutes les factures vers HDM sont déductibles, toutes vers Dynasty 8 non).
+- **"Achat essence"** → auto-classé en frais véhicule (dédu) car carte entreprise = présomption usage pro (Art. 4-2.12)
+- **Don versé/reçu** (Art. 3-1.x) → catégorie dédiée à choisir manuellement ; cap 20% déductible si > 50k
+
+### Traçabilité IRS
+
+Chaque dépense validée stocke :
+- `validePar` (uid du patron qui a validé)
+- `dateValidation` (timestamp)
+- `raisonClassification` (justification texte, audit)
+- `noteAudit` (note interne optionnelle)
+- `fournisseurLabel` (nom du destinataire identifié)
+
+Toutes ces colonnes sont exportées dans le CSV Google Sheets pour les contrôleurs IRS.
+
+---
+
 ## 🔗 5. Comment partager au contrôleur IRS
 
 ### Procédure (1 min)

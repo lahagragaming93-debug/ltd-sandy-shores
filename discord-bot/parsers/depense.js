@@ -3,15 +3,16 @@
 // Format observé :
 //   SORTIE D'ARGENT
 //   Compte ID / Utilisateur / Montant / Solde avant / Solde après / Raison
+//
+// La déductibilité finale est décidée côté handler onDepense, qui croise
+// avec /config/global.fournisseurs (patterns par boutiqueId / compte-cible /
+// regex). Ce parser ne fait que pré-extraire les indices utiles :
+//   - boutiqueId : extrait du pattern "Achat boutique N°XXX"
+//   - factureId  : extrait du pattern "Paiement facture N°XXXXXXX"
+//   - patternRaison : la raison normalisée pour le matching côté handler
 // ============================================================
 
 import { firstEmbed, getField, getMoney } from './_helpers.js';
-
-const RAISONS_DEDUCTIBLES = [
-  /matières?\s+premières?/i,
-  /avocat/i,
-  /entretien.+v[ée]hicule/i
-];
 
 export function parseDepenseEmbed(msg) {
   const e = firstEmbed(msg);
@@ -27,14 +28,13 @@ export function parseDepenseEmbed(msg) {
   const soldeApres  = getMoney(getField(e, 'solde après') || getField(e, 'solde apres'));
   const raison      = getField(e, 'raison') || '';
 
-  const deductible = RAISONS_DEDUCTIBLES.some(re => re.test(raison));
-
-  let type = 'autre';
-  if (/matières?\s+premières?/i.test(raison)) type = 'matieres-premieres';
-  else if (/avocat/i.test(raison)) type = 'frais-avocat';
-  else if (/entretien.+v[ée]hicule/i.test(raison)) type = 'entretien-vehicules';
-  else if (deductible) type = 'autre-deductible';
-  else type = 'non-deductible';
+  // Extraction des indices structurés depuis la raison
+  // Ex. "Achat boutique N°263" -> boutiqueId = "263"
+  const boutiqueMatch = raison.match(/Achat\s+boutique\s*N[°º]?\s*(\d+)/i);
+  const boutiqueId = boutiqueMatch ? boutiqueMatch[1] : null;
+  // Ex. "Paiement facture N°1910769" -> factureId = "1910769"
+  const factureMatch = raison.match(/Paiement\s+facture\s*N[°º]?\s*(\d+)/i);
+  const factureId = factureMatch ? factureMatch[1] : null;
 
   return {
     compteId,
@@ -43,7 +43,7 @@ export function parseDepenseEmbed(msg) {
     soldeAvant,
     soldeApres,
     raison,
-    deductible,
-    type
+    boutiqueId,
+    factureId
   };
 }

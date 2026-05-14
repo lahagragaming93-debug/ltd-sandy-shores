@@ -1,7 +1,49 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-14 — partie 3 (factures annulées IG auto-détectées)**
+> Dernière mise à jour : **2026-05-14 — partie 4 (mapping fournisseurs + auto-classification dépenses)**
+
+---
+
+## ✅ Session 2026-05-14 (partie 4) — Mapping fournisseurs + auto-classification déductibilité
+
+**Demande patron** : intégrer les règles TTE concrètes de déductibilité (avocats / matières 1ères / véhicules entreprise / loyer / nourriture / etc.) avec un **mapping par fournisseur** (Yootool=263, Fournisseur LTD=215, HDM, Dynasty 8…) qui auto-suggère la catégorie. Le patron reste décisionnaire final. Pouvoir éditer le mapping côté admin.
+
+**Implémentation** (Phase 1 + Phase 2 inclus) :
+1. **Mémoire** : 5 fichiers consolidés sur le TTE (charges déductibles, salaires-primes, impôts-sanctions, décision patron, mapping fournisseurs LTD)
+2. **`/config/global.fournisseurs`** : nouvelle structure array de patterns `{ id, label, matchType (boutique-id|facture-id|raison-regex|compte-cible), matchValue, categorie, deductible, raisonClassification }`
+3. **Parser bot `depense.js`** : extrait `boutiqueId` et `factureId` depuis la raison
+4. **Handler `onDepense`** : lookup mapping fournisseurs → si match, suggère catégorie + déductibilité + mémorise `fournisseurLabel` ; sinon fallback legacy regex ; si rien → `type='a-classifier'`
+5. **Cloud Function `reclasserDepense`** : auth direction, override catégorie/déductibilité + option `memoriserPattern` pour ajouter un nouveau fournisseur à la config
+6. **UI Compta** : nouvelle table avec colonnes Fournisseur + statut validation (🔒 / 💡 / ⚠) + bouton 🔄 + modale de reclassification avec checkbox "Mémoriser"
+7. **Page Admin** : panneau "🏷 Mapping fournisseurs" CRUD complet (liste / ajout / édition / suppression patterns)
+8. **CSV `comptaExport`** : 4 nouvelles colonnes (Fournisseur, Validé par patron, Justification, en plus de Date/Raison/Montant/Type/Déductible/Utilisateur)
+9. **Script `init-fournisseurs-mapping.js`** : seed des 5 patterns initiaux (Yootool, Fournisseur LTD, HDM, Dynasty 8, Achat essence)
+10. **Script `backfill-classification-depenses.js`** : reclasse les dépenses existantes selon le mapping, fait la cross-réf historique compte cible, liste celles "à classifier manuellement". `--since` par défaut à 2026-05-09 (ouverture LTD)
+11. **Phase 2 — Cross-réf compte cible bidirectionnelle** :
+    - Parser `xbankaccount.js` capte aussi `fromPropername`, `toPropername`, `fromName`, `toName`, `fromDiscord`, `toDiscord`
+    - Handler `onBankAccount` stocke ces champs dans `/banqueLtd` + appelle `crossRefBanqueDepense` pour enrichir une dépense correspondante (même montant, ±90s) après coup
+    - Handler `onDepense` appelle `lookupCompteCibleDepuisBanque` AVANT le lookup mapping pour récupérer `compteCibleNom` (si removemoney déjà arrivé)
+    - `matchesFournisseurPattern` supporte `matchType: 'compte-cible'` (substring match insensible casse)
+    - HDM et Dynasty 8 désormais auto-identifiés dès qu'une facture est payée vers ces destinataires
+
+**Fichiers modifiés/créés** :
+- `discord-bot/parsers/depense.js` : extraction boutiqueId/factureId
+- `discord-bot/parsers/xbankaccount.js` : capture from/to (Discord/Name/Propername)
+- `firebase/functions/index.js` : `onDepense` enrichi + `matchesFournisseurPattern` + `reclasserDepense` + `csvDepenses` enrichi + `onBankAccount` étendu + `crossRefBanqueDepense` + `lookupCompteCibleDepuisBanque`
+- `firebase/functions/scripts/init-fournisseurs-mapping.js` (nouveau)
+- `firebase/functions/scripts/backfill-classification-depenses.js` (nouveau, avec cross-réf historique)
+- `public/js/pages/comptabilite.js` : table + modale reclasser + affichage compte cible
+- `public/js/pages/admin.js` : CRUD mapping fournisseurs (4 matchTypes)
+- `public/guide/09-comptabilite.md` : section 5 "Auto-classification déductibilité"
+- `sheets-apps-script.js` : MAJ commentaire description colonnes Depenses
+
+**À faire après push** :
+1. Déployer functions (`firebase deploy --only functions:botIngest,functions:reclasserDepense,functions:comptaExport`)
+2. Déployer hosting (page Compta + Admin + guide)
+3. Redéployer bot Railway (parser depense.js enrichi)
+4. Lancer `node scripts/init-fournisseurs-mapping.js --apply` (seeds initiaux)
+5. Lancer `node scripts/backfill-classification-depenses.js --apply` (reclasser historique)
 
 ---
 

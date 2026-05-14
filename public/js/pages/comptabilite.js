@@ -105,20 +105,94 @@ const html = `
 
   <!-- Charges détaillées -->
   <div class="panel">
-    <div class="panel-title"><span>📋 Charges détaillées</span></div>
+    <div class="panel-title">
+      <span>📋 Charges détaillées</span>
+      <span class="muted" style="font-size:0.75rem;">— ⚠ = à classifier par le patron</span>
+    </div>
     <div class="table-scroll">
       <table class="data" id="table-charges">
         <thead>
           <tr>
             <th data-sort="date">Date</th>
             <th data-sort="raison">Raison</th>
-            <th data-sort="type">Type</th>
+            <th data-sort="fournisseur">Fournisseur</th>
+            <th data-sort="type">Type / Dédu</th>
             <th class="right" data-sort="montant">Montant</th>
             <th data-sort="utilisateur">Utilisateur</th>
+            ${editable ? '<th class="center">Action</th>' : ''}
           </tr>
         </thead>
-        <tbody id="tbody-charges"><tr><td colspan="5" class="muted text-center">Chargement…</td></tr></tbody>
+        <tbody id="tbody-charges"><tr><td colspan="${editable ? 7 : 6}" class="muted text-center">Chargement…</td></tr></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Modal reclassification dépense -->
+  <div id="modal-reclasser" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:600px;">
+      <h3>🔄 Reclassifier la dépense</h3>
+      <p class="muted" style="font-size:0.82rem;margin:0 0 12px;" id="reclasser-info">—</p>
+
+      <label>Catégorie</label>
+      <select id="reclasser-categorie">
+        <option value="matieres-premieres">Matières premières (déductible)</option>
+        <option value="frais-avocat">Frais avocat (déductible, max 30 000 $)</option>
+        <option value="frais-comptabilite">Frais comptabilité (déductible, max 8 000 $)</option>
+        <option value="entretien-vehicules">Entretien véhicules (déductible)</option>
+        <option value="location-vehicule">Location véhicule (déductible)</option>
+        <option value="achat-vehicule">Achat véhicule (déductible)</option>
+        <option value="frais-vehicule">Frais véhicule / essence (déductible)</option>
+        <option value="loyer">Loyer (déductible)</option>
+        <option value="nourriture-employes">Nourriture employés (déductible jusqu'à 750 $/employé)</option>
+        <option value="don-verse">Don versé (déductible 20% si > 50k)</option>
+        <option value="subvention">Subvention reçue (non imposable)</option>
+        <option value="autre-deductible">Autre déductible</option>
+        <option value="decoration-locaux">Décoration locaux (non déductible)</option>
+        <option value="non-deductible">Non déductible (autre)</option>
+      </select>
+
+      <div class="row" style="gap:8px;margin-top:8px;">
+        <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="reclasser-deductible" value="true" id="reclasser-dedu-oui" checked />
+          ✅ Déductible
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="reclasser-deductible" value="false" id="reclasser-dedu-non" />
+          ❌ Non déductible
+        </label>
+      </div>
+
+      <label class="mt-2">Justification (audit IRS) <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
+      <input type="text" id="reclasser-raison" placeholder="Ex : Achat fournisseur matière 1ère pour revente" />
+
+      <label class="mt-2">Note interne <span class="muted" style="font-size:0.75rem;">— optionnel, audit interne</span></label>
+      <input type="text" id="reclasser-note" placeholder="Ex : confirmé avec patron Yootool" />
+
+      <div style="border-top:1px solid var(--color-border, #ccc);margin-top:12px;padding-top:12px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="reclasser-memoriser" />
+          <strong>💾 Mémoriser ce fournisseur</strong>
+          <span class="muted" style="font-size:0.75rem;">— toutes les futures dépenses similaires seront auto-classées</span>
+        </label>
+        <div id="reclasser-memoriser-form" class="hidden" style="margin-top:8px;padding:8px;background:rgba(255,200,80,0.08);border-radius:4px;">
+          <label style="font-size:0.8rem;">Label fournisseur</label>
+          <input type="text" id="memoriser-label" placeholder="Ex : HDM (Heavy Duty Motors)" />
+          <label style="font-size:0.8rem;margin-top:4px;">Type de match</label>
+          <select id="memoriser-matchtype">
+            <option value="compte-cible">Nom du compte cible (ex: HDM, Dynasty 8)</option>
+            <option value="boutique-id">Numéro de boutique (ex: 263)</option>
+            <option value="facture-id">Numéro de facture (ex: 1910769)</option>
+            <option value="raison-regex">Regex sur la raison (ex: ^achat essence$)</option>
+          </select>
+          <label style="font-size:0.8rem;margin-top:4px;">Valeur à matcher</label>
+          <input type="text" id="memoriser-matchvalue" placeholder="Auto-rempli depuis la dépense" />
+        </div>
+      </div>
+
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="btn-save-reclasser">✓ Valider la classification</button>
+        <button class="btn btn-ghost" id="btn-cancel-reclasser">Annuler</button>
+      </div>
     </div>
   </div>
 
@@ -284,29 +358,173 @@ async function chargerTout() {
   renderSalaires(users, paies);
 
   // === Charges détaillées ===
-  // Le tableau affiche uniquement les VRAIES dépenses (hors paies en doublon)
+  // Le tableau affiche uniquement les VRAIES dépenses (hors paies en doublon).
+  // Chaque ligne montre :
+  //   - Date, Raison
+  //   - Fournisseur identifié (via /config/global.fournisseurs) ou "—"
+  //   - Type + badge déductibilité + indicateur validation patron
+  //   - Bouton reclassifier (direction uniquement)
   const usersById = users.reduce((m, u) => (m[u.id] = u, m), {});
   const tbody = document.getElementById('tbody-charges');
+  const colspan = editable ? 7 : 6;
   if (depensesHorsPaie.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="muted text-center">Aucune dépense saisie cette semaine.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="muted text-center">Aucune dépense saisie cette semaine.</td></tr>`;
   } else {
     tbody.innerHTML = depensesHorsPaie.map(d => {
       const u = usersById[d.utilisateurId];
+      const isValide = d.valideParPatron === true;
+      const isAClassifier = d.type === 'a-classifier' || (!d.fournisseurLabel && !isValide);
+      const fournisseur = d.fournisseurLabel
+        ? `<span class="badge ok" title="${escapeHtml(d.raisonClassification || '')}">${escapeHtml(d.fournisseurLabel)}</span>`
+        : '<span class="muted">—</span>';
+      const typeBadge = d.deductible !== false
+        ? '<span class="badge ok">✓ Déductible</span>'
+        : '<span class="badge neutral">✗ Non déductible</span>';
+      const statutValid = isValide
+        ? '<span class="badge ok" title="Validé par patron">🔒</span>'
+        : isAClassifier
+          ? '<span class="badge warn" title="À classifier — suggestion auto en attente de validation patron">⚠</span>'
+          : '<span class="badge neutral" title="Suggestion auto, pas encore validée">💡</span>';
+      const actionBtn = editable
+        ? `<td class="center"><button class="btn btn-sm" data-reclasser-id="${d.id}">🔄</button></td>`
+        : '';
       return `
         <tr>
           <td>${datetime(d.timestamp)}</td>
           <td>${escapeHtml(d.raison || '')}</td>
-          <td><span class="badge ${d.deductible !== false ? 'ok' : 'neutral'}">${d.deductible !== false ? 'Déductible' : 'Non déductible'}</span></td>
+          <td>${fournisseur}</td>
+          <td>${typeBadge} ${statutValid} <span class="muted" style="font-size:0.72rem;">${escapeHtml(d.type || '')}</span></td>
           <td class="right mono">${money(d.montant)}</td>
           <td>${u ? escapeHtml(u.prenom + ' ' + u.nom) : escapeHtml(d.utilisateur || '—')}</td>
+          ${actionBtn}
         </tr>
       `;
     }).join('');
+
+    // Branchement du bouton "🔄 Reclassifier"
+    if (editable) {
+      tbody.querySelectorAll('[data-reclasser-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const depenseId = btn.dataset.reclasserId;
+          const dep = depensesHorsPaie.find(x => x.id === depenseId);
+          if (dep) ouvrirModalReclasser(dep);
+        });
+      });
+    }
   }
 
   // === Conformité (gauge) ===
   renderGaugeMasse(masse, masseSalariale, caTotal);
 }
+
+// ============================================================
+// MODAL — Reclassifier une dépense (validation patron)
+// ============================================================
+let depenseEnCoursReclasser = null;
+function ouvrirModalReclasser(dep) {
+  depenseEnCoursReclasser = dep;
+  const info = document.getElementById('reclasser-info');
+  const compteCibleInfo = dep.compteCibleNom
+    ? `<br>🎯 Compte cible identifié : <strong>${escapeHtml(dep.compteCibleNom)}</strong>${dep.compteCibleAccountId ? ` <span class="mono muted">(ID ${escapeHtml(dep.compteCibleAccountId)})</span>` : ''}`
+    : '';
+  info.innerHTML = `
+    <strong>${escapeHtml(dep.raison || '')}</strong><br>
+    <span class="muted">Montant : <strong>${money(dep.montant || 0)}</strong> · par ${escapeHtml(dep.utilisateur || '—')} · ${datetime(dep.timestamp)}</span>
+    ${compteCibleInfo}
+    ${dep.fournisseurLabel ? `<br>💡 Suggestion auto : <strong>${escapeHtml(dep.fournisseurLabel)}</strong> (${escapeHtml(dep.raisonClassification || '')})` : ''}
+  `;
+  document.getElementById('reclasser-categorie').value = dep.type || 'a-classifier';
+  document.getElementById(dep.deductible !== false ? 'reclasser-dedu-oui' : 'reclasser-dedu-non').checked = true;
+  document.getElementById('reclasser-raison').value = dep.raisonClassification || '';
+  document.getElementById('reclasser-note').value = dep.noteAudit || '';
+  document.getElementById('reclasser-memoriser').checked = false;
+  document.getElementById('reclasser-memoriser-form').classList.add('hidden');
+
+  // Pré-remplissage du formulaire mémoriser : on privilégie le compte cible
+  // identifié (plus stable que boutiqueId/factureId pour les paiements de
+  // facture, et permet d'auto-classer toutes les futures factures du même
+  // destinataire).
+  const memLabel = document.getElementById('memoriser-label');
+  const memType  = document.getElementById('memoriser-matchtype');
+  const memValue = document.getElementById('memoriser-matchvalue');
+  memLabel.value = dep.fournisseurLabel || dep.compteCibleNom || '';
+  if (dep.compteCibleNom) {
+    memType.value = 'compte-cible';
+    memValue.value = dep.compteCibleNom;
+  } else if (dep.boutiqueId) {
+    memType.value = 'boutique-id';
+    memValue.value = dep.boutiqueId;
+  } else if (dep.factureId) {
+    memType.value = 'facture-id';
+    memValue.value = dep.factureId;
+  } else {
+    memType.value = 'raison-regex';
+    memValue.value = '';
+  }
+
+  document.getElementById('modal-reclasser').classList.remove('hidden');
+}
+
+document.getElementById('btn-cancel-reclasser')?.addEventListener('click', () => {
+  document.getElementById('modal-reclasser').classList.add('hidden');
+  depenseEnCoursReclasser = null;
+});
+
+document.getElementById('reclasser-memoriser')?.addEventListener('change', (e) => {
+  document.getElementById('reclasser-memoriser-form').classList.toggle('hidden', !e.target.checked);
+});
+
+document.getElementById('btn-save-reclasser')?.addEventListener('click', async () => {
+  if (!depenseEnCoursReclasser) return;
+  const categorie = document.getElementById('reclasser-categorie').value;
+  const deductible = document.getElementById('reclasser-dedu-oui').checked;
+  const raisonClassification = document.getElementById('reclasser-raison').value.trim();
+  const noteAudit = document.getElementById('reclasser-note').value.trim();
+  const memoriser = document.getElementById('reclasser-memoriser').checked;
+
+  const payload = {
+    depenseId: depenseEnCoursReclasser.id,
+    categorie,
+    deductible,
+    raisonClassification,
+    noteAudit
+  };
+
+  if (memoriser) {
+    const label = document.getElementById('memoriser-label').value.trim();
+    const matchType = document.getElementById('memoriser-matchtype').value;
+    const matchValue = document.getElementById('memoriser-matchvalue').value.trim();
+    if (!label || !matchValue) {
+      toastError('Label et valeur du pattern requis pour mémoriser');
+      return;
+    }
+    payload.memoriserPattern = {
+      id: label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      label,
+      matchType,
+      matchValue
+    };
+  }
+
+  try {
+    const { auth } = await import('../firebase-config.js');
+    const idToken = await auth.currentUser.getIdToken();
+    const url = `https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/reclasserDepense`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+      body: JSON.stringify(payload)
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    toastSuccess('Dépense reclassifiée');
+    document.getElementById('modal-reclasser').classList.add('hidden');
+    depenseEnCoursReclasser = null;
+    await chargerTout();
+  } catch (e) {
+    toastError(e.message || 'Erreur reclassification');
+  }
+});
 
 // ============================================================
 // SALAIRES — récap par employé (direction/resp = décidé, vendeurs/pompistes = ce qui a été versé)

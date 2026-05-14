@@ -4,6 +4,10 @@
 //   Title: "xbankaccount - addmoney" ou "xbankaccount - removemoney"
 //   Description: "Ajout/Retrait d'argent dans un compte"
 //   Champs : iban, accountId, before, amount, after, reason
+//   Pour les paiements de facture (Paiement facture N°XXX), l'embed contient
+//   aussi : fromDiscord/Name/Propername (émetteur), toDiscord/Name/Propername
+//   (destinataire). On capte ces champs pour identifier le compte cible (HDM,
+//   Dynasty 8, etc.) — cross-référencé avec /depenses côté handler.
 // IMPORTANT : on filtre uniquement iban == LTDSANDY (compte de l'entreprise).
 // Tous les autres comptes (joueurs, autres entreprises) sont ignorés.
 // ============================================================
@@ -39,6 +43,14 @@ export function parseXbankaccountEmbed(msg) {
   const after      = getMoney(getField(e, 'after'),  true);
   const reason     = getField(e, 'reason') || '';
 
+  // Champs émetteur / destinataire (présents sur paiements de facture)
+  const fromDiscord    = (getField(e, 'fromDiscord')    || '').trim();
+  const fromName       = (getField(e, 'fromName')       || '').trim();
+  const fromPropername = (getField(e, 'fromPropername') || '').trim();
+  const toDiscord      = (getField(e, 'toDiscord')      || '').trim();
+  const toName         = (getField(e, 'toName')         || '').trim();
+  const toPropername   = (getField(e, 'toPropername')   || '').trim();
+
   // Sécurité : si on n'a pas de chiffres cohérents, on skip
   if (!Number.isFinite(after) || !Number.isFinite(amount)) return null;
 
@@ -49,6 +61,8 @@ export function parseXbankaccountEmbed(msg) {
     soldeAvant: before,
     soldeApres: after,
     montant: amount,
-    raison: reason
+    raison: reason,
+    fromDiscord, fromName, fromPropername,
+    toDiscord, toName, toPropername
   };
 }

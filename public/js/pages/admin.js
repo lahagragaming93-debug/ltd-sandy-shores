@@ -101,6 +101,100 @@ const html = `
     </div>
   </div>
 
+  ${canEditCfg ? `
+  <!-- Mapping fournisseurs déductibilité (direction uniquement) -->
+  <div class="panel framed" id="panel-fournisseurs" style="border-color:var(--color-info);">
+    <div class="panel-title">
+      <span>🏷 Mapping fournisseurs (auto-classification dépenses)</span>
+      <button class="btn btn-icon btn-sm" id="btn-nouveau-fournisseur" title="Ajouter un pattern fournisseur" data-tooltip="Ajouter pattern">➕</button>
+    </div>
+    <p class="muted" style="font-size:0.82rem;margin:4px 0 8px;">
+      Ces patterns servent à <strong>auto-classer</strong> les dépenses entrantes selon leur fournisseur destinataire. Quand une dépense match un pattern, sa catégorie + déductibilité sont suggérées automatiquement. Le patron valide ensuite chaque dépense dans la <a href="comptabilite.html">page Compta</a>.
+    </p>
+    <div class="table-scroll">
+      <table class="data" id="table-fournisseurs">
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Type match</th>
+            <th>Valeur</th>
+            <th>Catégorie</th>
+            <th class="center">Déductible</th>
+            <th>Justification</th>
+            <th class="center">Action</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-fournisseurs"><tr><td colspan="7" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal édition pattern fournisseur -->
+  <div id="modal-fournisseur" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:600px;">
+      <h3 id="modal-fournisseur-title">Ajouter un pattern fournisseur</h3>
+      <input type="hidden" id="fournisseur-original-id" />
+
+      <label>Label affiché <span class="muted" style="font-size:0.75rem;">— ex : HDM (Heavy Duty Motors)</span></label>
+      <input type="text" id="fournisseur-label" required />
+
+      <div class="field-row">
+        <div>
+          <label>Type de match</label>
+          <select id="fournisseur-matchtype">
+            <option value="compte-cible">Nom du compte cible (HDM, Dynasty 8…)</option>
+            <option value="boutique-id">Numéro boutique (Achat boutique N°XXX)</option>
+            <option value="facture-id">Numéro facture (Paiement facture N°XXXXXXX)</option>
+            <option value="raison-regex">Regex sur la raison (ex: ^achat essence$)</option>
+          </select>
+        </div>
+        <div>
+          <label>Valeur à matcher</label>
+          <input type="text" id="fournisseur-matchvalue" placeholder="Ex: 263" required />
+        </div>
+      </div>
+
+      <label>Catégorie</label>
+      <select id="fournisseur-categorie">
+        <option value="matieres-premieres">Matières premières (déductible)</option>
+        <option value="frais-avocat">Frais avocat (déductible, max 30 000 $)</option>
+        <option value="frais-comptabilite">Frais comptabilité (déductible, max 8 000 $)</option>
+        <option value="entretien-vehicules">Entretien véhicules (déductible)</option>
+        <option value="location-vehicule">Location véhicule (déductible)</option>
+        <option value="achat-vehicule">Achat véhicule (déductible)</option>
+        <option value="frais-vehicule">Frais véhicule / essence (déductible)</option>
+        <option value="loyer">Loyer (déductible)</option>
+        <option value="nourriture-employes">Nourriture employés (max 750$/employé)</option>
+        <option value="don-verse">Don versé</option>
+        <option value="subvention">Subvention reçue</option>
+        <option value="autre-deductible">Autre déductible</option>
+        <option value="decoration-locaux">Décoration locaux (non déductible)</option>
+        <option value="non-deductible">Non déductible (autre)</option>
+      </select>
+
+      <div class="row" style="gap:8px;margin-top:8px;">
+        <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="fournisseur-deductible" value="true" id="fournisseur-dedu-oui" checked />
+          ✅ Déductible
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="fournisseur-deductible" value="false" id="fournisseur-dedu-non" />
+          ❌ Non déductible
+        </label>
+      </div>
+
+      <label class="mt-2">Justification (audit IRS)</label>
+      <input type="text" id="fournisseur-justification" placeholder="Ex : Fournisseur matière 1ère revente clients" />
+
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="btn-save-fournisseur">Enregistrer</button>
+        <button class="btn btn-danger" id="btn-delete-fournisseur" style="display:none;">🗑 Supprimer</button>
+        <button class="btn btn-ghost" id="btn-cancel-fournisseur">Annuler</button>
+      </div>
+    </div>
+  </div>
+  ` : ''}
+
   <!-- Modal création compte -->
   <div id="modal-new" class="modal-backdrop hidden">
     <div class="modal" style="max-width:520px;">
@@ -970,3 +1064,142 @@ const observer = new MutationObserver(async (mutations) => {
 });
 const alertCred = document.getElementById('alert-credentials');
 if (alertCred) observer.observe(alertCred, { attributes: true, attributeFilter: ['class'] });
+
+// ============================================================
+// MAPPING FOURNISSEURS — CRUD direction
+// ============================================================
+// Stocké dans /config/global.fournisseurs (array). Pas de Cloud Function
+// dédiée — on lit/écrit le doc directement via setConfig() (les rules
+// Firestore restreignent l'écriture à la direction).
+const CATEGORIES_LABELS = {
+  'matieres-premieres': 'Matières premières',
+  'frais-avocat': 'Frais avocat (≤ 30k)',
+  'frais-comptabilite': 'Frais comptabilité (≤ 8k)',
+  'entretien-vehicules': 'Entretien véhicules',
+  'location-vehicule': 'Location véhicule',
+  'achat-vehicule': 'Achat véhicule',
+  'frais-vehicule': 'Frais véhicule / essence',
+  'loyer': 'Loyer',
+  'nourriture-employes': 'Nourriture employés (max 750$/emp)',
+  'don-verse': 'Don versé',
+  'subvention': 'Subvention reçue',
+  'autre-deductible': 'Autre déductible',
+  'decoration-locaux': 'Décoration locaux',
+  'non-deductible': 'Non déductible'
+};
+
+async function chargerFournisseurs() {
+  if (!canEditCfg) return;
+  const tbody = document.getElementById('tbody-fournisseurs');
+  if (!tbody) return;
+  try {
+    const cfg = await getConfig();
+    const patterns = cfg.fournisseurs || [];
+    if (patterns.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="muted text-center">Aucun pattern fournisseur. Lance d'abord le script d'init ou ajoute-en un.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = patterns.map(p => `
+      <tr>
+        <td><strong>${escapeHtml(p.label || p.id)}</strong></td>
+        <td><code style="font-size:0.78rem;">${escapeHtml(p.matchType)}</code></td>
+        <td class="mono">${escapeHtml(p.matchValue)}</td>
+        <td>${escapeHtml(CATEGORIES_LABELS[p.categorie] || p.categorie)}</td>
+        <td class="center">${p.deductible ? '<span class="badge ok">✓</span>' : '<span class="badge neutral">✗</span>'}</td>
+        <td class="muted" style="font-size:0.78rem;">${escapeHtml(p.raisonClassification || '')}</td>
+        <td class="center"><button class="btn btn-sm" data-edit-fournisseur="${escapeHtml(p.id)}">✏</button></td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('[data-edit-fournisseur]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pat = patterns.find(x => x.id === btn.dataset.editFournisseur);
+        if (pat) ouvrirModalFournisseur(pat);
+      });
+    });
+  } catch (e) {
+    console.error(e);
+    tbody.innerHTML = `<tr><td colspan="7" class="muted text-center">Erreur chargement : ${escapeHtml(e.message || '')}</td></tr>`;
+  }
+}
+
+function ouvrirModalFournisseur(pat = null) {
+  document.getElementById('modal-fournisseur-title').textContent = pat ? 'Modifier le pattern fournisseur' : 'Ajouter un pattern fournisseur';
+  document.getElementById('fournisseur-original-id').value = pat?.id || '';
+  document.getElementById('fournisseur-label').value = pat?.label || '';
+  document.getElementById('fournisseur-matchtype').value = pat?.matchType || 'boutique-id';
+  document.getElementById('fournisseur-matchvalue').value = pat?.matchValue || '';
+  document.getElementById('fournisseur-categorie').value = pat?.categorie || 'matieres-premieres';
+  document.getElementById(pat?.deductible !== false ? 'fournisseur-dedu-oui' : 'fournisseur-dedu-non').checked = true;
+  document.getElementById('fournisseur-justification').value = pat?.raisonClassification || '';
+  document.getElementById('btn-delete-fournisseur').style.display = pat ? 'inline-block' : 'none';
+  document.getElementById('modal-fournisseur').classList.remove('hidden');
+}
+
+document.getElementById('btn-nouveau-fournisseur')?.addEventListener('click', () => ouvrirModalFournisseur(null));
+document.getElementById('btn-cancel-fournisseur')?.addEventListener('click', () => {
+  document.getElementById('modal-fournisseur').classList.add('hidden');
+});
+
+document.getElementById('btn-save-fournisseur')?.addEventListener('click', async () => {
+  const originalId = document.getElementById('fournisseur-original-id').value;
+  const label = document.getElementById('fournisseur-label').value.trim();
+  const matchType = document.getElementById('fournisseur-matchtype').value;
+  const matchValue = document.getElementById('fournisseur-matchvalue').value.trim();
+  const categorie = document.getElementById('fournisseur-categorie').value;
+  const deductible = document.getElementById('fournisseur-dedu-oui').checked;
+  const justif = document.getElementById('fournisseur-justification').value.trim();
+
+  if (!label || !matchValue) {
+    toastError('Label et valeur à matcher requis');
+    return;
+  }
+  const id = originalId || label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  try {
+    const cfg = await getConfig();
+    const patterns = cfg.fournisseurs || [];
+    const idx = patterns.findIndex(p => p.id === id);
+    const nouveauPattern = {
+      id, label, matchType, matchValue, categorie, deductible,
+      raisonClassification: justif,
+      ajoutePar: profile.uid || 'patron',
+      dateAjout: new Date().toISOString()
+    };
+    let merged;
+    if (idx >= 0) {
+      merged = [...patterns];
+      merged[idx] = { ...patterns[idx], ...nouveauPattern };
+    } else {
+      merged = [...patterns, nouveauPattern];
+    }
+    await setConfig({ fournisseurs: merged });
+    toastSuccess(idx >= 0 ? 'Pattern modifié' : 'Pattern ajouté');
+    document.getElementById('modal-fournisseur').classList.add('hidden');
+    chargerFournisseurs();
+  } catch (e) {
+    toastError(e.message || 'Erreur sauvegarde pattern');
+  }
+});
+
+document.getElementById('btn-delete-fournisseur')?.addEventListener('click', async () => {
+  const id = document.getElementById('fournisseur-original-id').value;
+  if (!id) return;
+  const ok = await confirmCritique({
+    titre: 'Supprimer ce pattern ?',
+    message: `Les futures dépenses similaires ne seront plus auto-classées. Les dépenses passées déjà classifiées ne sont pas affectées.`,
+    confirmer: 'Supprimer'
+  });
+  if (!ok) return;
+  try {
+    const cfg = await getConfig();
+    const patterns = (cfg.fournisseurs || []).filter(p => p.id !== id);
+    await setConfig({ fournisseurs: patterns });
+    toastSuccess('Pattern supprimé');
+    document.getElementById('modal-fournisseur').classList.add('hidden');
+    chargerFournisseurs();
+  } catch (e) {
+    toastError(e.message || 'Erreur suppression pattern');
+  }
+});
+
+chargerFournisseurs();

@@ -354,7 +354,7 @@ function creerDashboard() {
   dash.setRowHeight(auditRow, 28);
 
   const auditLignes = [
-    ['📁 Onglet "Depenses"',  'Toutes les dépenses avec date, raison, montant, type (matières premières / avocat / véhicules / autre / non déductible), déductible oui/non, utilisateur qui a saisi'],
+    ['📁 Onglet "Depenses"',  'Toutes les dépenses avec date, raison, montant, type (matières premières / avocat / véhicules / loyer / nourriture / décoration / dons / autre / non déductible), déductible oui/non, fournisseur identifié (Yootool, HDM, Dynasty 8…), validé par patron oui/non, justification (audit IRS), utilisateur qui a saisi'],
     ['📁 Onglet "Ventes"',     'Toutes les recettes avec date, n° facture, vendeur, client, montant, bénéfice, mode de paiement, raison'],
     ['📁 Onglet "Paies"',      'Tous les salaires versés avec date, payeur, bénéficiaire, montant, période concernée'],
     ['📁 Onglet "Resume"',     'Récap par semaine clôturée : CA, charges déductibles, masse salariale, primes (Art. 4-1.10 hebdo + Art. 4-1.11 mensuel), bénéfice net'],

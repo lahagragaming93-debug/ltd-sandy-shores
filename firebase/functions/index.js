@@ -688,7 +688,6 @@ async function onRedistribution(p) {
 }
 
 async function onDepense(p) {
-  const deductible = !!(p.deductible ?? false);
   // Fix bug "<@undefined>" : si le bot Discord n'a pas pu résoudre l'utilisateur
   // (cas typique des dépenses automatiques type loyer), on substitue par un libellé clair.
   let utilisateur = p.utilisateur || '';
@@ -696,15 +695,94 @@ async function onDepense(p) {
     utilisateur = 'Système (auto)';
   }
 
+  const rawRaison = String(p.raison || '');
+
   // 2026-05-11 : detection paie/salaire en doublon avec /paies.
   // FiveM log les paies sur DEUX canaux : #paie (-> /paies) ET #depenses (sortie
   // d'argent) avec raison "Paye ponctuelle de membre" ou "Salaire". On marque
   // alors type='paie' pour que la page Comptabilite exclue ces entries de
   // "Charges non deductibles" (sinon doublon avec masse salariale).
-  let type = p.type || 'autre';
-  const rawRaison = String(p.raison || '');
   if (/\b(paye|paie|salaire|r[ée]mun[ée]ration)\b/i.test(rawRaison)) {
-    type = 'paie';
+    await db.collection('depenses').add({
+      compteId: p.compteId,
+      utilisateur,
+      montant: Number(p.montant) || 0,
+      soldeAvant: p.soldeAvant,
+      soldeApres: p.soldeApres,
+      raison: rawRaison,
+      type: 'paie',
+      deductible: true,
+      source: 'discord',
+      timestamp: FieldValue.serverTimestamp()
+    });
+    return;
+  }
+
+  // Phase 2 cross-réf : avant le lookup mapping, on tente d'identifier le
+  // compte cible (HDM, Dynasty 8, etc.) via /banqueLtd pour permettre
+  // l'auto-classification par matchType='compte-cible'. Si onBankAccount
+  // n'est pas encore arrivé (race condition), la résolution se fait en
+  // sens inverse via crossRefBanqueDepense lors de onBankAccount.
+  let compteCibleNom = '';
+  let compteCibleAccountId = '';
+  try {
+    const ref = await lookupCompteCibleDepuisBanque(Number(p.montant) || 0);
+    if (ref) {
+      compteCibleNom = ref.toPropername || ref.toName || '';
+      compteCibleAccountId = ref.accountId || '';
+    }
+  } catch (e) {
+    console.error('[onDepense] lookupCompteCible error', e.message);
+  }
+
+  // 2026-05-14 : auto-classification par mapping fournisseurs.
+  // /config/global.fournisseurs contient un array de patterns alimenté par :
+  //  - le script init-fournisseurs-mapping.js (seeds)
+  //  - le bouton "Mémoriser ce fournisseur" dans la page Comptabilité (via
+  //    Cloud Function reclasserDepense)
+  // Chaque pattern : { id, label, matchType, matchValue, categorie, deductible, raisonClassification }
+  // Le patron reste décisionnaire final (cf. feedback_tte_decision_patron) :
+  // les champs `deductible` et `type` reflètent la SUGGESTION ; le patron
+  // peut override via reclasserDepense qui pose `valideParPatron: true`.
+  const payloadPourMatch = { ...p, compteCibleNom };
+  let fournisseur = null;
+  try {
+    const cfgSnap = await db.collection('config').doc('global').get();
+    const patterns = cfgSnap.exists ? (cfgSnap.data().fournisseurs || []) : [];
+    for (const pat of patterns) {
+      if (matchesFournisseurPattern(pat, payloadPourMatch, rawRaison)) {
+        fournisseur = pat;
+        break;
+      }
+    }
+  } catch (e) {
+    console.error('[onDepense] lookup fournisseurs error', e);
+  }
+
+  let categorieSuggeree;
+  let deductibleSuggere;
+  let raisonClassification;
+  if (fournisseur) {
+    categorieSuggeree    = fournisseur.categorie;
+    deductibleSuggere    = !!fournisseur.deductible;
+    raisonClassification = fournisseur.raisonClassification || '';
+  } else if (/matières?\s+premières?/i.test(rawRaison)) {
+    // Fallback legacy
+    categorieSuggeree = 'matieres-premieres';
+    deductibleSuggere = true;
+    raisonClassification = 'Détection legacy : raison contient "matières premières"';
+  } else if (/avocat/i.test(rawRaison)) {
+    categorieSuggeree = 'frais-avocat';
+    deductibleSuggere = true;
+    raisonClassification = 'Détection legacy : raison contient "avocat"';
+  } else if (/entretien.+v[ée]hicule/i.test(rawRaison)) {
+    categorieSuggeree = 'entretien-vehicules';
+    deductibleSuggere = true;
+    raisonClassification = 'Détection legacy : raison contient "entretien véhicule"';
+  } else {
+    categorieSuggeree = 'a-classifier';
+    deductibleSuggere = false;
+    raisonClassification = 'Pas de pattern fournisseur identifié — à classifier manuellement par patron';
   }
 
   await db.collection('depenses').add({
@@ -713,12 +791,159 @@ async function onDepense(p) {
     montant: Number(p.montant) || 0,
     soldeAvant: p.soldeAvant,
     soldeApres: p.soldeApres,
-    raison: p.raison || '',
-    type,
-    deductible,
+    raison: rawRaison,
+    boutiqueId: p.boutiqueId || null,
+    factureId: p.factureId || null,
+    compteCibleNom: compteCibleNom || null,
+    compteCibleAccountId: compteCibleAccountId || null,
+    // Suggestion auto (initiale)
+    type: categorieSuggeree,
+    deductible: deductibleSuggere,
+    categorieSuggeree,
+    deductibleSuggere,
+    raisonClassification,
+    fournisseurPatternId: fournisseur ? fournisseur.id : null,
+    fournisseurLabel: fournisseur ? fournisseur.label : null,
+    // Validation patron — par défaut non validée
+    valideParPatron: false,
     source: 'discord',
     timestamp: FieldValue.serverTimestamp()
   });
+}
+
+// Helper : teste si un pattern fournisseur correspond à la dépense en cours.
+// matchType supporté en phase 1 :
+//   - 'boutique-id'   : compare payload.boutiqueId au matchValue (string)
+//   - 'facture-id'    : compare payload.factureId au matchValue
+//   - 'raison-regex'  : applique new RegExp(matchValue, 'i') sur la raison
+//   - 'compte-cible'  : TODO Phase 2 (nécessite enrichissement xbankaccount
+//                       avec toPropername)
+function matchesFournisseurPattern(pat, payload, raison) {
+  if (!pat || !pat.matchType || !pat.matchValue) return false;
+  switch (pat.matchType) {
+    case 'boutique-id':
+      return !!payload.boutiqueId && String(payload.boutiqueId) === String(pat.matchValue);
+    case 'facture-id':
+      return !!payload.factureId && String(payload.factureId) === String(pat.matchValue);
+    case 'raison-regex':
+      try {
+        return new RegExp(pat.matchValue, 'i').test(raison || '');
+      } catch (e) {
+        console.error('[matchesFournisseurPattern] regex invalide :', pat.matchValue, e.message);
+        return false;
+      }
+    case 'compte-cible':
+      // Phase 2 : payload doit contenir compteCibleNom (résolu via cross-réf
+      // /banqueLtd dans onDepense / crossRefBanqueDepense).
+      // Match insensible à la casse, sur substring (ex : matchValue="HDM" matche
+      // toPropername="Heavy Duty Motors HDM").
+      if (!payload.compteCibleNom) return false;
+      return String(payload.compteCibleNom).toLowerCase()
+        .includes(String(pat.matchValue).toLowerCase());
+    default:
+      return false;
+  }
+}
+
+// Phase 2 — cross-réf /banqueLtd ←→ /depenses.
+// Quand le bot capte les 2 logs (xbankaccount removemoney sur #logs-ig +
+// dépense classique sur #depenses) pour un même paiement, ils arrivent
+// dans un ordre non-déterminé. On résout le compte cible dans les 2 sens :
+//   - onDepense → lookupCompteCibleDepuisBanque() : trouve le removemoney
+//   - onBankAccount → crossRefBanqueDepense() : enrichit la dépense
+//
+// Critères de matching : même montant exact + timestamp à ±90 sec + iban
+// LTDSANDY + type='remove'. La précision suffit en pratique (peu de
+// transactions exactement identiques dans une fenêtre de 90s).
+
+async function lookupCompteCibleDepuisBanque(montant) {
+  if (!montant || !Number.isFinite(montant)) return null;
+  const since = new Date(Date.now() - 90 * 1000);
+  const until = new Date(Date.now() + 5 * 1000);
+  try {
+    const snap = await db.collection('banqueLtd')
+      .where('timestamp', '>=', Timestamp.fromDate(since))
+      .where('timestamp', '<=', Timestamp.fromDate(until))
+      .orderBy('timestamp', 'desc')
+      .limit(50)
+      .get();
+    for (const d of snap.docs) {
+      const b = d.data();
+      if (b.type !== 'remove') continue;
+      if (Number(b.montant) !== montant) continue;
+      if (b.iban && b.iban !== 'LTDSANDY') continue;
+      if (!b.toPropername && !b.toName) continue;
+      return b;
+    }
+  } catch (e) {
+    if (!String(e.message || '').includes('index')) throw e;
+    console.error('[lookupCompteCibleDepuisBanque] index manquant, skip');
+  }
+  return null;
+}
+
+async function crossRefBanqueDepense({ montant, toPropername, toDiscord, accountId }) {
+  if (!montant || !Number.isFinite(montant) || !toPropername) return;
+  const since = new Date(Date.now() - 90 * 1000);
+  const until = new Date(Date.now() + 5 * 1000);
+  let snap;
+  try {
+    snap = await db.collection('depenses')
+      .where('timestamp', '>=', Timestamp.fromDate(since))
+      .where('timestamp', '<=', Timestamp.fromDate(until))
+      .orderBy('timestamp', 'desc')
+      .limit(50)
+      .get();
+  } catch (e) {
+    if (String(e.message || '').includes('index')) {
+      console.error('[crossRefBanqueDepense] index manquant, skip');
+      return;
+    }
+    throw e;
+  }
+
+  for (const d of snap.docs) {
+    const dep = d.data();
+    if (Number(dep.montant) !== montant) continue;
+    if (dep.compteCibleNom) continue; // déjà enrichi
+    if (dep.valideParPatron) continue; // patron a déjà tranché, on ne touche pas
+
+    // Enrichit la dépense et tente un nouveau lookup mapping avec compte-cible
+    const payloadPourMatch = {
+      ...dep,
+      compteCibleNom: toPropername
+    };
+    let fournisseur = null;
+    try {
+      const cfgSnap = await db.collection('config').doc('global').get();
+      const patterns = cfgSnap.exists ? (cfgSnap.data().fournisseurs || []) : [];
+      for (const pat of patterns) {
+        if (matchesFournisseurPattern(pat, payloadPourMatch, dep.raison || '')) {
+          fournisseur = pat;
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('[crossRefBanqueDepense] lookup mapping error', e);
+    }
+
+    const update = {
+      compteCibleNom: toPropername,
+      compteCibleAccountId: accountId || null,
+      compteCibleDiscord: toDiscord || null
+    };
+    if (fournisseur) {
+      update.type = fournisseur.categorie;
+      update.deductible = !!fournisseur.deductible;
+      update.categorieSuggeree = fournisseur.categorie;
+      update.deductibleSuggere = !!fournisseur.deductible;
+      update.fournisseurPatternId = fournisseur.id;
+      update.fournisseurLabel = fournisseur.label;
+      update.raisonClassification = fournisseur.raisonClassification || '';
+    }
+    await d.ref.set(update, { merge: true });
+    return; // 1 dépense max enrichie par appel (premier match)
+  }
 }
 
 // === Banque LTD : transactions xbankaccount sur iban LTDSANDY ===
@@ -730,7 +955,7 @@ async function onDepense(p) {
 // de la pompe côté FiveM. On crée aussi un doc /redistributions pour qu'elle
 // apparaisse dans /revenus-carburant. Mapping N° → station via /config.fivemPompesMap.
 async function onBankAccount(p) {
-  await db.collection('banqueLtd').add({
+  const docData = {
     type: p.type || 'add',          // 'add' (recette) | 'remove' (sortie)
     iban: p.iban || '',
     accountId: p.accountId || '',
@@ -738,9 +963,35 @@ async function onBankAccount(p) {
     soldeAvant: Number(p.soldeAvant) || 0,
     soldeApres: Number(p.soldeApres) || 0,
     raison: p.raison || '',
+    // Émetteur / destinataire (Phase 2 — identification compte cible)
+    fromDiscord: p.fromDiscord || '',
+    fromName: p.fromName || '',
+    fromPropername: p.fromPropername || '',
+    toDiscord: p.toDiscord || '',
+    toName: p.toName || '',
+    toPropername: p.toPropername || '',
     source: 'discord-xbankaccount',
     timestamp: FieldValue.serverTimestamp()
-  });
+  };
+  await db.collection('banqueLtd').add(docData);
+
+  // Phase 2 — cross-réf : si c'est un removemoney avec un toPropername, on
+  // cherche une dépense correspondante dans /depenses (même montant, timestamp
+  // à ±60s) qui n'a pas encore de fournisseur identifié. Si match, on enrichit
+  // la dépense avec compteCibleNom + tente un nouveau lookup mapping pour
+  // déclencher l'auto-classification via matchType='compte-cible'.
+  if ((p.type || 'add') === 'remove' && (p.toPropername || p.toName)) {
+    try {
+      await crossRefBanqueDepense({
+        montant: Number(p.montant) || 0,
+        toPropername: p.toPropername || p.toName,
+        toDiscord: p.toDiscord || '',
+        accountId: p.accountId || ''
+      });
+    } catch (e) {
+      console.error('[onBankAccount] crossRef dépense error', e.message);
+    }
+  }
 
   // Détection vente carburant (raison "Redistribution N°XXXXX" sur entrée)
   if ((p.type || 'add') !== 'add') return;
@@ -2564,7 +2815,10 @@ async function csvResume() {
 
 async function csvDepenses(usersByDiscord) {
   const snap = await db.collection('depenses').orderBy('timestamp', 'desc').limit(2000).get();
-  const lines = [csvRow('Date', 'Raison', 'Montant', 'Type', 'Déductible', 'Utilisateur')];
+  const lines = [csvRow(
+    'Date', 'Raison', 'Montant', 'Type', 'Déductible',
+    'Fournisseur', 'Validé par patron', 'Justification', 'Utilisateur'
+  )];
   for (const d of snap.docs) {
     const x = d.data();
     lines.push(csvRow(
@@ -2573,6 +2827,9 @@ async function csvDepenses(usersByDiscord) {
       x.montant || 0,
       x.type || '',
       x.deductible !== false ? 'oui' : 'non',
+      x.fournisseurLabel || '',
+      x.valideParPatron ? 'oui' : 'non',
+      x.raisonClassification || '',
       resolveUserLabel(x.utilisateur, usersByDiscord)
     ));
   }
@@ -2686,3 +2943,95 @@ async function csvPaies(usersByDiscord) {
   }
   return lines.join('\n');
 }
+
+// ----------------------------------------------------------------
+// reclasserDepense — Patron valide ou change la classification d'une dépense
+// ----------------------------------------------------------------
+// Auth : direction (patron, co-patron, admin-technique) uniquement.
+// Le patron peut :
+//   - Valider la suggestion automatique → met `valideParPatron: true`
+//   - Override : changer `deductible` et/ou `type` (categorie)
+//   - Mémoriser le pattern : ajoute un nouveau fournisseur dans
+//     /config/global.fournisseurs pour que toutes les futures dépenses
+//     correspondantes héritent automatiquement de cette classification.
+// ----------------------------------------------------------------
+export const reclasserDepense = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    if (role !== 'patron' && role !== 'co-patron' && role !== 'admin-technique') {
+      return res.status(403).json({ error: 'Seule la direction peut reclassifier une dépense.' });
+    }
+
+    const {
+      depenseId,
+      deductible,
+      categorie,
+      raisonClassification,
+      memoriserPattern,    // { id, label, matchType, matchValue } optionnel
+      noteAudit            // commentaire libre patron (optionnel)
+    } = req.body || {};
+
+    if (!depenseId) return res.status(400).json({ error: 'depenseId manquant' });
+    if (typeof deductible !== 'boolean') return res.status(400).json({ error: 'deductible doit être booléen' });
+    if (!categorie || typeof categorie !== 'string') return res.status(400).json({ error: 'categorie manquante' });
+
+    const depRef = db.collection('depenses').doc(depenseId);
+    const depSnap = await depRef.get();
+    if (!depSnap.exists) return res.status(404).json({ error: 'Dépense introuvable' });
+
+    await depRef.set({
+      type: categorie,
+      deductible,
+      raisonClassification: raisonClassification || depSnap.data().raisonClassification || '',
+      valideParPatron: true,
+      validePar: decoded.uid,
+      validateurNom: `${caller.prenom || ''} ${caller.nom || ''}`.trim(),
+      dateValidation: FieldValue.serverTimestamp(),
+      noteAudit: noteAudit || null
+    }, { merge: true });
+
+    // Mémorisation optionnelle d'un nouveau pattern fournisseur
+    if (memoriserPattern && memoriserPattern.id && memoriserPattern.matchType && memoriserPattern.matchValue) {
+      const cfgRef = db.collection('config').doc('global');
+      const cfgSnap = await cfgRef.get();
+      const existing = cfgSnap.exists ? (cfgSnap.data().fournisseurs || []) : [];
+      const existingIdx = existing.findIndex(p => p.id === memoriserPattern.id);
+      const nouveauPattern = {
+        id: memoriserPattern.id,
+        label: memoriserPattern.label || memoriserPattern.id,
+        matchType: memoriserPattern.matchType,
+        matchValue: String(memoriserPattern.matchValue),
+        categorie,
+        deductible,
+        raisonClassification: raisonClassification || '',
+        ajoutePar: decoded.uid,
+        dateAjout: new Date().toISOString()
+      };
+      let merged;
+      if (existingIdx >= 0) {
+        merged = [...existing];
+        merged[existingIdx] = nouveauPattern;
+      } else {
+        merged = [...existing, nouveauPattern];
+      }
+      await cfgRef.set({ fournisseurs: merged }, { merge: true });
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('[reclasserDepense]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
