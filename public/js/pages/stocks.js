@@ -58,19 +58,7 @@ const html = `
     </div>
     <div class="table-scroll">
       <table class="data sortable" id="table-stocks">
-        <thead>
-          <tr>
-            <th data-sort="nom">Produit <span class="sort-arrow"></span></th>
-            <th data-sort="categorie">Catégorie <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="qte">Stock <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="prixAchat">Prix achat <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="prixVente">Prix vente <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="marge">Marge <span class="sort-arrow"></span></th>
-            <th class="right" data-sort="seuil">Seuil alerte <span class="sort-arrow"></span></th>
-            <th class="center" data-sort="statut">Statut <span class="sort-arrow"></span></th>
-            ${editable ? '<th class="center">Actions</th>' : ''}
-          </tr>
-        </thead>
+        <thead id="thead-stocks"></thead>
         <tbody id="tbody-stocks"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
       </table>
     </div>
@@ -176,6 +164,31 @@ function sectionProduit(p) {
   return 'vente_epicerie';
 }
 
+// Definition des colonnes affichables (header + getter de cellule)
+// Note : data-sort sur le <th> pour le tri, classes alignement gerees ici.
+const COLONNES_DEFS = {
+  nom:       { th: 'Produit',        cls: '',        sort: 'nom' },
+  categorie: { th: 'Catégorie',      cls: '',        sort: 'categorie' },
+  qte:       { th: 'Stock',          cls: 'right',   sort: 'qte' },
+  prixAchat: { th: 'Prix achat',     cls: 'right',   sort: 'prixAchat' },
+  prixVente: { th: 'Prix vente',     cls: 'right',   sort: 'prixVente' },
+  marge:     { th: 'Marge',          cls: 'right',   sort: 'marge' },
+  seuil:     { th: 'Seuil alerte',   cls: 'right',   sort: 'seuil' },
+  statut:    { th: 'Statut',         cls: 'center',  sort: 'statut' }
+};
+
+// Colonnes affichees selon l'onglet actif :
+//   achat_fournisseur : pas de prix vente (jamais revendus)
+//   fabrication       : pas de prix achat (crafté par le LTD, marge = 100%)
+//   autres            : tout
+function colonnesPourSection(section) {
+  const base = ['nom', 'categorie', 'qte'];
+  const fin  = ['seuil', 'statut'];
+  if (section === 'achat_fournisseur') return [...base, 'prixAchat', ...fin];
+  if (section === 'fabrication')       return [...base, 'prixVente', ...fin];
+  return [...base, 'prixAchat', 'prixVente', 'marge', ...fin];
+}
+
 const STATUT_ORDER = { rupture: 0, bas: 1, ok: 2 };
 
 function sortRows(rows) {
@@ -229,10 +242,10 @@ await chargerProduits();
 
 listenStocks(s => { stocks = s; renderTable(); });
 
-function ligneProduit({ p, qte, seuil, statut, section }) {
+function ligneProduit({ p, qte, seuil, statut, section }, colonnes) {
   const marge = (p.prixVente || 0) - (p.prixAchat || 0);
   const cls = qte < 0 ? 'alert-out' : (statut === 'rupture' ? 'alert-out' : (statut === 'bas' ? 'alert-low' : ''));
-  const badge = qte < 0
+  const badgeStatut = qte < 0
     ? `<span class="badge danger" title="Stock négatif — incohérence">⚠ ${num(qte)}</span>`
     : (statut === 'rupture'
         ? '<span class="badge danger">RUPTURE</span>'
@@ -246,16 +259,21 @@ function ligneProduit({ p, qte, seuil, statut, section }) {
   const sectionBadge = (sectionActive === 'achat_fournisseur' && section !== 'achat_fournisseur')
     ? ` <span class="badge ok" style="font-size:0.65rem;" title="Section principale">${SECTION_LABELS[section]?.titre.split(' — ')[0] || section}</span>`
     : '';
+
+  const cellules = {
+    nom:       `<td>${escapeHtml(p.nom)}${fournisseurBadge}${sectionBadge}</td>`,
+    categorie: `<td><span class="muted">${CATEGORY_LABELS[p.categorie] || p.categorie}</span></td>`,
+    qte:       `<td class="right mono ${qte < 0 ? 'alerte-fort' : ''}">${num(qte)}</td>`,
+    prixAchat: `<td class="right mono">${moneyPrecis(p.prixAchat || 0)}</td>`,
+    prixVente: `<td class="right mono">${moneyPrecis(p.prixVente || 0)}</td>`,
+    marge:     `<td class="right mono ${marge >= 0 ? '' : 'muted'}">${moneyPrecis(marge)}</td>`,
+    seuil:     `<td class="right mono">${num(seuil)}</td>`,
+    statut:    `<td class="center">${badgeStatut}</td>`
+  };
+
   return `
     <tr class="${cls}">
-      <td>${escapeHtml(p.nom)}${fournisseurBadge}${sectionBadge}</td>
-      <td><span class="muted">${CATEGORY_LABELS[p.categorie] || p.categorie}</span></td>
-      <td class="right mono ${qte < 0 ? 'alerte-fort' : ''}">${num(qte)}</td>
-      <td class="right mono">${moneyPrecis(p.prixAchat || 0)}</td>
-      <td class="right mono">${moneyPrecis(p.prixVente || 0)}</td>
-      <td class="right mono ${marge >= 0 ? '' : 'muted'}">${moneyPrecis(marge)}</td>
-      <td class="right mono">${num(seuil)}</td>
-      <td class="center">${badge}</td>
+      ${colonnes.map(k => cellules[k]).join('')}
       ${editable ? `<td class="actions-cell">
         <button class="btn btn-icon btn-sm btn-ghost" data-edit="${p.id}" title="Modifier le produit (prix, seuil, stock)" data-tooltip="Modifier">✏</button>
         ${canCreate ? `<button class="btn btn-icon btn-sm btn-danger" data-delete-produit="${p.id}" title="Supprimer du catalogue" data-tooltip="Supprimer">🗑</button>` : ''}
@@ -362,7 +380,6 @@ function renderTable() {
   if (recherche) rows = rows.filter(r => r.p.nom.toLowerCase().includes(recherche));
 
   rows = sortRows(rows);
-  updateSortArrows();
 
   // Titre + stats
   const lbl = SECTION_LABELS[sectionActive];
@@ -376,10 +393,34 @@ function renderTable() {
   if (low > 0) parts.push(`${low} bas`);
   document.getElementById('stats-stock').innerHTML = parts.join(' · ');
 
+  // === Reconstruit le <thead> selon les colonnes de la section ===
+  const colonnes = colonnesPourSection(sectionActive);
+  const thead = document.getElementById('thead-stocks');
+  thead.innerHTML = `
+    <tr>
+      ${colonnes.map(k => {
+        const c = COLONNES_DEFS[k];
+        return `<th class="${c.cls}" data-sort="${c.sort}">${c.th} <span class="sort-arrow"></span></th>`;
+      }).join('')}
+      ${editable ? '<th class="center">Actions</th>' : ''}
+    </tr>
+  `;
+  // Rewire le tri (le thead a ete reconstruit)
+  thead.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (sortState.key === key) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+      else sortState = { key, dir: 'asc' };
+      renderTable();
+    });
+  });
+  updateSortArrows();
+
   const tbody = document.getElementById('tbody-stocks');
+  const colspan = colonnes.length + (editable ? 1 : 0);
   tbody.innerHTML = rows.length === 0
-    ? `<tr><td colspan="9" class="muted text-center">Aucun produit dans cette section.</td></tr>`
-    : rows.map(ligneProduit).join('');
+    ? `<tr><td colspan="${colspan}" class="muted text-center">Aucun produit dans cette section.</td></tr>`
+    : rows.map(r => ligneProduit(r, colonnes)).join('');
 
   wireActions(tbody);
 }
@@ -399,18 +440,9 @@ document.getElementById('filtre-categorie').addEventListener('change', renderTab
 document.getElementById('filtre-alerte').addEventListener('change', renderTable);
 document.getElementById('filtre-recherche').addEventListener('input', renderTable);
 
-// Tri par colonne (click sur en-tête)
-document.querySelectorAll('#table-stocks thead th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const key = th.dataset.sort;
-    if (sortState.key === key) {
-      sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
-    } else {
-      sortState = { key, dir: 'asc' };
-    }
-    renderTable();
-  });
-});
+// Note : le tri par colonne est attache dynamiquement dans renderTable
+// (le <thead> est reconstruit a chaque rendu pour gerer les colonnes variables
+// selon l'onglet actif).
 
 // === Édition produit ===
 function ouvrirEdition(id) {
