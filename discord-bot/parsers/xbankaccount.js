@@ -21,14 +21,16 @@ export function parseXbankaccountEmbed(msg) {
   const e = firstEmbed(msg);
   if (!e) return null;
 
-  // Le title doit ressembler à "xbankaccount - addmoney" ou "xbankaccount - removemoney"
+  // Le title doit ressembler à "xbankaccount - <op>"
+  // Variantes observées : addmoney / removemoney / withdraw / deposit
+  // (Faab'Hook utilise withdraw au lieu de removemoney sur certains contextes)
   const title = (e.title || '').toLowerCase();
   if (!title.includes('xbankaccount')) return null;
 
   // Détecte le type d'opération
   let type;
-  if (title.includes('addmoney'))    type = 'add';
-  else if (title.includes('removemoney')) type = 'remove';
+  if (title.includes('addmoney') || title.includes('deposit'))    type = 'add';
+  else if (title.includes('removemoney') || title.includes('withdraw')) type = 'remove';
   else return null; // autres types ignorés
 
   // Filtre IBAN : uniquement le compte LTD
@@ -43,13 +45,23 @@ export function parseXbankaccountEmbed(msg) {
   const after      = getMoney(getField(e, 'after'),  true);
   const reason     = getField(e, 'reason') || '';
 
-  // Champs émetteur / destinataire (présents sur paiements de facture)
+  // Champs émetteur / destinataire :
+  //  - Pour les paiements de facture (cancel embed), Faab'Hook fournit
+  //    fromPropername / toPropername explicitement.
+  //  - Pour les withdraw simples, il n'y a que name/properName du CALLER
+  //    (= celui qui paye = LTD). Le destinataire (HDM, Dynasty 8…) n'est
+  //    PAS dans l'embed et doit être identifié autrement (mapping facture-id
+  //    via /config/global.fournisseurs).
   const fromDiscord    = (getField(e, 'fromDiscord')    || '').trim();
   const fromName       = (getField(e, 'fromName')       || '').trim();
   const fromPropername = (getField(e, 'fromPropername') || '').trim();
   const toDiscord      = (getField(e, 'toDiscord')      || '').trim();
   const toName         = (getField(e, 'toName')         || '').trim();
   const toPropername   = (getField(e, 'toPropername')   || '').trim();
+  // Caller (qui a effectué la commande) — utile pour audit
+  const callerName       = (getField(e, 'name')       || '').trim();
+  const callerProperName = (getField(e, 'properName') || '').trim();
+  const callerDiscord    = (getField(e, 'discord')    || '').trim();
 
   // Sécurité : si on n'a pas de chiffres cohérents, on skip
   if (!Number.isFinite(after) || !Number.isFinite(amount)) return null;

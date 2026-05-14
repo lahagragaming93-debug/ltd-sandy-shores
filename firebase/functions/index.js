@@ -820,12 +820,18 @@ async function onDepense(p) {
 //                       avec toPropername)
 function matchesFournisseurPattern(pat, payload, raison) {
   if (!pat || !pat.matchType || !pat.matchValue) return false;
+  // 2026-05-14 : matchValue peut contenir PLUSIEURS valeurs séparées par
+  // virgule (ex : "263,264,266" pour les multi-comptoirs Yootool). On split
+  // sur "," et on test chaque valeur. Insensible aux espaces.
+  const valeurs = String(pat.matchValue).split(',').map(v => v.trim()).filter(Boolean);
   switch (pat.matchType) {
     case 'boutique-id':
-      return !!payload.boutiqueId && String(payload.boutiqueId) === String(pat.matchValue);
+      return !!payload.boutiqueId && valeurs.includes(String(payload.boutiqueId));
     case 'facture-id':
-      return !!payload.factureId && String(payload.factureId) === String(pat.matchValue);
+      return !!payload.factureId && valeurs.includes(String(payload.factureId));
     case 'raison-regex':
+      // Pour raison-regex, on prend la matchValue brute (la virgule peut
+      // faire partie de la regex elle-même). Pas de split.
       try {
         return new RegExp(pat.matchValue, 'i').test(raison || '');
       } catch (e) {
@@ -836,10 +842,10 @@ function matchesFournisseurPattern(pat, payload, raison) {
       // Phase 2 : payload doit contenir compteCibleNom (résolu via cross-réf
       // /banqueLtd dans onDepense / crossRefBanqueDepense).
       // Match insensible à la casse, sur substring (ex : matchValue="HDM" matche
-      // toPropername="Heavy Duty Motors HDM").
+      // toPropername="Heavy Duty Motors HDM"). Supporte aussi multi-valeurs.
       if (!payload.compteCibleNom) return false;
-      return String(payload.compteCibleNom).toLowerCase()
-        .includes(String(pat.matchValue).toLowerCase());
+      const compte = String(payload.compteCibleNom).toLowerCase();
+      return valeurs.some(v => compte.includes(v.toLowerCase()));
     default:
       return false;
   }

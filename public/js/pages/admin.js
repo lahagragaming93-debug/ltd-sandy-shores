@@ -149,8 +149,8 @@ const html = `
           </select>
         </div>
         <div>
-          <label>Valeur à matcher</label>
-          <input type="text" id="fournisseur-matchvalue" placeholder="Ex: 263" required />
+          <label>Valeur à matcher <span class="muted" style="font-size:0.7rem;">— plusieurs séparées par virgule (ex: 263,264,266)</span></label>
+          <input type="text" id="fournisseur-matchvalue" placeholder="Ex: 263 ou 263,264,266" required />
         </div>
       </div>
 

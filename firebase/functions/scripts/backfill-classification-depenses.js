@@ -50,11 +50,14 @@ function matchesFournisseurPattern(pat, dep, raison) {
   const factureMatch = raison.match(/Paiement\s+facture\s*N[°º]?\s*(\d+)/i);
   const factureId = dep.factureId || (factureMatch ? factureMatch[1] : null);
 
+  // Support multi-valeurs : matchValue séparé par virgule (sauf raison-regex)
+  const valeurs = String(pat.matchValue).split(',').map(v => v.trim()).filter(Boolean);
+
   switch (pat.matchType) {
     case 'boutique-id':
-      return boutiqueId && String(boutiqueId) === String(pat.matchValue);
+      return !!boutiqueId && valeurs.includes(String(boutiqueId));
     case 'facture-id':
-      return factureId && String(factureId) === String(pat.matchValue);
+      return !!factureId && valeurs.includes(String(factureId));
     case 'raison-regex':
       try {
         return new RegExp(pat.matchValue, 'i').test(raison || '');
@@ -63,8 +66,8 @@ function matchesFournisseurPattern(pat, dep, raison) {
       }
     case 'compte-cible':
       if (!dep.compteCibleNom) return false;
-      return String(dep.compteCibleNom).toLowerCase()
-        .includes(String(pat.matchValue).toLowerCase());
+      const compte = String(dep.compteCibleNom).toLowerCase();
+      return valeurs.some(v => compte.includes(v.toLowerCase()));
     default:
       return false;
   }
