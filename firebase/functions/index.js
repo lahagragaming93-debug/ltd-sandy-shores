@@ -3147,19 +3147,25 @@ async function csvVentes(usersByDiscord) {
   //     manuelles (declaration site), on affiche factureBotRef = N° IG
   //     d'origine. Pour les ventes bot non doublees (direction), c'est
   //     directement factureId.
-  // Bénéfice retiré du CSV (demande patron) — info interne, pas utile au contrôleur IRS.
-  // Le bénéfice reste calculé/stocké dans /ventes (utile pour la compta interne et
-  // le Dashboard) mais n'apparaît plus dans l'export.
-  const lines = [csvRow('Date', 'N° Facture site', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison')];
+  // 2026-05-14 (demande patron) : l'export Ventes affiche UNIQUEMENT les
+  // factures IG (source=discord), avec leur N° de facture IG comme seul
+  // identifiant. Les déclarations manuelles (source=manuelle) sont exclues
+  // — leur info est interne au site et redondante pour l'auditeur.
+  //
+  // On exclut aussi les factures annulées IG (annulee=true, supprimées par
+  // l'employé via menu F1).
+  //
+  // Les ventes bot dédupliquées (cachee=true) RESTENT affichées : c'est
+  // justement la facture IG d'origine que l'auditeur veut voir.
+  const lines = [csvRow('Date', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison')];
   for (const d of snap.docs) {
     const v = d.data();
-    if (v.cachee) continue; // doublon — on n'affiche que la version visible
+    if (v.source !== 'discord') continue; // skip déclarations manuelles
+    if (v.annulee) continue;               // skip factures supprimées IG
     const vendeur = v.vendeurNom || resolveUserLabel(v.vendeurDiscord, usersByDiscord);
-    const factureIG = v.factureBotRef || (v.source === 'discord' ? v.factureId : '') || '';
     lines.push(csvRow(
       dateIso(v.timestamp),
       v.factureId || '',
-      factureIG,
       vendeur,
       v.clientNom || v.client || '',
       v.montant || 0,
