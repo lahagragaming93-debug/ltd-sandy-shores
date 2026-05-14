@@ -28,7 +28,7 @@ const html = `
     <button class="btn btn-tab active" data-section="vente_epicerie" title="Stock vendable aux particuliers (commission vendeur)">🛒 Vente épicerie <span class="badge neutral" data-count="vente_epicerie">0</span></button>
     <button class="btn btn-tab" data-section="vente_pro" title="Stock vendable aux pros (CA LTD)">🏢 Vente fournisseur <span class="badge neutral" data-count="vente_pro">0</span></button>
     <button class="btn btn-tab" data-section="achat_fournisseur" title="Matières premières achetées (non revendues)">📦 Achat fournisseur <span class="badge neutral" data-count="achat_fournisseur">0</span></button>
-    <button class="btn btn-tab" data-section="fabrication" title="Produits issus du craft (futurs)">🔧 Produits fabrication <span class="badge neutral" data-count="fabrication">0</span></button>
+    <button class="btn btn-tab" data-section="fabrication" title="Quincaillerie — produits craftés par les vendeurs">🔧 Quincaillerie <span class="badge neutral" data-count="fabrication">0</span></button>
     <button class="btn btn-tab" data-section="mouvements" title="Historique des derniers mouvements (entrée/sortie/ajustement)">📜 Mouvements</button>
   </div>
 
@@ -110,7 +110,7 @@ const html = `
         <option value="vente_epicerie">🛒 Vente épicerie — particuliers (commission vendeur)</option>
         <option value="vente_pro">🏢 Vente fournisseur — pros (CA LTD, pas de commission)</option>
         <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
-        <option value="fabrication">🔧 Produit de fabrication (issu du craft)</option>
+        <option value="fabrication">🔧 Quincaillerie (produit crafté par les vendeurs)</option>
       </select>
       <label>Fournisseur <span class="muted" style="font-size:0.75rem;">— optionnel (ex. "Yootool", "GB Foundry")</span></label>
       <input type="text" id="new-produit-fournisseur" placeholder="Vide si pas applicable" maxlength="60" />
@@ -137,7 +137,7 @@ const html = `
         <option value="vente_epicerie">🛒 Vente épicerie — particuliers (commission vendeur)</option>
         <option value="vente_pro">🏢 Vente fournisseur — pros (CA LTD, pas de commission)</option>
         <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
-        <option value="fabrication">🔧 Produit de fabrication (issu du craft)</option>
+        <option value="fabrication">🔧 Quincaillerie (produit crafté par les vendeurs)</option>
       </select>
       <label>Fournisseur <span class="muted" style="font-size:0.75rem;">— apparaît aussi dans l'onglet Achat fournisseur</span></label>
       <input type="text" id="edit-fournisseur" placeholder="ex. Yootool, GB Foundry" maxlength="60" />
@@ -165,7 +165,7 @@ const SECTION_LABELS = {
   vente_epicerie:    { titre: '🛒 Vente épicerie — particuliers',           sub: '(commission vendeur)' },
   vente_pro:         { titre: '🏢 Vente fournisseur — professionnels',      sub: '(CA LTD, pas de commission)' },
   achat_fournisseur: { titre: '📦 Achat fournisseur — matières premières',  sub: '(achetées, non revendues)' },
-  fabrication:       { titre: '🔧 Produits de fabrication',                 sub: '(issus du craft)' }
+  fabrication:       { titre: '🔧 Quincaillerie',                            sub: '(produits craftés par les vendeurs)' }
 };
 
 // Determine la section d'appartenance d'un produit (1 seule)

@@ -123,9 +123,10 @@ export const CATALOGUE = [
   { id: 'fertilisant',             nom: 'Fertilisant',             categorie: 'jardinage',        prixVente: 10,   pourPro: false },
   { id: 'tas-terre',               nom: 'Tas de terre',            categorie: 'jardinage',        prixVente: 14,   pourPro: false },
   { id: 'bac-jardinage',           nom: 'Bac de jardinage',        categorie: 'jardinage',        prixVente: 20,   pourPro: true },
-  { id: 'fillet',                  nom: 'Fillet',                  categorie: 'jardinage',        prixVente: 12.50, pourPro: true },
-  { id: 'sac-jute',                nom: 'Sac en Jute',             categorie: 'jardinage',        prixVente: 0,    pourPro: true,
-    note: 'Rupture possible — prix à confirmer' },
+  { id: 'fillet',                  nom: 'Fillet',                  categorie: 'jardinage',        prixVente: 12.50, pourPro: false, enFabrication: true,
+    note: 'Crafté : 2×Corde → 2×Filets' },
+  { id: 'sac-jute',                nom: 'Sac en Jute',             categorie: 'jardinage',        prixVente: 0,    pourPro: false, enFabrication: true,
+    note: 'Crafté : 1×Corde + 1×Tissu → 2×Sacs — bloqué tant que prix tissu inconnu' },
 
   // MOBILIER
   { id: 'table',                   nom: 'Table de travail',        categorie: 'mobilier',         prixVente: 10,   pourPro: false },
@@ -141,8 +142,8 @@ export const CATALOGUE = [
   { id: 'huile-noire',             nom: 'Huile Noire',             categorie: 'auto',             prixVente: 15,   pourPro: true },
   { id: 'batterie-voiture',        nom: 'Batterie de Voiture',     categorie: 'auto',             prixVente: 20,   pourPro: true },
   { id: 'eponge-voiture',          nom: 'Éponge pour voiture',     categorie: 'auto',             prixVente: 2,    pourPro: true },
-  { id: 'bidon-essence',           nom: "Bidon d'essence",         categorie: 'auto',             prixVente: 0,    pourPro: true,
-    note: 'Compté pour quota pompiste' },
+  { id: 'bidon-essence',           nom: "Bidon d'essence",         categorie: 'auto',             prixVente: 0,    pourPro: false, intrant: true,
+    note: 'Bidon vide acheté pour ravitailler les stations — non revendu. Compté pour quota pompiste. Intrant craft Jerrican.' },
 
   // MATIÈRE PREMIÈRE
   { id: 'caoutchouc',              nom: 'Caoutchouc',              categorie: 'matiere_premiere', prixVente: 6,    pourPro: true, intrant: true,
@@ -170,7 +171,8 @@ export const CATALOGUE = [
   { id: 'encre',                   nom: 'Encre',                   categorie: 'divers',           prixVente: 4,    pourPro: true },
   { id: 'corde',                   nom: 'Corde',                   categorie: 'divers',           prixVente: 10,   pourPro: true, intrant: true,
     note: 'Intrant craft Filet / Jerrican / Sac jute' },
-  { id: 'lumiere-violette',        nom: 'Lumière Violette',        categorie: 'divers',           prixVente: 20,   pourPro: false },
+  { id: 'lumiere-violette',        nom: 'Lumière Violette',        categorie: 'divers',           prixVente: 20,   pourPro: false, enFabrication: true,
+    note: 'Crafté : 1×Plomberie + 1×Acier + 4×Câble + 2×Visserie → 16×Lumières (coût ~47.36$ TEMP)' },
   { id: 'solvant',                 nom: 'Solvant',                 categorie: 'divers',           prixVente: 25,   pourPro: true },
   { id: 'eponge-nettoyage',        nom: 'Éponge Nettoyage',        categorie: 'divers',           prixVente: 1000, pourPro: true },
   { id: 'ticket-gratter',          nom: 'Ticket à Gratter',        categorie: 'divers',           prixVente: 25,   pourPro: false },
@@ -184,7 +186,27 @@ export const CATALOGUE = [
     note: 'Achat Yootool — vendable particuliers (commission). Prix d\'achat à renseigner par le patron.' },
   { id: 'herisson',                nom: 'Hérisson',                categorie: 'divers',           prixVente: 2,    pourPro: false },
   { id: 'elastique',               nom: 'Élastique',               categorie: 'divers',           prixVente: 20,   pourPro: true },
-  { id: 'bidon-peinture',          nom: 'Bidon de Peinture',       categorie: 'divers',           prixVente: 4,    pourPro: true }
+  { id: 'bidon-peinture',          nom: 'Bidon de Peinture',       categorie: 'divers',           prixVente: 4,    pourPro: true },
+
+  // === QUINCAILLERIE — Produits craftés par les vendeurs (enFabrication=true) ===
+  { id: 'visseries',               nom: 'Visseries',               categorie: 'outillage',        prixVente: 65,   pourPro: false, enFabrication: true,
+    note: 'Crafté : 1×Charbon + 3×Acier → 5×Visseries (coût 26$, TEMP 38$ si acier 60$)' },
+  { id: 'pioche',                  nom: 'Pioche',                  categorie: 'outillage',        prixVente: 29.55, pourPro: false, enFabrication: true,
+    note: 'Crafté : 1×Charbon + 3×Acier → 11×Pioches (coût 11.82$, TEMP 17.27$)' },
+  { id: 'jerrican',                nom: 'Jerrican',                categorie: 'auto',             prixVente: 18.75, pourPro: false, enFabrication: true,
+    note: 'Crafté : 4×Caoutchouc + 1×Bidon vide → 3×Jerricans (coût 7.50$)' },
+  { id: 'plomberie',               nom: 'Plomberie',               categorie: 'divers',           prixVente: 0,    pourPro: false, enFabrication: true, intrant: true,
+    note: 'Composant intermédiaire — utilisé pour Lumière violette. Crafté : 1×Charbon + 2×Cuivre + 5×Bobine → 1×Plomberie (coût 131.75$). intrant=true bloque le modal vente.' },
+  { id: 'cable-electrique',        nom: 'Câble électrique',        categorie: 'electronique',     prixVente: 0,    pourPro: false, enFabrication: true, intrant: true,
+    note: 'Composant intermédiaire — utilisé pour Lumière violette. Crafté : 1×Charbon + 6×Bobine → 1×Câble (coût 122.50$).' },
+
+  // === MATIÈRES PREMIÈRES INTRANTS DE CRAFT (achat fournisseur, intrant=true) ===
+  { id: 'charbon',                 nom: 'Charbon',                 categorie: 'matiere_premiere', prixVente: 0,    pourPro: false, intrant: true,
+    note: 'Intrant craft Visseries / Pioche / Plomberie / Câble — prix unitaire 10$ d\'après recettes' },
+  { id: 'bobine-cuivre',           nom: 'Bobine de cuivre',        categorie: 'matiere_premiere', prixVente: 0,    pourPro: false, intrant: true,
+    note: 'Intrant craft Plomberie / Câble électrique — prix unitaire 18.75$' },
+  { id: 'tissu',                   nom: 'Tissu',                   categorie: 'matiere_premiere', prixVente: 0,    pourPro: false, intrant: true,
+    note: 'Intrant craft Sac en jute — fournisseur et prix à renseigner' }
 ];
 
 // Items spéciaux pour quotas pompistes (ID logs-ig)
