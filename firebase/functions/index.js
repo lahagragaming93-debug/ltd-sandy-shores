@@ -601,10 +601,20 @@ async function onFacture(p) {
     }
   }
 
-  // Detection doublon : si une declaration manuelle correspondante existe
-  // (meme vendeur, meme montant, dans les 15 minutes precedentes), on cree
-  // la vente bot directement marquee cachee:true. Le bot peut remonter la
-  // facture APRES que l'employe ait declare manuellement (latence Discord).
+  // Detection doublon — 2 mecanismes :
+  //   (a) MATCH EXPLICITE : declaration manuelle declaree AVEC factureBotRef==p.factureId
+  //       → l'employe a explicitement clique "Declarer" sur cette facture bot
+  //       → c'est UN VRAI DOUBLON, on cache.
+  //   (b) MATCH IMPLICITE (legacy) : declaration manuelle SANS factureBotRef avec
+  //       meme vendeur + meme montant dans les 15 min ET pas deja utilisee pour
+  //       cacher une autre vente bot. Utile pour le cas rare ou l'employe
+  //       declare avant que le bot ait remonte (latence Discord > 5 min).
+  //
+  // Bug fix 2026-05-14 : avant, on cachait TOUTE vente bot qui matchait la 1re
+  // manuelle trouvee (meme vendeur+montant 15 min). Resultat : si Teo fait
+  // 3 ventes de 300$ a 5 min d'intervalle, et qu'il declare la 1re manuellement,
+  // les 3 facturees bot etaient toutes liees a la meme manuelle et marquees
+  // cachees. Teo ne pouvait plus declarer les 2 autres.
   let venteCachee = false;
   let remplaceeParId = null;
   let remplaceeParFactureId = null;
@@ -614,15 +624,39 @@ async function onFacture(p) {
       const manSnap = await db.collection('ventes')
         .where('timestamp', '>=', Timestamp.fromDate(quinzeMin))
         .get();
+
+      // (a) Match explicite d'abord
       for (const m of manSnap.docs) {
         const mv = m.data();
-        if (mv.source === 'manuelle' &&
-            mv.vendeurId === vendeurId &&
-            Number(mv.montant) === montantBot) {
+        if (mv.source !== 'manuelle') continue;
+        if (mv.vendeurId !== vendeurId) continue;
+        if (String(mv.factureBotRef) === String(p.factureId)) {
           venteCachee = true;
           remplaceeParId = m.id;
           remplaceeParFactureId = mv.factureId;
-          console.log(`[onFacture] Vente bot ${p.factureId} creee cachee (doublon manuel ${mv.factureId})`);
+          console.log(`[onFacture] Vente bot ${p.factureId} cachee (match explicite ${mv.factureId})`);
+          break;
+        }
+      }
+
+      // (b) Sinon match implicite (rare cas latence)
+      if (!venteCachee) {
+        for (const m of manSnap.docs) {
+          const mv = m.data();
+          if (mv.source !== 'manuelle') continue;
+          if (mv.vendeurId !== vendeurId) continue;
+          if (Number(mv.montant) !== montantBot) continue;
+          // Skip si la manuelle est deja liee a une autre facture bot
+          if (mv.factureBotRef) continue;
+          // Skip si une autre vente bot pointe deja vers cette manuelle
+          const dejaSnap = await db.collection('ventes')
+            .where('remplaceeParId', '==', m.id)
+            .limit(1).get();
+          if (!dejaSnap.empty) continue;
+          venteCachee = true;
+          remplaceeParId = m.id;
+          remplaceeParFactureId = mv.factureId;
+          console.log(`[onFacture] Vente bot ${p.factureId} cachee (match implicite legacy ${mv.factureId})`);
           break;
         }
       }
