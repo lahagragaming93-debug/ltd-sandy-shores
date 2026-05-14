@@ -14,6 +14,15 @@
 
 ---
 
+## 📅 Prochaine session (2026-05-15)
+**Configurer les autres stations essence pour parser les ventes**
+- Renseigner le **N° pompe FiveM** sur chaque station via Stations → ✏ Modifier → champ "N° pompe FiveM"
+- Setté ce champ remplit `cfg.fivemPompesMap[N°] = stationId` → permet à `onBankAccount` (canal `xbankaccount`, raison "Redistribution N°XXXXX") de **décrémenter le bon stock** à chaque vente carburant
+- État actuel : seulement quelques stations ont leur N° pompe renseigné, les autres ventes carburant ne sont pas attribuées à la bonne station
+- Demander au patron les N° pompe in-game pour : Route 68 LTD, Route 68, Aérodrome Sandy Shores, Favélas, Vinewood, Cholla Springs, Algonquin Boulevard
+
+---
+
 ## 🔴 Priorité haute — bloque des fonctionnalités
 
 ### 1. GB Foundry (acier + cuivre)
