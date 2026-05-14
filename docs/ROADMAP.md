@@ -11,6 +11,7 @@
 - Pompiste a sa modal Ravitailler directe sur Mon espace (litres + select station)
 - Vente partenaire = 2,1× automatique (33 produits backfillés)
 - Salaire DRH = 18 000 $ fixe / Salaire RV = pro-rata CA
+- Factures supprimées IG auto-détectées via parser `factureCancel` + backfill historique
 
 ---
 

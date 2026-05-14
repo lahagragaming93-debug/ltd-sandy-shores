@@ -15,6 +15,7 @@ import { parseDepenseEmbed }         from './parsers/depense.js';
 import { parsePaieEmbed }            from './parsers/paie.js';
 import { parseCoffreEmbed }          from './parsers/coffre.js';
 import { parseXbankaccountEmbed }    from './parsers/xbankaccount.js';
+import { parseFactureCancelEmbed }   from './parsers/factureCancel.js';
 import { parseAutoRhEmbed }          from './parsers/autoRh.js';
 import { parseAutorankupEmbed }      from './parsers/autorankup.js';
 import { parseStatsbankEmbed }       from './parsers/statsbank.js';
@@ -41,7 +42,12 @@ for (const k of required) {
 // même canal (ex. #logs-ig reçoit inventory + xbankaccount).
 const CHANNEL_MAP = {
   [process.env.CH_LOGS_IG]: [
-    { type: 'bankAccount',    parser: parseXbankaccountEmbed }, // testé en 1er (filtre IBAN LTDSANDY)
+    // factureCancel teste EN PREMIER : embed "xbankaccount - cancel" qui
+    // signale qu'un employe a supprime une facture IG. Filtre interne :
+    // logType=cancel + category=xbill. Si pas de match, on tombe sur les
+    // autres parsers.
+    { type: 'factureCancel',  parser: parseFactureCancelEmbed },
+    { type: 'bankAccount',    parser: parseXbankaccountEmbed }, // filtre IBAN LTDSANDY
     { type: 'inventory',      parser: parseInventoryEmbed     }
   ],
   [process.env.CH_LOGS_SERVICES]:         { type: 'service',        parser: parseServiceEmbed       },

@@ -448,6 +448,7 @@ export const botIngest = onRequest({
       case 'paie':            await onPaie(payload); break;
       case 'coffre':          await onCoffre(payload); break;
       case 'bankAccount':     await onBankAccount(payload); break;
+      case 'factureCancel':   await onFactureCancel(payload); break;
       case 'autoRh':          await onAutoRh(payload); break;
       case 'autorankup':      await onAutorankup(payload); break;
       case 'statsbank':       await onStatsbank(payload); break;
@@ -796,6 +797,77 @@ async function onBankAccount(p) {
     source: 'banqueLtd-redistribution',
     timestamp: FieldValue.serverTimestamp()
   });
+}
+
+// === Facture annulee IG (xbankaccount - cancel) ===
+// L'employe IG supprime sa facture (typiquement : client pas solvable). On
+// retrouve la /ventes/fac-{billId} correspondante et on la marque cachee +
+// annulee, avec motif et identite de l'annulateur. Cas particuliers :
+//   - vente bot deja cachee par doublon (declaration manuelle) : on log une
+//     alerte direction (potentielle fraude : vendeur a declare puis annule
+//     la facture IG pour eviter d'encaisser).
+//   - vente manuelle directe (source=manuelle) : meme alerte direction.
+//   - vente bot non encore declaree : marquage normal (cas le plus frequent).
+//   - aucune vente en base : on ignore (facture d'une autre entite RP).
+// Idempotent : si deja annulee, on skip.
+async function onFactureCancel(p) {
+  const billId = String(p.billId || '').trim();
+  if (!billId) return;
+
+  const docId = `fac-${billId}`;
+  const ref = db.collection('ventes').doc(docId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    // Pas dans nos /ventes : soit facture d'un autre joueur RP, soit facture
+    // emise avant que le bot ne tourne. Rien a annuler.
+    console.log(`[onFactureCancel] billId=${billId} pas en base, skip`);
+    return;
+  }
+  const v = snap.data();
+  if (v.annulee === true) {
+    // Idempotent
+    return;
+  }
+
+  // Motif lisible pour audit
+  const annulateurNom = p.cancellerPropername || p.cancellerName || 'inconnu';
+  const dateLisible = p.formattedTime || (p.time ? new Date(p.time * 1000).toLocaleString('fr-FR') : '');
+  const motif = `Supprimee IG par ${annulateurNom}${dateLisible ? ` le ${dateLisible}` : ''}`;
+
+  await ref.set({
+    annulee: true,
+    cachee: true, // disparait des listings standards (compta, KPI, dashboard)
+    motifAnnulation: motif,
+    annulateurDiscord: p.cancellerDiscord || '',
+    annulateurNom: annulateurNom,
+    annulationSource: 'discord-cancel',
+    dateAnnulation: FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  // Cas suspect : la vente avait deja ete declaree manuellement OU est elle-meme
+  // une declaration manuelle directe (source=manuelle). Ca veut dire que le
+  // vendeur a encaisse (ou pretendu encaisser) puis a supprime la facture IG.
+  // Potentielle fraude → alerte direction.
+  const dejaDeclaree = v.source === 'manuelle' || !!v.remplaceeParId;
+  if (dejaDeclaree) {
+    await db.collection('alertes').add({
+      type: 'vente-annulee-apres-declaration',
+      message: `⚠ Facture #${billId} (${v.montant || 0}$) annulee IG par ${annulateurNom} APRES declaration. Vendeur : ${v.vendeurNom || '?'}. Verifier que l'argent a bien ete rendu au client.`,
+      gravite: 'warn',
+      metadata: {
+        factureId: billId,
+        venteId: docId,
+        vendeurId: v.vendeurId || null,
+        vendeurNom: v.vendeurNom || '',
+        annulateurNom,
+        annulateurDiscord: p.cancellerDiscord || '',
+        montant: v.montant || 0,
+        sourceVente: v.source || ''
+      },
+      resolue: false,
+      timestamp: FieldValue.serverTimestamp()
+    });
+  }
 }
 
 // === RH automatisée : embauches + exclusions (#auto-rh) ===

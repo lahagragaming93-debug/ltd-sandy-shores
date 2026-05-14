@@ -74,6 +74,16 @@ Pour qu'une vente compte dans ta commission, **tu dois la déclarer toi-même** 
 - Vérifie dans Discord que le canal `#suivi-facture` a bien remonté ta vente
 - Si oui mais pas sur le site : préviens la direction (bug bot ou ID Discord mal configuré)
 
+### Si le client ne peut pas payer → tu supprimes la facture IG
+Cas typique : tu factures un client, il n'a pas l'argent, tu supprimes la facture in-game depuis ton menu facturier.
+
+**Tu n'as rien d'autre à faire sur le site.** Le bot Discord détecte automatiquement la suppression IG (canal `#logs-ig`, embed `xbankaccount - cancel`) et :
+- Marque ta vente comme **annulée**
+- Elle disparaît automatiquement de ton bloc "📌 Vente in-game à déclarer"
+- Elle apparaît avec un badge `❌ Annulée` dans la vue RH (audit direction) avec le motif et la date
+
+⚠ **Important** : si tu déclares d'abord la vente sur le site **puis** tu supprimes la facture IG, la direction reçoit une alerte automatique (cas suspect : tu aurais encaissé sans rendre l'argent au client). Si tu te trompes, préviens ton responsable tout de suite.
+
 ---
 
 ## 💰 Mes paies

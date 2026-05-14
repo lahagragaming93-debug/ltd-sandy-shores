@@ -39,13 +39,14 @@ Le bot tourne **24/7 sur Railway** (serveur cloud gratuit). Si tu ne vois rien a
 | Canal Discord | Parser | Ce qui est extrait | Où ça arrive |
 |---------------|--------|---------------------|--------------|
 | `#logs-ig` (en plus de inventory) | **xbankaccount** | Entrées d'argent (`addmoney` sur iban LTDSANDY) avec solde après | **Page Banque LTD** + KPI Dashboard 💰 Solde temps réel |
+| `#logs-ig` (en plus de inventory) | **factureCancel** | Suppressions de facture IG (`xbankaccount - cancel` / `logType=cancel`, `category=xbill`) : billId, qui a annulé, motif | **Marque la vente `annulee:true, cachee:true`** → disparaît du panel "à déclarer" du vendeur, badge `❌ Annulée` côté RH avec motif et date. Alerte direction si la vente avait été déclarée manuellement avant l'annulation IG (potentielle fraude). |
 | `#auto-rh` | **autoRh** | 3 events : `EMBAUCHE` / `EXCLUSION` / `DÉPART` (volontaire) avec IDs Discord + perso | **Admin → Embauches à traiter** (nouveau panneau) + suspension auto sur exclusion/départ |
 | `#autorankup` | **autorankup** | Promotion (Vendeur → Resp Vente, etc.) avec ancien + nouveau rôle | **MAJ rôle automatique** côté site (plafond salaire ajusté) |
 | `#statsbank` | **statsbank** | Récap hebdo officiel FiveM (CA, sorties, déficit/bénéfice, factures, **impôt estimé** + tranche TTE, top vendeurs) | **Comptabilité → Comparaison cross-source** |
 | `#pompiste` | **rapportPompiste** | Rapport quotidien : niveau % de chaque station | **MAJ stockActuel** des 8 stations en 1 seul log |
 | `#ventes` | **venteAuto** | Ventes du distributeur LTD (Vendeur=LTD), items + total | `/ventes` avec `source='ventes-auto'` (mapping items à venir) |
 
-> 💡 Le canal `#logs-ig` a maintenant **2 parsers en cascade** : xbankaccount (testé en 1er, filtre IBAN LTDSANDY) puis inventory (fallback). Permet de gérer les 2 types d'embeds (banque + inventaire) sur le même canal.
+> 💡 Le canal `#logs-ig` a maintenant **3 parsers en cascade** : factureCancel (testé en 1er, filtre `logType=cancel`+`category=xbill`), xbankaccount (filtre IBAN LTDSANDY), puis inventory (fallback). Permet de gérer 3 types d'embeds sur le même canal.
 
 > 🔍 **Outil de découverte** : Admin → bouton « 🔍 Découverte items FiveM » liste tous les noms d'items uniques observés pour aider au mapping nom commercial ↔ nom FiveM interne.
 

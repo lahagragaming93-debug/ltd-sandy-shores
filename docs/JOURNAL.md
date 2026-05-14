@@ -1,7 +1,39 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-14 — partie 2 (suppression Jeff Taylor, fix heures + DRH/Blake 0$, modal pompiste ravitailler+corriger, salaires fixes, Vente partenaire 2.1×)**
+> Dernière mise à jour : **2026-05-14 — partie 3 (factures annulées IG auto-détectées)**
+
+---
+
+## ✅ Session 2026-05-14 (partie 3) — Factures annulées IG
+
+**Demande patron** : sur la page perso de Kyle Jackson, 3 factures "à déclarer" alors qu'IG il les a supprimées (clients pas solvables). Vérifier si le bot Discord capte les suppressions et, sinon, permettre de les annuler avec justificatif.
+
+**Découverte** : Faab'Hook émet bien un embed `xbankaccount - cancel` dans `#logs-ig` (fields `logType=cancel`, `category=xbill`, `billId`, `cancellerPropername`, `fromPropername`…) à chaque suppression IG. Le parser `xbankaccount.js` ne traitait que `addmoney`/`removemoney` et ignorait `cancel`.
+
+**Implémentation** (4 volets) :
+1. **Nouveau parser** `discord-bot/parsers/factureCancel.js` : filtre `logType=cancel` + `category=xbill`, extrait `billId`, identité de l'annulateur (canceller), du vendeur (from) et du client (to)
+2. **Enregistrement** dans `discord-bot/index.js` en tête de `CH_LOGS_IG` (testé avant bankAccount/inventory)
+3. **Handler Firebase** `onFactureCancel` : retrouve `/ventes/fac-{billId}`, marque `annulee:true, cachee:true, motifAnnulation, annulateurNom, dateAnnulation`. Idempotent. Si la vente avait déjà été déclarée manuellement (source=manuelle ou remplaceeParId présent) → alerte direction `vente-annulee-apres-declaration` (potentielle fraude : vendeur a encaissé puis annulé IG)
+4. **UI RH** (`public/js/pages/rh.js`) : badge `❌ Annulée` avec motif au tooltip dans la table des factures, compteur séparé `X annulée(s) IG` dans le récap
+5. **Script backfill** `discord-bot/scripts/rattraper-factures-annulees.js` : scanne les N derniers messages de `#logs-ig`, applique le même marquage sur l'historique. Idempotent.
+
+**Côté employé** : la vente disparaît automatiquement du bloc "📌 Vente in-game à déclarer" (déjà filtré sur `!cachee`). Rien à faire manuellement.
+
+**Fichiers** :
+- `discord-bot/parsers/factureCancel.js` (nouveau)
+- `discord-bot/index.js` : import + parser ajouté en tête de `CH_LOGS_IG`
+- `firebase/functions/index.js` : `case 'factureCancel'` + handler `onFactureCancel`
+- `public/js/pages/rh.js` : badge ❌ Annulée + compteur
+- `discord-bot/scripts/rattraper-factures-annulees.js` (nouveau)
+- `public/guide/05-vendeur.md` : section "Si le client ne peut pas payer"
+- `public/guide/07-automatismes.md` : parser factureCancel documenté
+
+**Déploiement** :
+1. `cd discord-bot && npm install && railway up` (déploie bot avec nouveau parser)
+2. `cd firebase/functions && firebase deploy --only functions:botIngest` (handler cancel)
+3. `firebase deploy --only hosting` (UI RH + guide)
+4. `cd discord-bot && node scripts/rattraper-factures-annulees.js --apply --limit 2000` (rattrape Kyle + autres)
 
 ---
 

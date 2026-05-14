@@ -280,11 +280,12 @@ function ouvrirDetail(uid) {
     } else {
       const nbBot = mesVentes.filter(v => v.source !== 'manuelle').length;
       const nbMan = mesVentes.filter(v => v.source === 'manuelle').length;
-      const nbCac = mesVentes.filter(v => v.cachee).length;
+      const nbAnn = mesVentes.filter(v => v.annulee).length;
+      const nbCac = mesVentes.filter(v => v.cachee && !v.annulee).length;
       html += `
         <h4 class="mt-3" style="margin-bottom:6px;">📋 Factures de la semaine — comparaison bot / manuelle</h4>
         <p class="muted" style="font-size:0.78rem;margin:0 0 8px;">
-          ${mesVentes.length} factures totales · ${nbBot} bot · ${nbMan} manuelles · ${nbCac > 0 ? `<span class="alerte-fort">${nbCac} cachées (doublons)</span>` : '0 cachée'}
+          ${mesVentes.length} factures totales · ${nbBot} bot · ${nbMan} manuelles · ${nbCac > 0 ? `<span class="alerte-fort">${nbCac} cachées (doublons)</span>` : '0 cachée'}${nbAnn > 0 ? ` · <span class="alerte-fort">${nbAnn} annulée${nbAnn > 1 ? 's' : ''} IG</span>` : ''}
         </p>
         <div class="table-scroll" style="max-height:380px;">
         <table class="data" style="font-size:0.8rem;">
@@ -308,7 +309,11 @@ function ouvrirDetail(uid) {
               const cm = v.montantParticulier ?? v.montant ?? 0;
               const benefice = v.benefice != null ? money(v.benefice) : '<span class="muted">—</span>';
               let statut, trClass = '';
-              if (v.cachee) {
+              if (v.annulee) {
+                const motif = escapeHtml(v.motifAnnulation || 'Annulée');
+                statut = `<span class="badge warn" title="${motif}">❌ Annulée</span>`;
+                trClass = 'muted';
+              } else if (v.cachee) {
                 statut = `<span class="badge warn" title="Doublon caché — remplacée par #${v.remplaceeParFactureId || '?'}">⚠ Cachée</span>`;
                 trClass = 'muted';
               } else if (cm === 0 && (v.montant || 0) > 0) {
