@@ -602,6 +602,70 @@ async function onFacture(p) {
     }
   }
 
+  // 2026-05-14 : calcul AUTOMATIQUE du bénéfice pour les ventes de la DIRECTION
+  // et du RESPONSABLE VENTE.
+  // Contexte : Blake (patron), co-patronne, DRH, responsable vente ne déclarent
+  // pas systématiquement leurs ventes (salaire fixe pour direction, calculé sur
+  // CA pour responsable vente — pas sur le bénéfice). Mais leurs ventes génèrent
+  // du bénéfice pour le LTD qui doit apparaître en compta.
+  //
+  // Pour les vendeurs/pompistes, on garde benefice=null — ils DOIVENT déclarer
+  // manuellement (anti-fraude employés, commission calculée sur leur CA).
+  //
+  // Lookup item : si pas d'ID fourni par le bot, on cherche le produit par nom
+  // (insensible casse, contains both ways). Cache /produits une fois par appel.
+  let beneficeAutoDirection = null;
+  if (vendeurId && items.length > 0) {
+    try {
+      const userSnap = await db.collection('users').doc(vendeurId).get();
+      const role = userSnap.exists ? (userSnap.data().role || '') : '';
+      const isDirectionOuRV = ['patron', 'co-patron', 'admin-technique', 'drh', 'responsable-vente'].includes(role);
+      if (isDirectionOuRV) {
+        // Cache local des produits pour le lookup par nom
+        const prodsSnap = await db.collection('produits').get();
+        const prodsList = prodsSnap.docs.map(p => ({ id: p.id, ...p.data() }));
+        const prodById = {};
+        for (const p of prodsList) prodById[p.id] = p;
+
+        function findProduit(it) {
+          const pid = String(it.id || it.produitId || '').trim();
+          if (pid && prodById[pid]) return prodById[pid];
+          const nom = String(it.nom || '').toLowerCase().trim();
+          if (!nom) return null;
+          // Exact
+          for (const p of prodsList) {
+            if ((p.nom || '').toLowerCase().trim() === nom) return p;
+          }
+          // Contains (les deux sens)
+          for (const p of prodsList) {
+            const pNom = (p.nom || '').toLowerCase().trim();
+            if (!pNom) continue;
+            if (pNom.includes(nom) || nom.includes(pNom)) return p;
+          }
+          return null;
+        }
+
+        let coutTotal = 0;
+        let allResolus = true;
+        for (const it of items) {
+          const qte = Number(it.quantite || 0);
+          if (qte <= 0) { allResolus = false; continue; }
+          const prod = findProduit(it);
+          if (!prod) { allResolus = false; continue; }
+          coutTotal += qte * (Number(prod.prixAchat) || 0);
+        }
+        if (allResolus && coutTotal > 0) {
+          beneficeAutoDirection = Math.max(0, montantBot - coutTotal);
+          console.log(`[onFacture] Vente ${role} #${p.factureId} : bénéfice auto = ${montantBot} - ${coutTotal} = ${beneficeAutoDirection}$`);
+        } else if (items.length > 0) {
+          console.log(`[onFacture] Vente ${role} #${p.factureId} : bénéfice non calculé (items non résolvables : ${items.map(i => i.nom).join(', ')})`);
+        }
+      }
+    } catch (e) {
+      console.error('[onFacture] calcul benefice direction/RV error', e);
+    }
+  }
+
   // Detection doublon — 2 mecanismes :
   //   (a) MATCH EXPLICITE : declaration manuelle declaree AVEC factureBotRef==p.factureId
   //       → l'employe a explicitement clique "Declarer" sur cette facture bot
@@ -675,7 +739,11 @@ async function onFacture(p) {
     client: p.clientNom || '',
     montant: montantBot,
     montantParticulier: montantParticulierBot,
-    benefice: p.benefice ?? null,
+    // Bénéfice : si vendeur direction → auto-calculé depuis items+prixAchat
+    // (le patron Blake n'a pas à déclarer ses ventes, salaire fixe).
+    // Sinon → null, attente déclaration manuelle (anti-fraude employés).
+    benefice: p.benefice ?? beneficeAutoDirection ?? null,
+    beneficeSource: beneficeAutoDirection != null ? 'auto-direction' : (p.benefice != null ? 'bot-fourni' : null),
     raison: p.raison || '',
     paiement: p.paiement || '',
     items: p.items || [],

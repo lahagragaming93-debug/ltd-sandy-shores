@@ -57,14 +57,25 @@ function parseUserField(s) {
 
 function parseItems(raison) {
   if (!raison) return [];
-  const re = /(\d+)\s*[x×]\s*([^,;\n]+)/gi;
   const out = [];
+  // Pattern 1 : "Nx Item" ou "N x Item" (quantité d'abord) — format vendeurs particulier
+  // Ex : "5x Bonbon, 2 x Cola Zero"
+  const re1 = /(\d+)\s*[xX×]\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9\- ]+?)(?=,|;|$|\s+\d+\s*[xX×])/gi;
   let m;
-  while ((m = re.exec(raison))) {
-    out.push({
-      quantite: parseInt(m[1], 10),
-      nom: m[2].trim()
-    });
+  while ((m = re1.exec(raison))) {
+    out.push({ quantite: parseInt(m[1], 10), nom: m[2].trim() });
+  }
+  if (out.length > 0) return out;
+
+  // Pattern 2 : "Item xN" ou "Item Xn" (quantité après) — format direction (vente pro)
+  // Ex : "EAU PURIFIER X5000", "Corde x1500 vigneron", "lampe x29", "ferti x300"
+  const re2 = /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9\- ]*?)\s*[xX×]\s*(\d+)/g;
+  while ((m = re2.exec(raison))) {
+    const nom = m[1].trim();
+    const qte = parseInt(m[2], 10);
+    if (nom && qte > 0) {
+      out.push({ quantite: qte, nom });
+    }
   }
   return out;
 }
