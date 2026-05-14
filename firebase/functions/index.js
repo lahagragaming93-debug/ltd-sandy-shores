@@ -3067,16 +3067,29 @@ async function csvDepenses(usersByDiscord) {
 
 async function csvVentes(usersByDiscord) {
   const snap = await db.collection('ventes').orderBy('timestamp', 'desc').limit(2000).get();
-  const lines = [csvRow('Date', 'N° Facture', 'Vendeur', 'Client', 'Montant', 'Bénéfice', 'Paiement', 'Raison')];
+  // Nouveau format CSV :
+  //   - Filtre les ventes cachees (doublons bot remplaces par manuelle)
+  //     pour eviter d'afficher 2 lignes pour la meme vente.
+  //   - Ajoute une colonne "N° Facture IG" : permet de relier chaque ligne
+  //     du Sheet a la facture in-game pour audit IRS. Pour les ventes
+  //     manuelles (declaration site), on affiche factureBotRef = N° IG
+  //     d'origine. Pour les ventes bot non doublees (direction), c'est
+  //     directement factureId.
+  const lines = [csvRow('Date', 'N° Facture site', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Bénéfice', 'Paiement', 'Raison')];
   for (const d of snap.docs) {
     const v = d.data();
-    // Pour les ventes, on a souvent vendeurNom directement ; sinon fallback résolution
+    if (v.cachee) continue; // doublon — on n'affiche que la version visible
     const vendeur = v.vendeurNom || resolveUserLabel(v.vendeurDiscord, usersByDiscord);
+    // N° Facture IG : factureBotRef pour les manuelles, factureId pour les bot directes.
+    // Si une vente manuelle n'a pas de factureBotRef (cas direction qui declare sans
+    // reference bot), on laisse vide.
+    const factureIG = v.factureBotRef || (v.source === 'discord' ? v.factureId : '') || '';
     lines.push(csvRow(
       dateIso(v.timestamp),
       v.factureId || '',
+      factureIG,
       vendeur,
-      v.clientNom || '',
+      v.clientNom || v.client || '',
       v.montant || 0,
       v.benefice || 0,
       v.paiement || '',
