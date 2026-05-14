@@ -318,14 +318,9 @@ function buildDashboard(data) {
   }
   rows.push(['', '', '', '', '', '', '', '', '']);
 
-  // === FOOTER AUDIT IRS ===
-  rows.push(['🔎 AUDIT IRS — Où trouver le détail', null, null, null, null, null, null, null, null]);
-  rows.push(['📁 Onglet Depenses', 'Toutes les dépenses (date, raison, montant, type, déductible, fournisseur, validé patron, justification, utilisateur)', null, null, null, null, null, null, null]);
-  rows.push(['📁 Onglet Ventes', 'Toutes les recettes (date, n° facture, vendeur, client, montant, bénéfice, paiement, raison)', null, null, null, null, null, null, null]);
-  rows.push(['📁 Onglet Paies', 'Tous les salaires versés (date, payeur, bénéficiaire, montant, période)', null, null, null, null, null, null, null]);
-  rows.push(['📁 Onglet resumé', 'Récap par semaine clôturée (CA, charges, masse salariale, primes, bénéfice)', null, null, null, null, null, null, null]);
-  rows.push(['', '', '', '', '', '', '', '', '']);
-  rows.push(['💡 Dashboard rafraîchi via script Node.js depuis Firestore (source de vérité). Les onglets sources utilisent IMPORTDATA (cache ~1h, refresh manuel via menu LTD ou script force-refresh-sheet.js).', null, null, null, null, null, null, null, null]);
+  // === FOOTER AUDIT IRS (compact) ===
+  rows.push(['🔎 Audit IRS — Détail dans onglets :  📁 Depenses  ·  📁 Ventes  ·  📁 Paies  ·  📁 resumé', null, null, null, null, null, null, null, null]);
+  rows.push(['Dashboard généré depuis Firestore (source de vérité). Onglets sources : IMPORTDATA (refresh ~1h).', null, null, null, null, null, null, null, null]);
 
   return rows;
 }
@@ -630,43 +625,38 @@ function buildFormatRequests(sheetId, rows) {
     });
   }
 
-  // Footer AUDIT IRS
-  const idxAudit = rows.findIndex(r => String(r[0]).includes('🔎 AUDIT IRS'));
+  // Footer AUDIT IRS (compact, 2 lignes discrètes)
+  const idxAudit = rows.findIndex(r => String(r[0]).includes('🔎 Audit IRS'));
   if (idxAudit >= 0) {
+    // Ligne 1 : liste des onglets — fond gris clair, texte gris foncé, petite police
     reqs.push({ mergeCells: { range: { sheetId, startRowIndex: idxAudit, endRowIndex: idxAudit + 1, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
     reqs.push({
       repeatCell: {
         range: { sheetId, startRowIndex: idxAudit, endRowIndex: idxAudit + 1, startColumnIndex: 0, endColumnIndex: 9 },
-        cell: { userEnteredFormat: { backgroundColor: C.black, textFormat: { foregroundColor: C.gold, bold: true, fontSize: 12 }, horizontalAlignment: 'LEFT', padding: { top: 6, bottom: 6, left: 10 } } },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: C.grayL,
+            textFormat: { foregroundColor: C.gray, bold: false, fontSize: 9 },
+            horizontalAlignment: 'CENTER',
+            padding: { top: 3, bottom: 3 }
+          }
+        },
         fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
       }
     });
-    // 4 lignes onglets
-    for (let i = 1; i <= 4; i++) {
-      const r = idxAudit + i;
-      reqs.push({
-        repeatCell: {
-          range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 0, endColumnIndex: 2 },
-          cell: { userEnteredFormat: { backgroundColor: { red: 0.1, green: 0.1, blue: 0.1 }, textFormat: { foregroundColor: C.gold, bold: true }, padding: { left: 10 } } },
-          fields: 'userEnteredFormat(backgroundColor,textFormat,padding)'
-        }
-      });
-      reqs.push({ mergeCells: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 2, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
-      reqs.push({
-        repeatCell: {
-          range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 2, endColumnIndex: 9 },
-          cell: { userEnteredFormat: { backgroundColor: { red: 0.1, green: 0.1, blue: 0.1 }, textFormat: { foregroundColor: C.bone, fontSize: 9 } } },
-          fields: 'userEnteredFormat(backgroundColor,textFormat)'
-        }
-      });
-    }
-    // Note finale (dernière ligne)
-    const lastNote = rows.length - 1;
-    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: lastNote, endRowIndex: lastNote + 1, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
+    // Ligne 2 : note technique — encore plus discret
+    reqs.push({ mergeCells: { range: { sheetId, startRowIndex: idxAudit + 1, endRowIndex: idxAudit + 2, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
     reqs.push({
       repeatCell: {
-        range: { sheetId, startRowIndex: lastNote, endRowIndex: lastNote + 1, startColumnIndex: 0, endColumnIndex: 9 },
-        cell: { userEnteredFormat: { backgroundColor: C.bone2, textFormat: { foregroundColor: C.gray, fontSize: 9, italic: true }, horizontalAlignment: 'CENTER', padding: { top: 4, bottom: 4 } } },
+        range: { sheetId, startRowIndex: idxAudit + 1, endRowIndex: idxAudit + 2, startColumnIndex: 0, endColumnIndex: 9 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: C.white,
+            textFormat: { foregroundColor: C.gray, fontSize: 8, italic: true },
+            horizontalAlignment: 'CENTER',
+            padding: { top: 2, bottom: 2 }
+          }
+        },
         fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
       }
     });
