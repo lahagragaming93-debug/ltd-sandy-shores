@@ -19,7 +19,8 @@ const GUIDES = [
   { id: '06-pompiste',             file: 'guide/06-pompiste.md',             titre: '🚗 Pompiste',                   pourQui: 'Pompistes (Novice, Inter, Exp)' },
   { id: '07-automatismes',         file: 'guide/07-automatismes.md',         titre: '🤖 Automatismes',                pourQui: 'Tout le monde (technique)' },
   { id: '08-faq-depannage',        file: 'guide/08-faq-depannage.md',        titre: '❓ FAQ + Dépannage',             pourQui: 'Tout le monde' },
-  { id: '09-comptabilite',         file: 'guide/09-comptabilite.md',         titre: '📋 Comptabilité',                pourQui: 'Direction, Admin Tech, audit IRS' }
+  { id: '09-comptabilite',         file: 'guide/09-comptabilite.md',         titre: '📋 Comptabilité',                pourQui: 'Direction, Admin Tech, audit IRS' },
+  { id: '10-tte-reference',        file: 'guide/10-tte-reference.md',        titre: '📜 Référence T.T.E.',            pourQui: 'Direction, audit IRS, juriste' }
 ];
 
 // Mapping rôle → guide à pré-sélectionner

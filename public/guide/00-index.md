@@ -1,7 +1,7 @@
 # 📖 Guide complet — LTD Sandy Shores
 
 > Le manuel d'utilisation officiel de la plateforme de gestion du LTD.
-> Dernière mise à jour : **2026-05-10** — ajout page **Revenus carburant** (Finance)
+> Dernière mise à jour : **2026-05-14** — ajout fichier **10 (référence T.T.E. intégrale)**
 
 Bienvenue. Ce guide est organisé **par rôle** : chaque employé n'a besoin de lire que la partie qui le concerne. La direction lit tout.
 
@@ -39,6 +39,7 @@ Tu peux aussi tout lire si tu veux comprendre comment marche l'entreprise.
 | **[07-automatismes.md](07-automatismes.md)** | Bot Discord, clôture hebdo, alertes — comment ça marche | Tout le monde |
 | **[08-faq-depannage.md](08-faq-depannage.md)** | « Je vois pas mes ventes », « Ma paie est fausse », etc. | Tout le monde |
 | **[09-comptabilite.md](09-comptabilite.md)** | Compta complète : accès Sheet, saisies, clôture, Dashboard, partage IRS | Direction, Admin Tech, audit IRS |
+| **[10-tte-reference.md](10-tte-reference.md)** | **Référence T.T.E. intégrale** (12 chapitres) — Code des Taxes, du Travail & des Entreprises avec annotations LTD (Secteur 2) | Direction, audit IRS, juriste |
 
 ---
 
