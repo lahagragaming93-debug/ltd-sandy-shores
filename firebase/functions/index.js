@@ -1507,15 +1507,27 @@ export const pompisteRavitaillerManuel = onRequest({
       return res.status(403).json({ error: 'Compte bloque (3 avertissements actifs). Contacte la direction pour qu\'elle en retire un.' });
     }
 
-    const { stationId, bidons } = req.body || {};
+    const { stationId, bidons, litres } = req.body || {};
     if (!stationId) return res.status(400).json({ error: 'Missing stationId' });
-    const nbBidons = Number(bidons);
-    if (!Number.isFinite(nbBidons) || nbBidons <= 0 || !Number.isInteger(nbBidons)) {
-      return res.status(400).json({ error: 'bidons doit etre un entier > 0' });
-    }
 
     const BIDON_L = 15;
-    const litresDemandes = nbBidons * BIDON_L;
+    let nbBidons, litresDemandes;
+    // Mode "litres" (depuis Mon espace pompiste 2026-05-14) : prioritaire si fourni
+    if (litres != null) {
+      const nbLitres = Number(litres);
+      if (!Number.isFinite(nbLitres) || nbLitres <= 0) {
+        return res.status(400).json({ error: 'litres doit etre un nombre > 0' });
+      }
+      litresDemandes = nbLitres;
+      nbBidons = nbLitres / BIDON_L; // peut etre decimal (ex: 47L = 3.13 bidons)
+    } else {
+      // Mode legacy "bidons" (depuis page Stations)
+      nbBidons = Number(bidons);
+      if (!Number.isFinite(nbBidons) || nbBidons <= 0 || !Number.isInteger(nbBidons)) {
+        return res.status(400).json({ error: 'bidons doit etre un entier > 0' });
+      }
+      litresDemandes = nbBidons * BIDON_L;
+    }
 
     const stRef = db.collection('stations').doc(stationId);
     const stSnap = await stRef.get();
@@ -1540,7 +1552,7 @@ export const pompisteRavitaillerManuel = onRequest({
         timestamp: FieldValue.serverTimestamp()
       });
       return res.status(400).json({
-        error: `Impossible : la station n'a que ${placeRestante} L libres (${bidonsMax} bidons max). Tu en as saisi ${nbBidons}.`,
+        error: `Impossible : la station n'a que ${placeRestante} L libres (${bidonsMax} bidons max). Tu as saisi ${litresDemandes} L.`,
         bidonsMax, placeRestante, stockAvant, stockMax
       });
     }

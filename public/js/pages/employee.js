@@ -72,10 +72,38 @@ const html = `
           ? '<button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">📝 Déclarer une vente</button>'
           : ''}
         ${isPompiste(profile.role)
-          ? `<a class="btn btn-primary" href="stations.html" style="font-size:1.05rem;">🛢 Ravitailler une station</a>
+          ? `<button class="btn btn-primary" id="btn-ravitailler" style="font-size:1.05rem;">🛢 Ravitailler une station</button>
              <a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">🪖 Déclarer des caoutchoucs</a>`
           : ''}
       </div>
+
+      <!-- Modal ravitaillement (pompiste) — ouvre la station + saisie litres -->
+      ${isPompiste(profile.role) ? `
+        <div id="modal-ravit" class="modal-backdrop hidden">
+          <div class="modal" style="max-width:540px;">
+            <h3>🛢 Ravitailler une station</h3>
+            <div class="alert info mb-2" style="font-size:0.82rem;">
+              <span class="icon">ℹ</span>
+              <span>Choisis la station que tu viens de ravitailler et saisis le nombre de <strong>litres ajoutés</strong>.
+              Le stock de la station se met à jour automatiquement.</span>
+            </div>
+            <label>Station <span style="color:var(--color-blood-light);">*</span></label>
+            <select id="ravit-station" style="width:100%;">
+              <option value="">— Sélectionne une station —</option>
+            </select>
+            <div id="ravit-station-info" class="muted" style="font-size:0.78rem;margin:4px 0 8px;"></div>
+
+            <label>Nombre de litres ajoutés <span style="color:var(--color-blood-light);">*</span></label>
+            <input type="number" id="ravit-litres" min="1" step="1" placeholder="Ex : 75" />
+            <div id="ravit-preview" class="muted" style="font-size:0.78rem;margin:4px 0 0;">1 bidon = 15 L</div>
+
+            <div class="row mt-3">
+              <button class="btn btn-primary" id="btn-save-ravit">Valider le ravitaillement</button>
+              <button class="btn btn-ghost" id="btn-cancel-ravit">Annuler</button>
+            </div>
+          </div>
+        </div>
+      ` : ''}
     ` : ''}
   </div>
 
@@ -344,8 +372,13 @@ if (isVendeur(profile.role)) {
     </div>
   `;
 
+  // Stations en cache local (mises a jour en temps reel) — utilisees pour
+  // l'affichage et pour peupler la modal Ravitailler.
+  let stationsCache = [];
+
   // Listener temps reel sur les stations
   listenStations(stations => {
+    stationsCache = stations;
     const div = document.getElementById('pompiste-stations');
     if (!div) return;
     if (stations.length === 0) {
@@ -381,6 +414,93 @@ if (isVendeur(profile.role)) {
       `;
     }).join('');
   });
+
+  // === Modal Ravitailler une station ===
+  const BIDON_L = 15;
+  const btnRavit  = document.getElementById('btn-ravitailler');
+  const modalRav  = document.getElementById('modal-ravit');
+  const selStat   = document.getElementById('ravit-station');
+  const inLitres  = document.getElementById('ravit-litres');
+  const elInfo    = document.getElementById('ravit-station-info');
+  const elPrev    = document.getElementById('ravit-preview');
+
+  function refreshStationInfo() {
+    const sid = selStat.value;
+    const s = stationsCache.find(x => x.id === sid);
+    if (!s) { elInfo.textContent = ''; refreshPreview(); return; }
+    const libre = Math.max(0, (s.stockMax || 0) - (s.stockActuel || 0));
+    elInfo.innerHTML = `Stock actuel : <strong>${num(s.stockActuel || 0)} L</strong> / ${num(s.stockMax || 0)} L
+      · <strong>${num(libre)} L libres</strong> (${Math.floor(libre / BIDON_L)} bidons max)`;
+    refreshPreview();
+  }
+  function refreshPreview() {
+    const sid = selStat.value;
+    const s = stationsCache.find(x => x.id === sid);
+    const l = Number(inLitres.value) || 0;
+    if (l <= 0) { elPrev.innerHTML = '1 bidon = 15 L'; elPrev.style.color = ''; return; }
+    const bidons = (l / BIDON_L);
+    let html = `≈ <strong>${bidons.toFixed(2)}</strong> bidons (1 bidon = 15 L)`;
+    if (s) {
+      const apres = (s.stockActuel || 0) + l;
+      const max = s.stockMax || 0;
+      if (max > 0 && apres > max) {
+        const libre = Math.max(0, max - (s.stockActuel || 0));
+        html = `⚠ <strong>Dépassement</strong> : la station n'accepte que ${num(libre)} L libres. Saisis moins.`;
+        elPrev.style.color = 'var(--color-blood-light)';
+      } else {
+        html += ` · stock après : <strong>${num(apres)} L</strong>${max ? ` / ${num(max)} L` : ''}`;
+        elPrev.style.color = '';
+      }
+    }
+    elPrev.innerHTML = html;
+  }
+
+  if (btnRavit) {
+    btnRavit.addEventListener('click', () => {
+      // Peuple le select avec les stations actuelles
+      selStat.innerHTML = '<option value="">— Sélectionne une station —</option>' +
+        stationsCache.map(s => {
+          const libre = Math.max(0, (s.stockMax || 0) - (s.stockActuel || 0));
+          return `<option value="${s.id}">${escapeHtml(s.nom)} (${num(s.stockActuel || 0)}/${num(s.stockMax || 0)} L)</option>`;
+        }).join('');
+      inLitres.value = '';
+      elInfo.textContent = '';
+      elPrev.innerHTML = '1 bidon = 15 L';
+      elPrev.style.color = '';
+      modalRav.classList.remove('hidden');
+      setTimeout(() => selStat.focus(), 50);
+    });
+    selStat.addEventListener('change', refreshStationInfo);
+    inLitres.addEventListener('input', refreshPreview);
+    document.getElementById('btn-cancel-ravit').addEventListener('click', () => {
+      modalRav.classList.add('hidden');
+    });
+    document.getElementById('btn-save-ravit').addEventListener('click', async () => {
+      const stationId = selStat.value;
+      const litres = Number(inLitres.value);
+      if (!stationId) return alert('Sélectionne une station.');
+      if (!Number.isFinite(litres) || litres <= 0) return alert('Litres invalide.');
+      const btn = document.getElementById('btn-save-ravit');
+      btn.disabled = true; btn.textContent = 'Envoi…';
+      try {
+        const { auth } = await import('../firebase-config.js');
+        const idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteRavitaillerManuel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ stationId, litres })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+        modalRav.classList.add('hidden');
+        // Recharge la page pour rafraichir KPIs + barres + liste stations
+        window.location.reload();
+      } catch (e) {
+        alert('Échec : ' + (e?.message || 'erreur inattendue.'));
+        btn.disabled = false; btn.textContent = 'Valider le ravitaillement';
+      }
+    });
+  }
 } else {
   // Direction / Resp / DRH / Admin Tech : salaire FIXE, mais peuvent aussi
   // vendre / ravitailler. On affiche leurs stats personnelles a titre INFO
