@@ -632,11 +632,15 @@ async function onFacture(p) {
           if (pid && prodById[pid]) return prodById[pid];
           const nom = String(it.nom || '').toLowerCase().trim();
           if (!nom) return null;
-          // Exact
+          // Alias explicites définis sur le produit (priorité)
+          for (const p of prodsList) {
+            if (Array.isArray(p.aliases) && p.aliases.some(a => String(a).toLowerCase().trim() === nom)) return p;
+          }
+          // Exact sur nom
           for (const p of prodsList) {
             if ((p.nom || '').toLowerCase().trim() === nom) return p;
           }
-          // Contains (les deux sens)
+          // Contains (les deux sens) — fallback fuzzy
           for (const p of prodsList) {
             const pNom = (p.nom || '').toLowerCase().trim();
             if (!pNom) continue;

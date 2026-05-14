@@ -44,6 +44,10 @@ function findProduit(it) {
   if (pid && prodById[pid]) return prodById[pid];
   const nom = String(it.nom || '').toLowerCase().trim();
   if (!nom) return null;
+  // Alias explicites
+  for (const p of prodsList) {
+    if (Array.isArray(p.aliases) && p.aliases.some(a => String(a).toLowerCase().trim() === nom)) return p;
+  }
   for (const p of prodsList) if ((p.nom || '').toLowerCase().trim() === nom) return p;
   for (const p of prodsList) {
     const pNom = (p.nom || '').toLowerCase().trim();
