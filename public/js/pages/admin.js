@@ -142,6 +142,7 @@ const html = `
         <div>
           <label>Type de match</label>
           <select id="fournisseur-matchtype">
+            <option value="account-id-cible">⭐ Account ID compte cible (ex: 67978 pour HDM — recommandé)</option>
             <option value="compte-cible">Nom du compte cible (HDM, Dynasty 8…)</option>
             <option value="boutique-id">Numéro boutique (Achat boutique N°XXX)</option>
             <option value="facture-id">Numéro facture (Paiement facture N°XXXXXXX)</option>

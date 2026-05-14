@@ -33,17 +33,28 @@ export function parseXbankaccountEmbed(msg) {
   else if (title.includes('removemoney') || title.includes('withdraw')) type = 'remove';
   else return null; // autres types ignorés
 
-  // Filtre IBAN : uniquement le compte LTD
+  // 2026-05-14 Phase 3 : on capte 2 types d'embeds :
+  //   1. iban == LTDSANDY → toutes les transactions LTD (comportement standard)
+  //   2. iban != LTDSANDY MAIS type=add ET reason contient "Paiement facture N°"
+  //      → c'est le destinataire d'une de NOS dépenses payée par facture.
+  //      Permet l'identification automatique de HDM/Dynasty 8/etc. via leur
+  //      accountId, sans besoin de mémoriser chaque N° de facture.
   const iban = (getField(e, 'iban') || '').trim();
-  if (iban !== IBAN_LTD) return null;
+  const accountId = getField(e, 'accountId') || getField(e, 'account id') || '';
+  const before    = getMoney(getField(e, 'before'), true);
+  const amount    = getMoney(getField(e, 'amount'), true);
+  const after     = getMoney(getField(e, 'after'),  true);
+  const reason    = getField(e, 'reason') || '';
 
-  // Extraction des champs
-  const accountId  = getField(e, 'accountId') || getField(e, 'account id') || '';
-  // precise=true : conserve les centimes pour audit comptable exact
-  const before     = getMoney(getField(e, 'before'), true);
-  const amount     = getMoney(getField(e, 'amount'), true);
-  const after      = getMoney(getField(e, 'after'),  true);
-  const reason     = getField(e, 'reason') || '';
+  // Détection paiement de facture reçu par un fournisseur (côté destinataire)
+  const factureMatch = reason.match(/Paiement\s+facture\s*N[°º]?\s*(\d+)/i);
+  const billIdRecu = type === 'add' && factureMatch ? factureMatch[1] : null;
+
+  if (iban !== IBAN_LTD) {
+    // Compte non-LTD : on ne capte QUE si c'est une réception de facture
+    // (sinon trop de bruit avec toutes les transactions RP de l'État).
+    if (!billIdRecu) return null;
+  }
 
   // Champs émetteur / destinataire :
   //  - Pour les paiements de facture (cancel embed), Faab'Hook fournit
@@ -75,6 +86,10 @@ export function parseXbankaccountEmbed(msg) {
     montant: amount,
     raison: reason,
     fromDiscord, fromName, fromPropername,
-    toDiscord, toName, toPropername
+    toDiscord, toName, toPropername,
+    callerName, callerProperName, callerDiscord,
+    // Phase 3 : marqueur explicite pour les paiements reçus par un fournisseur
+    billIdRecu,
+    estLTD: iban === IBAN_LTD
   };
 }

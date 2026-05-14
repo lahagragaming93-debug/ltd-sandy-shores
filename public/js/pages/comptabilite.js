@@ -179,6 +179,7 @@ const html = `
           <input type="text" id="memoriser-label" placeholder="Ex : HDM (Heavy Duty Motors)" />
           <label style="font-size:0.8rem;margin-top:4px;">Type de match</label>
           <select id="memoriser-matchtype">
+            <option value="account-id-cible">⭐ Account ID compte cible (ex: 67978 pour HDM — recommandé)</option>
             <option value="compte-cible">Nom du compte cible (ex: HDM, Dynasty 8)</option>
             <option value="boutique-id">Numéro de boutique (ex: 263)</option>
             <option value="facture-id">Numéro de facture (ex: 1910769)</option>
@@ -448,7 +449,11 @@ function ouvrirModalReclasser(dep) {
   const memType  = document.getElementById('memoriser-matchtype');
   const memValue = document.getElementById('memoriser-matchvalue');
   memLabel.value = dep.fournisseurLabel || dep.compteCibleNom || '';
-  if (dep.compteCibleNom) {
+  if (dep.compteCibleAccountId) {
+    // Phase 3 — le plus fiable : accountId unique du destinataire
+    memType.value = 'account-id-cible';
+    memValue.value = dep.compteCibleAccountId;
+  } else if (dep.compteCibleNom) {
     memType.value = 'compte-cible';
     memValue.value = dep.compteCibleNom;
   } else if (dep.boutiqueId) {

@@ -68,6 +68,9 @@ function matchesFournisseurPattern(pat, dep, raison) {
       if (!dep.compteCibleNom) return false;
       const compte = String(dep.compteCibleNom).toLowerCase();
       return valeurs.some(v => compte.includes(v.toLowerCase()));
+    case 'account-id-cible':
+      if (!dep.compteCibleAccountId) return false;
+      return valeurs.includes(String(dep.compteCibleAccountId));
     default:
       return false;
   }

@@ -725,6 +725,7 @@ async function onDepense(p) {
   // sens inverse via crossRefBanqueDepense lors de onBankAccount.
   let compteCibleNom = '';
   let compteCibleAccountId = '';
+  let compteCibleIban = '';
   try {
     const ref = await lookupCompteCibleDepuisBanque(Number(p.montant) || 0);
     if (ref) {
@@ -733,6 +734,24 @@ async function onDepense(p) {
     }
   } catch (e) {
     console.error('[onDepense] lookupCompteCible error', e.message);
+  }
+
+  // Phase 3 : si l'embed addmoney destinataire est déjà arrivé en avance,
+  // on récupère l'accountId destinataire depuis /paiementsExternesEnAttente.
+  if (!compteCibleAccountId && p.factureId) {
+    try {
+      const enAttenteSnap = await db.collection('paiementsExternesEnAttente')
+        .doc(String(p.factureId)).get();
+      if (enAttenteSnap.exists) {
+        const ea = enAttenteSnap.data();
+        compteCibleAccountId = ea.accountIdDestinataire || '';
+        compteCibleIban = ea.ibanDestinataire || '';
+        // On supprime l'entrée (best-effort)
+        await enAttenteSnap.ref.delete().catch(() => {});
+      }
+    } catch (e) {
+      console.error('[onDepense] lookupPaiementEnAttente error', e.message);
+    }
   }
 
   // 2026-05-14 : auto-classification par mapping fournisseurs.
@@ -744,7 +763,7 @@ async function onDepense(p) {
   // Le patron reste décisionnaire final (cf. feedback_tte_decision_patron) :
   // les champs `deductible` et `type` reflètent la SUGGESTION ; le patron
   // peut override via reclasserDepense qui pose `valideParPatron: true`.
-  const payloadPourMatch = { ...p, compteCibleNom };
+  const payloadPourMatch = { ...p, compteCibleNom, compteCibleAccountId };
   let fournisseur = null;
   try {
     const cfgSnap = await db.collection('config').doc('global').get();
@@ -796,6 +815,7 @@ async function onDepense(p) {
     factureId: p.factureId || null,
     compteCibleNom: compteCibleNom || null,
     compteCibleAccountId: compteCibleAccountId || null,
+    compteCibleIban: compteCibleIban || null,
     // Suggestion auto (initiale)
     type: categorieSuggeree,
     deductible: deductibleSuggere,
@@ -846,8 +866,83 @@ function matchesFournisseurPattern(pat, payload, raison) {
       if (!payload.compteCibleNom) return false;
       const compte = String(payload.compteCibleNom).toLowerCase();
       return valeurs.some(v => compte.includes(v.toLowerCase()));
+    case 'account-id-cible':
+      // Phase 3 : payload doit contenir compteCibleAccountId (résolu via
+      // enrichirDepensePaiementFacture quand le bot capte un addmoney côté
+      // destinataire dans #logs-ig). Match exact sur l'accountId numérique.
+      // C'est le matchType le plus FIABLE pour identifier un fournisseur car
+      // l'accountId est unique et stable (ex : HDM = 67978).
+      if (!payload.compteCibleAccountId) return false;
+      return valeurs.includes(String(payload.compteCibleAccountId));
     default:
       return false;
+  }
+}
+
+// Phase 3 — Enrichit une dépense LTD avec l'accountId destinataire identifié
+// via le log addmoney côté fournisseur (capté hors iban LTDSANDY).
+// Cross-réf par billId (N° de facture présent dans la raison des 2 logs).
+async function enrichirDepensePaiementFacture({ billId, accountIdDestinataire, ibanDestinataire }) {
+  if (!billId) return;
+
+  // Cherche la dépense LTD avec ce factureId
+  const depSnap = await db.collection('depenses')
+    .where('factureId', '==', String(billId))
+    .limit(5)
+    .get();
+
+  if (depSnap.empty) {
+    // Pas de dépense LTD pour ce billId — peut arriver si le log addmoney
+    // arrive AVANT le log #depenses (race condition). On stocke en attente
+    // pour traitement lors de l'arrivée de la dépense (best-effort).
+    await db.collection('paiementsExternesEnAttente').doc(String(billId)).set({
+      billId: String(billId),
+      accountIdDestinataire,
+      ibanDestinataire,
+      timestamp: FieldValue.serverTimestamp()
+    });
+    return;
+  }
+
+  for (const d of depSnap.docs) {
+    const dep = d.data();
+    if (dep.valideParPatron === true) continue; // patron a tranché, on touche pas
+    if (dep.compteCibleAccountId) continue; // déjà enrichi
+
+    // Tente le mapping avec le nouvel accountId
+    const payloadPourMatch = {
+      ...dep,
+      compteCibleAccountId: accountIdDestinataire,
+      compteCibleNom: ibanDestinataire
+    };
+    let fournisseur = null;
+    try {
+      const cfgSnap = await db.collection('config').doc('global').get();
+      const patterns = cfgSnap.exists ? (cfgSnap.data().fournisseurs || []) : [];
+      for (const pat of patterns) {
+        if (matchesFournisseurPattern(pat, payloadPourMatch, dep.raison || '')) {
+          fournisseur = pat;
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('[enrichirDepensePaiementFacture] lookup mapping error', e);
+    }
+
+    const update = {
+      compteCibleAccountId: accountIdDestinataire,
+      compteCibleIban: ibanDestinataire
+    };
+    if (fournisseur) {
+      update.type = fournisseur.categorie;
+      update.deductible = !!fournisseur.deductible;
+      update.categorieSuggeree = fournisseur.categorie;
+      update.deductibleSuggere = !!fournisseur.deductible;
+      update.fournisseurPatternId = fournisseur.id;
+      update.fournisseurLabel = fournisseur.label;
+      update.raisonClassification = fournisseur.raisonClassification || '';
+    }
+    await d.ref.set(update, { merge: true });
   }
 }
 
@@ -961,6 +1056,22 @@ async function crossRefBanqueDepense({ montant, toPropername, toDiscord, account
 // de la pompe côté FiveM. On crée aussi un doc /redistributions pour qu'elle
 // apparaisse dans /revenus-carburant. Mapping N° → station via /config.fivemPompesMap.
 async function onBankAccount(p) {
+  // Phase 3 : si on reçoit un addmoney d'un fournisseur (iban != LTDSANDY)
+  // avec billIdRecu, on enrichit directement la dépense LTD correspondante
+  // et on ne stocke RIEN dans /banqueLtd (ce n'est pas notre compte).
+  if (!p.estLTD && p.billIdRecu) {
+    try {
+      await enrichirDepensePaiementFacture({
+        billId: p.billIdRecu,
+        accountIdDestinataire: p.accountId || '',
+        ibanDestinataire: p.iban || ''
+      });
+    } catch (e) {
+      console.error('[onBankAccount] enrichirDepense error', e.message);
+    }
+    return;
+  }
+
   const docData = {
     type: p.type || 'add',          // 'add' (recette) | 'remove' (sortie)
     iban: p.iban || '',
