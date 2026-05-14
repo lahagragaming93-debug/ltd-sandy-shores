@@ -1153,11 +1153,30 @@ document.getElementById('btn-save-fournisseur')?.addEventListener('click', async
     toastError('Label et valeur à matcher requis');
     return;
   }
-  const id = originalId || label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  // Récupère la config AVANT de décider l'id : si on a modifié un pattern
+  // existant ET changé son label, c'est qu'on veut créer un nouveau pattern
+  // (pas écraser l'ancien). Régénère l'id depuis le nouveau label dans ce cas.
+  const cfg = await getConfig();
+  const patterns = cfg.fournisseurs || [];
+  let id;
+  if (originalId) {
+    const originalPattern = patterns.find(p => p.id === originalId);
+    const originalLabel = originalPattern?.label || '';
+    if (label !== originalLabel) {
+      // Le label a changé → nouveau pattern, nouvel id
+      id = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      // Si collision avec un autre id existant, suffix horodaté
+      if (patterns.some(p => p.id === id)) id = `${id}-${Date.now()}`;
+    } else {
+      id = originalId; // édition simple, conserver l'id
+    }
+  } else {
+    id = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (patterns.some(p => p.id === id)) id = `${id}-${Date.now()}`;
+  }
 
   try {
-    const cfg = await getConfig();
-    const patterns = cfg.fournisseurs || [];
     const idx = patterns.findIndex(p => p.id === id);
     const nouveauPattern = {
       id, label, matchType, matchValue, categorie, deductible,
