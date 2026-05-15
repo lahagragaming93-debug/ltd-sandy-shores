@@ -228,7 +228,89 @@ Toutes ces colonnes sont exportées dans le CSV Google Sheets pour les contrôle
 
 ---
 
-## 🔗 5. Comment partager au contrôleur IRS
+## 🔒 6. Dashboard Google Sheet — bouton Rafraîchir + Clôture semaine
+
+Depuis 2026-05-15, le Dashboard du Sheet Compta est **généré côté serveur Node.js** (visuel comptable pro). 2 boutons en haut de la page Comptabilité (direction uniquement) :
+
+### 🔄 Bouton Rafraîchir Dashboard
+
+- Quand tu cliques, le serveur recalcule **tous les chiffres** depuis Firestore (CA, charges, masse salariale, bénéfice, impôt, subventions, trésorerie, engagements)
+- Réécrit l'onglet **📊 Dashboard** du Sheet avec le visuel pro
+- Latence : ~5-10 sec
+- Toast de confirmation
+
+→ Utilise quand tu veux voir les derniers chiffres figés dans le Sheet (sinon le Dashboard est régénéré automatiquement chaque heure via cron `dashboardKeepAlive`, mais seulement si écrasé par un Apps Script).
+
+### 🔒 Bouton Clôturer la semaine
+
+**Disponible uniquement après dimanche 23h59** (la semaine doit être terminée).
+
+Workflow :
+1. **D'abord** : tu fais ta déclaration fiscale sur le site IRS (externe au LTD)
+2. **Ensuite** : reviens ici, clique 🔒 → modale s'ouvre
+3. **Coche** : ✅ "J'ai soumis ma déclaration fiscale sur le site IRS"
+4. Optionnel : note de clôture (ex: "Semaine standard, RAS")
+5. Clique **🔒 Clôturer définitivement**
+
+→ Le serveur fige les chiffres de la semaine écoulée dans `/semaines/{date-lundi}` avec :
+- CA, dépenses, charges déductibles, masse salariale, bénéfice net
+- `statut: 'cloturee-manuelle'`
+- `confirmationIRS: true`
+- `cloturePar` (ton uid + nom)
+- `dateClotureManuelle` (timestamp)
+- `noteCloture` (si renseignée)
+
+Le Dashboard se rafraîchit automatiquement après clôture.
+
+### Sécurité (Art. 4-1.2)
+
+Le serveur re-vérifie côté Cloud Function :
+- Tu es bien direction (patron / co-patron / admin technique)
+- On est bien après dimanche 23h59 de la semaine à clôturer
+- `confirmationIRS === true` dans le payload
+
+Donc impossible de bidouiller le front pour clôturer avant ou sans confirmation IRS.
+
+---
+
+## 📋 7. Engagements de remboursement (dettes, subventions)
+
+Depuis 2026-05-15, le LTD a une collection `/engagements` qui suit toutes les dettes à rembourser : subventions remboursables, dettes fournisseurs, contrats leasing, etc.
+
+### Ce que tu vois sur le Dashboard du Sheet
+
+Section **📋 ENGAGEMENTS DE REMBOURSEMENT** avec tableau :
+- Bénéficiaire (ex : Governor of San Andreas)
+- Objet (ex : Subvention Essence à rembourser)
+- Montant initial / Remboursé / Restant
+- Échéance + jours restants (dynamique)
+- Statut couleur : 🟢 OK / 🟠 ÉCHÉANCE PROCHE (≤ 7j) / 🔴 EN RETARD
+
+### Gérer depuis la page Admin
+
+Section **📋 Engagements de remboursement** :
+- ➕ **Ajouter** un engagement (modale avec bénéficiaire, signataire, objet, type, montant, dates, notes)
+- ✏ **Éditer** (modifier montant remboursé, statut, dates, notes)
+- 🗑 **Supprimer** (confirmation critique)
+- 💰 **Ajouter un remboursement manuel** (pour les régularisations exceptionnelles)
+- 📜 **Historique** des remboursements visible automatiquement dans la modale
+
+### Auto-détection remboursement
+
+Quand une dépense Discord arrive avec une raison contenant `remboursement` + un de ces mots-clés :
+- `subvention` / `engagement` / `essence` / `dette` / `gouvernement` / `irs`
+
+→ Le système **décrémente automatiquement** le `montantRestant` de l'engagement correspondant. Pas besoin d'aller dans Admin.
+
+### Alertes automatiques
+
+Cron quotidien à **9h heure Paris** (`cronAlertesEngagements`) :
+- **7 jours avant échéance** → alerte orange dans la cloche 🔔 + page Admin
+- **Le jour J et après** → alerte rouge critique + statut bascule en `defaillant`
+
+---
+
+## 🔗 8. Comment partager au contrôleur IRS
 
 ### Procédure (1 min)
 

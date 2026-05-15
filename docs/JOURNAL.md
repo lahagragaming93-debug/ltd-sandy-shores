@@ -1,7 +1,82 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-14 — partie 4 (mapping fournisseurs + auto-classification dépenses)**
+> Dernière mise à jour : **2026-05-15 (Dashboard Sheet pro + auto-refresh + engagements + alertes échéance + nettoyage repo)**
+
+---
+
+## ✅ Session 2026-05-15 — Dashboard Sheet pro + Engagements + Cleanup
+
+**Demandes patron successives** :
+
+### Dashboard Google Sheet — refonte pro pilotée par Node.js
+1. **Section Subventions & Trésorerie** ajoutée (3 KPIs : reçues / banque / opérationnel)
+2. **Section Engagements de remboursement** ajoutée (tableau avec compteur jours restants + statuts couleur)
+3. **Section Conformité TTE** simplifiée (3 lignes : masse salariale + déclaration + paiement impôts, statut dynamique selon jour de la semaine)
+4. **Footer Audit IRS** réduit (2 lignes discrètes au lieu de 6 noires flashy)
+5. **Heure timezone Paris** corrigée (`toLocaleString({ timeZone: 'Europe/Paris' })`)
+6. **Centrage des données** dans Dashboard + onglets Depenses/Ventes/Paies (sauf Raison/Justification = gauche)
+7. **Onglet Ventes filtré** : uniquement factures IG (source=discord, non annulées), 1 seul N° par ligne (N° Facture IG), pas de bénéfice
+8. **Colonne Raison du Dashboard** : affiche `fournisseurLabel` (HDM) au lieu du N° technique facture
+
+### Cloud Functions Dashboard
+- `refaire-dashboard-pro.js` (CLI) refacto en `lib/dashboard-core.mjs` exportable
+- `refreshDashboardNow` (HTTP onRequest, auth direction) — bouton 🔄 page Compta
+- `cloturerSemaine` (HTTP onRequest, auth direction) — bouton 🔒 page Compta avec confirmation IRS + verif date dimanche 23h59+
+- `dashboardKeepAlive` (cron every 1 minute) — check intégrité cellule A1 + restaure SI écrasé par Apps Script (sinon skip silencieux)
+- Suppression du cron `refreshDashboardCron` (every minute invasif visuellement)
+- Service account Firebase partagé en Éditeur sur le Sheet par le patron
+- Secret `DASHBOARD_SA_KEY` stocké via `firebase functions:secrets:set` (clé JSON du SA)
+
+### Bénéfice auto direction
+- Dans `onFacture` : si vendeur direction/responsable-vente, calcul bénéfice depuis items + prixAchat
+- Parser `facture.js` enrichi : capte 2 patterns d'items ("Nx Item" et "Item xN")
+- Système d'aliases sur produits : `aliases: ['eau purifier', 'EAU PURIFIER', ...]` (script `maj-produits-alias.js`)
+- Eau Purifier : `pourPro: true` (revente pros, 0.5$/1.25$, bénéfice 0.75$/unité)
+- Bouteille d'eau : `pourPro: false` (vente particulier comptoir, commissionnable vendeurs)
+
+### Engagements de remboursement
+- Collection `/engagements` avec contrat Abraham THORPE (300 000$ essence à rembourser avant 11/06/2026, contrat total 790k$ dont Brickadeta+Jogger non remboursables, Pounder 3 refusé)
+- Cloud Function `gererEngagement` (HTTP, auth direction) : CRUD complet (list/create/update/delete/rembourser)
+- Auto-détection remboursement dans `onDepense` (raison contient "remboursement subvention/essence/dette") → décrémente montantRestant
+- Cron quotidien `cronAlertesEngagements` à 9h Paris : alerte ⚠ 7j avant échéance, 🔴 critical + statut='defaillant' si retard
+- Section Admin "📋 Engagements de remboursement" : tableau + modale CRUD + modale remboursement manuel + historique
+
+### Fraude potentielle Teodomiro
+- Fix bug critique `onFacture` : dédup ne re-lie plus une déclaration manuelle déjà utilisée à plusieurs factures bot
+- Script `debloquer-teodomiro.js` pour décacher les 2 factures faussement dédupliquées (1915402, 1915409)
+- Logique : (a) match explicite via `factureBotRef==p.factureId`, (b) match implicite legacy seulement si manuelle pas déjà liée
+
+### Compta — autres améliorations
+- Onglet Ventes : retire colonne Bénéfice (info interne, pas pour contrôleur IRS)
+- Onglet Ventes : retire les déclarations manuelles (`source !== 'manuelle'`), affiche que les factures IG
+- Section Engagements Dashboard : statuts couleur (🟢 OK > 7j / 🟠 ≤ 7j / 🔴 RETARD)
+- Patron bouton "Clôturer semaine" verif côté serveur (date après dimanche 23h59 + confirmation IRS)
+
+### Cleanup repo
+- Suppression `discord-bot/peek-*.json` (4 fichiers dump debug)
+- Suppression `discord-bot/peek-tous-canaux.md` (inventaire debug)
+- Suppression `discord-bot/scripts/peek-channel.js`, `peek-tous-canaux.js` (debug)
+- Suppression `firebase/functions/scripts/activer-api-apps-script.js`, `maj-apps-script-via-api.js` (échec API user-context)
+- Suppression `backup-2026-05-14-02-1204.json` (snapshot manuel, non versionné)
+- `.gitignore` déjà à jour (couvre backup-*, peek-*)
+
+### Mémoires sauvegardées
+- `projet_subvention_thorpe_2026_05_14.md` (contrat IRS Abraham THORPE)
+- `references_tte_charges_deductibles.md`, `references_tte_salaires_primes.md`, `references_tte_impots_sanctions.md`, `references_tte_guide_site.md` (TTE complet en 12 chapitres)
+- `feedback_tte_decision_patron.md` (classification déductible = manuelle, jamais auto)
+- `references_deductibilite_ltd.md` (mapping fournisseurs + règles dédu confirmées)
+- Mise à jour de `references_canaux_discord_logs.md` à voir lors des prochains canaux
+
+**Cloud Functions actives** :
+- `botIngest` (Discord → Firestore)
+- `refreshDashboardNow`, `cloturerSemaine`, `gererEngagement` (HTTP direction)
+- `dashboardKeepAlive`, `cronAlertesEngagements`, `clotureHebdo`, `clotureHebdoPaies` (cron)
+- `declarerVente`, `modifierVente`, `reclasserDepense`, `pompisteRavitaillerManuel`, `pompisteCorrigerStock`, `pompisteDeclarerCaoutchoucs`, `migrateUsername`, `adminResetPassword`, `comptaExport` (HTTP)
+
+---
+
+## ✅ Session 2026-05-14 (partie 4) — Mapping fournisseurs + auto-classification déductibilité
 
 ---
 

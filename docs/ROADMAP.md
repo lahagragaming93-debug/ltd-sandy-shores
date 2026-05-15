@@ -12,6 +12,16 @@
 - Vente partenaire = 2,1× automatique (33 produits backfillés)
 - Salaire DRH = 18 000 $ fixe / Salaire RV = pro-rata CA
 - Factures supprimées IG auto-détectées via parser `factureCancel` + backfill historique
+- TTE complet intégré (12 chapitres) en mémoire + guide site `10-tte-reference.md`
+- Mapping fournisseurs auto-classification dépenses (Yootool/Fournisseur LTD/HDM/Dynasty 8/Achat essence)
+- Dashboard Sheet pro piloté par Node.js (6 KPIs + subventions + engagements + conformité TTE)
+- Bouton 🔄 Rafraîchir + bouton 🔒 Clôturer la semaine (avec confirm IRS) page Compta
+- Cron `dashboardKeepAlive` (check intégrité A1, restaure si écrasé par Apps Script user)
+- Bénéfice auto direction/responsable-vente (calcul depuis items + prixAchat + aliases)
+- Engagements de remboursement : CRUD admin + auto-détection remboursement Discord + alertes 7j avant échéance
+- Subvention Abraham THORPE 790k$ marquée + dette 300k$ tracée (échéance 11/06/2026)
+- Fix bug critique dédup `onFacture` (Teodomiro : 3 ventes 300$ même montant rebindées au même manuel)
+- Cleanup repo (peek-*, backup-*, scripts Apps Script API échec)
 
 ---
 
