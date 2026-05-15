@@ -24,6 +24,12 @@ const ONGLETS_DATA = ['Depenses', 'Ventes', 'Paies', 'resumé'];
 const COLOR_BLOOD = { red: 0.545, green: 0, blue: 0 };       // #8B0000
 const COLOR_BONE  = { red: 0.961, green: 0.941, blue: 0.91 }; // #F5F0E8
 const COLOR_WHITE = { red: 1, green: 1, blue: 1 };
+// Bordures : grises pour aérer les cellules
+const BORDER_OUTER = { red: 0.30, green: 0.30, blue: 0.30 };  // #4d4d4d (cadre)
+const BORDER_INNER = { red: 0.75, green: 0.75, blue: 0.75 };  // #bfbfbf (grille)
+// Zebra (bandes) et couleurs conditionnelles
+const COLOR_VERT_PALE  = { red: 0.88, green: 0.96, blue: 0.88 };  // #e1f5e1 (déductible)
+const COLOR_ROUGE_PALE = { red: 1.00, green: 0.90, blue: 0.90 };  // #ffe5e5 (non déductible)
 
 const auth = new google.auth.GoogleAuth({
   keyFile: KEY_PATH,
@@ -32,9 +38,11 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 
 async function main() {
+  // includeGridData: false suffit, mais on demande explicitement les bandedRanges
+  // et conditionalFormats pour pouvoir les supprimer avant d'en recréer (script idempotent).
   const meta = await sheets.spreadsheets.get({
     spreadsheetId: SHEET_ID,
-    includeGridData: false
+    fields: 'sheets(properties,bandedRanges,conditionalFormats)'
   });
   const onglets = meta.data.sheets || [];
   const requests = [];
@@ -198,7 +206,176 @@ async function main() {
       });
     }
 
-    console.log(`  ✓ ${title} : header rouge + wrap + autoResize + freeze ligne 1${idxJustification >= 0 ? ' + col Justification 320px' : ''}${idxRaison >= 0 ? ' + col Raison 220px' : ''}`);
+    // 6. Bordures grises sur toutes les cellules (cadre foncé + grille claire)
+    //    Aère le rendu compact qui collait les lignes les unes aux autres.
+    requests.push({
+      updateBorders: {
+        range: {
+          sheetId,
+          startRowIndex: 0,
+          endRowIndex: nbRows,
+          startColumnIndex: 0,
+          endColumnIndex: nbCols
+        },
+        top:             { style: 'SOLID_MEDIUM', color: BORDER_OUTER },
+        bottom:          { style: 'SOLID_MEDIUM', color: BORDER_OUTER },
+        left:            { style: 'SOLID_MEDIUM', color: BORDER_OUTER },
+        right:           { style: 'SOLID_MEDIUM', color: BORDER_OUTER },
+        innerHorizontal: { style: 'SOLID',        color: BORDER_INNER },
+        innerVertical:   { style: 'SOLID',        color: BORDER_INNER }
+      }
+    });
+
+    // 7. Auto-resize TOUTES les lignes (header + data) à la hauteur de leur
+    //    contenu. Garantit que les lignes avec texte wrappé (Justification,
+    //    Raison) sont lisibles entièrement, sans tronquer.
+    //    On le pushe en FIN de boucle (voir plus bas) pour qu'il prenne en
+    //    compte le wrap appliqué par les requests précédentes.
+
+    // 8. SUPPRIMER bandings et conditional formats existants (idempotence) AVANT
+    //    d'en recréer. On les met en TÊTE de requests pour qu'ils s'appliquent
+    //    avant les nouvelles règles dans le même batchUpdate.
+    const supprDavant = [];
+    for (const b of ong.bandedRanges || []) {
+      supprDavant.push({ deleteBanding: { bandedRangeId: b.bandedRangeId } });
+    }
+    const condCount = (ong.conditionalFormats || []).length;
+    for (let i = condCount - 1; i >= 0; i--) {
+      supprDavant.push({ deleteConditionalFormatRule: { sheetId, index: i } });
+    }
+    requests.unshift(...supprDavant);
+
+    // 9a. Format date sur colonne Date : "dd/MM/yyyy HH:mm:ss"
+    //     (les valeurs CSV sont en ISO "yyyy-MM-dd HH:mm:ss" depuis comptaExport,
+    //      Sheets les reconnaît comme datetime et le numberFormat les affiche FR)
+    const idxDate = headers.findIndex(h => /^date/i.test(h));
+    if (idxDate >= 0 && nbRows > 1) {
+      requests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 1,
+            endRowIndex: nbRows,
+            startColumnIndex: idxDate,
+            endColumnIndex: idxDate + 1
+          },
+          cell: {
+            userEnteredFormat: {
+              numberFormat: { type: 'DATE_TIME', pattern: 'dd/MM/yyyy HH:mm:ss' }
+            }
+          },
+          fields: 'userEnteredFormat.numberFormat'
+        }
+      });
+      // Largeur fixe 150px pour la colonne Date (sinon autoresize trop juste)
+      requests.push({
+        updateDimensionProperties: {
+          range: {
+            sheetId,
+            dimension: 'COLUMNS',
+            startIndex: idxDate,
+            endIndex: idxDate + 1
+          },
+          properties: { pixelSize: 150 },
+          fields: 'pixelSize'
+        }
+      });
+    }
+
+    // 9. Format monétaire sur colonne Montant : "25 000 $" + alignement DROITE
+    const idxMontant = headers.findIndex(h => /^montant$/i.test(h));
+    if (idxMontant >= 0 && nbRows > 1) {
+      requests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 1,
+            endRowIndex: nbRows,
+            startColumnIndex: idxMontant,
+            endColumnIndex: idxMontant + 1
+          },
+          cell: {
+            userEnteredFormat: {
+              numberFormat: { type: 'NUMBER', pattern: '#,##0" $"' },
+              horizontalAlignment: 'RIGHT'
+            }
+          },
+          fields: 'userEnteredFormat(numberFormat,horizontalAlignment)'
+        }
+      });
+    }
+
+    // 10a. Sur Depenses : couleur conditionnelle par ligne selon Déductible.
+    //      Vert pâle si "oui", rouge pâle si "non". Pas de zebra (le conditionnel prime).
+    // 10b. Sur les autres feuilles : zebra ivoire/blanc.
+    const isDepenses = title === 'Depenses';
+    if (isDepenses && nbRows > 1) {
+      const idxDedu = headers.findIndex(h => /d[ée]ductible/i.test(h));
+      if (idxDedu >= 0) {
+        const col = String.fromCharCode(65 + idxDedu);
+        const range = { sheetId, startRowIndex: 1, endRowIndex: nbRows, startColumnIndex: 0, endColumnIndex: nbCols };
+        // Rule "oui" → vert pâle
+        requests.push({
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [range],
+              booleanRule: {
+                condition: { type: 'CUSTOM_FORMULA', values: [{ userEnteredValue: `=$${col}2="oui"` }] },
+                format: { backgroundColor: COLOR_VERT_PALE }
+              }
+            },
+            index: 0
+          }
+        });
+        // Rule "non" → rouge pâle
+        requests.push({
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [range],
+              booleanRule: {
+                condition: { type: 'CUSTOM_FORMULA', values: [{ userEnteredValue: `=$${col}2="non"` }] },
+                format: { backgroundColor: COLOR_ROUGE_PALE }
+              }
+            },
+            index: 1
+          }
+        });
+      }
+    } else if (nbRows > 1) {
+      // Zebra ivoire/blanc (bandes alternées) pour Ventes, Paies, resumé
+      requests.push({
+        addBanding: {
+          bandedRange: {
+            range: { sheetId, startRowIndex: 1, endRowIndex: nbRows, startColumnIndex: 0, endColumnIndex: nbCols },
+            rowProperties: {
+              firstBandColor:  COLOR_WHITE,
+              secondBandColor: COLOR_BONE
+            }
+          }
+        }
+      });
+    }
+
+    // 11. AUTO-RESIZE des lignes en TOUT DERNIER : prend en compte le wrap
+    //     et le padding appliqués au-dessus, calcule la hauteur juste pour que
+    //     le contenu (même wrappé) soit entièrement visible.
+    requests.push({
+      autoResizeDimensions: {
+        dimensions: {
+          sheetId,
+          dimension: 'ROWS',
+          startIndex: 0,
+          endIndex: nbRows
+        }
+      }
+    });
+
+    const extras = [];
+    if (idxDate >= 0)    extras.push('format date');
+    if (idxMontant >= 0) extras.push('format monétaire Montant');
+    if (isDepenses) extras.push('couleurs conditionnelles Déductible');
+    else extras.push('zebra ivoire/blanc');
+    console.log(`  ✓ ${title} : header rouge + wrap + autoResize cols+rows + freeze + bordures${idxJustification >= 0 ? ' + col Justif 320px' : ''}${idxRaison >= 0 ? ' + col Raison 220px' : ''}${extras.length ? ' + ' + extras.join(' + ') : ''}`);
   }
 
   if (requests.length === 0) {

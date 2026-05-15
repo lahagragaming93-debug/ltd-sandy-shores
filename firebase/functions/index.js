@@ -2996,9 +2996,10 @@ function csvEscape(v) {
 function csvRow(...cells) {
   return cells.map(csvEscape).join(',');
 }
-// Format français avec 'h' minuscule pour l'heure : Google Sheets ne le
-// reconnaît PAS comme date, donc l'affiche en texte lisible (au lieu de
-// le convertir en série numérique style 46151.29367).
+// Format ISO `yyyy-MM-dd HH:mm:ss` (Europe/Paris) : reconnu par Google Sheets
+// comme un VRAI datetime, ce qui permet d'appliquer numberFormat date côté
+// Sheet (script format-sheet.js) → affichage `dd/MM/yyyy HH:mm:ss` + tri/filtres
+// date intelligents.
 function pad(n) { return String(n).padStart(2, '0'); }
 function tsToDate(ts) {
   if (!ts) return null;
@@ -3008,8 +3009,6 @@ function tsToDate(ts) {
 function dateIso(ts) {
   const d = tsToDate(ts);
   if (!d) return '';
-  // Format Europe/Paris (UTC+1/+2 selon DST). Approximation sans dépendance.
-  // Pour un export plus précis on utiliserait Intl.DateTimeFormat avec timeZone.
   const fr = new Intl.DateTimeFormat('fr-FR', {
     timeZone: 'Europe/Paris',
     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -3017,7 +3016,7 @@ function dateIso(ts) {
     hour12: false
   }).formatToParts(d);
   const get = (t) => fr.find(p => p.type === t)?.value || '00';
-  return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}h${get('minute')}:${get('second')}`;
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 function dateOnly(ts) {
   const d = tsToDate(ts);
