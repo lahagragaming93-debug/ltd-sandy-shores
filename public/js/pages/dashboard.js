@@ -17,6 +17,7 @@ import { startOfWeekRP, endOfWeekRP, money, num, pct, datetime, escapeHtml } fro
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { checkMasseSalariale } from '../utils/paie.js';
 import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm';
+import { renderPeriodFilter, getPeriode, getPeriodeLabel, attachPeriodFilter } from '../utils/period-filter.js';
 Chart.register(...registerables);
 
 // Couleurs western pour les graphiques
@@ -36,6 +37,12 @@ Chart.defaults.borderColor = CH_COLORS.grid;
 const { user, profile } = await requireAuth('dashboard');
 
 const html = `
+  <div class="page-toolbar" style="flex-wrap:wrap;gap:8px;">
+    ${renderPeriodFilter('semaine')}
+    <span class="spacer"></span>
+    <span class="muted" style="font-size:0.8rem;">Solde banque, stocks bas, alertes et stations restent toujours en temps réel.</span>
+  </div>
+
   <div class="kpi-grid" id="kpis">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
@@ -86,14 +93,22 @@ const html = `
 
 renderShell(profile, 'dashboard', html);
 
-// === Période semaine ===
-const debut = startOfWeekRP();
-const fin   = endOfWeekRP();
-document.getElementById('periode-semaine').textContent =
-  `${debut.toLocaleDateString('fr-FR')} → ${fin.toLocaleDateString('fr-FR')}`;
+// === Période (dynamique selon le sélecteur en haut) ===
+// debut/fin sont recalculés à chaque chargerKpis() depuis getPeriode().
+let debut = startOfWeekRP();
+let fin   = endOfWeekRP();
 
 // === KPIs ===
 async function chargerKpis() {
+  // Met à jour debut/fin depuis le filtre période. Fallback semaine en cours
+  // si "Depuis ouverture" (debut=null) — sinon les listSemaine pourraient
+  // remonter trop loin et ralentir la page.
+  const periode = getPeriode();
+  debut = periode.debut || startOfWeekRP();
+  fin   = periode.fin   || new Date();
+  document.getElementById('periode-semaine').textContent =
+    `${debut.toLocaleDateString('fr-FR')} → ${fin.toLocaleDateString('fr-FR')} · ${getPeriodeLabel()}`;
+
   const [ventes, depenses, paies, config, soldeBanque, redistributions, allUsers, services, quotas] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
@@ -251,6 +266,8 @@ async function chargerKpis() {
   }
 }
 chargerKpis();
+// Recharge tout dès que la période change.
+attachPeriodFilter(chargerKpis);
 
 // === Stations mini-bloc ===
 listenStations(stations => {

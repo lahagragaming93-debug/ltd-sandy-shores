@@ -18,6 +18,7 @@ import { listRedistributionsSemaine } from '../api.js';
 import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm';
+import { renderPeriodFilter, getPeriode, getPeriodeLabel, attachPeriodFilter } from '../utils/period-filter.js';
 Chart.register(...registerables);
 
 const CH_COLORS = {
@@ -43,11 +44,8 @@ const html = `
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
 
-  <div class="page-toolbar">
-    <select id="filtre-periode" title="Période d'analyse">
-      <option value="7j">📅 7 derniers jours</option>
-      <option value="30j">📅 30 derniers jours</option>
-    </select>
+  <div class="page-toolbar" style="flex-wrap:wrap;gap:8px;">
+    ${renderPeriodFilter('30j')}
     <select id="filtre-station" title="Filtrer par station">
       <option value="">Toutes stations</option>
     </select>
@@ -117,19 +115,11 @@ makeSortable(document.getElementById('table-transactions'));
 let chartCarb = null;
 let dataCache = []; // pour l'export CSV
 
-function periodeRange(key) {
-  // Periodes glissantes : aujourd'hui inclus, fin = maintenant.
-  const now = new Date();
-  const days = key === '30j' ? 30 : 7;
-  const debut = new Date(now);
-  debut.setDate(debut.getDate() - days);
-  debut.setHours(0, 0, 0, 0);
-  return { debut, fin: now };
-}
-
 async function recharger() {
-  const periode = document.getElementById('filtre-periode').value;
-  const { debut, fin } = periodeRange(periode);
+  let { debut, fin } = getPeriode();
+  // Si "Depuis ouverture" (debut=null) → on prend depuis la reprise officielle.
+  if (!debut) debut = REPRISE_DATE;
+  if (!fin)   fin   = new Date();
   // On ne descend jamais sous la date de reprise officielle.
   const debutEffectif = debut < REPRISE_DATE ? REPRISE_DATE : debut;
   const list = await listRedistributionsSemaine(debutEffectif, fin).catch(() => []);
@@ -321,7 +311,7 @@ function renderChart(rows) {
   });
 }
 
-document.getElementById('filtre-periode').addEventListener('change', recharger);
+attachPeriodFilter(recharger);
 document.getElementById('filtre-station').addEventListener('change', rendre);
 
 // === Export CSV ===

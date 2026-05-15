@@ -9,10 +9,16 @@ import { ROLE_LABELS, PLAFOND_SALAIRE } from '../utils/permissions.js';
 import { money, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
+import { renderPeriodFilter, getPeriode, getPeriodeLabel, attachPeriodFilter } from '../utils/period-filter.js';
 
 const { profile } = await requireAuth('paies');
 
 const html = `
+  <div class="page-toolbar" style="flex-wrap:wrap;gap:8px;">
+    ${renderPeriodFilter('semaine')}
+    <span class="spacer"></span>
+  </div>
+
   <div class="kpi-grid" id="kpis-paies">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
@@ -49,47 +55,45 @@ makeSortable(document.getElementById('table-paies'));
 const me = getCurrentUser();
 const paies = await listMesPaies(me.uid, 200).catch(() => []);
 
-// === KPIs ===
-const debut7j = startOfWeekRP();
-const fin7j = endOfWeekRP();
-const moisDebut = new Date();
-moisDebut.setDate(1); moisDebut.setHours(0, 0, 0, 0);
-
-const totalSemaine = paies.filter(p => {
-  const t = p.timestamp?.toDate?.();
-  return t && t >= debut7j && t <= fin7j;
-}).reduce((s, p) => s + (p.montant || 0), 0);
-
-const totalMois = paies.filter(p => {
-  const t = p.timestamp?.toDate?.();
-  return t && t >= moisDebut;
-}).reduce((s, p) => s + (p.montant || 0), 0);
-
-const totalAll = paies.reduce((s, p) => s + (p.montant || 0), 0);
+// === KPIs (dynamiques selon la période choisie) ===
 const plafond = PLAFOND_SALAIRE[profile.role] || 0;
 
-document.getElementById('kpis-paies').innerHTML = `
-  <div class="kpi">
-    <div class="label">Cette semaine</div>
-    <div class="value">${money(totalSemaine)}</div>
-    <div class="delta">${plafond ? `/ ${money(plafond)} plafond` : 'reçu'}</div>
-  </div>
-  <div class="kpi">
-    <div class="label">Ce mois</div>
-    <div class="value">${money(totalMois)}</div>
-    <div class="delta">${moisDebut.toLocaleDateString('fr-FR', { month: 'long' })}</div>
-  </div>
-  <div class="kpi">
-    <div class="label">Total reçu</div>
-    <div class="value">${money(totalAll)}</div>
-    <div class="delta">${paies.length} paie${paies.length > 1 ? 's' : ''}</div>
-  </div>
-  <div class="kpi">
-    <div class="label">Rôle</div>
-    <div class="value" style="font-size:1.4rem;">${ROLE_LABELS[profile.role] || profile.role}</div>
-    <div class="delta">${profile.dateEntree ? `entré ${profile.dateEntree}` : 'actif'}</div>
-  </div>
-`;
+function renderKpis() {
+  const { debut, fin, label } = getPeriode();
+  const paiesPeriode = paies.filter(p => {
+    const t = p.timestamp?.toDate?.();
+    if (!t) return false;
+    if (debut && t < debut) return false;
+    if (fin   && t > fin)   return false;
+    return true;
+  });
+  const totalPeriode = paiesPeriode.reduce((s, p) => s + (p.montant || 0), 0);
+
+  document.getElementById('kpis-paies').innerHTML = `
+    <div class="kpi kpi-recette">
+      <div class="label">💰 Total reçu <span class="muted" style="font-size:0.7rem;">(${escapeHtml(getPeriodeLabel())})</span></div>
+      <div class="value">${money(totalPeriode)}</div>
+      <div class="delta">${plafond ? `plafond ${money(plafond)} / semaine` : 'tous versements'}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Nombre de paies <span class="muted" style="font-size:0.7rem;">(${escapeHtml(label)})</span></div>
+      <div class="value">${paiesPeriode.length}</div>
+      <div class="delta">${paiesPeriode.length > 0 ? `moyenne ${money(Math.round(totalPeriode / paiesPeriode.length))} / paie` : 'aucune sur la période'}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total reçu <span class="muted" style="font-size:0.7rem;">(depuis ouverture)</span></div>
+      <div class="value">${money(paies.reduce((s, p) => s + (p.montant || 0), 0))}</div>
+      <div class="delta">${paies.length} paie${paies.length > 1 ? 's' : ''} au total</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Rôle</div>
+      <div class="value" style="font-size:1.4rem;">${ROLE_LABELS[profile.role] || profile.role}</div>
+      <div class="delta">${profile.dateEntree ? `entré ${profile.dateEntree}` : 'actif'}</div>
+    </div>
+  `;
+}
+renderKpis();
+attachPeriodFilter(renderKpis);
 
 // === Table des paies ===
 document.getElementById('paies-count').textContent =
