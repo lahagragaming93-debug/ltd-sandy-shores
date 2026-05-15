@@ -3436,6 +3436,181 @@ export const refreshDashboardNow = onRequest({
   }
 });
 
+// ============================================================
+// Engagements de remboursement — CRUD via Cloud Function (auth direction)
+// ============================================================
+export const gererEngagement = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const { uid, caller } = await requireDirection(req);
+    const { action, id, beneficiaire, signataire, objet, type, montantInitial,
+            dateReception, dateEcheance, notes, montantRembourse, statut,
+            montant, raison } = req.body || {};
+
+    const coll = db.collection('engagements');
+
+    if (action === 'list') {
+      const snap = await coll.orderBy('dateReception', 'desc').get();
+      const engagements = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          dateReception: data.dateReception?.toDate?.()?.toISOString() || data.dateReception,
+          dateEcheance: data.dateEcheance?.toDate?.()?.toISOString() || data.dateEcheance,
+          dateMaj: data.dateMaj?.toDate?.()?.toISOString() || data.dateMaj
+        };
+      });
+      return res.status(200).json({ ok: true, engagements });
+    }
+
+    if (action === 'create') {
+      if (!beneficiaire || !objet || !montantInitial || !dateReception || !dateEcheance) {
+        return res.status(400).json({ error: 'Champs requis manquants' });
+      }
+      const docId = id || `${type || 'engagement'}-${Date.now()}`;
+      await coll.doc(docId).set({
+        id: docId,
+        type: type || 'subvention-rembours',
+        beneficiaire,
+        signataire: signataire || '',
+        objet,
+        montantInitial: Number(montantInitial),
+        montantRembourse: 0,
+        montantRestant: Number(montantInitial),
+        devise: 'USD',
+        dateReception: Timestamp.fromDate(new Date(dateReception)),
+        dateEcheance: Timestamp.fromDate(new Date(dateEcheance)),
+        statut: 'actif',
+        notes: notes || '',
+        createdBy: uid,
+        createdParNom: `${caller.prenom || ''} ${caller.nom || ''}`.trim(),
+        dateCreation: new Date().toISOString(),
+        dateMaj: FieldValue.serverTimestamp()
+      });
+      return res.status(200).json({ ok: true, id: docId });
+    }
+
+    if (action === 'update') {
+      if (!id) return res.status(400).json({ error: 'id manquant' });
+      const update = {
+        beneficiaire, signataire, objet, type,
+        montantInitial: Number(montantInitial),
+        montantRembourse: Number(montantRembourse) || 0,
+        montantRestant: Number(montantInitial) - (Number(montantRembourse) || 0),
+        dateReception: Timestamp.fromDate(new Date(dateReception)),
+        dateEcheance: Timestamp.fromDate(new Date(dateEcheance)),
+        notes: notes || '',
+        statut: statut || 'actif',
+        majPar: uid,
+        dateMaj: FieldValue.serverTimestamp()
+      };
+      await coll.doc(id).set(update, { merge: true });
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'delete') {
+      if (!id) return res.status(400).json({ error: 'id manquant' });
+      await coll.doc(id).delete();
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'rembourser') {
+      if (!id || !montant) return res.status(400).json({ error: 'id ou montant manquant' });
+      const ref = coll.doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ error: 'Engagement introuvable' });
+      const e = snap.data();
+      const ancienRembourse = Number(e.montantRembourse) || 0;
+      const ancienRestant = Number(e.montantRestant) || 0;
+      const m = Number(montant);
+      const nouveauRembourse = ancienRembourse + m;
+      const nouveauRestant = Math.max(0, ancienRestant - m);
+      const nouveauStatut = nouveauRestant <= 0 ? 'rembourse' : 'actif';
+      await ref.set({
+        montantRembourse: nouveauRembourse,
+        montantRestant: nouveauRestant,
+        statut: nouveauStatut,
+        dateMaj: FieldValue.serverTimestamp(),
+        historiqueRemboursements: FieldValue.arrayUnion({
+          montant: m,
+          raison: raison || 'Remboursement manuel',
+          utilisateur: `${caller.prenom || ''} ${caller.nom || ''}`.trim(),
+          uid,
+          source: 'manuel',
+          timestamp: new Date().toISOString()
+        })
+      }, { merge: true });
+      return res.status(200).json({ ok: true, nouveauRestant, nouveauStatut });
+    }
+
+    return res.status(400).json({ error: 'Action inconnue' });
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.error });
+    console.error('[gererEngagement]', e);
+    return res.status(500).json({ error: e.message || 'Internal error' });
+  }
+});
+
+// ============================================================
+// Cron quotidien : alertes engagements proches échéance
+// ============================================================
+// Tourne chaque jour à 9h Paris. Pour chaque engagement actif :
+//   - Jours restants ≤ 7 : crée alerte direction (gravité warn)
+//   - Jours restants < 0 : crée alerte direction (gravité critical) + statut='defaillant'
+// Idempotent : id alerte déterministe par engagement+date pour éviter doublons quotidiens.
+export const cronAlertesEngagements = onSchedule({
+  schedule: '0 9 * * *',
+  timeZone: 'Europe/Paris',
+  region: 'europe-west1',
+  timeoutSeconds: 60
+}, async () => {
+  const snap = await db.collection('engagements').where('statut', '==', 'actif').get();
+  console.log(`[cronAlertesEngagements] ${snap.size} engagements actifs`);
+
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  for (const d of snap.docs) {
+    const e = d.data();
+    const ech = e.dateEcheance?.toDate?.();
+    if (!ech) continue;
+    const joursRest = Math.ceil((ech.getTime() - Date.now()) / (24 * 3600 * 1000));
+
+    let gravite = null;
+    let message = null;
+    if (joursRest < 0) {
+      gravite = 'critical';
+      message = `🔴 EN RETARD : engagement "${e.objet}" (${e.montantRestant}$ restant) — échéance dépassée de ${Math.abs(joursRest)} jour(s).`;
+      // Bascule en défaillant
+      await d.ref.set({ statut: 'defaillant' }, { merge: true });
+    } else if (joursRest <= 7) {
+      gravite = 'warn';
+      message = `🟠 ÉCHÉANCE PROCHE : engagement "${e.objet}" (${e.montantRestant}$ à rembourser) — ${joursRest} jour(s) restant(s).`;
+    }
+
+    if (gravite) {
+      const alerteId = `eng-${d.id}-${aujourdhui}`;
+      await db.collection('alertes').doc(alerteId).set({
+        type: 'engagement-echeance',
+        message, gravite,
+        metadata: {
+          engagementId: d.id,
+          beneficiaire: e.beneficiaire,
+          objet: e.objet,
+          montantRestant: e.montantRestant,
+          dateEcheance: ech.toISOString(),
+          joursRestants: joursRest
+        },
+        resolue: false,
+        timestamp: FieldValue.serverTimestamp()
+      });
+      console.log(`  [${gravite}] ${e.beneficiaire} ${e.objet} : ${joursRest}j`);
+    }
+  }
+});
+
 // Cron horaire : check intégrité Dashboard, restaure si écrasé par Apps Script
 //
 // Le Sheet user a un trigger Apps Script qui appelle creerDashboard() toutes

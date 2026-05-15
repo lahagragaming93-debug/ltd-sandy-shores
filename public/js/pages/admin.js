@@ -194,6 +194,114 @@ const html = `
       </div>
     </div>
   </div>
+
+  <!-- Engagements de remboursement (subventions, dettes…) -->
+  <div class="panel framed" id="panel-engagements" style="border-color:var(--color-warning);">
+    <div class="panel-title">
+      <span>📋 Engagements de remboursement</span>
+      <button class="btn btn-icon btn-sm" id="btn-nouveau-engagement" title="Ajouter un engagement" data-tooltip="Ajouter engagement">➕</button>
+    </div>
+    <p class="muted" style="font-size:0.82rem;margin:4px 0 8px;">
+      Subventions reçues à rembourser, dettes contractées, contrats avec échéance. Le système décrémente automatiquement le restant quand une dépense de remboursement est captée (raison contenant "remboursement subvention/essence/dette"). Alerte direction 7 jours avant échéance.
+    </p>
+    <div class="table-scroll">
+      <table class="data" id="table-engagements">
+        <thead>
+          <tr>
+            <th>Bénéficiaire</th>
+            <th>Objet</th>
+            <th class="right">Montant initial</th>
+            <th class="right">Remboursé</th>
+            <th class="right">Restant</th>
+            <th>Échéance</th>
+            <th class="center">Jours</th>
+            <th class="center">Statut</th>
+            <th class="center">Action</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-engagements"><tr><td colspan="9" class="muted text-center">Chargement…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal édition engagement -->
+  <div id="modal-engagement" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:680px;max-height:92vh;overflow-y:auto;">
+      <h3 id="modal-engagement-title">Ajouter un engagement</h3>
+      <input type="hidden" id="engagement-original-id" />
+
+      <div class="field-row">
+        <div><label>Bénéficiaire</label><input type="text" id="engagement-beneficiaire" placeholder="Ex : Governor of San Andreas (IRS)" required /></div>
+        <div><label>Signataire</label><input type="text" id="engagement-signataire" placeholder="Ex : Abraham THORPE" /></div>
+      </div>
+
+      <label>Objet du contrat</label>
+      <input type="text" id="engagement-objet" placeholder="Ex : Subvention Essence à rembourser (TTE Art. 4-2.16 sous réserve)" required />
+
+      <div class="field-row">
+        <div><label>Type</label>
+          <select id="engagement-type">
+            <option value="subvention-rembours">Subvention remboursable</option>
+            <option value="dette-fournisseur">Dette fournisseur</option>
+            <option value="contrat-leasing">Contrat leasing</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+        <div><label>Montant initial ($)</label><input type="number" id="engagement-montant" min="0" step="1" required /></div>
+      </div>
+
+      <div class="field-row">
+        <div><label>Date réception</label><input type="date" id="engagement-date-reception" required /></div>
+        <div><label>Date échéance</label><input type="date" id="engagement-date-echeance" required /></div>
+      </div>
+
+      <div class="field-row" id="engagement-edit-fields" style="display:none;">
+        <div><label>Montant déjà remboursé ($)</label><input type="number" id="engagement-montant-rembourse" min="0" step="1" /></div>
+        <div><label>Statut</label>
+          <select id="engagement-statut">
+            <option value="actif">Actif</option>
+            <option value="rembourse">Remboursé</option>
+            <option value="defaillant">Défaillant</option>
+            <option value="annule">Annulé</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Notes / Justification audit IRS</label>
+      <textarea id="engagement-notes" rows="3" placeholder="Détails du contrat, conditions, références..."></textarea>
+
+      <div id="engagement-historique-zone" style="display:none;margin-top:12px;padding:8px;background:rgba(0,0,0,0.03);border-radius:4px;">
+        <strong style="font-size:0.85rem;">📜 Historique des remboursements</strong>
+        <div id="engagement-historique-list" style="font-size:0.78rem;margin-top:4px;"></div>
+      </div>
+
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="btn-save-engagement">Enregistrer</button>
+        <button class="btn btn-warning" id="btn-rembourser-engagement" style="display:none;">💰 Ajouter un remboursement</button>
+        <button class="btn btn-danger" id="btn-delete-engagement" style="display:none;">🗑 Supprimer</button>
+        <button class="btn btn-ghost" id="btn-cancel-engagement">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal ajout remboursement -->
+  <div id="modal-rembours" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:480px;">
+      <h3>💰 Ajouter un remboursement manuel</h3>
+      <p class="muted" style="font-size:0.82rem;">
+        Pour les remboursements détectés automatiquement (via dépense Discord avec raison « remboursement subvention »), pas besoin de cette modale.
+        Utilise ici uniquement pour les régularisations manuelles.
+      </p>
+      <label>Montant remboursé ($)</label>
+      <input type="number" id="rembours-montant" min="1" step="1" required />
+      <label>Raison / Note</label>
+      <input type="text" id="rembours-raison" placeholder="Ex : Virement IRS du 15/05/2026" />
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="btn-confirm-rembours">Valider le remboursement</button>
+        <button class="btn btn-ghost" id="btn-cancel-rembours">Annuler</button>
+      </div>
+    </div>
+  </div>
   ` : ''}
 
   <!-- Modal création compte -->
@@ -1223,3 +1331,181 @@ document.getElementById('btn-delete-fournisseur')?.addEventListener('click', asy
 });
 
 chargerFournisseurs();
+
+// ============================================================
+// ENGAGEMENTS DE REMBOURSEMENT — CRUD direction
+// ============================================================
+const FUNCTIONS_BASE_ADMIN = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
+
+async function callGererEngagement(action, data) {
+  const { auth } = await import('../firebase-config.js');
+  const idToken = await auth.currentUser.getIdToken();
+  const resp = await fetch(`${FUNCTIONS_BASE_ADMIN}/gererEngagement`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+    body: JSON.stringify({ action, ...data })
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+  return json;
+}
+
+async function chargerEngagements() {
+  if (!canEditCfg) return;
+  const tbody = document.getElementById('tbody-engagements');
+  if (!tbody) return;
+  try {
+    const res = await callGererEngagement('list', {});
+    const engagements = res.engagements || [];
+    if (engagements.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" class="muted text-center">Aucun engagement enregistré.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = engagements.map(e => {
+      const ech = e.dateEcheance ? new Date(e.dateEcheance) : null;
+      const joursRest = ech ? Math.ceil((ech.getTime() - Date.now()) / (24*3600*1000)) : null;
+      let statutBadge = '<span class="badge ok">🟢 OK</span>';
+      if (e.statut === 'rembourse') statutBadge = '<span class="badge ok">✓ Remboursé</span>';
+      else if (e.statut === 'defaillant') statutBadge = '<span class="badge alerte-fort">⚠ Défaillant</span>';
+      else if (e.statut === 'annule') statutBadge = '<span class="badge neutral">Annulé</span>';
+      else if (joursRest != null && joursRest < 0) statutBadge = '<span class="badge alerte-fort">🔴 EN RETARD</span>';
+      else if (joursRest != null && joursRest <= 7) statutBadge = '<span class="badge warn">🟠 ÉCHÉANCE PROCHE</span>';
+      return `
+        <tr>
+          <td><strong>${escapeHtml(e.beneficiaire || '—')}</strong>${e.signataire ? `<br><small class="muted">${escapeHtml(e.signataire)}</small>` : ''}</td>
+          <td>${escapeHtml(e.objet || '—')}</td>
+          <td class="right mono">${(e.montantInitial || 0).toLocaleString('fr-FR')} $</td>
+          <td class="right mono">${(e.montantRembourse || 0).toLocaleString('fr-FR')} $</td>
+          <td class="right mono"><strong>${(e.montantRestant || 0).toLocaleString('fr-FR')} $</strong></td>
+          <td>${ech ? ech.toLocaleDateString('fr-FR') : '—'}</td>
+          <td class="center mono">${joursRest != null ? joursRest + ' j' : '—'}</td>
+          <td class="center">${statutBadge}</td>
+          <td class="center"><button class="btn btn-sm" data-edit-engagement="${escapeHtml(e.id)}">✏</button></td>
+        </tr>
+      `;
+    }).join('');
+    tbody.querySelectorAll('[data-edit-engagement]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const eng = engagements.find(x => x.id === btn.dataset.editEngagement);
+        if (eng) ouvrirModalEngagement(eng);
+      });
+    });
+  } catch (e) {
+    console.error(e);
+    tbody.innerHTML = `<tr><td colspan="9" class="muted text-center">Erreur : ${escapeHtml(e.message || '')}</td></tr>`;
+  }
+}
+
+let engagementEnEdition = null;
+
+function ouvrirModalEngagement(eng) {
+  engagementEnEdition = eng;
+  document.getElementById('modal-engagement-title').textContent = eng ? 'Modifier l\'engagement' : 'Ajouter un engagement';
+  document.getElementById('engagement-original-id').value = eng?.id || '';
+  document.getElementById('engagement-beneficiaire').value = eng?.beneficiaire || '';
+  document.getElementById('engagement-signataire').value = eng?.signataire || '';
+  document.getElementById('engagement-objet').value = eng?.objet || '';
+  document.getElementById('engagement-type').value = eng?.type || 'subvention-rembours';
+  document.getElementById('engagement-montant').value = eng?.montantInitial ?? '';
+  document.getElementById('engagement-date-reception').value = eng?.dateReception ? new Date(eng.dateReception).toISOString().slice(0, 10) : '';
+  document.getElementById('engagement-date-echeance').value = eng?.dateEcheance ? new Date(eng.dateEcheance).toISOString().slice(0, 10) : '';
+  document.getElementById('engagement-montant-rembourse').value = eng?.montantRembourse ?? 0;
+  document.getElementById('engagement-statut').value = eng?.statut || 'actif';
+  document.getElementById('engagement-notes').value = eng?.notes || '';
+  document.getElementById('engagement-edit-fields').style.display = eng ? 'flex' : 'none';
+  document.getElementById('btn-delete-engagement').style.display = eng ? 'inline-block' : 'none';
+  document.getElementById('btn-rembourser-engagement').style.display = (eng && eng.statut === 'actif') ? 'inline-block' : 'none';
+  const histZone = document.getElementById('engagement-historique-zone');
+  const histList = document.getElementById('engagement-historique-list');
+  if (eng && Array.isArray(eng.historiqueRemboursements) && eng.historiqueRemboursements.length > 0) {
+    histZone.style.display = 'block';
+    histList.innerHTML = eng.historiqueRemboursements.map(h => {
+      const d = h.timestamp ? new Date(h.timestamp).toLocaleString('fr-FR') : '?';
+      return `<div>• ${d} — <strong>${(h.montant || 0).toLocaleString('fr-FR')} $</strong> ${h.raison ? `(${escapeHtml(h.raison)})` : ''}${h.utilisateur ? ` par ${escapeHtml(h.utilisateur)}` : ''}</div>`;
+    }).join('');
+  } else {
+    histZone.style.display = 'none';
+  }
+  document.getElementById('modal-engagement').classList.remove('hidden');
+}
+
+document.getElementById('btn-nouveau-engagement')?.addEventListener('click', () => ouvrirModalEngagement(null));
+document.getElementById('btn-cancel-engagement')?.addEventListener('click', () => {
+  document.getElementById('modal-engagement').classList.add('hidden');
+});
+
+document.getElementById('btn-save-engagement')?.addEventListener('click', async () => {
+  const data = {
+    id: document.getElementById('engagement-original-id').value || null,
+    beneficiaire: document.getElementById('engagement-beneficiaire').value.trim(),
+    signataire: document.getElementById('engagement-signataire').value.trim(),
+    objet: document.getElementById('engagement-objet').value.trim(),
+    type: document.getElementById('engagement-type').value,
+    montantInitial: Number(document.getElementById('engagement-montant').value) || 0,
+    dateReception: document.getElementById('engagement-date-reception').value,
+    dateEcheance: document.getElementById('engagement-date-echeance').value,
+    notes: document.getElementById('engagement-notes').value.trim()
+  };
+  if (engagementEnEdition) {
+    data.montantRembourse = Number(document.getElementById('engagement-montant-rembourse').value) || 0;
+    data.statut = document.getElementById('engagement-statut').value;
+  }
+  if (!data.beneficiaire || !data.objet || !data.montantInitial || !data.dateReception || !data.dateEcheance) {
+    toastError('Tous les champs requis doivent être remplis');
+    return;
+  }
+  try {
+    await callGererEngagement(engagementEnEdition ? 'update' : 'create', data);
+    toastSuccess(engagementEnEdition ? 'Engagement modifié' : 'Engagement créé');
+    document.getElementById('modal-engagement').classList.add('hidden');
+    chargerEngagements();
+  } catch (e) {
+    toastError(e.message || 'Erreur sauvegarde');
+  }
+});
+
+document.getElementById('btn-delete-engagement')?.addEventListener('click', async () => {
+  if (!engagementEnEdition) return;
+  const ok = await confirmCritique({
+    titre: 'Supprimer cet engagement ?',
+    message: `Bénéficiaire : ${engagementEnEdition.beneficiaire}\nMontant : ${engagementEnEdition.montantInitial} $`,
+    confirmer: 'Supprimer'
+  });
+  if (!ok) return;
+  try {
+    await callGererEngagement('delete', { id: engagementEnEdition.id });
+    toastSuccess('Engagement supprimé');
+    document.getElementById('modal-engagement').classList.add('hidden');
+    chargerEngagements();
+  } catch (e) {
+    toastError(e.message || 'Erreur suppression');
+  }
+});
+
+document.getElementById('btn-rembourser-engagement')?.addEventListener('click', () => {
+  document.getElementById('rembours-montant').value = '';
+  document.getElementById('rembours-raison').value = '';
+  document.getElementById('modal-rembours').classList.remove('hidden');
+});
+
+document.getElementById('btn-cancel-rembours')?.addEventListener('click', () => {
+  document.getElementById('modal-rembours').classList.add('hidden');
+});
+
+document.getElementById('btn-confirm-rembours')?.addEventListener('click', async () => {
+  if (!engagementEnEdition) return;
+  const montant = Number(document.getElementById('rembours-montant').value) || 0;
+  const raison = document.getElementById('rembours-raison').value.trim();
+  if (montant <= 0) { toastError('Montant invalide'); return; }
+  try {
+    await callGererEngagement('rembourser', { id: engagementEnEdition.id, montant, raison });
+    toastSuccess(`Remboursement de ${montant} $ enregistré`);
+    document.getElementById('modal-rembours').classList.add('hidden');
+    document.getElementById('modal-engagement').classList.add('hidden');
+    chargerEngagements();
+  } catch (e) {
+    toastError(e.message || 'Erreur remboursement');
+  }
+});
+
+chargerEngagements();
