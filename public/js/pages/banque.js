@@ -7,11 +7,12 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listMouvementsBanqueRecents, listDepensesSemaine } from '../api.js';
 import { db } from '../firebase-config.js';
-import { collection, query, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { collection, query, orderBy, limit, getDocs, where, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
+import { renderPeriodFilter, getPeriode, getPeriodeLabel, attachPeriodFilter } from '../utils/period-filter.js';
 
 const { profile } = await requireAuth('banque');
 
@@ -20,7 +21,8 @@ const html = `
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
 
-  <div class="page-toolbar">
+  <div class="page-toolbar" style="flex-wrap:wrap;gap:8px;">
+    ${renderPeriodFilter('semaine')}
     <select id="filtre-type" title="Filtrer par type de mouvement">
       <option value="">Tous types</option>
       <option value="add">🟢 Entrées</option>
@@ -61,13 +63,30 @@ renderShell(profile, 'banque', html);
 makeSortable(document.getElementById('table-mvts'));
 
 let mouvements = []; // [{ timestamp, type, montant, soldeAvant, soldeApres, raison, source, utilisateur }, …]
+let soldeLive = { montant: 0, date: null }; // toujours le solde courant, indépendant du filtre période
 
 async function chargerTout() {
   const tbody = document.getElementById('tbody-mvts');
   tbody.innerHTML = '<tr><td colspan="7" class="muted text-center">Chargement…</td></tr>';
   try {
-    // 1. Lire /banqueLtd (entrées xbankaccount)
-    const banqueQ = query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(500));
+    const { debut, fin } = getPeriode();
+
+    // 0. Solde courant = dernier mouvement /banqueLtd quelle que soit la période
+    //    (sinon "Solde actuel" deviendrait incohérent quand on filtre une période passée)
+    const liveSnap = await getDocs(query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(1)));
+    if (!liveSnap.empty) {
+      const x = liveSnap.docs[0].data();
+      soldeLive = { montant: Number(x.soldeApres) || 0, date: x.timestamp };
+    }
+
+    // 1. Lire /banqueLtd filtré par période (ou tout si "Depuis ouverture")
+    const banqueQ = (debut && fin)
+      ? query(collection(db, 'banqueLtd'),
+          where('timestamp', '>=', Timestamp.fromDate(debut)),
+          where('timestamp', '<=', Timestamp.fromDate(fin)),
+          orderBy('timestamp', 'desc'),
+          limit(5000))
+      : query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(5000));
     const banqueSnap = await getDocs(banqueQ);
     const banqueOps = banqueSnap.docs.map(d => {
       const x = d.data();
@@ -84,8 +103,14 @@ async function chargerTout() {
       };
     });
 
-    // 2. Lire /depenses (sorties)
-    const depQ = query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(500));
+    // 2. Lire /depenses filtré par période (ou tout si "Depuis ouverture")
+    const depQ = (debut && fin)
+      ? query(collection(db, 'depenses'),
+          where('timestamp', '>=', Timestamp.fromDate(debut)),
+          where('timestamp', '<=', Timestamp.fromDate(fin)),
+          orderBy('timestamp', 'desc'),
+          limit(5000))
+      : query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(5000));
     const depSnap = await getDocs(depQ);
     const depOps = depSnap.docs.map(d => {
       const x = d.data();
@@ -124,37 +149,39 @@ function rendre() {
   if (filtreType) visibles = visibles.filter(m => m.type === filtreType);
   if (filtreRech) visibles = visibles.filter(m => (m.raison || '').toLowerCase().includes(filtreRech));
 
-  // KPIs
+  // KPIs : "Solde actuel" = live (indépendant du filtre)
+  //        "Total entrées / sorties / Net" = sur la période sélectionnée
+  const nbAdd    = mouvements.filter(m => m.type === 'add').length;
+  const nbRemove = mouvements.filter(m => m.type === 'remove').length;
   const totalEntrees = mouvements.filter(m => m.type === 'add').reduce((s, m) => s + m.montant, 0);
   const totalSorties = mouvements.filter(m => m.type === 'remove').reduce((s, m) => s + m.montant, 0);
-  const soldeActuel = mouvements[0]?.soldeApres ?? 0;
-  const dateSolde = mouvements[0]?.timestamp;
+  const periodeLabel = getPeriodeLabel();
 
   document.getElementById('kpis-banque').innerHTML = `
     <div class="kpi kpi-recette">
       <div class="label">💰 Solde actuel</div>
-      <div class="value">${money(soldeActuel)}</div>
-      <div class="delta">au ${escapeHtml(datetime(dateSolde) || '—')}</div>
+      <div class="value">${money(soldeLive.montant)}</div>
+      <div class="delta">au ${escapeHtml(datetime(soldeLive.date) || '—')} · live, indépendant du filtre</div>
     </div>
     <div class="kpi" style="border-color:var(--color-success);">
-      <div class="label">🟢 Total entrées</div>
+      <div class="label">🟢 Entrées <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalEntrees)}</div>
-      <div class="delta">${mouvements.filter(m => m.type === 'add').length} mouvements</div>
+      <div class="delta">${nbAdd} mouvements</div>
     </div>
     <div class="kpi kpi-depense">
-      <div class="label">🔴 Total sorties</div>
+      <div class="label">🔴 Sorties <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalSorties)}</div>
-      <div class="delta">${mouvements.filter(m => m.type === 'remove').length} mouvements</div>
+      <div class="delta">${nbRemove} mouvements</div>
     </div>
     <div class="kpi" style="border-color:var(--color-info);">
-      <div class="label">📊 Net</div>
+      <div class="label">📊 Net <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalEntrees - totalSorties)}</div>
-      <div class="delta">entrées − sorties (sur la période chargée)</div>
+      <div class="delta">entrées − sorties sur la période</div>
     </div>
   `;
 
   document.getElementById('stats-mvts').textContent =
-    `${visibles.length} affichés / ${mouvements.length} mouvements (${mouvements.length} max)`;
+    `${visibles.length} affichés / ${mouvements.length} mouvements (${escapeHtml(periodeLabel)})`;
 
   const tbody = document.getElementById('tbody-mvts');
   if (visibles.length === 0) {
@@ -185,6 +212,8 @@ function rendre() {
 document.getElementById('btn-recharger').addEventListener('click', chargerTout);
 document.getElementById('filtre-type').addEventListener('change', rendre);
 document.getElementById('filtre-recherche').addEventListener('input', rendre);
+// Recharge depuis Firestore quand la période change (= autres bornes timestamp).
+attachPeriodFilter(chargerTout);
 
 document.getElementById('btn-export').addEventListener('click', () => {
   const lines = ['Date;Type;Montant;Solde avant;Solde après;Raison;Source;Utilisateur'];
