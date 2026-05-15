@@ -1,7 +1,52 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-15 (Dashboard Sheet pro + auto-refresh + engagements + alertes échéance + nettoyage repo)**
+> Dernière mise à jour : **2026-05-15 (refresh complet doc compta + habillage 4 feuilles + badge fournisseur côté UI)**
+
+---
+
+## ✅ Session 2026-05-15 (partie 2) — Refresh complet doc compta + habillage 4 feuilles + badge fournisseur
+
+**Contexte** : après reclassement de 2 factures matière 1ère côté site, le patron constate que rien ne bouge dans le doc compta (Sheet). Diagnostic remonte au cache `IMPORTDATA` de Sheets (~1h) qui bloquait toute remontée Firestore → Sheet.
+
+### Fix cache IMPORTDATA — refresh complet en 1 clic
+- Nouveau module `firebase/functions/lib/refresh-importdata.mjs` exporte `forceRefreshImportData({ sheets })` : scanne A1:Z5 de chaque feuille, trouve les formules `IMPORTDATA(...)`, ajoute/met-à-jour un query param `&_t={timestamp}` → Sheets considère l'URL comme nouvelle et re-fetch immédiatement.
+- Branché dans `refreshDashboardNow` (bouton Compta) et `cloturerSemaine`. Pas dans `dashboardKeepAlive` every-minute (trop agressif sur API Sheets).
+- Renommage UI : bouton `🔄 Rafraîchir Dashboard Sheet` → `🔄 Rafraîchir doc comptabilité` (le bouton refresh maintenant TOUT le doc, pas que le Dashboard).
+
+### Habillage des 4 feuilles data (`format-sheet.js` étendu)
+- Header rouge sang + texte blanc bold + freeze ligne 1 (déjà existant)
+- **Bordures grille** : cadre extérieur `#4d4d4d` (SOLID_MEDIUM) + grille intérieure `#bfbfbf`
+- **Auto-resize lignes** : remplace l'ancienne hauteur fixe 30px → ajustement à la hauteur du contenu wrappé (plus de troncature sur Justification)
+- **Format monétaire** sur colonne Montant : `25 000 $` + alignement droite
+- **Format date** `dd/MM/yyyy HH:mm:ss` sur colonne Date + largeur 150px (nécessite passage au format ISO côté CSV, cf. ci-dessous)
+- **Couleurs conditionnelles sur `Depenses`** : 🟢 vert pâle `#e1f5e1` si Déductible=oui, 🔴 rouge pâle `#ffe5e5` si Déductible=non
+- **Zebra ivoire/blanc** (banding) sur `Ventes`, `Paies`, `resumé` (banding non appliqué sur Depenses pour ne pas écraser le conditionnel)
+- Idempotent : `deleteBanding` + `deleteConditionalFormatRule` avant ré-application
+
+### Format date ISO côté serveur (`comptaExport.dateIso`)
+- Passage de `"14/05/2026 22h23:17"` (texte volontairement non-date pour Sheets) → `"2026-05-14 22:23:17"` (ISO reconnu comme datetime)
+- Permet à Sheets d'appliquer le `numberFormat` date + tri/filtres date intelligents
+- `comptaExport` redéployé
+
+### Bug badge fournisseur côté UI Compta
+- `reclasserDepense` ne posait pas `fournisseurLabel` sur la dépense après mémorisation d'un pattern → la colonne Fournisseur restait `—` côté site, alors que comptaExport refait le match à la lecture pour le CSV/Sheet
+- Fix : ajout d'un **re-match systématique** après save (avec ou sans mémorisation) : lit `/config/global.fournisseurs` à jour, applique `matchesFournisseurPattern`, pose `fournisseurLabel` + `fournisseurPatternId` si match, sinon supprime les anciennes valeurs
+- Script `backfill-fournisseur-label.js` créé : reposeer `fournisseurLabel` sur toutes les dépenses passées qui matchent un pattern. Backfill initial → 2 dépenses 265 → Yootool ✓
+
+### Tests fonctionnels
+- 2 factures matière 1ère (1915883, 1915942) reclassées côté site → visibles instantanément sur le Sheet en `matieres-premieres` ✅ déductible 🔒 validé 🟢 vert pâle
+- 2 achats boutique 265 reclassés en Yootool → badge fournisseur visible côté UI Compta après backfill ✅
+
+### Cloud Functions redéployées
+- `refreshDashboardNow` (ajout `forceRefreshImportData`)
+- `cloturerSemaine` (ajout `forceRefreshImportData`)
+- `comptaExport` (format date ISO)
+- `reclasserDepense` (re-match fournisseur après save)
+
+### Cleanup scripts (post-debug session)
+- Supprimés : `debug-depenses-headers.js`, `debug-importdata-formulas.js`, `test-force-refresh.js` (one-shot)
+- Gardés : `format-sheet.js`, `force-refresh-dashboard.js`, `force-refresh-sheet.js`, `debug-sheet-content.js`, `backfill-fournisseur-label.js` (réutilisables)
 
 ---
 

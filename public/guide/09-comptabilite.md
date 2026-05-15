@@ -165,7 +165,7 @@ Panneau noir en bas qui pointe vers les 4 onglets de détail :
 - **📁 Paies** → tous les salaires versés (date / payeur / bénéficiaire / montant / période)
 - **📁 Resume** → récap par semaine (toutes les colonnes ci-dessus)
 
-> 💡 Le Dashboard se rafraîchit **automatiquement toutes les heures** (trigger Apps Script). Pour forcer un refresh : menu **🤠 LTD** en haut → **« 📊 Recréer le Dashboard »**.
+> 💡 Le Dashboard **ET** les 4 feuilles data (`Depenses`, `Ventes`, `Paies`, `resumé`) sont rafraîchis quand tu cliques **🔄 Rafraîchir doc comptabilité** en haut de la page Comptabilité (cf. §6). Le menu Apps Script `🤠 LTD` n'est plus utilisé.
 
 ---
 
@@ -228,18 +228,34 @@ Toutes ces colonnes sont exportées dans le CSV Google Sheets pour les contrôle
 
 ---
 
-## 🔒 6. Dashboard Google Sheet — bouton Rafraîchir + Clôture semaine
+## 🔒 6. Doc comptabilité Google Sheet — bouton Rafraîchir + Clôture semaine
 
-Depuis 2026-05-15, le Dashboard du Sheet Compta est **généré côté serveur Node.js** (visuel comptable pro). 2 boutons en haut de la page Comptabilité (direction uniquement) :
+Le doc compta est **généré côté serveur Node.js** (visuel pro pour le Dashboard, CSV vivant pour les 4 feuilles data). 2 boutons en haut de la page Comptabilité (direction uniquement) :
 
-### 🔄 Bouton Rafraîchir Dashboard
+### 🔄 Bouton Rafraîchir doc comptabilité
 
-- Quand tu cliques, le serveur recalcule **tous les chiffres** depuis Firestore (CA, charges, masse salariale, bénéfice, impôt, subventions, trésorerie, engagements)
-- Réécrit l'onglet **📊 Dashboard** du Sheet avec le visuel pro
-- Latence : ~5-10 sec
-- Toast de confirmation
+Un seul clic met à jour **tout le doc compta** :
+1. Régénère l'onglet **📊 Dashboard** depuis Firestore (CA, charges, masse salariale, bénéfice, impôt, subventions, trésorerie, engagements)
+2. Casse le cache **IMPORTDATA** des 4 feuilles data (`resumé`, `Depenses`, `Ventes`, `Paies`) en ajoutant `&_t={timestamp}` aux URLs → Sheets re-fetch immédiatement depuis `comptaExport` qui lit Firestore en direct
 
-→ Utilise quand tu veux voir les derniers chiffres figés dans le Sheet (sinon le Dashboard est régénéré automatiquement chaque heure via cron `dashboardKeepAlive`, mais seulement si écrasé par un Apps Script).
+→ Utilise à chaque fois que tu fais une modif côté site (reclassement, validation patron, ajout de pattern fournisseur) et que tu veux que ça remonte dans le doc compta **maintenant** (sans attendre le cache IMPORTDATA d'~1h).
+
+Latence : ~5-10 sec + toast de confirmation.
+
+### 🎨 Habillage automatique des 4 feuilles data
+
+Le script `format-sheet.js` applique un habillage cohérent sur `Depenses` / `Ventes` / `Paies` / `resumé` :
+- **Header** ligne 1 : fond rouge sang LTD + texte blanc bold + figé au scroll
+- **Bordures** : grille fine grise + cadre extérieur foncé
+- **Auto-resize** colonnes ET lignes selon contenu (texte wrappé visible entièrement)
+- **Format `25 000 $`** sur la colonne Montant (aligné à droite)
+- **Format date** `dd/MM/yyyy HH:mm:ss` sur la colonne Date → tri et filtres date intelligents
+- **Couleurs conditionnelles sur `Depenses`** :
+  - 🟢 **vert pâle** si Déductible = oui
+  - 🔴 **rouge pâle** si Déductible = non
+- **Zebra ivoire/blanc** sur `Ventes`, `Paies`, `resumé` (alternance ligne par ligne pour lisibilité)
+
+Le script est idempotent → relançable à volonté via `node scripts/format-sheet.js` depuis `firebase/functions`.
 
 ### 🔒 Bouton Clôturer la semaine
 

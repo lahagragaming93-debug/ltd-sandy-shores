@@ -1,9 +1,18 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-14 (soir)**
+> Dernière MAJ : **2026-05-15 (soir)**
 
-## ✅ Résolus depuis dernière MAJ
+## ✅ Résolus depuis dernière MAJ (session 2026-05-15 partie 2)
+- Compta Sheet : **refresh complet en 1 clic** (Dashboard + 4 feuilles data) — fin du cache IMPORTDATA 1h qui bloquait les modifs Firestore → Sheet. Module `lib/refresh-importdata.mjs` + cache-bust `&_t={timestamp}`.
+- Habillage 4 feuilles data : bordures grille, format `25 000 $`, format date `dd/MM/yyyy HH:mm:ss`, couleurs conditionnelles 🟢 vert pâle / 🔴 rouge pâle sur Déductible (Depenses), zebra ivoire/blanc (Ventes/Paies/résumé)
+- Format date ISO côté `comptaExport.dateIso` → Sheets reconnaît comme vrai datetime + tri/filtres date intelligents
+- Bug badge fournisseur côté UI Compta : `reclasserDepense` fait un **re-match automatique** après save → pose `fournisseurLabel` + `fournisseurPatternId`
+- Script `backfill-fournisseur-label.js` pour reposer le fournisseur sur dépenses passées matchant un pattern
+- Renommage bouton "Rafraîchir Dashboard Sheet" → "Rafraîchir doc comptabilité"
+- Cleanup scripts debug session (3 fichiers one-shot supprimés)
+
+## ✅ Résolus session 2026-05-15 (partie 1) et avant
 - Bug DRH/Blake "0 $" salaire estimé → fix `salaireDecide ?? plafond` (commit 712ba34)
 - Bug heures Teodomiro `cumul=0` (index Firestore manquant + service en cours ignoré) → fix (commit 267f433)
 - Compte Jeff Taylor supprimé totalement (Firestore + Auth)
