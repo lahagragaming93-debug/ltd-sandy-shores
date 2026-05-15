@@ -5,6 +5,35 @@
 
 ---
 
+## ✅ Session 2026-05-15 (partie 3) — Filtre période dynamique sur les KPI (5 pages)
+
+**Demande patron** : pouvoir filtrer les KPI du site par période (cette semaine / ce mois / 30 derniers jours / depuis ouverture / personnalisé). Constat initial sur Banque LTD : KPI calculés sur les 500 derniers docs `/banqueLtd` + 500 derniers `/depenses`, soit une période non-déterministe (~6-7 jours au rythme actuel), incompréhensible pour le patron.
+
+### Nouvel util `public/js/utils/period-filter.js`
+- `renderPeriodFilter(default)` : renvoie le HTML du `<select>` + bloc dates pour mode personnalisé
+- `getPeriode()` / `getPeriodeLabel()` : retourne `{ debut, fin, label }` selon le choix courant (Date | null si "Depuis ouverture")
+- `attachPeriodFilter(onChange)` : branche le change handler — change immédiat sur les périodes prédéfinies, clic "Appliquer" pour le mode personnalisé
+- 5 périodes : `semaine` (lundi 00h → maintenant), `mois` (1er → maintenant), `30j` (J-30 → maintenant), `ouverture` (pas de borne), `custom` (granularité 1 jour)
+
+### Pages mises à jour
+| Page | Détail |
+|---|---|
+| **Banque LTD** | Filtre + queries `/banqueLtd` et `/depenses` `where timestamp >= debut <= fin` + limit 5000. KPI "Solde actuel" reste live via query séparée (sinon incohérent en mode "période passée"). |
+| **Mes paies** | 3 KPI figés (semaine/mois/total) remplacés par un set dynamique sur la période. Filter client-side sur les 200 dernières paies. |
+| **Revenus carburant** | Remplace l'ancien sélecteur 7j/30j par le standard (5 options, défaut 30j). Garde le filet REPRISE_DATE (2026-05-09). |
+| **Dashboard** | `debut/fin` deviennent dynamiques. Solde banque, alertes, stations, stocks bas → restent live. Historique 6 dernières semaines → reste hebdo. |
+
+### Pages volontairement non-touchées
+- **Comptabilité** : centrée sur la semaine RP (primes Art. 4-1.10 hebdo, Art. 4-1.11 mensuelle, déclaration IRS). Sélecteur de semaines archivées déjà présent. Filtre arbitraire risquerait de casser la logique fiscale.
+- **Ventes** : real-time listener `listenVentesSemaine` → bascule en fetch one-shot nécessaire (peut être fait plus tard).
+- **Employee** (Mon espace) / **RH** : hardwired RP-week pour calcul salaire estimé. Filtre casserait l'objectif "ce que je touche cette semaine".
+- **Stations** : KPI = état instantané (stocks, alertes), pas temporels.
+
+### Script de diagnostic
+- `scripts/debug-banque-kpis.js` : reproduit le calcul des KPI Banque côté serveur pour vérifier la période exacte couverte. Réutilisable.
+
+---
+
 ## ✅ Session 2026-05-15 (partie 2) — Refresh complet doc compta + habillage 4 feuilles + badge fournisseur
 
 **Contexte** : après reclassement de 2 factures matière 1ère côté site, le patron constate que rien ne bouge dans le doc compta (Sheet). Diagnostic remonte au cache `IMPORTDATA` de Sheets (~1h) qui bloquait toute remontée Firestore → Sheet.

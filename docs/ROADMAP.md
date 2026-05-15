@@ -1,9 +1,13 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-15 (soir)**
+> Dernière MAJ : **2026-05-15 (soir, partie 3)**
 
-## ✅ Résolus depuis dernière MAJ (session 2026-05-15 partie 2)
+## ✅ Résolus depuis dernière MAJ (session 2026-05-15 partie 3)
+- **Filtre période dynamique sur les KPI** : nouvel util `public/js/utils/period-filter.js` (5 options : semaine / mois / 30j / depuis ouverture / personnalisé), appliqué sur 4 pages (Banque LTD + Mes paies + Revenus carburant + Dashboard). Solde banque et tout ce qui est "état instantané" (stocks, alertes, stations) restent live indépendamment du filtre.
+- **Comptabilité, Ventes, Employee, RH, Stations** : volontairement non-touchées (logique RP-week-locked pour primes/déclaration IRS, ou état instantané).
+
+## ✅ Résolus session 2026-05-15 (partie 2)
 - Compta Sheet : **refresh complet en 1 clic** (Dashboard + 4 feuilles data) — fin du cache IMPORTDATA 1h qui bloquait les modifs Firestore → Sheet. Module `lib/refresh-importdata.mjs` + cache-bust `&_t={timestamp}`.
 - Habillage 4 feuilles data : bordures grille, format `25 000 $`, format date `dd/MM/yyyy HH:mm:ss`, couleurs conditionnelles 🟢 vert pâle / 🔴 rouge pâle sur Déductible (Depenses), zebra ivoire/blanc (Ventes/Paies/résumé)
 - Format date ISO côté `comptaExport.dateIso` → Sheets reconnaît comme vrai datetime + tri/filtres date intelligents

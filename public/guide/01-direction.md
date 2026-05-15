@@ -8,19 +8,28 @@ Ce guide couvre **les 9 modules** auxquels tu as accès, dans l'ordre où tu les
 
 ## 📊 1. Dashboard (Tableau de bord)
 
-> **Ta page d'accueil**. C'est la vue d'ensemble de la semaine en cours.
+> **Ta page d'accueil**. Par défaut, vue de la semaine en cours — mais tu peux changer la période via le **filtre en haut**.
+
+### 🗓 Filtre période (haut de page)
+
+Sélecteur avec 5 options : **Cette semaine** (par défaut) · **Ce mois** · **30 derniers jours** · **Depuis ouverture** · **Personnalisé** (2 dates au choix, granularité 1 jour).
+
+Au changement → les KPI, le graphique ventes et le Top 5 produits se recalculent sur la nouvelle période. **Le solde banque, les alertes, les stations et les stocks bas restent toujours en temps réel** (état instantané, indépendant du filtre).
+
+> 💡 Ce même filtre est aussi disponible sur **Banque LTD**, **Revenus carburant** et **Mes paies**.
 
 ### Ce que tu vois
 
 | Section | Contenu |
 |---------|---------|
-| **KPI semaine** | CA, bénéfice brut, bénéfice net, masse salariale (% + statut TTE) |
-| **Graphique ventes par jour** | Bar chart du lundi au dimanche |
-| **Top 5 produits** | Les 5 plus gros CA de la semaine |
-| **Historique 6 dernières semaines** | Tableau avec CA, dépenses, bénéfice net, statut |
-| **Alertes actives** | 8 dernières alertes (stock, station, vente sans stock, masse) |
-| **Stations mini-bloc** | Niveau de chaque station (barre de progression) |
-| **Stocks bas** | 8 produits en rupture ou sous seuil |
+| **KPI** (selon période) | CA, bénéfice brut, bénéfice net, masse salariale (% + statut TTE) |
+| **Solde banque LTD** | Toujours live, peu importe la période |
+| **Graphique ventes par jour** | Bar chart sur la période sélectionnée |
+| **Top 5 produits** | Les 5 plus gros CA de la période |
+| **Historique 6 dernières semaines** | Tableau avec CA, dépenses, bénéfice net, statut (toujours hebdo, indépendant du filtre) |
+| **Alertes actives** | 8 dernières alertes (stock, station, vente sans stock, masse) — temps réel |
+| **Stations mini-bloc** | Niveau de chaque station (barre de progression) — temps réel |
+| **Stocks bas** | 8 produits en rupture ou sous seuil — temps réel |
 
 ### Ce que tu peux faire
 - **Lecture seule.** Aucune action sur cette page. C'est juste un dashboard.
