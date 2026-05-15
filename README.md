@@ -1,5 +1,7 @@
 # LTD Sandy Shores — Plateforme de gestion
 
+> **Version `1.5.0`** — by **BLATV**
+
 Plateforme web complète de gestion pour le LTD Sandy Shores (épicerie multisites + franchise stations-essence) opérant sur le serveur FiveM Sandy Shores.
 
 > Toutes les valeurs financières sont en **dollars RP** ($).
@@ -71,3 +73,11 @@ L'application implémente les règles du TTE Chapitre IV — Secteur 2 :
 - Primes hebdomadaires (Art. 4-1.10) et mensuelles (Art. 4-1.11)
 - Clôture hebdomadaire automatique le dimanche 00 h 00
 - Conservation des données ≥ 6 semaines
+
+## Versioning
+
+La version courante est définie dans `public/js/version.js` (source unique de vérité), affichée dans la sidebar du site et dans le footer. Convention **SemVer** (`MAJOR.MINOR.PATCH`).
+
+---
+
+*Plateforme développée et maintenue par **BLATV**.*

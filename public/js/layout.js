@@ -6,6 +6,7 @@
 import { ROLE_LABELS, canAccess, isEmployeeView } from './utils/permissions.js';
 import { deconnecter, clearViewAsRole } from './auth.js';
 import { listenAlertesActives, marquerAlerteLue, marquerToutesAlertesLues } from './api.js';
+import { VERSION, AUTHOR, SIGNATURE_COURTE } from './version.js';
 
 const NAV_ITEMS = [
   { key: 'dashboard',       href: 'dashboard.html',     icon: '★', label: 'Dashboard',          group: 'Direction' },
@@ -145,6 +146,9 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
           <div class="subname">Épicerie &amp; Stations</div>
         </div>
         <nav>${navHtml}</nav>
+        <div class="sidebar-footer" style="margin-top:auto;padding:10px 14px;border-top:1px solid rgba(210,180,140,0.15);font-size:0.62rem;color:rgba(210,180,140,0.5);text-align:center;letter-spacing:0.02em;">
+          v${VERSION} · by ${AUTHOR}
+        </div>
       </aside>
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
       <header class="topbar">
@@ -189,6 +193,9 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
           </div>
         ` : ''}
         ${mainContentHtml}
+        <footer class="app-footer" style="margin-top:32px;padding:14px 0 8px;border-top:1px solid rgba(210,180,140,0.12);font-size:0.72rem;color:rgba(210,180,140,0.5);text-align:center;letter-spacing:0.02em;">
+          LTD Sandy Shores · v${VERSION} — by ${AUTHOR}
+        </footer>
       </main>
     </div>
     <div id="toast-container"></div>
