@@ -1,7 +1,28 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-15 (refresh complet doc compta + habillage 4 feuilles + badge fournisseur côté UI)**
+> Dernière mise à jour : **2026-05-15 (versioning v1.5.0 + signature BLATV + transition Discord vers citoyen)**
+
+---
+
+## ✅ Session 2026-05-15 (partie 4) — Versioning + signature BLATV + transition rôle Discord
+
+### Versioning et signature
+- Nouveau fichier `public/js/version.js` : source unique de vérité pour `VERSION = '1.5.0'` et `AUTHOR = 'BLATV'`. Convention SemVer (MAJOR.MINOR.PATCH).
+- Signature affichée à 3 endroits visibles (discrets) :
+  - Sidebar bas : `v1.5.0 · by BLATV` (font 0.62rem, opacité 0.5)
+  - Footer global sous chaque page : `LTD Sandy Shores · v1.5.0 — by BLATV`
+  - README.md : version en tête + crédit en pied
+- Meta tags `author` et `version` dans `public/index.html` (SEO, invisible UI).
+- Validation visuelle en local via `npx serve public -p 8000` avant push.
+
+### Transition rôle Discord Andrew BEAUCHAMP
+- Andrew BEAUCHAMP (compte `lahagragaming93@gmail.com`, rôle site `admin-technique`) passe **citoyen** sur Discord. Décision : se retire du RP côté Discord, garde uniquement la maintenance code du site.
+- **Aucun impact technique** : grep complet sur `discord-bot/` et `firebase/functions/` → aucun ID Discord d'Andrew hardcodé. Le bot a son propre token, indépendant des rôles user. Ton compte site reste admin-technique (rôle Firestore, indépendant de Discord).
+- Andrew conserve l'accès admin-technique au site (pour maintenance). À terme, quand Blake sera 100% autonome, son compte pourra être supprimé via **Administration → Utilisateurs**.
+
+### Script de diagnostic ajouté
+- `scripts/debug-paies-f1.js` : vérifie la chaîne de capture des paies F1 (canal `#paie` → `/paies`) + cross-check anti-doublon avec `/depenses type='paie'`. Confirmé : 2 paies du 11/05 captées proprement, pas de double-comptage.
 
 ---
 

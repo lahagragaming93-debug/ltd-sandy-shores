@@ -1,9 +1,14 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-15 (soir, partie 3)**
+> Dernière MAJ : **2026-05-15 (soir, partie 4)**
 
-## ✅ Résolus depuis dernière MAJ (session 2026-05-15 partie 3)
+## ✅ Résolus depuis dernière MAJ (session 2026-05-15 partie 4)
+- **Versioning v1.5.0** : source unique `public/js/version.js`, signature `BLATV` affichée discrètement (sidebar bas, footer global, README, meta tags). Convention SemVer.
+- **Transition rôle Discord** d'Andrew BEAUCHAMP de co-patron → citoyen validée sans risque technique (zéro hardcode d'ID Discord dans le code, bot indépendant via son propre token, rôle site Firestore inchangé).
+- **Script `debug-paies-f1.js`** : outil de diagnostic chaîne de capture paies F1.
+
+## ✅ Résolus session 2026-05-15 partie 3
 - **Filtre période dynamique sur les KPI** : nouvel util `public/js/utils/period-filter.js` (5 options : semaine / mois / 30j / depuis ouverture / personnalisé), appliqué sur 4 pages (Banque LTD + Mes paies + Revenus carburant + Dashboard). Solde banque et tout ce qui est "état instantané" (stocks, alertes, stations) restent live indépendamment du filtre.
 - **Comptabilité, Ventes, Employee, RH, Stations** : volontairement non-touchées (logique RP-week-locked pour primes/déclaration IRS, ou état instantané).
 
