@@ -3368,6 +3368,40 @@ export const reclasserDepense = onRequest({
       }
     }
 
+    // Re-match du fournisseur APRÈS save + éventuelle mémorisation : pose
+    // fournisseurLabel + fournisseurPatternId sur la dépense pour que l'UI
+    // Compta affiche le badge fournisseur (sinon la colonne reste "—" alors
+    // que le pattern matche bien).
+    // (comptaExport refait déjà ce match en lecture pour le CSV / Sheet, mais
+    //  l'UI Compta lit directement le champ stocké sur la dépense.)
+    try {
+      const depAfter = (await depRef.get()).data() || {};
+      const cfgSnapNow = await db.collection('config').doc('global').get();
+      const patternsNow = cfgSnapNow.exists ? (cfgSnapNow.data().fournisseurs || []) : [];
+      let matched = null;
+      for (const pat of patternsNow) {
+        if (matchesFournisseurPattern(pat, depAfter, depAfter.raison || '')) {
+          matched = pat;
+          break;
+        }
+      }
+      if (matched) {
+        await depRef.set({
+          fournisseurLabel: matched.label,
+          fournisseurPatternId: matched.id
+        }, { merge: true });
+      } else {
+        // Pas de match → nettoie les anciennes valeurs si présentes (cas où
+        // le patron change la classification d'une dépense précédemment auto-classée).
+        await depRef.set({
+          fournisseurLabel: FieldValue.delete(),
+          fournisseurPatternId: FieldValue.delete()
+        }, { merge: true });
+      }
+    } catch (e) {
+      console.error('[reclasserDepense] re-match fournisseur error:', e.message);
+    }
+
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error('[reclasserDepense]', err);

@@ -43,7 +43,7 @@ const html = `
     </select>
     <button class="btn btn-icon" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
     <button class="btn btn-icon" id="btn-export-pdf" title="Imprimer / Exporter en PDF" data-tooltip="Imprimer PDF">🖨</button>
-    ${editable ? '<button class="btn btn-icon" id="btn-refresh-dashboard" title="Rafraîchir le Dashboard du Google Sheet" data-tooltip="Rafraîchir Dashboard Sheet">🔄</button>' : ''}
+    ${editable ? '<button class="btn btn-icon" id="btn-refresh-dashboard" title="Rafraîchir le doc comptabilité (Dashboard + Dépenses + Ventes + Paies + résumé)" data-tooltip="Rafraîchir doc comptabilité">🔄</button>' : ''}
     ${editable ? '<button class="btn btn-icon" id="btn-cloturer-semaine" title="Clôturer la semaine (uniquement après dimanche 23h59)" data-tooltip="Clôturer la semaine">🔒</button>' : ''}
     <span class="spacer"></span>
     ${editable ? '<button class="btn btn-primary btn-icon" id="btn-add-depense" title="Ajouter une dépense" data-tooltip="Ajouter dépense">➕</button>' : ''}
@@ -1090,7 +1090,7 @@ chargerStatsbank();
 
 
 // ============================================================
-// Bouton 🔄 Rafraîchir Dashboard Sheet
+// Bouton 🔄 Rafraîchir doc comptabilité (Dashboard + 4 feuilles data)
 // ============================================================
 document.getElementById("btn-refresh-dashboard")?.addEventListener("click", async () => {
   const btn = document.getElementById("btn-refresh-dashboard");
