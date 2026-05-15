@@ -3388,6 +3388,7 @@ export const reclasserDepense = onRequest({
 // ============================================================
 import { google as googleapis } from 'googleapis';
 import { regenererDashboard } from './lib/dashboard-core.mjs';
+import { forceRefreshImportData } from './lib/refresh-importdata.mjs';
 
 // Helper : crée un client Sheets API avec le service account stocké en secret
 function getSheetsClient() {
@@ -3428,7 +3429,11 @@ export const refreshDashboardNow = onRequest({
     await requireDirection(req);
     const sheets = getSheetsClient();
     const result = await regenererDashboard({ db, sheets });
-    return res.status(200).json({ ok: true, ...result });
+    // Casse le cache IMPORTDATA des feuilles Depenses/Ventes/Paies pour
+    // que les modifs (reclassement, etc.) faites côté site remontent
+    // immédiatement dans le doc compta.
+    const importdataResult = await forceRefreshImportData({ sheets });
+    return res.status(200).json({ ok: true, ...result, importdata: importdataResult });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.error });
     console.error('[refreshDashboardNow] error:', e.message);
@@ -3774,6 +3779,7 @@ export const cloturerSemaine = onRequest({
     try {
       const sheets = getSheetsClient();
       await regenererDashboard({ db, sheets });
+      await forceRefreshImportData({ sheets });
     } catch (e) {
       console.error('[cloturerSemaine] refresh Dashboard error:', e.message);
     }
