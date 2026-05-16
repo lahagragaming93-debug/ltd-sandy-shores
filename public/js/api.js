@@ -156,6 +156,19 @@ export async function setStation(id, data) {
   await setDoc(doc(db, 'stations', id), data, { merge: true });
 }
 
+// ----- Subventions reçues (banque) -----
+// Lit /banqueLtd ou categorieEntree='subvention' (marquage manuel par patron via
+// scripts/marquer-subvention.js). Recette NON IMPOSABLE (TTE Art. 4-2.16).
+export async function listSubventionsSemaine(dateDebut, dateFin) {
+  const q = query(collection(db, 'banqueLtd'),
+    where('timestamp', '>=', Timestamp.fromDate(dateDebut)),
+    where('timestamp', '<=', Timestamp.fromDate(dateFin)),
+    orderBy('timestamp', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(b => b.categorieEntree === 'subvention');
+}
+
 // ----- Redistributions essence -----
 export async function listRedistributionsSemaine(dateDebut, dateFin) {
   const q = query(collection(db, 'redistributions'),

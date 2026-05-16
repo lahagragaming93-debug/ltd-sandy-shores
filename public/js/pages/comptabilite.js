@@ -9,7 +9,7 @@ import { renderShell, roleBadgeHtml } from '../layout.js';
 import {
   listVentesSemaine, listDepensesSemaine, listPaiesSemaine, listSemaines,
   ajouterDepense, listUsers, listStatsHebdoOfficielles, listRedistributionsSemaine,
-  listServicesSemaine, listQuotasSemaine, getConfig
+  listServicesSemaine, listQuotasSemaine, getConfig, listSubventionsSemaine
 } from '../api.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId } from '../utils/formatters.js';
@@ -287,7 +287,7 @@ async function chargerTout() {
     return;
   }
 
-  const [ventes, depenses, paies, u, redistributions, services, quotas, cfg] = await Promise.all([
+  const [ventes, depenses, paies, u, redistributions, services, quotas, cfg, subventions] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
@@ -295,7 +295,8 @@ async function chargerTout() {
     listRedistributionsSemaine(debut, fin).catch(() => []),
     listServicesSemaine(debut, fin).catch(() => []),
     listQuotasSemaine(weekId()).catch(() => []),
-    getConfig().catch(() => ({}))
+    getConfig().catch(() => ({})),
+    listSubventionsSemaine(debut, fin).catch(() => [])
   ]);
   users = u;
   // Cache les patterns fournisseurs pour la modale Reclasser
@@ -303,6 +304,9 @@ async function chargerTout() {
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  // Subventions : recette NON IMPOSABLE (TTE Art. 4-2.16). Comptee dans le
+  // benefice net (tresorerie reelle) mais PAS dans le resultat imposable.
+  const totalSubventions = subventions.reduce((s, b) => s + (Number(b.montant) || 0), 0);
   const caTotal = ca + caCarburant;
   // Exclure les depenses type='paie' (doublon avec /paies attribuees a la
   // semaine precedente via fenetre post-cloture).
@@ -337,13 +341,15 @@ async function chargerTout() {
   // semaine n'est pas finie.
   const masseSalariale = Math.max(masseEstimee, masseVersee);
   const resultatImposable = caTotal - deductibles;
-  const beneficeNet = caTotal - totalDepenses - masseSalariale;
+  // Benefice net inclut les subventions recues (tresorerie reelle).
+  // Le resultat imposable, lui, ne les inclut pas (Art. 4-2.16 non imposable).
+  const beneficeNet = caTotal + totalSubventions - totalDepenses - masseSalariale;
   const masse = checkMasseSalariale(masseSalariale, caTotal);
 
   const pHebdo = primeHebdo(caTotal);
   const pMensuel = primeMensuelle(beneficeNet);
 
-  dataCache = { ca, caCarburant, caTotal, deductibles, nonDeductibles, masseSalariale, beneficeNet, paies, debut, fin };
+  dataCache = { ca, caCarburant, caTotal, deductibles, nonDeductibles, masseSalariale, beneficeNet, paies, debut, fin, totalSubventions, subventions };
 
   // === KPIs colorés ===
   document.getElementById('kpis-compta').innerHTML = `
@@ -357,6 +363,13 @@ async function chargerTout() {
       <div class="value">${money(caCarburant)}</div>
       <div class="delta">${redistributions.length} ventes essence</div>
     </div>
+    ${totalSubventions > 0 ? `
+    <div class="kpi kpi-recette" title="Subventions reçues — non imposable (TTE Art. 4-2.16). Comptée dans le bénéfice net mais hors résultat imposable.">
+      <div class="label">🏛 Subventions reçues</div>
+      <div class="value">${money(totalSubventions)}</div>
+      <div class="delta">${subventions.length} virement(s) — non imposable</div>
+    </div>
+    ` : ''}
     <div class="kpi kpi-depense">
       <div class="label">❤ Charges déductibles</div>
       <div class="value">${money(deductibles)}</div>
@@ -375,10 +388,22 @@ async function chargerTout() {
   `;
 
   // === Recettes ===
+  // Les subventions sont affichees a part (non imposable) — incluses dans le
+  // total tresorerie mais le resultat imposable reste base sur le CA seul.
   document.getElementById('tbody-recettes').innerHTML = `
     <tr><td>Chiffre d'affaires (ventes produits)</td><td class="right mono">${money(ca)}</td></tr>
     <tr><td>Chiffre d'affaires (ventes carburant)</td><td class="right mono">${money(caCarburant)}</td></tr>
-    <tr class="row-total"><td>Total recettes</td><td class="right mono">${money(caTotal)}</td></tr>
+    <tr class="row-total"><td>Total CA imposable</td><td class="right mono">${money(caTotal)}</td></tr>
+    ${totalSubventions > 0 ? `
+      <tr><td colspan="2" style="padding-top:8px;"><strong>🏛 Subventions reçues</strong> <span class="muted" style="font-size:0.78rem;">— non imposable (TTE Art. 4-2.16)</span></td></tr>
+      ${subventions.map(s => `
+        <tr>
+          <td><span class="muted">${datetime(s.timestamp)}</span> ${escapeHtml(s.raison || 'Subvention')}</td>
+          <td class="right mono">${money(s.montant)}</td>
+        </tr>
+      `).join('')}
+      <tr class="row-total"><td>Total trésorerie (CA + subventions)</td><td class="right mono">${money(caTotal + totalSubventions)}</td></tr>
+    ` : ''}
   `;
 
   // === Dépenses ===
@@ -965,13 +990,15 @@ _Source : LTD Sandy Shores — Comptabilité_`;
 
 // === Exports ===
 document.getElementById('btn-export-csv').addEventListener('click', async () => {
-  const [ventes, depenses, paies, redistributions] = await Promise.all([
+  const [ventes, depenses, paies, redistributions, subv] = await Promise.all([
     listVentesSemaine(debut, fin), listDepensesSemaine(debut, fin), listPaiesSemaine(debut, fin),
-    listRedistributionsSemaine(debut, fin).catch(() => [])
+    listRedistributionsSemaine(debut, fin).catch(() => []),
+    listSubventionsSemaine(debut, fin).catch(() => [])
   ]);
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const caTotal = ca + caCarburant;
+  const totalSubv = subv.reduce((s, b) => s + (Number(b.montant) || 0), 0);
   const dep = depenses.reduce((s, d) => s + (d.montant || 0), 0);
   const dedu = depenses.filter(d => d.deductible !== false).reduce((s, d) => s + (d.montant || 0), 0);
   const masse = paies.reduce((s, p) => s + (p.montant || 0), 0);
@@ -981,11 +1008,12 @@ document.getElementById('btn-export-csv').addEventListener('click', async () => 
     `CA produits;${ca}`,
     `CA carburant;${caCarburant}`,
     `CA total;${caTotal}`,
+    `Subventions recues (non imposable);${totalSubv}`,
     `Charges deductibles;${dedu}`,
     `Charges non deductibles;${dep - dedu}`,
     `Masse salariale;${masse}`,
     `Resultat imposable;${caTotal - dedu}`,
-    `Benefice net;${caTotal - dep - masse}`
+    `Benefice net (avec subventions);${caTotal + totalSubv - dep - masse}`
   ];
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');

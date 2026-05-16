@@ -85,6 +85,20 @@ Apparaît immédiatement dans le Sheet aussi (avec le nom de qui a saisi, traça
 
 ---
 
+### 🏛 Une subvention reçue (recette exceptionnelle)
+
+Quand le gouvernement (Governor SA / IRS) verse une subvention sur le compte LTD :
+
+1. **Le bot capte automatiquement** le virement entrant sur le compte LTDSANDY → ligne dans `/banqueLtd` (visible sur la page **Banque LTD**)
+2. **Étape manuelle obligatoire** : le patron lance `node scripts/marquer-subvention.js` (ou variante adaptée au montant) pour flagger la transaction `categorieEntree=subvention`
+3. La page **Comptabilité** affiche alors un nouveau KPI **🏛 Subventions reçues** + une ligne dans le panneau Recettes
+4. ⚠ La subvention est **non imposable** (TTE Art. 4-2.16) : elle est ajoutée au **Bénéfice net** (trésorerie réelle) mais **PAS au résultat imposable**
+5. Si elle est **remboursable** (clause contractuelle) → un doc `/engagements` doit être créé via Admin pour suivre l'échéance
+
+**Exemple** : Subvention THORPE du 14/05/2026 → +790 000 $ reçus, dont 300 000 $ d'essence à rembourser sous 4 semaines (échéance 11/06/2026).
+
+---
+
 ## 📅 3. Comment clôturer une semaine
 
 ### Bonne nouvelle : c'est automatique
