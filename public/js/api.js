@@ -368,7 +368,12 @@ export async function listPaiesSemaine(dateDebut, dateFin) {
     where('timestamp', '<=', Timestamp.fromDate(finFenetre)),
     orderBy('timestamp', 'desc'));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Filtre : si une paie a weekKeyAttribuee defini, elle appartient logiquement
+  // a cette semaine-la (taggee a la cloture). Excluss celles attribuees a une
+  // AUTRE semaine que celle demandee (dateDebut = lundi de la semaine N).
+  const wKeyCible = dateDebut.toISOString().slice(0, 10);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(p => !p.weekKeyAttribuee || p.weekKeyAttribuee === wKeyCible);
 }
 
 // Paies reçues par UN employé (utilisé par /paies.html)

@@ -3827,6 +3827,15 @@ export const cloturerSemaine = onRequest({
     const masseSalariale = paiesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
     const beneficeNet = ca - depTotal - masseSalariale;
 
+    // Tag les paies ramassees avec weekKeyAttribuee pour qu'elles soient
+    // exclues des KPI "cette semaine" (W19) sur dashboard/rh/compta/banque.
+    // Sans ce tag, les paies versees lundi 00h-01h pour W18 polluent W19.
+    if (paiesSnap.size > 0) {
+      const batchTag = db.batch();
+      paiesSnap.docs.forEach(d => batchTag.update(d.ref, { weekKeyAttribuee: weekKey }));
+      await batchTag.commit();
+    }
+
     await db.collection('semaines').doc(weekKey).set({
       numero: weekKey,
       dateDebut: Timestamp.fromDate(debutSemainePassee),
