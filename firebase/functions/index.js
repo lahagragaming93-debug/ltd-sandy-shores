@@ -3742,35 +3742,61 @@ export const cloturerSemaine = onRequest({
 
     // Calcule la semaine à clôturer = la semaine qui vient de finir
     // (lundi → dimanche, fin = dimanche 23:59:59.999 le plus récent passé)
+    // TIMEZONE: Cloud Functions tournent en UTC mais la semaine RP est en heure
+    // Paris (Europe/Paris, UTC+1 hiver, UTC+2 ete). Sans correction, un click
+    // a 01h Paris (= 23h UTC dimanche en ete) ferait croire qu'on est encore
+    // dimanche avant 23h59 et rejetterait la cloture du lundi matin.
     const now = new Date();
-    // En timezone Paris (compute via offset implicit pour Cloud Functions UTC)
-    // Trouve le dernier dimanche 23:59 passé
-    const finSemainePassee = new Date(now);
-    const day = finSemainePassee.getDay();
-    // day=0 dim, 1 lun, ..., 6 sam. On veut atteindre le dimanche 23:59
-    if (day === 0) {
-      // Aujourd'hui dimanche : la semaine N en cours s'est terminée hier soir (semaine N-1)
-      // si on est avant 23:59:59 aujourd'hui, sinon c'est aujourd'hui
-      const seuil = new Date(finSemainePassee);
-      seuil.setHours(23, 59, 0, 0);
-      if (now < seuil) {
-        // Semaine en cours pas encore finie
-        return res.status(400).json({ error: 'Tu ne peux pas clôturer une semaine avant dimanche 23h59. La semaine en cours se termine à la fin du dimanche.' });
-      }
-    }
-    // Recule jusqu'au dernier dimanche
-    const diffJours = day === 0 ? 0 : day; // si lundi (1), on recule 1 jour pour dimanche
-    finSemainePassee.setDate(finSemainePassee.getDate() - diffJours);
-    finSemainePassee.setHours(23, 59, 59, 999);
-    const debutSemainePassee = new Date(finSemainePassee);
-    debutSemainePassee.setDate(debutSemainePassee.getDate() - 6);
-    debutSemainePassee.setHours(0, 0, 0, 0);
-    const weekKey = debutSemainePassee.toISOString().slice(0, 10);
 
-    // Fenetre PAIE pour clôture manuelle : du lundi N+1 00h00 (= fin sem + 1ms)
-    // jusqu'a MAINTENANT. Aligne sur le cron etape 2 qui ramasse les paies post-
-    // dimanche (versees lundi-mardi pour la semaine W). Sans ca, masseSalariale=0
-    // si le patron paie le lundi matin et clôture juste apres.
+    // 1. Convertit "now UTC" en "horloge Paris exprimee comme UTC" pour pouvoir
+    //    utiliser getUTC*() afin de lire les valeurs Paris.
+    function toParisWall(d) {
+      const s = d.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
+      return new Date(s.replace(' ', 'T') + 'Z'); // ex: "2026-05-18T01:19:06Z"
+    }
+    // 2. Inverse : prend une "horloge Paris en UTC" et renvoie le vrai instant UTC.
+    //    Itere une fois pour gerer le DST autour du moment cible.
+    function parisWallToUtc(parisWall) {
+      let utc = new Date(parisWall.getTime() - 60 * 60 * 1000);
+      for (let i = 0; i < 3; i++) {
+        const wall = toParisWall(utc);
+        const drift = parisWall.getTime() - wall.getTime();
+        if (Math.abs(drift) < 1000) break;
+        utc = new Date(utc.getTime() + drift);
+      }
+      return utc;
+    }
+
+    const nowParis = toParisWall(now);
+    const dayParis = nowParis.getUTCDay();
+    const hourParis = nowParis.getUTCHours();
+    const minuteParis = nowParis.getUTCMinutes();
+
+    // Check : si on est dimanche Paris avant 23h59 -> rejet
+    if (dayParis === 0 && (hourParis < 23 || (hourParis === 23 && minuteParis < 59))) {
+      return res.status(400).json({
+        error: 'Tu ne peux pas clôturer une semaine avant dimanche 23h59 (heure Paris). La semaine en cours se termine à la fin du dimanche.'
+      });
+    }
+
+    // Recule jusqu'au dernier dimanche 23:59:59.999 PARIS
+    const finParisWall = new Date(nowParis);
+    const diffJours = dayParis === 0 ? 0 : dayParis; // lundi (1) -> -1j etc.
+    finParisWall.setUTCDate(finParisWall.getUTCDate() - diffJours);
+    finParisWall.setUTCHours(23, 59, 59, 999);
+    // Et le lundi correspondant a 00:00:00.000 PARIS
+    const debutParisWall = new Date(finParisWall);
+    debutParisWall.setUTCDate(debutParisWall.getUTCDate() - 6);
+    debutParisWall.setUTCHours(0, 0, 0, 0);
+
+    // weekKey base sur la date Paris du lundi (YYYY-MM-DD)
+    const weekKey = debutParisWall.toISOString().slice(0, 10);
+
+    // Reconvertit en vraies dates UTC pour requeter Firestore
+    const debutSemainePassee = parisWallToUtc(debutParisWall);
+    const finSemainePassee   = parisWallToUtc(finParisWall);
+
+    // Fenetre PAIE : lundi N+1 00h00 Paris -> maintenant (vrai UTC)
     const debutFenetrePaie = new Date(finSemainePassee.getTime() + 1);
     const finFenetrePaie = now;
 
