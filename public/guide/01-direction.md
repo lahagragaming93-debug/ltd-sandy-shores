@@ -229,7 +229,10 @@ Tu n'as plus qu'à saisir le **montant** et valider.
 Voir aussi : **[02-drh.md](02-drh.md)** pour le détail.
 
 ### Ce que tu vois
-- **KPI** : effectif actif, salaires estimés, salaires versés, masse salariale %.
+- **Sélecteur semaine** en haut : *Cette semaine (en cours)* ou *Semaine précédente (à payer)*.
+  - Bascule sur **« Semaine précédente »** chaque **lundi matin** après la clôture auto de 00h00 pour voir les salaires à verser sur la semaine qui vient de se terminer.
+  - Le badge à droite du sélecteur affiche les dates exactes de la semaine affichée + le marqueur **« À PAYER »** quand tu es sur la semaine précédente.
+- **KPI** : effectif actif, salaires estimés (libellé adapté à la semaine choisie), salaires versés, masse salariale %.
 - **Filtres** : par rôle, statut, recherche.
 - **Tableau effectif** : nom, rôle, ID Discord, heures de service, CA/quota, salaire estimé/plafond, statut, bouton « Détail ».
 
@@ -327,8 +330,9 @@ Tu as aussi accès à **ces deux pages employé** comme tout le monde, pour voir
 
 ### Lundi matin
 1. Ouvre le **Dashboard** : la semaine précédente est clôturée et archivée. Vérifie le bénéfice net.
-2. Va dans **Comptabilité** → semaine en cours = nouvelle semaine vierge. Le compteur démarre.
-3. Si une alerte **masse salariale > 85 %** est apparue dimanche : c'est que la semaine s'est mal terminée → réfléchis à des ajustements (réduire un salaire décidé, augmenter les ventes).
+2. Va dans **RH** → bascule le sélecteur sur **« Semaine précédente (à payer) »** : tu vois la liste des salaires estimés à verser à chaque employé pour la semaine qui vient de se terminer. Procède aux paiements depuis FiveM (`/paye` ou virement).
+3. Va dans **Comptabilité** → semaine en cours = nouvelle semaine vierge. Le compteur démarre.
+4. Si une alerte **masse salariale > 85 %** est apparue dimanche : c'est que la semaine s'est mal terminée → réfléchis à des ajustements (réduire un salaire décidé, augmenter les ventes).
 
 ### Tous les jours
 - Coup d'œil rapide au **Dashboard** (10 secondes) :

@@ -31,12 +31,21 @@
 
 ### Ce que tu vois
 
+#### 🗓 Sélecteur semaine (en haut)
+Toggle binaire pour choisir la semaine affichée :
+- **Cette semaine (en cours)** — par défaut, montre la semaine RP en cours (lundi 00h00 → maintenant).
+- **Semaine précédente (à payer)** — bascule à utiliser **le lundi matin** après la clôture auto de 00h00, pour voir les salaires estimés à verser sur la semaine clôturée.
+
+Le badge à droite affiche les dates exactes de la semaine affichée. Le marqueur **« À PAYER »** est visible quand tu es sur la semaine précédente.
+
+> 💡 La page recharge automatiquement (ventes, services, quotas, paies, redistributions carburant) sur la fenêtre choisie. Pas besoin de F5.
+
 #### KPI en haut
 | KPI | Signification |
 |-----|---------------|
 | **Effectif actif** | Nombre d'employés au statut « actif » |
-| **Salaires estimés** | Somme des salaires que le système calcule pour la semaine en cours |
-| **Salaires versés** | Somme des paies déjà versées via Discord (`#paie`) |
+| **Salaires estimés** | Somme des salaires calculés pour la semaine affichée (libellé : *cette semaine* ou *à verser (sem. clôturée)*) |
+| **Salaires versés** | Somme des paies déjà versées via Discord (`#paie`) sur la semaine affichée |
 | **Masse salariale %** | Total salaires / CA semaine — limite TTE = 90 % |
 
 #### Filtres

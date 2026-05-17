@@ -20,6 +20,14 @@ const { profile } = await requireAuth('rh');
 const editable = isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh';
 
 const html = `
+  <div class="page-toolbar" style="flex-wrap:wrap;gap:8px;">
+    <select id="filtre-semaine" title="Semaine à afficher pour les estimations de salaire">
+      <option value="courante">Cette semaine (en cours)</option>
+      <option value="precedente">Semaine précédente (à payer)</option>
+    </select>
+    <span id="badge-semaine" class="muted mono" style="font-size:0.78rem;align-self:center;">—</span>
+  </div>
+
   <div class="kpi-grid" id="kpis-rh">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
@@ -38,7 +46,7 @@ const html = `
   </div>
 
   <div class="panel framed">
-    <div class="panel-title"><span>Effectif</span></div>
+    <div class="panel-title"><span id="titre-effectif">Effectif</span></div>
     <div class="table-scroll">
       <table class="data" id="table-rh">
         <thead>
@@ -80,78 +88,125 @@ renderShell(profile, 'rh', html);
 
 makeSortable(document.getElementById('table-rh'));
 
-const debut = startOfWeekRP();
-const fin   = endOfWeekRP();
-const wId   = weekId();
+// === Bornes semaine — courante ou precedente selon le toggle ===
+// La semaine RP = lundi 00:00 -> dimanche 23:59. La semaine "precedente" est
+// utilisee chaque lundi matin par le patron pour voir les salaires a verser
+// suite a la cloture automatique de 00:00 (cron clotureHebdo).
+function bornesSemaine(choix) {
+  if (choix === 'precedente') {
+    const refSemPrec = new Date();
+    refSemPrec.setDate(refSemPrec.getDate() - 7);
+    return {
+      debut: startOfWeekRP(refSemPrec),
+      fin:   endOfWeekRP(refSemPrec),
+      wId:   weekId(refSemPrec)
+    };
+  }
+  return { debut: startOfWeekRP(), fin: endOfWeekRP(), wId: weekId() };
+}
 
-const [users, ventes, ventesAvecCachees, services, quotas, paies, config, redistributions] = await Promise.all([
-  listUsers().catch(() => []),
-  listVentesSemaine(debut, fin).catch(() => []),
-  listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
-  listServicesSemaine(debut, fin).catch(() => []),
-  listQuotasSemaine(wId).catch(() => []),
-  listPaiesSemaine(debut, fin).catch(() => []),
-  getConfig().catch(() => ({})),
-  listRedistributionsSemaine(debut, fin).catch(() => [])
-]);
+function labelSemaine(debut, fin) {
+  const fmt = (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  return `${fmt(debut)} → ${fmt(fin)}`;
+}
+
+let users = [], ventes = [], ventesAvecCachees = [], services = [],
+    quotas = [], paies = [], config = {}, redistributions = [];
+let debut, fin, wId;
+let metricsByUser = {};
+
+async function chargerSemaine(choix) {
+  ({ debut, fin, wId } = bornesSemaine(choix));
+  document.getElementById('badge-semaine').textContent =
+    `${choix === 'precedente' ? 'À PAYER · ' : ''}${labelSemaine(debut, fin)}`;
+  document.getElementById('titre-effectif').textContent =
+    choix === 'precedente'
+      ? `Effectif — semaine clôturée (${labelSemaine(debut, fin)})`
+      : 'Effectif — semaine en cours';
+
+  document.getElementById('tbody-rh').innerHTML =
+    `<tr><td colspan="8" class="muted text-center">Chargement…</td></tr>`;
+
+  [users, ventes, ventesAvecCachees, services, quotas, paies, config, redistributions] = await Promise.all([
+    listUsers().catch(() => []),
+    listVentesSemaine(debut, fin).catch(() => []),
+    listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
+    listServicesSemaine(debut, fin).catch(() => []),
+    listQuotasSemaine(wId).catch(() => []),
+    listPaiesSemaine(debut, fin).catch(() => []),
+    getConfig().catch(() => ({})),
+    listRedistributionsSemaine(debut, fin).catch(() => [])
+  ]);
+
+  calculerMetriques();
+  renderKpis();
+  renderTable();
+  renderActivite();
+}
 
 // === Calculer les métriques par employé ===
 // caTotal : tout le CA (sert au LTD pour la compta)
 // caParticulier : seulement les ventes "particulier" (sert au calcul de la commission vendeur)
 //                 Fallback sur v.montant si montantParticulier n'existe pas encore (vente historique)
-const metricsByUser = {};
-users.forEach(u => {
-  const myVentes = ventes.filter(v => v.vendeurId === u.id);
-  const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
-  const caParticulier = myVentes.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
-  const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
+function calculerMetriques() {
+  metricsByUser = {};
+  users.forEach(u => {
+    const myVentes = ventes.filter(v => v.vendeurId === u.id);
+    const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
+    const caParticulier = myVentes.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
+    const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
 
-  const myServices = services.filter(s => s.employeId === u.id);
-  const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0);
+    const myServices = services.filter(s => s.employeId === u.id);
+    const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0);
 
-  const myQuota = quotas.find(q => q.employeId === u.id) || { bidons: 0, caoutchoucs: 0 };
+    const myQuota = quotas.find(q => q.employeId === u.id) || { bidons: 0, caoutchoucs: 0 };
 
-  const myPaies = paies.filter(p => p.beneficiaireId === u.id);
-  const totalPaie = myPaies.reduce((s, p) => s + (p.montant || 0), 0);
+    const myPaies = paies.filter(p => p.beneficiaireId === u.id);
+    const totalPaie = myPaies.reduce((s, p) => s + (p.montant || 0), 0);
 
-  const employe = {
-    role: u.role,
-    caGenere: caParticulier, // commission sur particulier seulement
-    bidonsRealises: myQuota.bidons || 0,
-    caoutchoucsRealises: myQuota.caoutchoucs || 0,
-    salaireDecide: u.salaireDecide || 0
-  };
-  const estime = salaireEstime(employe, config);
+    const employe = {
+      role: u.role,
+      caGenere: caParticulier, // commission sur particulier seulement
+      bidonsRealises: myQuota.bidons || 0,
+      caoutchoucsRealises: myQuota.caoutchoucs || 0,
+      salaireDecide: u.salaireDecide || 0
+    };
+    const estime = salaireEstime(employe, config);
 
-  metricsByUser[u.id] = {
-    ca, caParticulier, benefice, heuresMs, ventes: myVentes,
-    bidons: myQuota.bidons || 0,
-    caoutchoucs: myQuota.caoutchoucs || 0,
-    salaireEstime: estime,
-    totalPaie
-  };
-});
+    metricsByUser[u.id] = {
+      ca, caParticulier, benefice, heuresMs, ventes: myVentes,
+      bidons: myQuota.bidons || 0,
+      caoutchoucs: myQuota.caoutchoucs || 0,
+      salaireEstime: estime,
+      totalPaie
+    };
+  });
+}
 
 // === KPIs ===
-// On exclut les rôles techniques (admin-technique) des calculs financiers / masse salariale
-const usersFinance = users.filter(u => compteEnFinance(u.role));
-const caProduits   = ventes.reduce((s, v) => s + (v.montant || 0), 0);
-const caCarburant  = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
-// TTE : ratio masse salariale sur CA TOTAL (produits + carburant), pour refleter
-// la realite economique et eviter de declarer hors-TTE artificiellement.
-const totalCA = caProduits + caCarburant;
-const totalEstime = usersFinance.reduce((s, u) => s + (metricsByUser[u.id]?.salaireEstime || 0), 0);
-const totalVerse = paies.reduce((s, p) => s + (p.montant || 0), 0);
-const masse = checkMasseSalariale(totalEstime, totalCA);
-const actifs = usersFinance.filter(u => u.statut === 'actif').length;
-const technicians = users.filter(u => isSuperAdmin(u.role) && u.statut === 'actif').length;
+function renderKpis() {
+  // On exclut les rôles techniques (admin-technique) des calculs financiers / masse salariale
+  const usersFinance = users.filter(u => compteEnFinance(u.role));
+  const caProduits   = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const caCarburant  = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  // TTE : ratio masse salariale sur CA TOTAL (produits + carburant), pour refleter
+  // la realite economique et eviter de declarer hors-TTE artificiellement.
+  const totalCA = caProduits + caCarburant;
+  const totalEstime = usersFinance.reduce((s, u) => s + (metricsByUser[u.id]?.salaireEstime || 0), 0);
+  const totalVerse = paies.reduce((s, p) => s + (p.montant || 0), 0);
+  const masse = checkMasseSalariale(totalEstime, totalCA);
+  const actifs = usersFinance.filter(u => u.statut === 'actif').length;
+  const technicians = users.filter(u => isSuperAdmin(u.role) && u.statut === 'actif').length;
+  const choix = document.getElementById('filtre-semaine')?.value || 'courante';
+  const deltaEstime = choix === 'precedente' ? 'à verser (sem. clôturée)' : 'cette semaine';
 
-document.getElementById('kpis-rh').innerHTML = `
-  <div class="kpi"><div class="label">Effectif actif</div><div class="value">${actifs}</div><div class="delta">/ ${usersFinance.length} comptes${technicians > 0 ? ` <span style="color:var(--color-gold);">+${technicians} tech</span>` : ''}</div></div>
-  <div class="kpi"><div class="label">Salaires estimés</div><div class="value">${money(totalEstime)}</div><div class="delta">cette semaine</div></div>
-  <div class="kpi"><div class="label">Salaires versés</div><div class="value">${money(totalVerse)}</div><div class="delta">via paie Discord</div></div>
-  <div class="kpi"><div class="label">Masse salariale</div><div class="value">${pct(masse.ratio*100,1)}</div><div class="delta ${masse.ok ? 'up' : 'down'}">limite TTE: 90%</div></div>
-`;
+  document.getElementById('kpis-rh').innerHTML = `
+    <div class="kpi"><div class="label">Effectif actif</div><div class="value">${actifs}</div><div class="delta">/ ${usersFinance.length} comptes${technicians > 0 ? ` <span style="color:var(--color-gold);">+${technicians} tech</span>` : ''}</div></div>
+    <div class="kpi"><div class="label">Salaires estimés</div><div class="value">${money(totalEstime)}</div><div class="delta">${deltaEstime}</div></div>
+    <div class="kpi"><div class="label">Salaires versés</div><div class="value">${money(totalVerse)}</div><div class="delta">via paie Discord</div></div>
+    <div class="kpi"><div class="label">Masse salariale</div><div class="value">${pct(masse.ratio*100,1)}</div><div class="delta ${masse.ok ? 'up' : 'down'}">limite TTE: 90%</div></div>
+  `;
+}
 
 // === Filtres + render table ===
 function renderTable() {
@@ -220,11 +275,13 @@ function renderTable() {
   document.getElementById(id).addEventListener('input', renderTable);
 });
 
+document.getElementById('filtre-semaine').addEventListener('change', (e) => {
+  chargerSemaine(e.target.value);
+});
+
 // Pre-remplit le champ de recherche depuis ?q=... (lien profond depuis /stocks)
 const _qParam = new URLSearchParams(location.search).get('q');
 if (_qParam) document.getElementById('filtre-recherche').value = _qParam;
-
-renderTable();
 
 function ouvrirDetail(uid) {
   const u = users.find(x => x.id === uid);
@@ -404,11 +461,13 @@ if (btnDecide) {
 }
 
 // === Activité de la semaine ===
-const usersById = users.reduce((m, u) => (m[u.id] = u, m), {});
-const div = document.getElementById('activite');
-if (services.length === 0 && paies.length === 0) {
-  div.innerHTML = `<p class="muted">Aucune activité encore (logs à venir).</p>`;
-} else {
+function renderActivite() {
+  const usersById = users.reduce((m, u) => (m[u.id] = u, m), {});
+  const div = document.getElementById('activite');
+  if (services.length === 0 && paies.length === 0) {
+    div.innerHTML = `<p class="muted">Aucune activité sur cette semaine.</p>`;
+    return;
+  }
   const parEmp = {};
   services.forEach(s => {
     if (!parEmp[s.employeId]) parEmp[s.employeId] = { duree: 0, sessions: 0 };
@@ -439,3 +498,6 @@ if (services.length === 0 && paies.length === 0) {
   wrapScroll(tAct, 400);
   makeSortable(tAct);
 }
+
+// === Chargement initial ===
+await chargerSemaine('courante');
