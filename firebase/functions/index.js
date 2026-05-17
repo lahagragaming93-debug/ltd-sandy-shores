@@ -140,12 +140,6 @@ export const clotureHebdoPaies = onSchedule({
   finFenetrePaie.setDate(finFenetrePaie.getDate() + 1);  // mardi
   finFenetrePaie.setHours(21, 0, 0, 0);                  // 21:00:00
 
-  const paiesSnap = await db.collection('paies')
-    .where('timestamp', '>=', Timestamp.fromDate(debutFenetrePaie))
-    .where('timestamp', '<=', Timestamp.fromDate(finFenetrePaie)).get();
-
-  const masse = paiesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
-
   // Recharge le doc semaine pour recalculer le benefice net
   const semSnap = await db.collection('semaines').doc(weekKey).get();
   if (!semSnap.exists) {
@@ -153,6 +147,20 @@ export const clotureHebdoPaies = onSchedule({
     return;
   }
   const sem = semSnap.data();
+
+  // Skip si la semaine a deja ete cloturee manuellement par le patron (bouton
+  // 🔒 /comptabilite). On laisse la valeur manuelle prevaloir pour preserver
+  // la trace cloturePar / noteCloture / dateClotureManuelle.
+  if (sem.statut === 'cloturee-manuelle' || sem.clotureManuelle === true) {
+    console.log('Cloture etape 2 skip', weekKey, '- deja cloturee manuellement par', sem.cloturParNom || sem.cloturePar || '?');
+    return;
+  }
+
+  const paiesSnap = await db.collection('paies')
+    .where('timestamp', '>=', Timestamp.fromDate(debutFenetrePaie))
+    .where('timestamp', '<=', Timestamp.fromDate(finFenetrePaie)).get();
+
+  const masse = paiesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
   const beneficeNet = (sem.ca || 0) - (sem.depenses || 0) - masse;
 
   await db.collection('semaines').doc(weekKey).set({
@@ -3759,6 +3767,13 @@ export const cloturerSemaine = onRequest({
     debutSemainePassee.setHours(0, 0, 0, 0);
     const weekKey = debutSemainePassee.toISOString().slice(0, 10);
 
+    // Fenetre PAIE pour clôture manuelle : du lundi N+1 00h00 (= fin sem + 1ms)
+    // jusqu'a MAINTENANT. Aligne sur le cron etape 2 qui ramasse les paies post-
+    // dimanche (versees lundi-mardi pour la semaine W). Sans ca, masseSalariale=0
+    // si le patron paie le lundi matin et clôture juste apres.
+    const debutFenetrePaie = new Date(finSemainePassee.getTime() + 1);
+    const finFenetrePaie = now;
+
     // Agrège les chiffres de la semaine
     const [ventesSnap, redistSnap, depensesSnap, paiesSnap] = await Promise.all([
       db.collection('ventes')
@@ -3771,8 +3786,8 @@ export const cloturerSemaine = onRequest({
         .where('timestamp', '>=', Timestamp.fromDate(debutSemainePassee))
         .where('timestamp', '<=', Timestamp.fromDate(finSemainePassee)).get(),
       db.collection('paies')
-        .where('timestamp', '>=', Timestamp.fromDate(debutSemainePassee))
-        .where('timestamp', '<=', Timestamp.fromDate(finSemainePassee)).get()
+        .where('timestamp', '>=', Timestamp.fromDate(debutFenetrePaie))
+        .where('timestamp', '<=', Timestamp.fromDate(finFenetrePaie)).get()
     ]);
 
     const ventes = ventesSnap.docs.map(d => d.data()).filter(v => !v.cachee);
@@ -3805,7 +3820,9 @@ export const cloturerSemaine = onRequest({
       cloturePar: uid,
       cloturParNom: `${caller.prenom || ''} ${caller.nom || ''}`.trim(),
       dateClotureManuelle: FieldValue.serverTimestamp(),
-      noteCloture: noteCloture || ''
+      noteCloture: noteCloture || '',
+      fenetrePaieDebut: Timestamp.fromDate(debutFenetrePaie),
+      fenetrePaieFin: Timestamp.fromDate(finFenetrePaie)
     }, { merge: true });
 
     // Refresh Dashboard tant qu'on y est
