@@ -1,7 +1,39 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-15 (soir, partie 4)**
+> Dernière MAJ : **2026-05-18 (session interrompue, reprise sur inspection Google Sheet + option B)**
+
+## 🚧 EN COURS — Reprise session 2026-05-18
+
+### À faire dès la reprise (user enverra des screens du Google Sheet)
+**Inspection Google Sheet "Comptabilité LTD"** — 8 problèmes remontés par le user, captures à venir :
+1. Ventes/dépenses/paies de W18 devraient passer dans un "dossier semaine d'avant" (le Sheet affiche toujours la semaine en cours = W19 vide)
+2. Résumé confus (zone à identifier précisément)
+3. Format semaine calendaire au lieu de RP lun-dim
+4. Date début / fin à corriger
+5. Statuts à revoir
+6. Prime hebdo affichée 5000$ → clarifier d'où ça vient et si c'est correct
+7. Chiffres pas tous en $ (rappel)
+8. Format date incompréhensible
+
+Code générateur : `firebase/functions/lib/dashboard-core.mjs` (909 lignes). Récap toutes les feuilles (Dashboard + Dépenses + Ventes + Paies + Résumé).
+
+### Option B — snapshot estimations + checkboxes "Versé"
+Spec :
+- À la clôture (manuelle `cloturerSemaine` + cron auto `clotureHebdo` étape 1), snapshot estimations par employé dans `/paiesEstimees/{weekKey}_{userId}` avec `{ userId, weekKey, role, prenom, nom, montantEstime, ca, caParticulier, bidons, caoutchoucs, paye: false, datePaiement: null, paieMatcheeId: null }`
+- Module backend `firebase/functions/lib/paie-calc.mjs` à recréer (fichier conçu puis supprimé sur demande user pour focus clôture)
+- Sur `/rh` "Semaine précédente" : lecture snapshot (au lieu de recalc live), colonne **Versé ?** checkbox par employé, KPI **Reste à verser**, auto-détection match paie Discord ↔ estimation
+
+## ✅ Résolus session 2026-05-18 (partie 1)
+- **Option A** : toggle "Cette semaine / Semaine précédente" sur `/rh` (commit `8aa0975`). Permet au patron de voir les estimations de la semaine clôturée après lundi 00h00.
+- **Bouton 🔒 Clôturer la semaine — 4 fix successifs** :
+  - Fenêtre paie post-dim (commit `d991339`) : ramassage des paies versées lundi N+1 00h00 → moment du clic
+  - Cron étape 2 skip si déjà clôturée manuellement (préserve traces patron)
+  - Wording modal explicite (commit `ffb0c38`) : titre "Clôturer la semaine précédente" + badge vert avec dates exactes "lun 11 mai → dim 17 mai"
+  - **Bug timezone Paris** (commit `a259805`) : Cloud Functions en UTC rejetaient à tort le clic du lundi matin (~01h Paris = ~23h UTC dimanche). Fix via conversion `now` UTC → horloge Paris via `Intl.DateTimeFormat`.
+- **Tag paies `weekKeyAttribuee`** (commit `b5f0356`) : à la clôture, chaque paie ramassée est taggée avec la semaine logique à laquelle elle appartient. Frontend `listPaiesSemaine` filtre les paies tag autre semaine. Fix bug "bénéfice net W19 = -94k$" sur dashboard.
+- **Clôture effective W18** : Blake MARS a clôturé le 18/05/2026 01:24:30 Paris (note "RAS"). CA 266 174 $, masse 97 458 $, bénéfice NET -793 249 $ (déficit cohérent reprise S15-17 + dette THORPE).
+- **Scripts d'inspection** : `check-cloture-w18.js`, `backfill-tag-paies-w18.js`.
 
 ## ✅ Résolus depuis dernière MAJ (session 2026-05-15 partie 4)
 - **Versioning v1.5.0** : source unique `public/js/version.js`, signature `BLATV` affichée discrètement (sidebar bas, footer global, README, meta tags). Convention SemVer.

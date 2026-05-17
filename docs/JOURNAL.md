@@ -1,7 +1,57 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-15 (versioning v1.5.0 + signature BLATV + transition Discord vers citoyen)**
+> Dernière mise à jour : **2026-05-18 (clôture manuelle W18 + tag paies + toggle /rh sem précédente — session interrompue, reprise sur Sheet)**
+
+---
+
+## 🚧 Session 2026-05-18 (partie 1) — Clôture manuelle W18 + workflow lundi matin
+
+### Contexte
+Premier lundi après mise en service de la plateforme. La semaine W18 (11-17 mai) s'est terminée, le cron auto étape 1 a tourné à 00h00, le patron Blake MARS doit verser les paies et clôturer.
+
+### Option A déployée — toggle "Cette semaine / Semaine précédente" sur `/rh`
+- Sélecteur binaire en haut de la page : permet de voir les estimations de la semaine clôturée (à payer) après lundi 00h00 sans perdre les chiffres.
+- Badge "À PAYER · 11 mai → 17 mai" + KPI adapté + filtres rôle/statut/recherche conservés.
+- Commit `8aa0975`. Doc guide direction + DRH MAJ avec la routine "lundi matin".
+
+### Clôture manuelle (bouton 🔒 /comptabilite) — 4 fix successifs
+1. **Fenêtre paie post-dim** (`d991339`) : `cloturerSemaine` ramassait les paies par timestamp strict lun-dim. Aligné sur le cron étape 2 → fenêtre lundi N+1 00h00 → moment du clic. Les paies versées le lundi matin pour W18 sont maintenant capturées dans `masseSalariale`.
+2. **Cron étape 2 skip si déjà clôturée manuellement** : préserve les traces `cloturePar`, `noteCloture`, `dateClotureManuelle`.
+3. **Wording modal explicite** (`ffb0c38`) : nouveau titre "Clôturer la semaine précédente" + badge vert avec dates exactes (ex "lun 11 mai 2026 → dim 17 mai 2026"), alerte "Pourquoi pas avant dim 23h59" repliable. Le patron voyait "ne peux pas clôturer la semaine en cours" et était confus.
+4. **Bug timezone Paris** (`a259805`) : Cloud Functions tournent en UTC. À 01h Paris (UTC+2 été), `getDay()` retournait 0 (dimanche) en UTC et `getHours()` 23 → rejet à tort. Fix : conversion `now` UTC → "horloge Paris" via `Intl.DateTimeFormat` + `toLocaleString('sv-SE', { timeZone: 'Europe/Paris' })`, manipulation des bornes en UTC factice, reconversion en vrai UTC pour Firestore.
+
+### Clôture effective de W18
+- Patron Blake MARS a cliqué 🔒 à `18/05/2026 01:24:30 Paris`.
+- Doc `/semaines/2026-05-11` : statut `cloturee-manuelle`, note "RAS", CA 266 174 $, masse salariale 97 458 $, bénéfice NET **-793 249 $** (déficit cohérent avec [[reprise S15-17]] + [[dette THORPE 300k$]]).
+- 1290 ventes, 116 dépenses, 11 paies ramassées dans la fenêtre.
+
+### Fix pollution KPI semaine en cours — tag paies `weekKeyAttribuee` (`b5f0356`)
+- Bug visible sur `/dashboard` : "bénéfice net estimé W19 = -94 399 $" alors que la semaine venait de commencer.
+- Cause : `listPaiesSemaine` décalait automatiquement la fenêtre paie ; quand le dashboard demandait W19 avec `dateFin=maintenant (lundi matin)`, le décalage retombait sur la **même journée** = toutes les paies du jour étaient comptées dans W19.
+- Fix backend : à la clôture, chaque paie ramassée reçoit `weekKeyAttribuee=weekKey` (W18 en l'occurrence).
+- Fix frontend : `listPaiesSemaine` filtre les paies dont `weekKeyAttribuee` est défini ET ≠ semaine demandée.
+- Backfill effectué : 11 paies W18 taggées rétroactivement via `scripts/backfill-tag-paies-w18.js`.
+
+### Scripts d'inspection ajoutés
+- `scripts/check-cloture-w18.js` : lit le doc `/semaines/{weekKey}` et affiche tous les champs (statut, dates, CA, masse, bénéfice, fenêtre paie).
+- `scripts/backfill-tag-paies-w18.js` : tague rétroactivement les paies versées dans la fenêtre paie d'une semaine déjà clôturée.
+
+### 🚧 EN ATTENTE — session interrompue, reprise sur Sheet
+Le user a remonté **8 problèmes** sur le Google Sheet "Comptabilité LTD" (`1mD-N3e_JpcLceiLSzDgGe01VKVf4KoO5vedM0OsnwtY`), captures à venir :
+- Ventes/dépenses/paies de W18 devraient passer dans un "dossier semaine d'avant" → Sheet montre toujours W19 vide
+- Résumé confus, format semaine calendaire au lieu de RP, dates incompréhensibles
+- Statuts à revoir
+- Prime hebdo affichée 5000$ à clarifier
+- Chiffres pas tous en $
+- Doublons format date
+
+Le code générateur : `firebase/functions/lib/dashboard-core.mjs` (909 lignes).
+
+### 🔜 À suivre — Option B (snapshot + checkboxes Versé)
+Spec validée :
+- À la clôture (manuelle + cron étape 1 auto), snapshot estimations par employé dans `/paiesEstimees/{weekKey}_{userId}` avec champs `paye`, `datePaiement`, `paieMatcheeId`.
+- Sur `/rh` "Semaine précédente" : lecture du snapshot (au lieu de recalc live), colonne checkbox **Versé ?**, KPI **Reste à verser**, auto-détection match paie Discord ↔ estimation.
 
 ---
 
