@@ -44,7 +44,7 @@ const html = `
     <button class="btn btn-icon" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
     <button class="btn btn-icon" id="btn-export-pdf" title="Imprimer / Exporter en PDF" data-tooltip="Imprimer PDF">🖨</button>
     ${editable ? '<button class="btn btn-icon" id="btn-refresh-dashboard" title="Rafraîchir le doc comptabilité (Dashboard + Dépenses + Ventes + Paies + résumé)" data-tooltip="Rafraîchir doc comptabilité">🔄</button>' : ''}
-    ${editable ? '<button class="btn btn-icon" id="btn-cloturer-semaine" title="Clôturer la semaine (uniquement après dimanche 23h59)" data-tooltip="Clôturer la semaine">🔒</button>' : ''}
+    ${editable ? '<button class="btn btn-icon" id="btn-cloturer-semaine" title="Clôturer la semaine précédente (dispo après dim 23h59)" data-tooltip="Clôturer la semaine précédente">🔒</button>' : ''}
     <span class="spacer"></span>
     ${editable ? '<button class="btn btn-primary btn-icon" id="btn-add-depense" title="Ajouter une dépense" data-tooltip="Ajouter dépense">➕</button>' : ''}
   </div>
@@ -52,15 +52,20 @@ const html = `
   ${editable ? `
   <!-- Modal clôture semaine -->
   <div id="modal-cloture" class="modal-backdrop hidden">
-    <div class="modal" style="max-width:560px;">
-      <h3>🔒 Clôturer la semaine</h3>
-      <p class="muted" style="font-size:0.85rem;">
-        Cette action fige les chiffres de la semaine écoulée (lundi → dimanche) dans la collection
-        <code>/semaines</code>. Le Dashboard reflètera la clôture officielle.
-      </p>
-      <div class="alert info" style="font-size:0.85rem;margin:8px 0;">
-        ⚠ Clôture possible <strong>uniquement après dimanche 23h59</strong>. Avant ça, la semaine n'est pas terminée.
+    <div class="modal" style="max-width:580px;">
+      <h3>🔒 Clôturer la semaine précédente</h3>
+      <div class="alert ok" style="font-size:0.9rem;margin:8px 0;background:rgba(46,160,67,0.08);border-left:3px solid var(--color-green, #2ea043);">
+        📅 <strong>Semaine ciblée :</strong> <span id="cloture-semaine-cible" class="mono">—</span><br>
+        <span class="muted" style="font-size:0.8rem;">Le bouton clôture toujours la <strong>dernière semaine terminée</strong> (lun → dim qui vient de finir), jamais la semaine en cours.</span>
       </div>
+      <p class="muted" style="font-size:0.85rem;">
+        Cette action fige les chiffres de la semaine ciblée dans <code>/semaines</code>.
+        Les paies versées depuis lundi 00h00 sont aussi capturées. Le Dashboard sera rafraîchi.
+      </p>
+      <details style="font-size:0.78rem;margin:8px 0;">
+        <summary class="muted" style="cursor:pointer;">Pourquoi pas avant dimanche 23h59 ?</summary>
+        <p class="muted" style="margin-top:6px;">Tant que la semaine n'est pas finie, ses chiffres bougent encore (ventes en cours). On attend dim 23h59 pour avoir une semaine complète.</p>
+      </details>
       <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-top:12px;">
         <input type="checkbox" id="cloture-confirmation-irs" style="margin-top:4px;" />
         <span><strong>✅ Je confirme avoir soumis ma déclaration fiscale sur le site IRS</strong>
@@ -1161,9 +1166,18 @@ function isPostDimancheSoir() {
 
 document.getElementById("btn-cloturer-semaine")?.addEventListener("click", () => {
   if (!isPostDimancheSoir()) {
-    toastError("Tu ne peux clôturer une semaine quaprès dimanche 23h59 (la semaine doit être terminée).");
+    toastError("Patience : la semaine en cours n'est pas terminée. Attends dimanche 23h59 pour clôturer.");
     return;
   }
+  // Calcule la semaine cible = derniere semaine terminee (lun-dim avant aujourdhui)
+  const refSemPrec = new Date();
+  refSemPrec.setDate(refSemPrec.getDate() - 7);
+  const debutCible = startOfWeekRP(refSemPrec);
+  const finCible = endOfWeekRP(refSemPrec);
+  const fmt = (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  document.getElementById("cloture-semaine-cible").textContent =
+    `lun ${fmt(debutCible)} → dim ${fmt(finCible)}`;
+
   document.getElementById("modal-cloture").classList.remove("hidden");
   document.getElementById("cloture-confirmation-irs").checked = false;
   document.getElementById("cloture-note").value = "";
