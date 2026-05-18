@@ -29,8 +29,12 @@
 | 14 | [`14-pieges-known-issues.md`](14-pieges-known-issues.md) | Bugs récurrents, timezone, secrets Windows, etc. |
 | 15 | [`15-glossaire-rp.md`](15-glossaire-rp.md) | Termes RP + acronymes + jargon TTE |
 | 16 | [`16-pour-claude-suivant.md`](16-pour-claude-suivant.md) | **Instructions opératoires pour toi (Claude)** |
+| 📜 | [`TTE-complet.txt`](TTE-complet.txt) | **Référence TTE brute intégrale** (12 chapitres, 1066 lignes) — loi fiscale Sandy Shores RPG. À consulter pour les détails exacts d'un article. |
+| 📜 | [`TTE-reference-consolidee.md`](TTE-reference-consolidee.md) | Référence TTE consolidée + formatée (793 lignes) — version "lisible" déployée sur le site sous `/guide?guide=10-tte-reference`. Trous identifiés : chap II-IV/VI et 7-14.2. |
 
 > 📁 `_ARCHIVE-handoff-v1-monobloc.md` est la première version monobloc, gardée pour référence rapide.
+
+⚠ **Pour adapter le squelette à un autre serveur RP** (pas Sandy Shores) : remplacer `TTE-complet.txt` par le doc du serveur cible, et adapter en conséquence `10-tte-rules.md` + le code (cf section "Si tu adaptes à un autre serveur RP" dans `10-tte-rules.md`).
 
 ---
 
