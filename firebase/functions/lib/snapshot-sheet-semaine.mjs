@@ -174,11 +174,12 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
   // === SECTION VENTES ===
   const idxVentesHeader = rows.length; // row 8
   rows.push([`💵 VENTES DE LA SEMAINE (${ventes.length})`, null, null, null, null, null, null, null, null]);
-  rows.push(['Date', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison', '', '']);
+  rows.push(['Date', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison', 'Source', '']);
   const idxVentesDataStart = rows.length;
   if (ventes.length === 0) {
     rows.push(['—', 'Aucune vente sur cette semaine', '', '', '', '', '', '', '']);
   } else {
+    const SOURCE_LABEL = { discord: 'IG', manuelle: 'Site', 'rattrapage-factures': 'Rattrap.' };
     for (const v of ventes) {
       const vendeur = v.vendeurNom || resolveUserLabel(v.vendeurDiscord, usersByDiscord);
       rows.push([
@@ -189,7 +190,8 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
         Number(v.montant) || 0,
         v.paiement || '',
         v.raison || '',
-        '', ''
+        SOURCE_LABEL[v.source] || v.source || '—',
+        ''
       ]);
     }
   }
@@ -530,11 +532,12 @@ export async function snapshotSheetSemaine({ db, sheets, weekKey, weekDebut, wee
     loadUsersByDiscordMap(db)
   ]);
 
-  // Ventes : exclure cachees (doublons) ET source != 'discord' + annulees
-  // (coherent avec csvVentes : seules les vraies factures IG comptent).
+  // Ventes : on inclut TOUTES les ventes visibles (manuelles + discord +
+  // rattrapage), seuls les doublons (cachee) et annulees sont exclus.
+  // L'audit IRS verra la colonne Source pour distinguer.
   const ventes = ventesSnap.docs
     .map(d => ({ id: d.id, ...d.data() }))
-    .filter(v => !v.cachee && v.source === 'discord' && !v.annulee);
+    .filter(v => !v.cachee && !v.annulee);
 
   // Depenses : exclure type=='paie' (coherent avec cloture).
   const depenses = depensesSnap.docs

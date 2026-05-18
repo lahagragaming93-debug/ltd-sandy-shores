@@ -43,9 +43,15 @@ export function snapshotSheetTitle(weekKey, debut, fin) {
   const lundi = debut instanceof Date ? debut : new Date(String(weekKey) + 'T00:00:00');
   const num = weekIsoNumber(lundi);
   const annee = lundi.getFullYear();
-  // On utilise les dates Paris reelles (debut/fin venant du doc /semaines).
+  // Pour le titre on affiche lundi-dimanche. Le dimanche est recalcule a partir
+  // du weekKey (lundi + 6 jours, midi local pour eviter tout edge-case TZ) au
+  // lieu d'utiliser dateFin qui est stocke en 23:59:59.999 et bascule au lundi
+  // suivant apres conversion UTC->Paris dans Intl.DateTimeFormat.
   const dDeb = debut instanceof Date ? debut : lundi;
-  const dFin = fin instanceof Date ? fin : new Date(lundi.getTime() + 6 * 24 * 3600 * 1000);
+  const dimMidi = new Date(lundi);
+  dimMidi.setHours(12, 0, 0, 0);
+  dimMidi.setDate(dimMidi.getDate() + 6);
+  const dFin = dimMidi;
   // Extraction jour/mois cote Paris (les bornes sont stockees en UTC mais
   // correspondent a lundi 00h00 / dim 23h59 Paris).
   const partsDeb = new Intl.DateTimeFormat('fr-FR', {
