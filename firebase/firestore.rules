@@ -238,6 +238,16 @@ service cloud.firestore {
       allow write: if canAdmin();
     }
 
+    // === Paies estimees (snapshots a la cloture, Option B 2026-05-18) ===
+    // Lecture : direction + DRH (pour pilotage "Reste a verser" sur /rh).
+    // Ecriture : interdite cote client — passe par Cloud Function
+    // marquerPaieVersee qui valide les droits (direction/DRH) et utilise
+    // l'Admin SDK. Snapshots crees par snapshotPaiesEstimees a la cloture.
+    match /paiesEstimees/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+
     // === Alertes ===
     match /alertes/{id} {
       allow read:   if isAuth() && isActif();

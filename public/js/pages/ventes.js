@@ -4,10 +4,11 @@
 
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listenVentesSemaine, listUsers, listProduits } from '../api.js';
-import { money, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
+import { listenVentesSemaine, listVentesSemaine, listUsers, listProduits } from '../api.js';
+import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { ouvrirModalModifierVente } from '../utils/vente-modal.js';
+import { initSemaineSelector } from '../utils/semaine-selector.js';
 
 // Roles autorises a modifier une vente apres verrouillage
 const PEUT_MODIFIER = ['patron', 'co-patron', 'admin-technique', 'drh', 'responsable-vente'];
@@ -20,6 +21,7 @@ const html = `
   </div>
 
   <div class="page-toolbar">
+    <select id="selecteur-semaine" title="Choisir la semaine"></select>
     <select id="filtre-vendeur" title="Filtrer par vendeur"><option value="">Tous les vendeurs</option></select>
     <select id="filtre-paiement" title="Filtrer par paiement">
       <option value="">Tous paiements</option>
@@ -31,7 +33,10 @@ const html = `
   </div>
 
   <div class="panel framed">
-    <div class="panel-title"><span>Factures de la semaine</span></div>
+    <div class="panel-title">
+      <span id="panel-titre-ventes">Factures de la semaine</span>
+      <span id="badge-semaine" class="muted" style="font-size:0.82rem;"></span>
+    </div>
     <div class="table-scroll">
       <table class="data" id="table-ventes">
         <thead>
@@ -64,9 +69,6 @@ renderShell(profile, 'ventes', html);
 
 makeSortable(document.getElementById('table-ventes'));
 
-const debut = startOfWeekRP();
-const fin   = endOfWeekRP();
-
 const [users, produits] = await Promise.all([
   listUsers().catch(() => []),
   listProduits().catch(() => [])
@@ -84,11 +86,63 @@ users.filter(u => ['vendeur-novice','vendeur-intermediaire','vendeur-experimente
   });
 
 let ventes = [];
+let unsubVentes = null;
+let currentDebut = null;
+let currentFin = null;
+let currentIsCurrent = true;
+let currentStatutLabel = 'En cours';
 
-listenVentesSemaine(debut, fin, list => {
-  ventes = list;
-  renderTable();
-  renderKpis();
+// Charge ventes pour une semaine donnee.
+// - Semaine en cours : listener temps reel (onSnapshot).
+// - Semaine cloturee : fetch one-shot (figee, pas besoin de listener).
+function chargerVentes(debut, fin, isCurrent) {
+  if (unsubVentes) {
+    try { unsubVentes(); } catch {}
+    unsubVentes = null;
+  }
+  currentDebut = debut;
+  currentFin = fin;
+  currentIsCurrent = isCurrent;
+
+  document.getElementById('tbody-ventes').innerHTML =
+    '<tr><td colspan="11" class="muted text-center">Chargement…</td></tr>';
+
+  if (isCurrent) {
+    unsubVentes = listenVentesSemaine(debut, fin, list => {
+      ventes = list;
+      renderTable();
+      renderKpis();
+    });
+  } else {
+    listVentesSemaine(debut, fin).then(list => {
+      ventes = list;
+      renderTable();
+      renderKpis();
+    }).catch(err => {
+      console.error('[ventes] fetch semaine cloturee', err);
+      document.getElementById('tbody-ventes').innerHTML =
+        '<tr><td colspan="11" class="muted text-center">Erreur de chargement.</td></tr>';
+    });
+  }
+}
+
+// Selecteur semaine : initialise + branche le rechargement
+await initSemaineSelector('#selecteur-semaine', {
+  storageKey: 'ventes-semaine-selectionnee',
+  onChange: ({ debut, fin, isCurrent, statutLabel }) => {
+    currentStatutLabel = isCurrent ? 'En cours' : statutLabel;
+    // Met a jour le titre du panel + badge
+    const fmt = d => d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+    document.getElementById('panel-titre-ventes').textContent =
+      `Factures de la semaine du ${fmt(debut)} au ${fmt(fin)}`;
+    const badge = document.getElementById('badge-semaine');
+    if (isCurrent) {
+      badge.textContent = '';
+    } else {
+      badge.innerHTML = `<span class="badge ok">${escapeHtml(statutLabel)}</span> · lecture seule`;
+    }
+    chargerVentes(debut, fin, isCurrent);
+  }
 });
 
 document.getElementById('filtre-vendeur').addEventListener('change', renderTable);
@@ -110,10 +164,12 @@ function renderTable() {
 
   const tbody = document.getElementById('tbody-ventes');
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="muted text-center">Aucune vente (logs Discord à venir).</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="muted text-center">Aucune vente sur cette semaine.</td></tr>`;
     return;
   }
-  const peutModifier = PEUT_MODIFIER.includes(profile.role);
+  // Modification autorisee uniquement sur la semaine en cours (semaines
+  // cloturees = figees, lecture seule absolue).
+  const peutModifier = PEUT_MODIFIER.includes(profile.role) && currentIsCurrent;
   tbody.innerHTML = rows.map(v => {
     const vendeur = usersById[v.vendeurId];
     const verif = v.stockVerifie === false
@@ -125,9 +181,12 @@ function renderTable() {
     const modifIcon = v.modifieParNom
       ? `<span title="Modifiée par ${escapeHtml(v.modifieParNom)} — ${escapeHtml(v.motifModification || '')}" style="margin-left:4px;">✏</span>`
       : '';
-    const btnModif = peutModifier
-      ? `<button class="btn btn-icon btn-sm btn-modif-vente" data-id="${escapeHtml(v.id)}" title="Modifier la vente" data-tooltip="Modifier">✏</button>`
-      : '';
+    let btnModif = '';
+    if (PEUT_MODIFIER.includes(profile.role)) {
+      btnModif = peutModifier
+        ? `<button class="btn btn-icon btn-sm btn-modif-vente" data-id="${escapeHtml(v.id)}" title="Modifier la vente" data-tooltip="Modifier">✏</button>`
+        : `<button class="btn btn-icon btn-sm" disabled title="Semaine clôturée — non modifiable" data-tooltip="Semaine clôturée">🔒</button>`;
+    }
     return `
       <tr>
         <td class="mono">${datetime(v.timestamp)}</td>
@@ -145,7 +204,7 @@ function renderTable() {
     `;
   }).join('');
 
-  // Bind boutons modifier
+  // Bind boutons modifier (uniquement si semaine en cours)
   if (peutModifier) {
     tbody.querySelectorAll('.btn-modif-vente').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -168,9 +227,10 @@ function renderKpis() {
   const especes = ventes.filter(v => (v.paiement || '').toLowerCase() === 'especes').length;
   const carte = ventes.filter(v => (v.paiement || '').toLowerCase() === 'carte').length;
   const moyenne = ventes.length ? ca / ventes.length : 0;
+  const periodeLabel = currentIsCurrent ? 'CA semaine' : 'CA semaine clôturée';
 
   document.getElementById('kpis-ventes').innerHTML = `
-    <div class="kpi"><div class="label">CA semaine</div><div class="value">${money(ca)}</div><div class="delta">${ventes.length} factures</div></div>
+    <div class="kpi"><div class="label">${periodeLabel}</div><div class="value">${money(ca)}</div><div class="delta">${ventes.length} factures</div></div>
     <div class="kpi"><div class="label">Bénéfice brut</div><div class="value">${money(benefice)}</div><div class="delta">marge produits</div></div>
     <div class="kpi"><div class="label">Panier moyen</div><div class="value">${money(moyenne)}</div><div class="delta">par facture</div></div>
     <div class="kpi"><div class="label">Paiements</div><div class="value mono">${especes}/${carte}</div><div class="delta">espèces / carte</div></div>
@@ -232,7 +292,8 @@ document.getElementById('btn-export').addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `ventes-semaine-${debut.toISOString().slice(0,10)}.csv`;
+  const wkLabel = currentDebut ? currentDebut.toISOString().slice(0,10) : 'semaine';
+  a.download = `ventes-semaine-${wkLabel}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 });

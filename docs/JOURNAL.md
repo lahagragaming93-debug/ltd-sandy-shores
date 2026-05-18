@@ -1,7 +1,63 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-18 (clôture manuelle W18 + tag paies + toggle /rh sem précédente — session interrompue, reprise sur Sheet)**
+> Dernière mise à jour : **2026-05-18 partie 2 (inspection Sheet + Option B + KPI bénéfice cumulé + historique semaine /ventes /employee /rh + label ISO S20 — v1.6.0)**
+
+---
+
+## ✅ Session 2026-05-18 (partie 2) — Inspection Sheet + Option B + UX historique semaine
+
+### Contexte
+Reprise après interruption partie 1. User a envoyé 5 captures du Sheet Comptabilité (Dashboard, resumé, Depenses, Ventes, Paies). 3 agents parallèles déployés en worktrees isolés + travail sur main.
+
+### Fix formats Google Sheet (onglets `resumé` + `Paies`)
+- **Onglet `resumé`** : col `Semaine` affichait `46153` (serial Excel) car `s.numero` = weekKey `2026-05-11` parsé en date par Sheets. Fix : `csvResume()` envoie maintenant `weekIsoLabel(s.numero)` → **`S20 2026`** ; `format-sheet.js` applique en plus `numberFormat @ TEXT` sur col A. Pareil pour les dates (numberFormat `dd/MM/yyyy`), `$` sur cols D-K (CA, bénéfices, masse salariale, primes), col Statut élargie à 150px (anti-troncature `cloturee-manuelle`).
+- **Onglet `Paies`** : dates en serial brut `46160,03731` et montants sans `$`. Fix : numberFormat datetime `dd/MM/yyyy HH:mm:ss` sur col A, money `$` sur col D. Bonus : `cleanNomBot()` retire les `<@discordId>` parasites du nom payeur/bénéficiaire ; col `Période` remplie via `weekIsoLabel(p.weekKeyAttribuee)` quand `p.periode` est vide.
+- **Header `Prime hebdo`** renommé `(potentielle)` pour clarifier — c'est la prime éligible TTE Art. 4-1.10 (CA ≥ 200k → 5000$), pas la prime effectivement versée.
+
+### Option B — snapshots paie + checkbox Versé (`/rh`)
+- Nouveau module `firebase/functions/lib/paie-calc.mjs` qui expose `calculerPaieEstimee()` + `snapshotPaiesEstimees()`. Duplication pragmatique de la logique frontend `utils/paie.js` (commentaire de rappel).
+- À chaque clôture (manuelle bouton 🔒 + cron `clotureHebdo` étape 1 lundi 00h00) : snapshot `/paiesEstimees/{weekKey}_{userId}` avec `{userId, weekKey, role, prenom, nom, montantEstime, ca, caParticulier, bidons, caoutchoucs, paye:false, datePaiement:null, paieMatcheeId:null}`. Idempotent par construction (doc ID stable).
+- Nouvelle Cloud Function `marquerPaieVersee` (POST, Bearer auth, direction+DRH+admin-tech) : update `paye/datePaiement/paieMatcheeId`. Rules Firestore : read direction+DRH, write `false` (passe par la Function).
+- `/rh` : nouvelle colonne **Versé ?** avec checkbox, KPI **Reste à verser**, auto-détection match `/paies` ↔ snapshot (tolérance ±5% ou min 500$), écart visible orange/rouge.
+- Script `scripts/backfill-snapshot-paies-w18.mjs` pour rétro-créer les snapshots de la semaine du 11/05 déjà clôturée.
+
+### Dashboard — KPI Bénéfice net cumulé depuis reprise
+- Nouveau bandeau full-width entre Subventions/Trésorerie et Conformité TTE : **`📈 BÉNÉFICE NET CUMULÉ — Ce que le LTD a réellement gagné depuis la reprise`**. Vert si positif, rouge si négatif.
+- Détail : `X semaines clôturées · CA cumulé X $ · Moyenne X $ / semaine`.
+- KPI semaine en cours : wording clarifié pour le user → `"CA − dépenses − salaires versés · déficitaire/positif (%)"` (au lieu du simple `Marge = X %`).
+- Historique des semaines : colonne `Semaine` affiche `S20 2026` (via `weekIsoLabel`) au lieu du weekKey brut.
+- Bandeau titre : `S20 2026 — du 11/05/2026 au 17/05/2026`.
+
+### Historique des semaines accessible partout
+- **Composant factorisé** `public/js/utils/semaine-selector.js` (`initSemaineSelector()`) : dropdown peuplé avec la semaine courante + les N dernières clôturées au format **"Semaine 20 du lundi 11/05 au dimanche 17/05/2026"**. Persistance sessionStorage. Livre un payload `{weekKey, debut, fin, statut, statutLabel, isCurrent, semaine}` au caller.
+- **`/ventes`** : sélecteur dans la toolbar. Mode lecture seule sur semaines passées (bouton modifier → 🔒 disabled, tooltip "Semaine clôturée — non modifiable"). Export CSV nommé avec weekKey.
+- **`/employee`** : sélecteur dans le panel "Détail de ta semaine". Affiche factures, commission/CA particulier (vendeurs), bidons/caoutchoucs (pompistes) sur la semaine choisie. Listener stations + boutons d'action désactivés sur semaines passées. Marche aussi en mode `?asUser=UID` (direction/DRH inspecte un employé).
+- **`/rh`** : remplacement du toggle binaire courante/précédente par le sélecteur complet → permet d'inspecter n'importe quelle semaine clôturée d'un employé. `snapshotMode = !isCurrent`.
+- **`period-filter.js`** (utilisé par compta/dashboard/paies/banque/revenus-carburant) : nouvelle option "Semaine dernière" + fonction `injectSemainesHistoriques()` qui injecte un optgroup "📅 Semaines clôturées" avec les N dernières au format long. Plus besoin de passer par "Personnalisé".
+
+### Label semaine ISO uniformisé (S20)
+- Nouveau helper `weekIsoNumber(d)` + `weekIsoLabel(weekKey, opts)` dans `formatters.js` (frontend) + dupliqué dans `index.js` et `dashboard-core.mjs` (backend). 3 formats :
+  - `'S20 2026'` (court, par défaut)
+  - `'S20 2026 (11/05 → 17/05)'` (full)
+  - `'Semaine 20 du lundi 11/05 au dimanche 17/05/2026'` (long, pour sélecteurs)
+- Le user voulait clarifier : `W18` dans les anciennes notes correspondait à la **semaine du 11/05/2026 = ISO 20**, pas la 18 (raccourci interne mal nommé). Mémoire MAJ pour bannir "W18".
+
+### Version & docs
+- `public/js/version.js` : `1.5.0` → **`1.6.0`** (MINOR — nouvelles features visibles).
+- Docs guide mis à jour : `01-direction`, `02-drh`, `05-vendeur`, `06-pompiste` (sections historique semaine + colonne Versé).
+
+### Commandes appliquées
+```bash
+git add -f firebase/functions/lib/paie-calc.mjs
+git add firebase/functions/index.js firebase/firestore.rules firebase/functions/lib/dashboard-core.mjs \
+        firebase/functions/scripts/format-sheet.js firebase/functions/scripts/backfill-snapshot-paies-w18.mjs \
+        public/js/api.js public/js/pages/{rh,ventes,employee}.js public/js/utils/{formatters,period-filter,semaine-selector}.js \
+        public/js/version.js public/guide/*.md docs/JOURNAL.md docs/ROADMAP.md
+firebase deploy --only functions:cloturerSemaine,functions:clotureHebdo,functions:marquerPaieVersee,functions:comptaExport,functions:refreshDashboardCron,firestore:rules
+node firebase/functions/scripts/backfill-snapshot-paies-w18.mjs
+node firebase/functions/scripts/format-sheet.js
+```
 
 ---
 

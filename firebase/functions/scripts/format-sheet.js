@@ -248,7 +248,10 @@ async function main() {
     // 9a. Format date sur colonne Date : "dd/MM/yyyy HH:mm:ss"
     //     (les valeurs CSV sont en ISO "yyyy-MM-dd HH:mm:ss" depuis comptaExport,
     //      Sheets les reconnaît comme datetime et le numberFormat les affiche FR)
-    const idxDate = headers.findIndex(h => /^date/i.test(h));
+    //     Sur 'resumé', plusieurs colonnes commencent par "Date" — on les
+    //     traite dans le bloc dédié plus bas (format date sans heure).
+    const isResume = title === 'resumé';
+    const idxDate = isResume ? -1 : headers.findIndex(h => /^date/i.test(h));
     if (idxDate >= 0 && nbRows > 1) {
       requests.push({
         repeatCell: {
@@ -301,6 +304,63 @@ async function main() {
             }
           },
           fields: 'userEnteredFormat(numberFormat,horizontalAlignment)'
+        }
+      });
+    }
+
+    // 9b. Onglet 'resumé' : formats colonnes spécifiques (non couvert par les regex
+    //     génériques car la col Semaine ressemble à une date pour Sheets, et plusieurs
+    //     colonnes commencent par "Date").
+    //     Layout fixe : A=Semaine, B=Date début, C=Date fin, D=CA, E=Bénéfice brut,
+    //     F=Dépenses totales, G=Charges déductibles, H=Masse salariale, I=Prime hebdo,
+    //     J=Prime mensuelle, K=Bénéfice net, L=Nb ventes, M=Nb dépenses, N=Statut.
+    if (isResume && nbRows > 1) {
+      // Col A (Semaine) : forcer le format texte pour empêcher Sheets de parser "S2026-05-11"
+      // ou un weekKey nu en serial date.
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: nbRows, startColumnIndex: 0, endColumnIndex: 1 },
+          cell: { userEnteredFormat: { numberFormat: { type: 'TEXT', pattern: '@' } } },
+          fields: 'userEnteredFormat.numberFormat'
+        }
+      });
+      // Cols B-C (Date début, Date fin) : format date sans heure
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: nbRows, startColumnIndex: 1, endColumnIndex: 3 },
+          cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/MM/yyyy' } } },
+          fields: 'userEnteredFormat.numberFormat'
+        }
+      });
+      // Cols D-K (CA → Bénéfice net) : format monétaire FR "266 174 $" + align droite
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: nbRows, startColumnIndex: 3, endColumnIndex: 11 },
+          cell: {
+            userEnteredFormat: {
+              numberFormat: { type: 'NUMBER', pattern: '#,##0" $"' },
+              horizontalAlignment: 'RIGHT'
+            }
+          },
+          fields: 'userEnteredFormat(numberFormat,horizontalAlignment)'
+        }
+      });
+      // Col N (Statut) : largeur 150px pour éviter la troncature "cloturee-manuelle"
+      if (nbCols > 13) {
+        requests.push({
+          updateDimensionProperties: {
+            range: { sheetId, dimension: 'COLUMNS', startIndex: 13, endIndex: 14 },
+            properties: { pixelSize: 150 },
+            fields: 'pixelSize'
+          }
+        });
+      }
+      // Cols B-C (Date) : largeur 110px (date courte, pas besoin de 150)
+      requests.push({
+        updateDimensionProperties: {
+          range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 3 },
+          properties: { pixelSize: 110 },
+          fields: 'pixelSize'
         }
       });
     }
@@ -373,6 +433,7 @@ async function main() {
     const extras = [];
     if (idxDate >= 0)    extras.push('format date');
     if (idxMontant >= 0) extras.push('format monétaire Montant');
+    if (isResume)        extras.push('formats resumé (Semaine texte + dates B-C + money D-K + Statut 150px)');
     if (isDepenses) extras.push('couleurs conditionnelles Déductible');
     else extras.push('zebra ivoire/blanc');
     console.log(`  ✓ ${title} : header rouge + wrap + autoResize cols+rows + freeze + bordures${idxJustification >= 0 ? ' + col Justif 320px' : ''}${idxRaison >= 0 ? ' + col Raison 220px' : ''}${extras.length ? ' + ' + extras.join(' + ') : ''}`);

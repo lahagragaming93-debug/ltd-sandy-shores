@@ -14,6 +14,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
+import { snapshotPaiesEstimees } from './lib/paie-calc.mjs';
 
 initializeApp();
 const db = getFirestore();
@@ -108,6 +109,19 @@ export const clotureHebdo = onSchedule({
     await genererAvertissementsAuto(weekKey, debut, fin);
   } catch (e) {
     console.error('[avertissements-auto]', e);
+  }
+
+  // === Snapshot estimations paies (Option B 2026-05-18) ===
+  // Fige les montants estimés par employe pour /rh "semaine precedente" +
+  // pilotage "Reste a verser". Idempotent (id={weekKey}_{userId}).
+  // Try/catch englobant : ne JAMAIS faire echouer la cloture si ca plante.
+  try {
+    const res = await snapshotPaiesEstimees({
+      db, FieldValue, Timestamp, weekKey, debut, fin
+    });
+    console.log('[clotureHebdo] snapshot paies estimees:', res);
+  } catch (e) {
+    console.error('[clotureHebdo] snapshotPaiesEstimees error:', e?.message || e);
   }
 });
 
@@ -3037,6 +3051,21 @@ function dateOnly(ts) {
   // Format yyyy-MM-dd reste trié alphabétiquement et est lisible
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
+// Numéro ISO 8601 de semaine (1-53) + label "S20 2026". weekKey = YYYY-MM-DD du lundi.
+// Dupliqué côté frontend dans public/js/utils/formatters.js (any change must mirror).
+function weekIsoNumber(d) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+}
+function weekIsoLabel(weekKey) {
+  if (!weekKey) return '';
+  const lundi = new Date(String(weekKey) + 'T00:00:00');
+  if (isNaN(lundi.getTime())) return String(weekKey);
+  return `S${weekIsoNumber(lundi)} ${lundi.getFullYear()}`;
+}
 
 // Résolution d'un libellé utilisateur depuis ce qui peut être :
 //  - une mention Discord '<@123456789>' ou '<@undefined>'
@@ -3094,15 +3123,17 @@ async function csvResume() {
   const lines = [csvRow(
     'Semaine', 'Date début', 'Date fin',
     'CA', 'Bénéfice brut', 'Dépenses totales', 'Charges déductibles',
-    'Masse salariale', 'Prime hebdo (Art. 4-1.10)', 'Prime mensuelle (Art. 4-1.11)',
+    'Masse salariale', 'Prime hebdo (Art. 4-1.10, potentielle)', 'Prime mensuelle (Art. 4-1.11, potentielle)',
     'Bénéfice net', 'Nb ventes', 'Nb dépenses', 'Statut'
   )];
   for (const d of snap.docs) {
     const s = d.data();
     const ca = s.ca || 0;
     const beneficeNet = s.benefice || 0;
+    // weekIsoLabel(s.numero) renvoie "S20 2026" : empêche Sheets de parser
+    // le weekKey "2026-05-11" en serial date + lisible directement.
     lines.push(csvRow(
-      s.numero,
+      weekIsoLabel(s.numero),
       dateOnly(s.dateDebut),
       dateOnly(s.dateFin),
       ca,
@@ -3252,19 +3283,31 @@ async function csvBanque() {
   return lines.join('\n');
 }
 
+// Nettoie un nom qui peut venir pollué du bot Discord (ex: "Blake Mars\n<@999...>")
+// Garde la première occurrence "Prénom NOM" si trouvable, sinon retourne la chaîne trim.
+function cleanNomBot(raw) {
+  if (!raw) return '';
+  const s = String(raw).replace(/<@!?\d+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const m = s.match(/([A-ZÀ-Ÿ][a-zà-ÿ\-']+(?:\s+[A-ZÀ-Ÿ][A-ZÀ-Ÿ\-']+)+)/);
+  return m ? m[1] : s;
+}
+
 async function csvPaies(usersByDiscord) {
   const snap = await db.collection('paies').orderBy('timestamp', 'desc').limit(2000).get();
   const lines = [csvRow('Date', 'Payeur', 'Bénéficiaire', 'Montant', 'Période')];
   for (const d of snap.docs) {
     const p = d.data();
-    const payeur       = p.payeurNom       || resolveUserLabel(p.payeurDiscord,       usersByDiscord);
-    const beneficiaire = p.beneficiaireNom || resolveUserLabel(p.beneficiaireDiscord, usersByDiscord);
+    // Priorité : mapping users via Discord (nom propre), puis nettoyage du nom brut.
+    const payeur       = (p.payeurDiscord       && usersByDiscord[String(p.payeurDiscord)])       || cleanNomBot(p.payeurNom)       || resolveUserLabel(p.payeurDiscord,       usersByDiscord);
+    const beneficiaire = (p.beneficiaireDiscord && usersByDiscord[String(p.beneficiaireDiscord)]) || cleanNomBot(p.beneficiaireNom) || resolveUserLabel(p.beneficiaireDiscord, usersByDiscord);
+    // Période : p.periode (manuelle) sinon weekIsoLabel(p.weekKeyAttribuee) ("S20 2026").
+    const periode = p.periode || weekIsoLabel(p.weekKeyAttribuee);
     lines.push(csvRow(
       dateIso(p.timestamp),
       payeur,
       beneficiaire,
       p.montant || 0,
-      p.periode || ''
+      periode
     ));
   }
   return lines.join('\n');
@@ -3860,6 +3903,21 @@ export const cloturerSemaine = onRequest({
       fenetrePaieFin: Timestamp.fromDate(finFenetrePaie)
     }, { merge: true });
 
+    // === Snapshot estimations paies (Option B 2026-05-18) ===
+    // Mirror du cron clotureHebdo : fige les estimations par employe au
+    // moment de la cloture manuelle. Idempotent. Try/catch englobant.
+    try {
+      const snapRes = await snapshotPaiesEstimees({
+        db, FieldValue, Timestamp,
+        weekKey,
+        debut: debutSemainePassee,
+        fin: finSemainePassee
+      });
+      console.log('[cloturerSemaine] snapshot paies estimees:', snapRes);
+    } catch (e) {
+      console.error('[cloturerSemaine] snapshotPaiesEstimees error:', e?.message || e);
+    }
+
     // Refresh Dashboard tant qu'on y est
     try {
       const sheets = getSheetsClient();
@@ -3879,6 +3937,88 @@ export const cloturerSemaine = onRequest({
     if (e.status) return res.status(e.status).json({ error: e.error });
     console.error('[cloturerSemaine] error:', e.message);
     return res.status(500).json({ error: e.message || 'Internal error' });
+  }
+});
+
+// ============================================================
+// marquerPaieVersee — coche/decoche la case "Verse" sur /rh
+// ============================================================
+// Body : { snapshotId, paye: boolean, paieMatcheeId?: string|null }
+// - snapshotId : id du doc /paiesEstimees/{weekKey}_{userId}
+// - paye       : true (coche) ou false (decoche, reset)
+// - paieMatcheeId : optionnel, id du doc /paies a lier (montant reel verse)
+//
+// Direction + DRH uniquement (la coche "Verse" est un acte de direction).
+// Idempotent : ecrire paye:true 2x ne pose pas de probleme.
+export const marquerPaieVersee = onRequest({
+  region: 'europe-west1',
+  cors: true,
+  timeoutSeconds: 30
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    // requireDirection est strict (patron/co-patron/admin-tech) — on autorise
+    // aussi le DRH ici puisqu'il pilote la RH (lecture /paies deja autorisee
+    // par les rules pour lui).
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    if (!['patron', 'co-patron', 'drh', 'admin-technique'].includes(role)) {
+      return res.status(403).json({ error: 'Direction ou DRH uniquement' });
+    }
+
+    const { snapshotId, paye, paieMatcheeId } = req.body || {};
+    if (!snapshotId || typeof snapshotId !== 'string') {
+      return res.status(400).json({ error: 'snapshotId requis' });
+    }
+    if (typeof paye !== 'boolean') {
+      return res.status(400).json({ error: 'paye (boolean) requis' });
+    }
+
+    const ref = db.collection('paiesEstimees').doc(snapshotId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Snapshot introuvable' });
+
+    const update = {
+      paye,
+      majPar: decoded.uid,
+      majParNom: `${caller.prenom || ''} ${caller.nom || ''}`.trim(),
+      dateMaj: FieldValue.serverTimestamp()
+    };
+
+    if (paye) {
+      update.datePaiement = FieldValue.serverTimestamp();
+      // Si une paie est liee, on enregistre son id + son montant pour audit.
+      if (paieMatcheeId && typeof paieMatcheeId === 'string') {
+        const paieSnap = await db.collection('paies').doc(paieMatcheeId).get();
+        if (!paieSnap.exists) {
+          return res.status(400).json({ error: 'paieMatcheeId introuvable dans /paies' });
+        }
+        update.paieMatcheeId = paieMatcheeId;
+        update.paieMatcheeMontant = Number(paieSnap.data().montant) || 0;
+      } else {
+        // paye=true sans paie liee : ok (le patron a verse en cash IG sans
+        // que le bot ait remonte le log).
+        update.paieMatcheeId = null;
+        update.paieMatcheeMontant = null;
+      }
+    } else {
+      // decoche : reset des champs paiement
+      update.datePaiement = null;
+      update.paieMatcheeId = null;
+      update.paieMatcheeMontant = null;
+    }
+
+    await ref.set(update, { merge: true });
+    return res.status(200).json({ ok: true, snapshotId, paye });
+  } catch (e) {
+    console.error('[marquerPaieVersee] error:', e?.message || e);
+    return res.status(500).json({ error: e?.message || 'Internal error' });
   }
 });
 

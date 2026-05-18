@@ -386,8 +386,37 @@ export async function listMesPaies(uid, n = 100) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// ----- Paies estimees (snapshots a la cloture, Option B 2026-05-18) -----
+// Une ligne par employe actif x semaine cloturee. Source de verite pour
+// /rh "semaine precedente" + KPI "Reste a verser".
+export async function listPaiesEstimeesSemaine(weekKey) {
+  const q = query(collection(db, 'paiesEstimees'),
+    where('weekKey', '==', weekKey));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// Pose le flag paye:true (avec datePaiement serveur) + lie eventuellement une
+// paie /paies pour audit (montant reel verse). Cote backend, c'est la
+// Cloud Function marquerPaieVersee qui ecrit (Admin SDK) — les rules
+// Firestore interdisent l'ecriture cote client.
+export async function marquerPaieVersee({ snapshotId, paye, paieMatcheeId = null }) {
+  const { auth } = await import('./firebase-config.js');
+  const idToken = await auth.currentUser.getIdToken();
+  const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/marquerPaieVersee', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+    body: JSON.stringify({ snapshotId, paye, paieMatcheeId })
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+  return json;
+}
+
 // ----- Semaines (clôturées) -----
-export async function listSemaines(n = 6) {
+// n = 20 par defaut : couvre ~5 mois d'historique, suffisant pour le selecteur
+// semaine sur /ventes, /employee et period-filter. Les appelants peuvent forcer moins.
+export async function listSemaines(n = 20) {
   const q = query(collection(db, 'semaines'),
     orderBy('dateDebut', 'desc'), limit(n));
   const snap = await getDocs(q);

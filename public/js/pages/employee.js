@@ -15,6 +15,7 @@ import { money, moneyPrecis, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { ouvrirModalNouvelleVente } from '../utils/vente-modal.js';
+import { initSemaineSelector } from '../utils/semaine-selector.js';
 
 const { profile: callerProfile } = await requireAuth('employee');
 
@@ -150,7 +151,13 @@ const html = `
   <div id="bloc-averts"></div>
 
   <div class="panel framed" id="panel-detail">
-    <div class="panel-title"><span>Détail de ta semaine</span></div>
+    <div class="panel-title">
+      <span id="detail-titre">Détail de ta semaine</span>
+      <span style="display:flex;gap:8px;align-items:center;">
+        <span id="detail-badge" class="muted" style="font-size:0.82rem;"></span>
+        <select id="selecteur-semaine" title="Choisir la semaine" style="min-width:240px;"></select>
+      </span>
+    </div>
     <div id="detail">Chargement…</div>
   </div>
 
@@ -169,15 +176,13 @@ renderShell(profile, 'employee', html);
 const me = getCurrentUser(); // utilisateur connecte (toujours soi-meme, jamais l'employe vise)
 const config = await getConfig().catch(() => ({}));
 
-const [allVentes, ventesAvecCachees, allServices, allMyServices, quota, serviceOuvert] = await Promise.all([
-  listVentesSemaine(debut, fin).catch(() => []),
+// === Donnees fixes (semaine en cours + cumul historique) ===
+// Ces requetes restent sur la semaine courante car elles alimentent les blocs
+// "Ventes IG non declarees", "Heures de service" et le service en cours.
+const [ventesAvecCacheesCurr, allServicesCurr, allMyServices, serviceOuvert] = await Promise.all([
   listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
   listAllServicesEmploye(viewedUserId).catch(e => { console.error('[employee] listAllServicesEmploye', e); return []; }),
-  // Charge le quota pour TOUS les roles (les non-pompistes peuvent aussi
-  // produire des bidons/caoutchoucs en bossant a la station - bonus info).
-  getQuotaPompiste(viewedUserId, wId).catch(() => ({ bidons: 0, caoutchoucs: 0 })),
-  // Service en cours (s'il y en a un) — pour ajouter le temps live au calcul
   getServiceOuvert(viewedUserId).catch(() => null)
 ]);
 
@@ -191,7 +196,7 @@ const [allVentes, ventesAvecCachees, allServices, allMyServices, quota, serviceO
 //    (le vendeur peut declarer juste apres la facture in-game sans message)
 const il_y_a_24h  = Date.now() - 24 * 3600 * 1000;
 const il_y_a_5min = Date.now() - 5 * 60 * 1000;
-const nonDeclarees = ventesAvecCachees.filter(v => {
+const nonDeclarees = ventesAvecCacheesCurr.filter(v => {
   const ts = v.timestamp?.toMillis?.() || 0;
   return v.vendeurId === viewedUserId &&
          v.source !== 'manuelle' &&
@@ -261,27 +266,20 @@ function renderNonDeclarees() {
 }
 renderNonDeclarees();
 
-const myVentes = allVentes.filter(v => v.vendeurId === viewedUserId);
-const myServices = allServices.filter(s => s.employeId === viewedUserId);
-
-// Service en cours : si l'employe est actuellement en service, on calcule la
-// duree ecoulee depuis son debut. Sinon 0. Cette duree est INCLUSE dans les
-// 3 KPIs (jour / semaine / cumul) pour que le compteur monte en live, sans
-// attendre la fin de service pour voir l'increment.
+// === Heures de service : 3 KPIs (jour / semaine / cumul depuis embauche) ===
+// Toujours sur la semaine COURANTE — independant du selecteur (qui pilote
+// uniquement le panel "Detail de ta semaine"). Le service en cours est un
+// concept "live" qui n'a de sens que pour la semaine en cours.
+const myServicesCurr = allServicesCurr.filter(s => s.employeId === viewedUserId);
 const debutOuvert = serviceOuvert?.debut?.toDate?.() || null;
 const dureeOuvertMs = debutOuvert ? Math.max(0, Date.now() - debutOuvert.getTime()) : 0;
 
 const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
 
-// Heures cette semaine : services TERMINES + service en cours s'il a commence cette semaine
-const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0)
+const heuresMs = myServicesCurr.reduce((s, x) => s + (x.duree || 0), 0)
   + (debutOuvert && debutOuvert >= debut ? dureeOuvertMs : 0);
-
-// Cumul depuis embauche (tous services TERMINES) + service en cours
 const cumulMs = allMyServices.reduce((s, x) => s + (x.duree || 0), 0)
   + dureeOuvertMs;
-
-// Aujourd'hui : services TERMINES qui ont commence aujourd'hui + service en cours s'il a commence aujourd'hui
 const heuresJourMs = allMyServices.reduce((s, x) => {
   const d = x.debut?.toDate?.();
   return d && d >= startOfDay ? s + (x.duree || 0) : s;
@@ -289,7 +287,48 @@ const heuresJourMs = allMyServices.reduce((s, x) => {
 
 const plafondSalaire = PLAFOND_SALAIRE[profile.role] || 0;
 
-if (isVendeur(profile.role)) {
+// ============================================================
+// Detail de la semaine — pilote par le selecteur semaine
+// ============================================================
+// On factorise le rendu pour pouvoir le rappeler quand l'utilisateur
+// change de semaine dans le selecteur.
+
+async function chargerEtRendreDetail({ debut: sDebut, fin: sFin, isCurrent, weekKey, statutLabel }) {
+  // Met a jour le titre + badge du panel
+  const titre = isCurrent ? 'Détail de ta semaine' : 'Détail de la semaine';
+  const fmt = d => d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  document.getElementById('detail-titre').textContent =
+    `${titre} (du ${fmt(sDebut)} au ${fmt(sFin)})`;
+  document.getElementById('detail-badge').innerHTML = isCurrent
+    ? ''
+    : `<span class="badge ok">${escapeHtml(statutLabel)}</span>`;
+
+  // Affiche un loading
+  document.getElementById('detail').innerHTML = '<p class="muted">Chargement…</p>';
+
+  // Pour le quota pompiste : on utilise le weekId (YYYY-MM-DD du lundi).
+  // - semaine en cours : wId calcule plus haut
+  // - semaine cloturee : weekKey du selecteur (= id du doc /semaines)
+  const wIdCible = isCurrent ? wId : weekKey;
+
+  const [allVentes, allServices, quota] = await Promise.all([
+    listVentesSemaine(sDebut, sFin).catch(() => []),
+    listServicesSemaine(sDebut, sFin).catch(() => []),
+    getQuotaPompiste(viewedUserId, wIdCible).catch(() => ({ bidons: 0, caoutchoucs: 0 }))
+  ]);
+
+  const myVentes = allVentes.filter(v => v.vendeurId === viewedUserId);
+
+  if (isVendeur(profile.role)) {
+    renderVendeur(myVentes, quota, isCurrent);
+  } else if (isPompiste(profile.role)) {
+    renderPompiste(quota, isCurrent);
+  } else {
+    renderAutre(myVentes, quota, sDebut, sFin, isCurrent);
+  }
+}
+
+function renderVendeur(myVentes, quota, isCurrent) {
   const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
   const caParticulier = myVentes.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
   const caPro = ca - caParticulier;
@@ -297,15 +336,14 @@ if (isVendeur(profile.role)) {
   const salaireEst = salaireVendeur(profile.role, caParticulier);
   const progressionCA = Math.min(100, (caParticulier / CA_PLAFOND_VENDEUR) * 100);
   const commission = COMMISSION_VENDEUR[profile.role] * 100;
-  // Quota CA hebdo : si non atteint a la cloture dimanche 23h59, avert auto.
   const quotaCA = Number(config.quotaCAVendeur ?? 30000);
   const pctQuotaCA = quotaCA > 0 ? Math.min(100, (caParticulier / quotaCA) * 100) : 0;
 
   document.getElementById('kpis-emp').innerHTML = `
-    <div class="kpi"><div class="label">Ton CA</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes${caPro > 0 ? ` · ${money(caPro)} hors commission` : ''}</div></div>
+    <div class="kpi"><div class="label">${isCurrent ? 'Ton CA' : 'CA de la semaine'}</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes${caPro > 0 ? ` · ${money(caPro)} hors commission` : ''}</div></div>
     <div class="kpi"><div class="label">CA commissionnable</div><div class="value">${money(caParticulier)}</div><div class="delta">base du salaire</div></div>
     <div class="kpi"><div class="label">Quota CA hebdo</div><div class="value">${pct(pctQuotaCA, 0)}</div><div class="delta ${caParticulier >= quotaCA ? 'up' : 'down'}">${money(caParticulier)} / ${money(quotaCA)}</div></div>
-    <div class="kpi"><div class="label">Salaire estimé</div><div class="value">${money(salaireEst)}</div><div class="delta">${commission}% · plafond ${money(plafondSalaire)}</div></div>
+    <div class="kpi"><div class="label">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">${commission}% · plafond ${money(plafondSalaire)}</div></div>
   `;
 
   document.getElementById('detail').innerHTML = `
@@ -325,7 +363,7 @@ if (isVendeur(profile.role)) {
         </div>
       </div>
       <div>
-        <div class="muted mono mb-1">Salaire estimé / plafond</div>
+        <div class="muted mono mb-1">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond</div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${plafondSalaire ? (salaireEst/plafondSalaire)*100 : 0}%"></div>
           <div class="label">${money(salaireEst)} / ${money(plafondSalaire)}</div>
@@ -333,20 +371,25 @@ if (isVendeur(profile.role)) {
       </div>
     </div>
 
-    <div class="table-scroll" style="max-height:400px;margin-top:12px;">
+    <div class="panel-title mt-3" style="margin-bottom:6px;"><span>📋 Mes factures de la semaine</span><span class="muted" style="font-size:0.78rem;">${myVentes.length} vente${myVentes.length>1?'s':''}</span></div>
+    <div class="table-scroll" style="max-height:400px;">
       <table class="data" id="table-mes-ventes">
         <thead><tr>
           <th data-sort="date">Date</th>
+          <th data-sort="facture">#Facture</th>
           <th data-sort="client">Client</th>
+          <th data-sort="paiement">Paiement</th>
           <th class="right" data-sort="montant">Montant</th>
           <th class="right" data-sort="benefice">Bénéfice</th>
         </tr></thead>
         <tbody>
-          ${myVentes.length === 0 ? '<tr><td colspan="4" class="muted text-center">Aucune vente cette semaine.</td></tr>' :
+          ${myVentes.length === 0 ? '<tr><td colspan="6" class="muted text-center">Aucune vente sur cette semaine.</td></tr>' :
             myVentes.map(v => `
               <tr>
                 <td>${datetime(v.timestamp)}</td>
+                <td class="mono">#${escapeHtml(v.factureId || v.id)}</td>
                 <td>${escapeHtml(v.client || '—')}</td>
+                <td><span class="badge neutral">${escapeHtml(v.paiement || '—')}</span></td>
                 <td class="right mono">${money(v.montant)}</td>
                 <td class="right mono">${money(v.benefice || 0)}</td>
               </tr>
@@ -356,7 +399,9 @@ if (isVendeur(profile.role)) {
     </div>
   `;
   if (myVentes.length > 0) makeSortable(document.getElementById('table-mes-ventes'));
-} else if (isPompiste(profile.role)) {
+}
+
+function renderPompiste(quota, isCurrent) {
   const bidons = quota?.bidons || 0;
   const caoutchoucs = quota?.caoutchoucs || 0;
   const qB = config.quotaBidons || 1700;
@@ -366,10 +411,6 @@ if (isVendeur(profile.role)) {
   const pctB = Math.min(100, (bidons / qB) * 100);
   const pctC = Math.min(100, (caoutchoucs / qC) * 100);
 
-  // Decomposition salaire : moitie plafond pour chaque quota.
-  // Exemple Novice (13000) : moitie = 6500.
-  //   1 bidon       = (1/1700) × 6500 = 3.82 \$
-  //   1 caoutchouc  = (1/800)  × 6500 = 8.13 \$
   const partPlafond = plafondSalaire / 2;
   const partBidons = Math.min(partPlafond, (bidons / qB) * partPlafond);
   const partCaouts = Math.min(partPlafond, (caoutchoucs / qC) * partPlafond);
@@ -380,7 +421,7 @@ if (isVendeur(profile.role)) {
     <div class="kpi"><div class="label">🛢 Bidons ravitaillés</div><div class="value">${num(bidons)}</div><div class="delta">/ ${num(qB)} (${pct(pctB,0)})</div></div>
     <div class="kpi"><div class="label">🪖 Caoutchoucs produits</div><div class="value">${num(caoutchoucs)}</div><div class="delta">/ ${num(qC)} (${pct(pctC,0)})</div></div>
     <div class="kpi"><div class="label">📊 Score global</div><div class="value">${pct(score,1)}</div><div class="delta">moyenne des 2 quotas</div></div>
-    <div class="kpi"><div class="label">💰 Salaire estimé</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
+    <div class="kpi"><div class="label">💰 ${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
   `;
 
   document.getElementById('detail').innerHTML = `
@@ -400,12 +441,13 @@ if (isVendeur(profile.role)) {
         </div>
       </div>
       <div>
-        <div class="muted mono mb-1">💰 Salaire estimé / plafond ${ROLE_LABELS[profile.role]}</div>
+        <div class="muted mono mb-1">💰 ${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond ${ROLE_LABELS[profile.role]}</div>
         <div class="progress" style="height:28px;">
           <div class="fill" style="width:${plafondSalaire ? (salaireEst/plafondSalaire)*100 : 0}%;background:linear-gradient(90deg,#ffd24a,#ffac1a);"></div>
           <div class="label" style="font-weight:bold;">${money(salaireEst)} / ${money(plafondSalaire)}</div>
         </div>
       </div>
+      ${isCurrent ? `
       <div class="alert info" style="font-size:0.82rem;margin-top:4px;">
         💡 <strong>Comment ton salaire est calculé</strong> : moitié sur les bidons + moitié sur les caoutchoucs.
         Atteindre les 2 quotas (1700 bidons + 800 caoutchoucs) = plafond ${money(plafondSalaire)}.
@@ -417,53 +459,181 @@ if (isVendeur(profile.role)) {
         <div class="muted mono mb-1">⛽ État des stations en temps réel</div>
         <div id="pompiste-stations">Chargement…</div>
       </div>
+      ` : `
+      <div class="alert" style="background:rgba(70,130,200,0.10);border:1px solid #4a90e2;font-size:0.82rem;margin-top:4px;">
+        📁 Semaine clôturée — chiffres figés. Bascule sur « Semaine en cours » pour les actions du moment.
+      </div>
+      `}
     </div>
   `;
 
-  // Stations en cache local (mises a jour en temps reel) — utilisees pour
-  // l'affichage et pour peupler la modal Ravitailler.
-  let stationsCache = [];
+  // Le listener stations + modals ravitaillement/correction ne sont brancher
+  // que sur la semaine en cours (sinon UI confusante : "ravitaille" dans le passe ?).
+  if (isCurrent) initPompisteActions();
+}
 
-  // Listener temps reel sur les stations
-  listenStations(stations => {
-    stationsCache = stations;
-    const div = document.getElementById('pompiste-stations');
-    if (!div) return;
-    if (stations.length === 0) {
-      div.innerHTML = '<p class="muted">Aucune station configurée.</p>';
-      return;
-    }
-    // Tri : alerte d'abord, puis bas, puis OK. Au sein d'une categorie, par % stock asc.
-    const sorted = [...stations].sort((a, b) => {
-      const pctA = a.stockMax ? (a.stockActuel / a.stockMax) * 100 : 0;
-      const pctB = b.stockMax ? (b.stockActuel / b.stockMax) * 100 : 0;
-      return pctA - pctB;
+function renderAutre(myVentes, quota, sDebut, sFin, isCurrent) {
+  // Direction / Resp / DRH / Admin Tech : salaire FIXE, mais peuvent aussi
+  // vendre / ravitailler. On affiche leurs stats personnelles a titre INFO
+  // (sans impact sur leur paye fixe).
+  const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
+  const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
+  const bidons = quota?.bidons ?? 0;
+  const caoutchoucs = quota?.caoutchoucs ?? 0;
+  const aFaitDeLaCo = ca > 0 || bidons > 0 || caoutchoucs > 0;
+
+  // Pour heures : on utilise la semaine en cours uniquement (les heures
+  // figees d'une semaine passee sont visibles dans le bloc Services).
+  const heuresAffichees = isCurrent ? heuresMs : 0;
+  const nbServicesAffiches = isCurrent ? myServicesCurr.length : 0;
+
+  document.getElementById('kpis-emp').innerHTML = `
+    <div class="kpi"><div class="label">Plafond salaire</div><div class="value">${money(plafondSalaire)}</div><div class="delta">salaire fixe (TTE)</div></div>
+    <div class="kpi"><div class="label">Heures cette semaine</div><div class="value">${durationHM(heuresAffichees)}</div><div class="delta">${nbServicesAffiches} sessions${isCurrent ? '' : ' (cf. cumul)'}</div></div>
+    <div class="kpi"><div class="label">${aFaitDeLaCo ? '🎁 CA bonus généré' : 'Statut'}</div><div class="value">${aFaitDeLaCo ? money(ca) : ROLE_LABELS[profile.role]}</div><div class="delta">${aFaitDeLaCo ? myVentes.length + ' ventes (info, sans impact paye)' : (profile.statut || 'actif')}</div></div>
+    <div class="kpi"><div class="label">Date d'entrée</div><div class="value mono" style="font-size:1.2rem;">${profile.dateEntree || '—'}</div><div class="delta">au LTD</div></div>
+  `;
+
+  let detailHtml = `
+    <p class="muted mb-2">
+      En tant que ${ROLE_LABELS[profile.role]}, ton salaire est <strong>fixé</strong> par la direction (${money(plafondSalaire)} max).
+      ${aFaitDeLaCo ? "Tes ventes et ravitaillements ci-dessous comptent pour le CA global du LTD mais <strong>n'impactent pas ta paye</strong>." : "Utilise les autres modules pour piloter l'activité."}
+    </p>
+  `;
+  if (aFaitDeLaCo) {
+    detailHtml += `
+      <div class="kpi-grid mb-2">
+        ${ca > 0 ? `<div class="kpi"><div class="label">💵 CA généré</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes</div></div>` : ''}
+        ${benefice !== 0 ? `<div class="kpi"><div class="label">📈 Bénéfice généré</div><div class="value">${money(benefice)}</div><div class="delta">pour le LTD</div></div>` : ''}
+        ${bidons > 0 ? `<div class="kpi"><div class="label">🛢 Bidons d'essence</div><div class="value">${num(bidons)}</div><div class="delta">produits</div></div>` : ''}
+        ${caoutchoucs > 0 ? `<div class="kpi"><div class="label">🪖 Caoutchoucs</div><div class="value">${num(caoutchoucs)}</div><div class="delta">produits</div></div>` : ''}
+      </div>
+      ${myVentes.length > 0 ? `
+        <div class="panel-title mt-2" style="margin-bottom:6px;"><span>📋 Mes factures</span><span class="muted" style="font-size:0.78rem;">${myVentes.length} vente${myVentes.length>1?'s':''}</span></div>
+        <div class="table-scroll" style="max-height:300px;">
+          <table class="data">
+            <thead><tr><th>Date</th><th>#Facture</th><th>Client</th><th>Paiement</th><th class="right">Montant</th><th class="right">Bénéfice</th></tr></thead>
+            <tbody>
+              ${myVentes.map(v => `
+                <tr>
+                  <td class="mono">${datetime(v.timestamp)}</td>
+                  <td class="mono">#${escapeHtml(v.factureId || v.id)}</td>
+                  <td>${escapeHtml(v.client || '—')}</td>
+                  <td><span class="badge neutral">${escapeHtml(v.paiement || '—')}</span></td>
+                  <td class="right mono">${money(v.montant)}</td>
+                  <td class="right mono ${(v.benefice||0) >= 0 ? '' : 'muted'}">${money(v.benefice || 0)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
+    `;
+  }
+  document.getElementById('detail').innerHTML = detailHtml;
+}
+
+// ============================================================
+// Selecteur semaine — branche le rechargement du detail
+// ============================================================
+await initSemaineSelector('#selecteur-semaine', {
+  storageKey: 'employee-semaine-selectionnee',
+  onChange: (payload) => {
+    chargerEtRendreDetail(payload).catch(err => {
+      console.error('[employee] chargerEtRendreDetail', err);
+      document.getElementById('detail').innerHTML =
+        '<p class="alert warn">Erreur de chargement de la semaine.</p>';
     });
-    div.innerHTML = sorted.map(s => {
-      const niveau = s.stockMax ? (s.stockActuel / s.stockMax) * 100 : 0;
-      const sousAlerte = s.stockActuel < (s.seuilAlerte || 0);
-      const cls = sousAlerte ? 'alerte-fort' : (niveau < 30 ? 'gold' : '');
-      const badge = sousAlerte
-        ? '<span class="badge danger">⚠ ALERTE</span>'
-        : (niveau < 30 ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>');
-      return `
-        <div class="row" style="margin-bottom:6px;gap:10px;align-items:center;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-family:var(--font-heading);font-size:0.85rem;display:flex;justify-content:space-between;gap:8px;">
-              <span>${escapeHtml(s.nom)}</span>
-              ${badge}
-            </div>
-            <div class="progress" style="height:14px;">
-              <div class="fill" style="width:${Math.min(niveau, 100)}%;${sousAlerte ? 'background:var(--color-blood);' : ''}"></div>
-              <div class="label ${cls}">${num(s.stockActuel || 0)} / ${num(s.stockMax || 0)} L (${pct(niveau, 0)})</div>
+  }
+});
+
+// ============================================================
+// Actions pompiste (ravitailler / corriger stock) — semaine en cours uniquement
+// ============================================================
+let stationsCacheLocale = [];
+let _pompisteActionsInit = false;
+
+function initPompisteActions() {
+  if (!isPompiste(profile.role) || modeVoirComme) return;
+
+  // Listener stations en temps reel (toujours initialise une fois)
+  if (!_pompisteActionsInit) {
+    listenStations(stations => {
+      stationsCacheLocale = stations;
+      const div = document.getElementById('pompiste-stations');
+      if (!div) return;
+      if (stations.length === 0) {
+        div.innerHTML = '<p class="muted">Aucune station configurée.</p>';
+        return;
+      }
+      const sorted = [...stations].sort((a, b) => {
+        const pctA = a.stockMax ? (a.stockActuel / a.stockMax) * 100 : 0;
+        const pctB = b.stockMax ? (b.stockActuel / b.stockMax) * 100 : 0;
+        return pctA - pctB;
+      });
+      div.innerHTML = sorted.map(s => {
+        const niveau = s.stockMax ? (s.stockActuel / s.stockMax) * 100 : 0;
+        const sousAlerte = s.stockActuel < (s.seuilAlerte || 0);
+        const cls = sousAlerte ? 'alerte-fort' : (niveau < 30 ? 'gold' : '');
+        const badge = sousAlerte
+          ? '<span class="badge danger">⚠ ALERTE</span>'
+          : (niveau < 30 ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>');
+        return `
+          <div class="row" style="margin-bottom:6px;gap:10px;align-items:center;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--font-heading);font-size:0.85rem;display:flex;justify-content:space-between;gap:8px;">
+                <span>${escapeHtml(s.nom)}</span>
+                ${badge}
+              </div>
+              <div class="progress" style="height:14px;">
+                <div class="fill" style="width:${Math.min(niveau, 100)}%;${sousAlerte ? 'background:var(--color-blood);' : ''}"></div>
+                <div class="label ${cls}">${num(s.stockActuel || 0)} / ${num(s.stockMax || 0)} L (${pct(niveau, 0)})</div>
+              </div>
             </div>
           </div>
-        </div>
-      `;
-    }).join('');
-  });
+        `;
+      }).join('');
+    });
+    _pompisteActionsInit = true;
+  } else {
+    // Si on revient sur la semaine en cours apres un detour : reinjecter
+    // l'affichage stations (le DOM a ete reconstruit par renderPompiste).
+    const div = document.getElementById('pompiste-stations');
+    if (div && stationsCacheLocale.length > 0) {
+      const sorted = [...stationsCacheLocale].sort((a, b) => {
+        const pctA = a.stockMax ? (a.stockActuel / a.stockMax) * 100 : 0;
+        const pctB = b.stockMax ? (b.stockActuel / b.stockMax) * 100 : 0;
+        return pctA - pctB;
+      });
+      div.innerHTML = sorted.map(s => {
+        const niveau = s.stockMax ? (s.stockActuel / s.stockMax) * 100 : 0;
+        const sousAlerte = s.stockActuel < (s.seuilAlerte || 0);
+        const cls = sousAlerte ? 'alerte-fort' : (niveau < 30 ? 'gold' : '');
+        const badge = sousAlerte
+          ? '<span class="badge danger">⚠ ALERTE</span>'
+          : (niveau < 30 ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>');
+        return `
+          <div class="row" style="margin-bottom:6px;gap:10px;align-items:center;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--font-heading);font-size:0.85rem;display:flex;justify-content:space-between;gap:8px;">
+                <span>${escapeHtml(s.nom)}</span>
+                ${badge}
+              </div>
+              <div class="progress" style="height:14px;">
+                <div class="fill" style="width:${Math.min(niveau, 100)}%;${sousAlerte ? 'background:var(--color-blood);' : ''}"></div>
+                <div class="label ${cls}">${num(s.stockActuel || 0)} / ${num(s.stockMax || 0)} L (${pct(niveau, 0)})</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+}
 
-  // === Modal Ravitailler une station ===
+// === Bindings modaux pompiste (uniquement si pompiste, semaine en cours) ===
+// Bindings une seule fois au chargement, pas lies au selecteur.
+if (isPompiste(profile.role) && !modeVoirComme) {
   const BIDON_L = 15;
   const btnRavit  = document.getElementById('btn-ravitailler');
   const modalRav  = document.getElementById('modal-ravit');
@@ -474,7 +644,7 @@ if (isVendeur(profile.role)) {
 
   function refreshStationInfo() {
     const sid = selStat.value;
-    const s = stationsCache.find(x => x.id === sid);
+    const s = stationsCacheLocale.find(x => x.id === sid);
     if (!s) { elInfo.textContent = ''; refreshPreview(); return; }
     const libre = Math.max(0, (s.stockMax || 0) - (s.stockActuel || 0));
     elInfo.innerHTML = `Stock actuel : <strong>${num(s.stockActuel || 0)} L</strong> / ${num(s.stockMax || 0)} L
@@ -483,7 +653,7 @@ if (isVendeur(profile.role)) {
   }
   function refreshPreview() {
     const sid = selStat.value;
-    const s = stationsCache.find(x => x.id === sid);
+    const s = stationsCacheLocale.find(x => x.id === sid);
     const l = Number(inLitres.value) || 0;
     if (l <= 0) { elPrev.innerHTML = '1 bidon = 15 L'; elPrev.style.color = ''; return; }
     const bidons = (l / BIDON_L);
@@ -505,10 +675,8 @@ if (isVendeur(profile.role)) {
 
   if (btnRavit) {
     btnRavit.addEventListener('click', () => {
-      // Peuple le select avec les stations actuelles
       selStat.innerHTML = '<option value="">— Sélectionne une station —</option>' +
-        stationsCache.map(s => {
-          const libre = Math.max(0, (s.stockMax || 0) - (s.stockActuel || 0));
+        stationsCacheLocale.map(s => {
           return `<option value="${s.id}">${escapeHtml(s.nom)} (${num(s.stockActuel || 0)}/${num(s.stockMax || 0)} L)</option>`;
         }).join('');
       inLitres.value = '';
@@ -541,7 +709,6 @@ if (isVendeur(profile.role)) {
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
         modalRav.classList.add('hidden');
-        // Recharge la page pour rafraichir KPIs + barres + liste stations
         window.location.reload();
       } catch (e) {
         alert('Échec : ' + (e?.message || 'erreur inattendue.'));
@@ -561,7 +728,7 @@ if (isVendeur(profile.role)) {
 
   function refreshCorrecInfo() {
     const sid = selCorStat.value;
-    const s = stationsCache.find(x => x.id === sid);
+    const s = stationsCacheLocale.find(x => x.id === sid);
     if (!s) { elCorInfo.textContent = ''; refreshCorrecPreview(); return; }
     elCorInfo.innerHTML = `Stock actuel sur le site : <strong>${num(s.stockActuel || 0)} L</strong> / ${num(s.stockMax || 0)} L`;
     inCorLitres.value = s.stockActuel || 0;
@@ -569,7 +736,7 @@ if (isVendeur(profile.role)) {
   }
   function refreshCorrecPreview() {
     const sid = selCorStat.value;
-    const s = stationsCache.find(x => x.id === sid);
+    const s = stationsCacheLocale.find(x => x.id === sid);
     const v = Number(inCorLitres.value);
     if (!s || !Number.isFinite(v) || v < 0) { elCorPrev.textContent = '—'; elCorPrev.style.color = ''; return; }
     if (s.stockMax > 0 && v > s.stockMax) {
@@ -585,7 +752,7 @@ if (isVendeur(profile.role)) {
   if (btnCorrec) {
     btnCorrec.addEventListener('click', () => {
       selCorStat.innerHTML = '<option value="">— Sélectionne une station —</option>' +
-        stationsCache.map(s => `<option value="${s.id}">${escapeHtml(s.nom)} (${num(s.stockActuel || 0)} L)</option>`).join('');
+        stationsCacheLocale.map(s => `<option value="${s.id}">${escapeHtml(s.nom)} (${num(s.stockActuel || 0)} L)</option>`).join('');
       inCorLitres.value = '';
       inCorRaison.value = '';
       elCorInfo.textContent = '';
@@ -626,58 +793,6 @@ if (isVendeur(profile.role)) {
       }
     });
   }
-} else {
-  // Direction / Resp / DRH / Admin Tech : salaire FIXE, mais peuvent aussi
-  // vendre / ravitailler. On affiche leurs stats personnelles a titre INFO
-  // (sans impact sur leur paye fixe).
-  const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
-  const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
-  const bidons = quota?.bidons ?? 0;
-  const caoutchoucs = quota?.caoutchoucs ?? 0;
-  const aFaitDeLaCo = ca > 0 || bidons > 0 || caoutchoucs > 0;
-
-  document.getElementById('kpis-emp').innerHTML = `
-    <div class="kpi"><div class="label">Plafond salaire</div><div class="value">${money(plafondSalaire)}</div><div class="delta">salaire fixe (TTE)</div></div>
-    <div class="kpi"><div class="label">Heures cette semaine</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServices.length} sessions</div></div>
-    <div class="kpi"><div class="label">${aFaitDeLaCo ? '🎁 CA bonus généré' : 'Statut'}</div><div class="value">${aFaitDeLaCo ? money(ca) : ROLE_LABELS[profile.role]}</div><div class="delta">${aFaitDeLaCo ? myVentes.length + ' ventes (info, sans impact paye)' : (profile.statut || 'actif')}</div></div>
-    <div class="kpi"><div class="label">Date d'entrée</div><div class="value mono" style="font-size:1.2rem;">${profile.dateEntree || '—'}</div><div class="delta">au LTD</div></div>
-  `;
-
-  // Section activite annexe (ventes + quotas pompiste si presents)
-  let detailHtml = `
-    <p class="muted mb-2">
-      En tant que ${ROLE_LABELS[profile.role]}, ton salaire est <strong>fixé</strong> par la direction (${money(plafondSalaire)} max).
-      ${aFaitDeLaCo ? "Tes ventes et ravitaillements ci-dessous comptent pour le CA global du LTD mais <strong>n'impactent pas ta paye</strong>." : "Utilise les autres modules pour piloter l'activité."}
-    </p>
-  `;
-  if (aFaitDeLaCo) {
-    detailHtml += `
-      <div class="kpi-grid mb-2">
-        ${ca > 0 ? `<div class="kpi"><div class="label">💵 CA généré</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes</div></div>` : ''}
-        ${benefice !== 0 ? `<div class="kpi"><div class="label">📈 Bénéfice généré</div><div class="value">${money(benefice)}</div><div class="delta">pour le LTD</div></div>` : ''}
-        ${bidons > 0 ? `<div class="kpi"><div class="label">🛢 Bidons d'essence</div><div class="value">${num(bidons)}</div><div class="delta">produits cette semaine</div></div>` : ''}
-        ${caoutchoucs > 0 ? `<div class="kpi"><div class="label">🪖 Caoutchoucs</div><div class="value">${num(caoutchoucs)}</div><div class="delta">produits cette semaine</div></div>` : ''}
-      </div>
-      ${myVentes.length > 0 ? `
-        <div class="table-scroll" style="max-height:300px;">
-          <table class="data">
-            <thead><tr><th>Date</th><th>Client</th><th class="right">Montant</th><th class="right">Bénéfice</th></tr></thead>
-            <tbody>
-              ${myVentes.map(v => `
-                <tr>
-                  <td class="mono">${datetime(v.timestamp)}</td>
-                  <td>${escapeHtml(v.client || '—')}</td>
-                  <td class="right mono">${money(v.montant)}</td>
-                  <td class="right mono ${(v.benefice||0) >= 0 ? '' : 'muted'}">${money(v.benefice || 0)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      ` : ''}
-    `;
-  }
-  document.getElementById('detail').innerHTML = detailHtml;
 }
 
 // === Bouton "Declarer une vente" ===
@@ -692,8 +807,6 @@ if (btnVente) {
     ouvrirModalNouvelleVente({
       role: profile.role,
       onSuccess: () => {
-        // Recharge la page pour rafraichir le tableau "Mes ventes" + KPIs.
-        // Le listener sorties_en_cours se mettra a jour tout seul.
         window.location.reload();
       }
     });
@@ -759,11 +872,11 @@ const enServiceBadge = serviceOuvert
 const heuresStatsHtml = enServiceBadge + `
   <div class="kpi-grid mb-2">
     <div class="kpi"><div class="label">⏱ Aujourd'hui</div><div class="value">${durationHM(heuresJourMs)}</div><div class="delta">depuis 00h00</div></div>
-    <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServices.length} session${myServices.length>1?'s':''} terminée${myServices.length>1?'s':''}${serviceOuvert ? ' + 1 en cours' : ''}</div></div>
+    <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServicesCurr.length} session${myServicesCurr.length>1?'s':''} terminée${myServicesCurr.length>1?'s':''}${serviceOuvert ? ' + 1 en cours' : ''}</div></div>
     <div class="kpi"><div class="label">🗂 Cumul depuis embauche</div><div class="value">${durationHM(cumulMs)}</div><div class="delta">${allMyServices.length} sessions total</div></div>
   </div>
 `;
-if (myServices.length === 0) {
+if (myServicesCurr.length === 0) {
   sDiv.innerHTML = heuresStatsHtml + `<p class="muted">Aucune session enregistrée cette semaine.</p>`;
 } else {
   // Le tableau detaille reste sur la semaine en cours (pas trop long)
@@ -776,7 +889,7 @@ if (myServices.length === 0) {
           <th class="right" data-sort="duree">Durée</th>
         </tr></thead>
         <tbody>
-          ${myServices.map(s => `
+          ${myServicesCurr.map(s => `
             <tr>
               <td>${datetime(s.debut)}</td>
               <td>${datetime(s.fin)}</td>

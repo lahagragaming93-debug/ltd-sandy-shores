@@ -55,6 +55,14 @@ Tu vois directement **combien rapporte 1 bidon** à ton grade. Chaque bidon que 
 
 > 💡 **Tu touches dès le 1er bidon ou caoutchouc.** Pas besoin d'attendre d'avoir tout fait. Si tu ravitailles 50 bidons sans encore faire de caoutchouc, tu vois déjà ~191 $ apparaître (50 × 3,82 $ Novice).
 
+### 🗂 Consulter l'historique de tes semaines
+Au-dessus du panel **« Détail de ta semaine »**, un **sélecteur de semaine** te permet de remonter dans les semaines clôturées :
+- Par défaut : « 📅 Semaine en cours ».
+- Sélectionne une semaine passée pour voir tes **bidons / caoutchoucs / score / salaire calculé** de cette semaine-là.
+- Le badge `✓ Clôturée` apparaît à côté du titre du panel, et la liste live des stations + les boutons d'action disparaissent (uniquement pertinents pour la semaine en cours).
+- Les blocs **Heures de service** et **Avertissements** restent toujours sur la semaine en cours.
+- Le choix est mémorisé dans la session — pas perdu au refresh.
+
 ### État des stations en temps réel
 Sous ton détail, tu vois la liste des **8 stations** triées par % stock croissant (les plus basses en haut, pour savoir où aller en priorité).
 

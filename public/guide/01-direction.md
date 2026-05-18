@@ -149,6 +149,14 @@ Depuis 2026-05-13, un vendeur **ne peut plus déclarer une vente from scratch**.
 - **✏ Modifier une vente** (icône crayon sur ligne) — change produits/montant/client/paiement. Motif obligatoire.
 - **📥 Exporter CSV** — pour audit ou archivage.
 
+### 🗂 Consulter l'historique des semaines
+Depuis 2026-05-18, un **sélecteur de semaine** est disponible en tête de toolbar :
+- Par défaut : « 📅 Semaine en cours » (comportement historique inchangé).
+- Tu peux remonter jusqu'à 20 semaines clôturées (selon ce qui existe en base) — chaque option affiche les dates + le statut (`✓ Clôturée`, `✓ Clôturée (manuelle)`, etc.).
+- À chaque changement : KPI + tableau + discordances rechargent sur la fenêtre choisie. Le titre du panel devient `Factures de la semaine du DD/MM au DD/MM`.
+- **Lecture seule** sur les semaines passées : l'icône crayon est remplacée par un 🔒 (tooltip « Semaine clôturée — non modifiable »). L'export CSV reste utilisable.
+- Le choix est mémorisé dans la session (sessionStorage) — pas perdu au refresh.
+
 ### À comprendre
 - Le **vendeur est résolu** depuis son ID Discord (champ `idDiscord` dans son compte).
 - ⚠ Si un vendeur n'apparaît pas → ID Discord manquant. Va dans Admin → Modifier.

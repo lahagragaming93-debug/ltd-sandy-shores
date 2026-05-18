@@ -58,6 +58,27 @@ function startOfWeekRP() {
   d.setHours(0, 0, 0, 0);
   return d;
 }
+// Numéro ISO 8601 + label semaine (utilisé pour afficher "S20 2026" plutôt
+// que le weekKey brut "2026-05-11").
+function weekIsoNumber(d) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+}
+function weekIsoLabel(weekKey, { full = false } = {}) {
+  if (!weekKey) return '';
+  const lundi = new Date(String(weekKey) + 'T00:00:00');
+  if (isNaN(lundi.getTime())) return String(weekKey);
+  const num = weekIsoNumber(lundi);
+  const annee = lundi.getFullYear();
+  if (!full) return `S${num} ${annee}`;
+  const dim = new Date(lundi);
+  dim.setDate(dim.getDate() + 6);
+  const fmt = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+  return `S${num} ${annee} (${fmt(lundi)} → ${fmt(dim)})`;
+}
 function endOfWeekRP() {
   const d = startOfWeekRP();
   d.setDate(d.getDate() + 7);
@@ -121,6 +142,21 @@ async function chargerDonnees(db) {
     .get();
   const semaines = semSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+  // Cumul historique (toutes semaines clôturées présentes en base)
+  // — utilisé pour le KPI "Bénéfice net cumulé depuis reprise".
+  const semClosedSnap = await db.collection('semaines')
+    .where('statut', 'in', ['cloturee', 'cloturee-partielle', 'cloturee-manuelle'])
+    .get();
+  let cumulBeneficeNet = 0;
+  let cumulCa = 0;
+  let nbSemainesCloturees = 0;
+  for (const d of semClosedSnap.docs) {
+    const s = d.data();
+    cumulBeneficeNet += Number(s.beneficeNet) || Number(s.benefice) || 0;
+    cumulCa += Number(s.ca) || 0;
+    nbSemainesCloturees += 1;
+  }
+
   // Subventions reçues semaine (Art. 4-2.16 — non imposable, remboursable via contrat)
   // Captées via /banqueLtd où categorieEntree='subvention' (marqué manuellement
   // par le patron via le script marquer-subvention.js ou la modale admin).
@@ -171,7 +207,8 @@ async function chargerDonnees(db) {
     masseSalariale, ratioMasseSal,
     resultatImposable, beneficeNet, impot,
     subventions, totalSubventions, soldeBanque,
-    engagements, totalDettesRestantes
+    engagements, totalDettesRestantes,
+    cumulBeneficeNet, cumulCa, nbSemainesCloturees
   };
 }
 
@@ -186,7 +223,8 @@ function buildDashboard(data) {
     masseSalariale, ratioMasseSal,
     resultatImposable, beneficeNet, impot,
     subventions, totalSubventions, soldeBanque,
-    engagements, totalDettesRestantes
+    engagements, totalDettesRestantes,
+    cumulBeneficeNet, cumulCa, nbSemainesCloturees
   } = data;
 
   const maintenant = new Date().toLocaleString('fr-FR', {
@@ -194,7 +232,8 @@ function buildDashboard(data) {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
-  const semainePeriode = `Semaine du ${debut.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })} au ${fin.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })}`;
+  const weekKeyCourant = `${debut.getFullYear()}-${String(debut.getMonth()+1).padStart(2,'0')}-${String(debut.getDate()).padStart(2,'0')}`;
+  const semainePeriode = `${weekIsoLabel(weekKeyCourant)} — du ${debut.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })} au ${fin.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })}`;
 
   // Layout 9 colonnes (A-I). Largeur Dashboard ~1200px.
   // Chaque "row" : tableau de 9 cellules (string OU null).
@@ -240,7 +279,7 @@ function buildDashboard(data) {
   ]); // 10
   rows.push([
     `${pct(masseSalariale, caTotal)} du CA · seuil TTE 90 % · ${masseLabel}`, null, null,
-    `Marge = ${pct(beneficeNet, caTotal)} · ${beneficeNet >= 0 ? 'positif' : '⚠ déficitaire'}`, null, null,
+    `CA − dépenses − salaires versés · ${beneficeNet >= 0 ? 'positif' : '⚠ déficitaire'} (${pct(beneficeNet, caTotal)})`, null, null,
     `Tranche ${impot.tranche} · taux ${(impot.taux * 100).toFixed(0)} % (Art. 4-3.2)`, null, null
   ]); // 11
   rows.push(['', '', '', '', '', '', '', '', '']); // 12 spacer
@@ -268,9 +307,20 @@ function buildDashboard(data) {
   ]); // 15 détails
   rows.push(['', '', '', '', '', '', '', '', '']); // 16 spacer
 
+  // === BÉNÉFICE NET CUMULÉ (depuis reprise) === (rows 17-19)
+  // Bandeau full-width : ce que le LTD a réellement gagné/perdu net (toutes
+  // semaines clôturées confondues, salaires compris).
+  rows.push(['📈 BÉNÉFICE NET CUMULÉ — Ce que le LTD a réellement gagné depuis la reprise', null, null, null, null, null, null, null, null]); // 17 label
+  rows.push([money(cumulBeneficeNet), null, null, null, null, null, null, null, null]); // 18 valeur
+  const cumulDetail = nbSemainesCloturees > 0
+    ? `${nbSemainesCloturees} semaine${nbSemainesCloturees > 1 ? 's' : ''} clôturée${nbSemainesCloturees > 1 ? 's' : ''} · CA cumulé ${money(cumulCa)} · Moyenne ${money(Math.round(cumulBeneficeNet / nbSemainesCloturees))} / semaine`
+    : 'Aucune semaine clôturée pour le moment';
+  rows.push([cumulDetail, null, null, null, null, null, null, null, null]); // 19 détail
+  rows.push(['', '', '', '', '', '', '', '', '']); // 20 spacer
+
   // === ENGAGEMENTS DE REMBOURSEMENT (subventions, dettes…) ===
-  rows.push(['📋 ENGAGEMENTS DE REMBOURSEMENT — Suivi des dettes', null, null, null, null, null, null, null, null]); // header (row 17)
-  rows.push(['Bénéficiaire', 'Objet', 'Montant initial', 'Remboursé', 'Restant', 'Échéance', 'Jours restants', 'Statut', null]); // sub-header (row 18)
+  rows.push(['📋 ENGAGEMENTS DE REMBOURSEMENT — Suivi des dettes', null, null, null, null, null, null, null, null]); // header
+  rows.push(['Bénéficiaire', 'Objet', 'Montant initial', 'Remboursé', 'Restant', 'Échéance', 'Jours restants', 'Statut', null]); // sub-header
 
   if (engagements.length === 0) {
     rows.push(['—', 'Aucun engagement actif', null, null, null, null, null, null, null]);
@@ -380,7 +430,7 @@ function buildDashboard(data) {
   } else {
     for (const s of semaines) {
       rows.push([
-        String(s.numero || s.id || ''),
+        weekIsoLabel(s.numero || s.id || ''),
         s.dateDebut ? new Date(s.dateDebut).toLocaleDateString('fr-FR') : '',
         s.dateFin   ? new Date(s.dateFin).toLocaleDateString('fr-FR')   : '',
         money(s.ca || 0),
@@ -625,11 +675,44 @@ function buildFormatRequests(sheetId, rows) {
     });
   }
 
-  // === Section "CONFORMITÉ TTE" — header (row 16)
+  // === BÉNÉFICE NET CUMULÉ (rows 16-18) === bandeau full-width 9 cols
+  // Vert si positif, rouge si négatif (le LTD perd de l'argent net).
+  const cumulPositif = cumulBeneficeNet >= 0;
+  const cumulBgValue   = cumulPositif ? C.greenL : C.redL;
+  const cumulBgBorder  = cumulPositif ? C.green  : C.red;
+  // Label (row 16)
   reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 16, endRowIndex: 17, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
   reqs.push({
     repeatCell: {
       range: { sheetId, startRowIndex: 16, endRowIndex: 17, startColumnIndex: 0, endColumnIndex: 9 },
+      cell: { userEnteredFormat: { backgroundColor: cumulBgBorder, textFormat: { foregroundColor: C.white, bold: true, fontSize: 12 }, horizontalAlignment: 'CENTER', padding: { top: 6, bottom: 6 } } },
+      fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+    }
+  });
+  // Valeur (row 17) — gros chiffre
+  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 17, endRowIndex: 18, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
+  reqs.push({
+    repeatCell: {
+      range: { sheetId, startRowIndex: 17, endRowIndex: 18, startColumnIndex: 0, endColumnIndex: 9 },
+      cell: { userEnteredFormat: { backgroundColor: cumulBgValue, textFormat: { foregroundColor: C.black, bold: true, fontSize: 26, fontFamily: 'Georgia' }, horizontalAlignment: 'CENTER', padding: { top: 14, bottom: 14 } } },
+      fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+    }
+  });
+  // Détail (row 18)
+  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 18, endRowIndex: 19, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
+  reqs.push({
+    repeatCell: {
+      range: { sheetId, startRowIndex: 18, endRowIndex: 19, startColumnIndex: 0, endColumnIndex: 9 },
+      cell: { userEnteredFormat: { backgroundColor: cumulBgValue, textFormat: { foregroundColor: C.gray, fontSize: 10, italic: true }, horizontalAlignment: 'CENTER', padding: { top: 3, bottom: 6 } } },
+      fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,padding)'
+    }
+  });
+
+  // === Section "CONFORMITÉ TTE" — header (row 20)
+  reqs.push({ mergeCells: { range: { sheetId, startRowIndex: 20, endRowIndex: 21, startColumnIndex: 0, endColumnIndex: 9 }, mergeType: 'MERGE_ALL' } });
+  reqs.push({
+    repeatCell: {
+      range: { sheetId, startRowIndex: 20, endRowIndex: 21, startColumnIndex: 0, endColumnIndex: 9 },
       cell: {
         userEnteredFormat: {
           backgroundColor: C.gold,
@@ -642,8 +725,8 @@ function buildFormatRequests(sheetId, rows) {
     }
   });
 
-  // 3 lignes conformité (rows 17-19) : Label (cols A-C) | Statut texte (cols D-I)
-  for (let r = 17; r <= 19; r++) {
+  // 3 lignes conformité (rows 21-23) : Label (cols A-C) | Statut texte (cols D-I)
+  for (let r = 21; r <= 23; r++) {
     // Cols A-C : label (fusion)
     reqs.push({ mergeCells: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: 0, endColumnIndex: 3 }, mergeType: 'MERGE_ALL' } });
     reqs.push({
@@ -826,6 +909,8 @@ function buildFormatRequests(sheetId, rows) {
   reqs.push({ updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: 9, endIndex: 10 }, properties: { pixelSize: 60 }, fields: 'pixelSize' } });
   // Subventions valeurs (row 13) - un peu plus petit que les KPIs principaux
   reqs.push({ updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: 13, endIndex: 14 }, properties: { pixelSize: 45 }, fields: 'pixelSize' } });
+  // Bénéfice net cumulé (row 17) — gros chiffre full-width
+  reqs.push({ updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: 17, endIndex: 18 }, properties: { pixelSize: 70 }, fields: 'pixelSize' } });
 
   // Largeurs de colonnes
   for (let c = 0; c < nbCols; c++) {

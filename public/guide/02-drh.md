@@ -44,9 +44,10 @@ Le badge à droite affiche les dates exactes de la semaine affichée. Le marqueu
 | KPI | Signification |
 |-----|---------------|
 | **Effectif actif** | Nombre d'employés au statut « actif » |
-| **Salaires estimés** | Somme des salaires calculés pour la semaine affichée (libellé : *cette semaine* ou *à verser (sem. clôturée)*) |
+| **Salaires estimés** | Somme des salaires calculés pour la semaine affichée. En mode **semaine précédente**, lit le **snapshot figé à la clôture** (delta « figé à la clôture »). En mode courant, recalcul live |
 | **Salaires versés** | Somme des paies déjà versées via Discord (`#paie`) sur la semaine affichée |
 | **Masse salariale %** | Total salaires / CA semaine — limite TTE = 90 % |
+| **Reste à verser** *(mode semaine précédente uniquement)* | Somme des estimations des employés **non encore cochés « Versé »**. Indicateur de pilotage du lundi matin : passe à 0 $ quand tu as tout payé |
 
 #### Filtres
 - **Rôle** : pour ne voir qu'une catégorie (ex. « tous les vendeurs »)
@@ -64,6 +65,26 @@ Une ligne par employé avec :
   - Responsable / Direction / DRH : « Décidé »
 - **Salaire estimé / plafond**
 - **Statut** + bouton **« Détail »**
+
+#### 💸 Colonne « Versé ? » (mode semaine précédente uniquement)
+
+**Workflow lundi matin** (depuis 2026-05-18, Option B « snapshots ») :
+
+1. À la **clôture** (manuelle bouton 🔒 ou cron lundi 00h00 Paris), le système prend une photo des estimations de chaque employé actif → collection `/paiesEstimees/{weekKey}_{userId}`. Ces chiffres sont **figés** : ils ne bougent plus, même si tu modifies une vente ou un salaire décidé après coup.
+2. Tu bascules le toggle sur **« Semaine précédente (à payer) »**.
+3. Le tableau affiche les estimations **figées à la clôture** (pas un recalcul live).
+4. Une colonne **« Versé ? »** apparaît :
+   - **Checkbox vide** : pas encore versé.
+   - **Suggestion ≈ XXXX $** : le système a trouvé une paie `/paies` du bénéficiaire dans la fenêtre lundi 00h → mardi 21h dont le montant est à ±5 % de l'estimation. Quand tu coches, le snapshot est **lié à cette paie** (audit).
+   - **Écart +1500 $** (orange) ou **+5000 $** (rouge) : la paie réelle s'écarte de l'estimation. Décide si c'est une erreur ou une régularisation volontaire.
+   - **Badge « payé »** : déjà coché. Tu peux décocher pour annuler.
+5. Tu coches employé par employé au fur et à mesure que tu verses les `/pay` Discord.
+6. Le KPI **« Reste à verser »** baisse à chaque coche.
+7. Une fois à **0 $**, tu as fini la semaine.
+
+> ✅ **Idempotent** : si tu re-clôtures la même semaine (cas rare), aucun snapshot existant n'est écrasé — la trace est conservée.
+> 🔓 **Reset** : décoche pour annuler le marquage (les champs `datePaiement` et `paieMatcheeId` sont remis à null).
+> 👥 **Droits** : Patron, Co-Patron, DRH, Admin Technique peuvent cocher.
 
 ### Ce que tu peux faire
 

@@ -46,6 +46,15 @@ Toutes tes prises et fins de service de la semaine, avec durée totale.
 - **📝 Déclarer une vente** — bouton en haut de Mon espace (voir section dédiée ci-dessous)
 - Tout le reste est en **lecture seule** (les chiffres viennent des logs Discord + tes déclarations)
 
+### 🗂 Consulter l'historique de tes semaines
+Au-dessus du panel **« Détail de ta semaine »**, un **sélecteur de semaine** te permet de naviguer dans les semaines clôturées :
+- Par défaut : « 📅 Semaine en cours ».
+- Tu peux choisir une semaine passée pour voir ton **CA, ton CA commissionnable, ton salaire calculé** et la **liste détaillée de tes factures** de cette semaine-là.
+- Les KPIs et progress bars du panel Détail se rechargent automatiquement, le badge `✓ Clôturée` apparaît à côté du titre.
+- Le tableau **« Mes factures de la semaine »** liste tes ventes avec date / #facture / client / paiement / montant / bénéfice.
+- Les blocs **Heures de service** et **Avertissements** restent toujours sur la semaine en cours.
+- Le choix est mémorisé dans la session — pas perdu au refresh.
+
 ---
 
 ## 📝 Déclarer une vente (workflow obligatoire)

@@ -6,7 +6,8 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listUsers, listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listQuotasSemaine,
-  listPaiesSemaine, getConfig, updateUser, listRedistributionsSemaine
+  listPaiesSemaine, getConfig, updateUser, listRedistributionsSemaine,
+  listPaiesEstimeesSemaine, marquerPaieVersee
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isResponsable, isDirection,
          isSuperAdmin, compteEnFinance, PLAFOND_SALAIRE } from '../utils/permissions.js';
@@ -15,16 +16,14 @@ import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
+import { initSemaineSelector } from '../utils/semaine-selector.js';
 
 const { profile } = await requireAuth('rh');
 const editable = isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh';
 
 const html = `
   <div class="page-toolbar" style="flex-wrap:wrap;gap:8px;">
-    <select id="filtre-semaine" title="Semaine à afficher pour les estimations de salaire">
-      <option value="courante">Cette semaine (en cours)</option>
-      <option value="precedente">Semaine précédente (à payer)</option>
-    </select>
+    <select id="filtre-semaine" title="Choisir la semaine — courante ou n'importe quelle semaine clôturée"></select>
     <span id="badge-semaine" class="muted mono" style="font-size:0.78rem;align-self:center;">—</span>
   </div>
 
@@ -49,7 +48,7 @@ const html = `
     <div class="panel-title"><span id="titre-effectif">Effectif</span></div>
     <div class="table-scroll">
       <table class="data" id="table-rh">
-        <thead>
+        <thead id="thead-rh">
           <tr>
             <th data-sort="nom">Nom</th>
             <th data-sort="role">Rôle</th>
@@ -88,23 +87,6 @@ renderShell(profile, 'rh', html);
 
 makeSortable(document.getElementById('table-rh'));
 
-// === Bornes semaine — courante ou precedente selon le toggle ===
-// La semaine RP = lundi 00:00 -> dimanche 23:59. La semaine "precedente" est
-// utilisee chaque lundi matin par le patron pour voir les salaires a verser
-// suite a la cloture automatique de 00:00 (cron clotureHebdo).
-function bornesSemaine(choix) {
-  if (choix === 'precedente') {
-    const refSemPrec = new Date();
-    refSemPrec.setDate(refSemPrec.getDate() - 7);
-    return {
-      debut: startOfWeekRP(refSemPrec),
-      fin:   endOfWeekRP(refSemPrec),
-      wId:   weekId(refSemPrec)
-    };
-  }
-  return { debut: startOfWeekRP(), fin: endOfWeekRP(), wId: weekId() };
-}
-
 function labelSemaine(debut, fin) {
   const fmt = (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
   return `${fmt(debut)} → ${fmt(fin)}`;
@@ -114,20 +96,34 @@ let users = [], ventes = [], ventesAvecCachees = [], services = [],
     quotas = [], paies = [], config = {}, redistributions = [];
 let debut, fin, wId;
 let metricsByUser = {};
+// Snapshots /paiesEstimees pour la semaine cible (uniquement en mode 'precedente')
+let snapshotsByUser = {};                 // userId -> doc snapshot
+let snapshotMode = false;                 // true si on est en mode "semaine precedente"
+let canEditVerse = editable;              // direction/DRH/admin-tech peuvent cocher
 
-async function chargerSemaine(choix) {
-  ({ debut, fin, wId } = bornesSemaine(choix));
+// Reçoit un payload de semaine-selector :
+//   { weekKey, debut, fin, statut, statutLabel, isCurrent, semaine }
+// - isCurrent = true  : semaine en cours, mode live (recalcul ventes/services).
+// - isCurrent = false : semaine clôturée, mode snapshot (lecture /paiesEstimees + checkbox Versé).
+async function chargerSemaine(payload) {
+  debut = payload.debut;
+  fin   = payload.fin;
+  wId   = payload.isCurrent ? weekId() : payload.weekKey;
+  snapshotMode = !payload.isCurrent;
   document.getElementById('badge-semaine').textContent =
-    `${choix === 'precedente' ? 'À PAYER · ' : ''}${labelSemaine(debut, fin)}`;
+    `${snapshotMode ? 'À PAYER · ' : ''}${labelSemaine(debut, fin)}`;
   document.getElementById('titre-effectif').textContent =
-    choix === 'precedente'
-      ? `Effectif — semaine clôturée (${labelSemaine(debut, fin)})`
+    snapshotMode
+      ? `Effectif — ${payload.statutLabel || 'semaine clôturée'} (${labelSemaine(debut, fin)})`
       : 'Effectif — semaine en cours';
 
+  // Le nombre de colonnes change selon le mode (+ colonne "Versé ?")
+  const ncols = snapshotMode ? 9 : 8;
   document.getElementById('tbody-rh').innerHTML =
-    `<tr><td colspan="8" class="muted text-center">Chargement…</td></tr>`;
+    `<tr><td colspan="${ncols}" class="muted text-center">Chargement…</td></tr>`;
 
-  [users, ventes, ventesAvecCachees, services, quotas, paies, config, redistributions] = await Promise.all([
+  // On charge en parallele : meme set qu'avant + snapshots en mode 'precedente'.
+  const tasks = [
     listUsers().catch(() => []),
     listVentesSemaine(debut, fin).catch(() => []),
     listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
@@ -135,13 +131,68 @@ async function chargerSemaine(choix) {
     listQuotasSemaine(wId).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
     getConfig().catch(() => ({})),
-    listRedistributionsSemaine(debut, fin).catch(() => [])
-  ]);
+    listRedistributionsSemaine(debut, fin).catch(() => []),
+    snapshotMode ? listPaiesEstimeesSemaine(wId).catch(() => []) : Promise.resolve([])
+  ];
 
+  const [u, v, vc, s, q, p, c, r, snaps] = await Promise.all(tasks);
+  users = u; ventes = v; ventesAvecCachees = vc; services = s;
+  quotas = q; paies = p; config = c; redistributions = r;
+
+  snapshotsByUser = {};
+  (snaps || []).forEach(sn => { if (sn.userId) snapshotsByUser[sn.userId] = sn; });
+
+  renderTableHeader();
   calculerMetriques();
   renderKpis();
   renderTable();
   renderActivite();
+}
+
+// === En-tete table : ajoute/retire la colonne "Versé ?" selon mode ===
+function renderTableHeader() {
+  const thead = document.getElementById('thead-rh');
+  const colVerse = snapshotMode
+    ? `<th class="center" data-sort="paye" title="Cocher quand la paie a ete versee IG (lundi 00h-01h)">Versé&nbsp;?</th>`
+    : '';
+  thead.innerHTML = `
+    <tr>
+      <th data-sort="nom">Nom</th>
+      <th data-sort="role">Rôle</th>
+      <th data-sort="discord">ID Discord</th>
+      <th class="right" data-sort="heures">Heures</th>
+      <th class="right" data-sort="caQuota">CA / Quota</th>
+      <th class="right" data-sort="salaire">Salaire estimé</th>
+      ${colVerse}
+      <th data-sort="statut">Statut</th>
+      <th class="center">Actions</th>
+    </tr>
+  `;
+  // Re-attache le sortable apres modification du DOM
+  makeSortable(document.getElementById('table-rh'));
+}
+
+// === Auto-detection match paie /paies <-> snapshot ===
+// Retourne la paie /paies la plus probable pour un snapshot non paye, ou null.
+// Critere : meme beneficiaireId + montant a +/- 5% du montantEstime.
+// La fenetre temporelle est deja celle de listPaiesSemaine (lundi N+1 00h ->
+// mardi N+1 21h), pas besoin de re-filtrer.
+function trouverPaieMatchee(snap) {
+  if (!snap || snap.paye) return null;
+  const cible = snap.montantEstime || 0;
+  if (cible <= 0) return null;
+  const tol = Math.max(500, cible * 0.05); // tolerance 5% mini 500$
+  const candidates = paies.filter(p => {
+    if (p.beneficiaireId !== snap.userId) return false;
+    const m = Number(p.montant) || 0;
+    return Math.abs(m - cible) <= tol;
+  });
+  if (candidates.length === 0) return null;
+  // Renvoie la plus proche (en valeur absolue de l'ecart)
+  candidates.sort((a, b) =>
+    Math.abs((Number(a.montant) || 0) - cible) - Math.abs((Number(b.montant) || 0) - cible)
+  );
+  return candidates[0];
 }
 
 // === Calculer les métriques par employé ===
@@ -192,19 +243,41 @@ function renderKpis() {
   // TTE : ratio masse salariale sur CA TOTAL (produits + carburant), pour refleter
   // la realite economique et eviter de declarer hors-TTE artificiellement.
   const totalCA = caProduits + caCarburant;
-  const totalEstime = usersFinance.reduce((s, u) => s + (metricsByUser[u.id]?.salaireEstime || 0), 0);
+
+  // En mode 'precedente', on lit les estimations FIGEES dans /paiesEstimees
+  // (snapshot a la cloture). En mode 'courante', calcul live comme avant.
+  let totalEstime, kpisExtra = '';
+  if (snapshotMode) {
+    const snaps = Object.values(snapshotsByUser);
+    totalEstime = snaps.reduce((s, sn) => s + (Number(sn.montantEstime) || 0), 0);
+    const resteAVerser = snaps
+      .filter(sn => !sn.paye)
+      .reduce((s, sn) => s + (Number(sn.montantEstime) || 0), 0);
+    const nbARegler = snaps.filter(sn => !sn.paye && (sn.montantEstime || 0) > 0).length;
+    kpisExtra = `
+      <div class="kpi" style="border-color:var(--color-gold,#d4b14d);">
+        <div class="label">Reste à verser</div>
+        <div class="value">${money(resteAVerser)}</div>
+        <div class="delta">${nbARegler} employé(s) non coché(s)</div>
+      </div>
+    `;
+  } else {
+    totalEstime = usersFinance.reduce((s, u) => s + (metricsByUser[u.id]?.salaireEstime || 0), 0);
+  }
+
   const totalVerse = paies.reduce((s, p) => s + (p.montant || 0), 0);
   const masse = checkMasseSalariale(totalEstime, totalCA);
   const actifs = usersFinance.filter(u => u.statut === 'actif').length;
   const technicians = users.filter(u => isSuperAdmin(u.role) && u.statut === 'actif').length;
-  const choix = document.getElementById('filtre-semaine')?.value || 'courante';
-  const deltaEstime = choix === 'precedente' ? 'à verser (sem. clôturée)' : 'cette semaine';
+  const deltaEstime = snapshotMode ? 'figé à la clôture' : 'cette semaine';
+  const labelVerse = snapshotMode ? `paies /paies fenêtre lun→mar` : 'via paie Discord';
 
   document.getElementById('kpis-rh').innerHTML = `
     <div class="kpi"><div class="label">Effectif actif</div><div class="value">${actifs}</div><div class="delta">/ ${usersFinance.length} comptes${technicians > 0 ? ` <span style="color:var(--color-gold);">+${technicians} tech</span>` : ''}</div></div>
     <div class="kpi"><div class="label">Salaires estimés</div><div class="value">${money(totalEstime)}</div><div class="delta">${deltaEstime}</div></div>
-    <div class="kpi"><div class="label">Salaires versés</div><div class="value">${money(totalVerse)}</div><div class="delta">via paie Discord</div></div>
+    <div class="kpi"><div class="label">Salaires versés</div><div class="value">${money(totalVerse)}</div><div class="delta">${labelVerse}</div></div>
     <div class="kpi"><div class="label">Masse salariale</div><div class="value">${pct(masse.ratio*100,1)}</div><div class="delta ${masse.ok ? 'up' : 'down'}">limite TTE: 90%</div></div>
+    ${kpisExtra}
   `;
 }
 
@@ -225,8 +298,9 @@ function renderTable() {
   );
 
   const tbody = document.getElementById('tbody-rh');
+  const ncols = snapshotMode ? 9 : 8;
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="muted text-center">Aucun employé.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${ncols}" class="muted text-center">Aucun employé.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(u => {
@@ -235,20 +309,66 @@ function renderTable() {
     const heuresOK = (m.heuresMs || 0) >= 7 * 3600 * 1000;
     const heuresMark = heuresOK ? '' : '<span class="muted">⚠</span> ';
     const plafond = PLAFOND_SALAIRE[u.role] || 0;
-    const ratio = plafond ? (m.salaireEstime / plafond) * 100 : 0;
+
+    // En mode snapshot : source de verite = doc /paiesEstimees figeé.
+    // (Si pas de snapshot pour cet user, fallback sur calcul live = 0 etc.)
+    const snap = snapshotMode ? snapshotsByUser[u.id] : null;
+    const salaireEstime = snap ? (Number(snap.montantEstime) || 0) : (m.salaireEstime || 0);
+    const caShow = snap ? (Number(snap.caParticulier) || Number(snap.ca) || 0) : (m.caParticulier ?? m.ca ?? 0);
+    const caTotal = snap ? (Number(snap.ca) || 0) : (m.ca || 0);
+    const bidonsShow = snap ? (snap.bidons || 0) : (m.bidons || 0);
+    const caoutShow = snap ? (snap.caoutchoucs || 0) : (m.caoutchoucs || 0);
 
     let progressLabel = '—';
     if (isVendeur(u.role)) {
-      const cp = m.caParticulier ?? m.ca ?? 0;
-      const part = m.ca > 0 && cp < m.ca
-        ? ` <span class="muted" style="font-size:0.72rem;">(sur ${money(m.ca)} total)</span>`
+      const part = caTotal > 0 && caShow < caTotal
+        ? ` <span class="muted" style="font-size:0.72rem;">(sur ${money(caTotal)} total)</span>`
         : '';
-      progressLabel = `${money(cp)} / ${money(40000)}${part}`;
+      progressLabel = `${money(caShow)} / ${money(40000)}${part}`;
     } else if (isPompiste(u.role)) {
-      const score = scorePompiste(m.bidons, m.caoutchoucs, config.quotaBidons, config.quotaCaoutchoucs);
+      const score = scorePompiste(bidonsShow, caoutShow, config.quotaBidons, config.quotaCaoutchoucs);
       progressLabel = `${pct(score, 0)}`;
     } else if (isResponsable(u.role) || isDirection(u.role) || u.role === 'drh') {
       progressLabel = `Décidé`;
+    }
+
+    // === Colonne "Versé ?" (mode snapshot uniquement) ===
+    let cellVerse = '';
+    if (snapshotMode) {
+      if (!snap) {
+        cellVerse = `<td class="center muted" title="Pas de snapshot — semaine non clôturée ou employé créé après">—</td>`;
+      } else {
+        const paye = !!snap.paye;
+        const match = !paye ? trouverPaieMatchee(snap) : null;
+        const matchInfo = match
+          ? `<span class="badge ok" style="font-size:0.68rem;" title="Paie /paies probable : ${money(match.montant)} le ${datetime(match.timestamp)}">≈ ${money(match.montant)}</span>`
+          : '';
+        const dejaPaye = paye
+          ? `<span class="badge ok" style="font-size:0.68rem;" title="${snap.paieMatcheeMontant ? 'Lié à paie ' + money(snap.paieMatcheeMontant) : 'Coché manuellement'}">payé</span>`
+          : '';
+        // Pre-coche visuelle si match auto detecté (mais pas encore enregistre)
+        // -> on garde paye=false en base, on flag visuellement.
+        const matchAttr = match ? `data-paie-match="${escapeHtml(match.id)}"` : '';
+        const ecart = match ? (Number(match.montant) || 0) - (Number(snap.montantEstime) || 0) : 0;
+        const ecartLabel = match && Math.abs(ecart) > 0
+          ? `<span class="muted" style="font-size:0.66rem;display:block;color:${Math.abs(ecart) > 1000 ? 'var(--color-red,#c0392b)' : 'var(--color-orange,#e07b00)'};">écart ${ecart > 0 ? '+' : ''}${money(ecart)}</span>`
+          : '';
+        const disabledAttr = canEditVerse ? '' : 'disabled';
+        cellVerse = `
+          <td class="center">
+            <label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:${canEditVerse ? 'pointer' : 'default'};">
+              <input type="checkbox" class="chk-paye"
+                data-snap="${escapeHtml(snap.id)}"
+                ${matchAttr}
+                ${paye ? 'checked' : ''}
+                ${disabledAttr}
+                title="Cocher quand la paie a ete versee" />
+              ${dejaPaye || matchInfo}
+              ${ecartLabel}
+            </label>
+          </td>
+        `;
+      }
     }
 
     return `
@@ -258,7 +378,8 @@ function renderTable() {
         <td class="mono">${escapeHtml(u.idDiscord || '—')}</td>
         <td class="right mono">${heuresMark}${heures}</td>
         <td class="right mono">${progressLabel}</td>
-        <td class="right mono">${money(m.salaireEstime || 0)} <span class="muted" style="font-size:0.7rem;">/ ${money(plafond)}</span></td>
+        <td class="right mono">${money(salaireEstime)} <span class="muted" style="font-size:0.7rem;">/ ${money(plafond)}</span></td>
+        ${cellVerse}
         <td><span class="badge ${u.statut === 'actif' ? 'ok' : 'warn'}">${u.statut || 'actif'}</span></td>
         <td class="actions-cell">
           <button class="btn btn-icon btn-sm btn-ghost" data-detail="${u.id}" title="Voir le détail (heures, ventes, salaire estimé)" data-tooltip="Détail">👁</button>
@@ -270,13 +391,47 @@ function renderTable() {
   tbody.querySelectorAll('[data-detail]').forEach(b => {
     b.addEventListener('click', () => ouvrirDetail(b.dataset.detail));
   });
+
+  // === Handler checkbox "Versé ?" ===
+  if (snapshotMode && canEditVerse) {
+    tbody.querySelectorAll('.chk-paye').forEach(chk => {
+      chk.addEventListener('change', async (e) => {
+        const snapId = chk.dataset.snap;
+        const paye = chk.checked;
+        const paieMatcheeId = paye ? (chk.dataset.paieMatch || null) : null;
+        chk.disabled = true;
+        try {
+          await marquerPaieVersee({ snapshotId: snapId, paye, paieMatcheeId });
+          // Met a jour le snapshot local + KPIs sans tout recharger
+          const sn = Object.values(snapshotsByUser).find(s => s.id === snapId);
+          if (sn) {
+            sn.paye = paye;
+            sn.datePaiement = paye ? new Date() : null;
+            sn.paieMatcheeId = paieMatcheeId;
+          }
+          renderKpis();
+          renderTable();
+          toastSuccess(paye ? 'Paie marquée versée.' : 'Décoché.');
+        } catch (err) {
+          chk.checked = !paye; // rollback visuel
+          toastError(err?.message || 'Erreur enregistrement');
+        } finally {
+          chk.disabled = false;
+        }
+      });
+    });
+  }
 }
 ['filtre-role', 'filtre-statut', 'filtre-recherche'].forEach(id => {
   document.getElementById(id).addEventListener('input', renderTable);
 });
 
-document.getElementById('filtre-semaine').addEventListener('change', (e) => {
-  chargerSemaine(e.target.value);
+// Sélecteur de semaine factorisé : courante + N dernières clôturées (snapshots).
+// Appelle chargerSemaine immédiatement avec le payload de la semaine restaurée
+// depuis sessionStorage (clé "rh-semaine") ou "current" par défaut.
+await initSemaineSelector('#filtre-semaine', {
+  storageKey: 'rh-semaine',
+  onChange: chargerSemaine
 });
 
 // Pre-remplit le champ de recherche depuis ?q=... (lien profond depuis /stocks)
@@ -500,4 +655,6 @@ function renderActivite() {
 }
 
 // === Chargement initial ===
-await chargerSemaine('courante');
+// Géré par initSemaineSelector ci-dessus (premier appel synchrone à chargerSemaine
+// avec le payload de la semaine sélectionnée — restaurée depuis sessionStorage
+// ou "current" par défaut).

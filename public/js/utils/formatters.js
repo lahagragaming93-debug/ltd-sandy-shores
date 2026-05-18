@@ -74,6 +74,47 @@ export function weekId(d = new Date()) {
   return start.toISOString().slice(0, 10); // YYYY-MM-DD du lundi
 }
 
+// Reconstruit la fenetre [lun 00:00 -> dim 23:59:59.999] d'une semaine arbitraire
+// a partir de son weekKey (format YYYY-MM-DD = le lundi). Parse en local pour
+// eviter le decalage UTC qui projetterait le lundi au dimanche d'avant.
+export function weekRangeFromKey(weekKey) {
+  if (!weekKey) return { debut: startOfWeekRP(), fin: endOfWeekRP() };
+  const [y, m, d] = weekKey.split('-').map(Number);
+  const debut = new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+  const fin = new Date(debut);
+  fin.setDate(fin.getDate() + 6);
+  fin.setHours(23, 59, 59, 999);
+  return { debut, fin };
+}
+
+// Numéro ISO 8601 de semaine (1-53). Algo standard : jeudi de la semaine
+// décide de l'année ISO.
+export function weekIsoNumber(d = new Date()) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+}
+// Label semaine ISO. weekKey = "YYYY-MM-DD" du lundi.
+//   weekIsoLabel('2026-05-11')                  -> "S20 2026"
+//   weekIsoLabel('2026-05-11', { full: true })  -> "S20 2026 (11/05 → 17/05)"
+//   weekIsoLabel('2026-05-11', { long: true })  -> "Semaine 20 du lundi 11/05 au dimanche 17/05/2026"
+export function weekIsoLabel(weekKey, { full = false, long = false } = {}) {
+  if (!weekKey) return '';
+  const lundi = new Date(weekKey + 'T00:00:00');
+  if (isNaN(lundi.getTime())) return String(weekKey);
+  const num = weekIsoNumber(lundi);
+  const annee = lundi.getFullYear();
+  const dim = new Date(lundi);
+  dim.setDate(dim.getDate() + 6);
+  const ddmm = (dt) => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+  const ddmmyyyy = (dt) => `${ddmm(dt)}/${dt.getFullYear()}`;
+  if (long) return `Semaine ${num} du lundi ${ddmm(lundi)} au dimanche ${ddmmyyyy(dim)}`;
+  if (full) return `S${num} ${annee} (${ddmm(lundi)} → ${ddmm(dim)})`;
+  return `S${num} ${annee}`;
+}
+
 export function durationHM(ms) {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);

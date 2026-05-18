@@ -1,28 +1,25 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-18 (session interrompue, reprise sur inspection Google Sheet + option B)**
+> Dernière MAJ : **2026-05-18 partie 2 (v1.6.0 — inspection Sheet + Option B + KPI bénéfice cumulé + UX historique semaine + label ISO S20)**
 
-## 🚧 EN COURS — Reprise session 2026-05-18
+## 🟡 À surveiller / valider après usage
 
-### À faire dès la reprise (user enverra des screens du Google Sheet)
-**Inspection Google Sheet "Comptabilité LTD"** — 8 problèmes remontés par le user, captures à venir :
-1. Ventes/dépenses/paies de W18 devraient passer dans un "dossier semaine d'avant" (le Sheet affiche toujours la semaine en cours = W19 vide)
-2. Résumé confus (zone à identifier précisément)
-3. Format semaine calendaire au lieu de RP lun-dim
-4. Date début / fin à corriger
-5. Statuts à revoir
-6. Prime hebdo affichée 5000$ → clarifier d'où ça vient et si c'est correct
-7. Chiffres pas tous en $ (rappel)
-8. Format date incompréhensible
+- **Tolérance auto-match paie ↔ snapshot** (±5% ou min 500$) : ajuster après 1-2 semaines d'usage réel.
+- **Rôles snapshottés** : actuellement tous les `compteEnFinance` + `statut=='actif'`. Si patron veut exclure certains comptes (ex: lui-même, co-patron sans salaireDecide), à clarifier.
+- **Snapshots W18 (semaine 11/05) à backfiller** : lancer `node firebase/functions/scripts/backfill-snapshot-paies-w18.mjs` APRÈS le deploy v1.6.0.
+- **Quota pompiste sur semaine passée** : le sélecteur historique sur /employee lit `/quotasPompiste/{weekKey}_{uid}`. Si le format diverge pour d'anciennes semaines, le quota retombe à 0 (graceful, pas de crash).
+- **Doc /semaines/2026-05-04** : `dateDebut` peut être manquant côté Firestore (semaine ancienne). À constater dans Sheet onglet `resumé` ligne correspondante ; si vide, c'est normal (pas de bug code).
 
-Code générateur : `firebase/functions/lib/dashboard-core.mjs` (909 lignes). Récap toutes les feuilles (Dashboard + Dépenses + Ventes + Paies + Résumé).
+## ✅ Résolus session 2026-05-18 (partie 2) — v1.6.0
 
-### Option B — snapshot estimations + checkboxes "Versé"
-Spec :
-- À la clôture (manuelle `cloturerSemaine` + cron auto `clotureHebdo` étape 1), snapshot estimations par employé dans `/paiesEstimees/{weekKey}_{userId}` avec `{ userId, weekKey, role, prenom, nom, montantEstime, ca, caParticulier, bidons, caoutchoucs, paye: false, datePaiement: null, paieMatcheeId: null }`
-- Module backend `firebase/functions/lib/paie-calc.mjs` à recréer (fichier conçu puis supprimé sur demande user pour focus clôture)
-- Sur `/rh` "Semaine précédente" : lecture snapshot (au lieu de recalc live), colonne **Versé ?** checkbox par employé, KPI **Reste à verser**, auto-détection match paie Discord ↔ estimation
+- **Fix formats Google Sheet** (`csvResume` + `csvPaies` + `format-sheet.js`) : weekKey → `S20 2026` (helper `weekIsoLabel`), `$` partout, dates `dd/MM/yyyy`, datetime `dd/MM/yyyy HH:mm:ss`, col Statut élargie, `cleanNomBot()` pour virer `<@discordId>`, `Période` paies remplie via `weekKeyAttribuee`. Header `Prime hebdo (potentielle)` clarifié.
+- **Option B déployée** : `paie-calc.mjs` (snapshot calculator), `/paiesEstimees/{weekKey}_{userId}` à chaque clôture (manuelle + cron, try/catch englobant idempotent), Cloud Function `marquerPaieVersee` (direction+DRH+admin-tech), `/rh` colonne **Versé ?** + KPI **Reste à verser** + auto-détection match paie. Rules Firestore : read direction+DRH, write false.
+- **Dashboard KPI Bénéfice net cumulé depuis reprise** : bandeau full-width vert/rouge entre Subventions/Trésorerie et Conformité TTE. Wording semaine courante clarifié ("CA − dépenses − salaires versés"). Historique : col Semaine en `S20 2026`.
+- **Sélecteur de semaine factorisé `semaine-selector.js`** : composant réutilisable (courante + N dernières clôturées au format `Semaine 20 du lundi 11/05 au dimanche 17/05/2026`). Déployé sur `/ventes`, `/employee`, `/rh` (remplace l'ancien toggle binaire). Mode lecture seule sur semaines passées (bouton modifier → 🔒 disabled).
+- **`period-filter.js` étendu** : nouvelle option "Semaine dernière" + `injectSemainesHistoriques()` qui ajoute un optgroup "📅 Semaines clôturées" avec dropdown direct. Plus besoin de passer par "Personnalisé" pour voir une semaine N-1.
+- **Helper `weekIsoLabel`** dans `formatters.js` + `dashboard-core.mjs` + `index.js` (3 modes : court `S20 2026`, full `S20 2026 (11/05 → 17/05)`, long `Semaine 20 du lundi 11/05 au dimanche 17/05/2026`).
+- **Version 1.6.0** + JOURNAL + ROADMAP + docs guide (01-direction, 02-drh, 05-vendeur, 06-pompiste).
 
 ## ✅ Résolus session 2026-05-18 (partie 1)
 - **Option A** : toggle "Cette semaine / Semaine précédente" sur `/rh` (commit `8aa0975`). Permet au patron de voir les estimations de la semaine clôturée après lundi 00h00.
