@@ -120,13 +120,18 @@ async function chargerDonnees(db) {
   const depensesAll = depSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const depenses = depensesAll.filter(d => d.type !== 'paie');
 
-  // Paies semaine
+  // Paies semaine.
+  // Exclut les paies tagguées weekKeyAttribuee != weekKey courant (versées
+  // lundi matin pour la semaine précédente clôturée). Sinon on pollue le
+  // bénéfice net de la semaine en cours avec les paies de la précédente.
+  const weekKeyCourant = `${debut.getFullYear()}-${String(debut.getMonth()+1).padStart(2,'0')}-${String(debut.getDate()).padStart(2,'0')}`;
   const paiesSnap = await db.collection('paies')
     .where('timestamp', '>=', Timestamp.fromDate(debut))
     .where('timestamp', '<=', Timestamp.fromDate(fin))
     .orderBy('timestamp', 'desc')
     .get();
-  const paies = paiesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const paies = paiesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(p => !p.weekKeyAttribuee || p.weekKeyAttribuee === weekKeyCourant);
 
   // Redistributions essence (CA carburant)
   const redisSnap = await db.collection('redistributions')
