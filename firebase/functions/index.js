@@ -15,6 +15,7 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
 import { snapshotPaiesEstimees } from './lib/paie-calc.mjs';
+import { snapshotSheetSemaine } from './lib/snapshot-sheet-semaine.mjs';
 
 initializeApp();
 const db = getFirestore();
@@ -36,7 +37,8 @@ const DASHBOARD_SA_KEY = defineSecret('DASHBOARD_SA_KEY');
 export const clotureHebdo = onSchedule({
   schedule: '0 0 * * 1',
   timeZone: 'Europe/Paris',
-  region:   'europe-west1'
+  region:   'europe-west1',
+  secrets:  [DASHBOARD_SA_KEY]
 }, async () => {
   console.log('=== Début clôture hebdomadaire (étape 1 : ventes + dépenses) ===');
   const now = new Date();
@@ -122,6 +124,24 @@ export const clotureHebdo = onSchedule({
     console.log('[clotureHebdo] snapshot paies estimees:', res);
   } catch (e) {
     console.error('[clotureHebdo] snapshotPaiesEstimees error:', e?.message || e);
+  }
+
+  // === Snapshot onglet Sheet semaine (audit IRS, fige) ===
+  // Cree/met-a-jour l'onglet "Semaine N (jj-jj mois aaaa)" dans le Sheet
+  // Comptabilite. Idempotent : reecrit le meme onglet a la 2e cloture.
+  // Try/catch englobant : JAMAIS faire echouer la cloture si Sheets KO.
+  try {
+    const semSnap = await db.collection('semaines').doc(weekKey).get();
+    const semaineData = semSnap.exists ? semSnap.data() : {};
+    const sheets = getSheetsClient();
+    const snapSheetRes = await snapshotSheetSemaine({
+      db, sheets, weekKey,
+      weekDebut: debut, weekFin: fin,
+      semaineData
+    });
+    console.log('[clotureHebdo] snapshot sheet semaine:', snapSheetRes);
+  } catch (e) {
+    console.error('[clotureHebdo] snapshotSheetSemaine error:', e?.message || e);
   }
 });
 
@@ -3916,6 +3936,33 @@ export const cloturerSemaine = onRequest({
       console.log('[cloturerSemaine] snapshot paies estimees:', snapRes);
     } catch (e) {
       console.error('[cloturerSemaine] snapshotPaiesEstimees error:', e?.message || e);
+    }
+
+    // === Snapshot onglet Sheet semaine (audit IRS, fige) ===
+    // Cree l'onglet dedie "Semaine N (jj-jj mois aaaa)" avec recap KPI +
+    // tables ventes/depenses/paies. Idempotent. Try/catch englobant.
+    try {
+      const sheets = getSheetsClient();
+      const snapSheetRes = await snapshotSheetSemaine({
+        db, sheets, weekKey,
+        weekDebut: debutSemainePassee,
+        weekFin: finSemainePassee,
+        semaineData: {
+          ca, caProduits, caCarburant,
+          beneficeBrut,
+          depenses: depTotal,
+          depensesTotales: depTotal,
+          chargesDeductibles: dedu,
+          masseSalariale,
+          beneficeNet,
+          nbVentes: ventes.length + redistSnap.size,
+          nbDepenses: depReelles.length,
+          statut: 'cloturee-manuelle'
+        }
+      });
+      console.log('[cloturerSemaine] snapshot sheet semaine:', snapSheetRes);
+    } catch (e) {
+      console.error('[cloturerSemaine] snapshotSheetSemaine error:', e?.message || e);
     }
 
     // Refresh Dashboard tant qu'on y est
