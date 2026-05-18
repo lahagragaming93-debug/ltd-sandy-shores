@@ -9,6 +9,11 @@ import { isDirection } from '../utils/permissions.js';
 const { profile } = await requireAuth('guide');
 
 // Catalogue des guides (correspond aux fichiers dans public/guide/)
+// Champ `acces` (optionnel) : liste blanche de roles autorises. Si absent =
+// accessible a tous les roles authentifies. Les guides sensibles (compta, TTE)
+// sont restreints a direction + DRH + admin-technique pour eviter qu'un
+// vendeur/pompiste lambda ne voie le workflow cloture, les regles TTE, etc.
+const ROLES_DIR_DRH = ['patron', 'co-patron', 'drh', 'admin-technique'];
 const GUIDES = [
   { id: '00-index',                file: 'guide/00-index.md',                titre: '📋 Sommaire',                  pourQui: 'Tout le monde' },
   { id: '01-direction',            file: 'guide/01-direction.md',            titre: '👑 Direction',                  pourQui: 'Patron, Co-Patron' },
@@ -19,9 +24,15 @@ const GUIDES = [
   { id: '06-pompiste',             file: 'guide/06-pompiste.md',             titre: '🚗 Pompiste',                   pourQui: 'Pompistes (Novice, Inter, Exp)' },
   { id: '07-automatismes',         file: 'guide/07-automatismes.md',         titre: '🤖 Automatismes',                pourQui: 'Tout le monde (technique)' },
   { id: '08-faq-depannage',        file: 'guide/08-faq-depannage.md',        titre: '❓ FAQ + Dépannage',             pourQui: 'Tout le monde' },
-  { id: '09-comptabilite',         file: 'guide/09-comptabilite.md',         titre: '📋 Comptabilité',                pourQui: 'Direction, Admin Tech, audit IRS' },
-  { id: '10-tte-reference',        file: 'guide/10-tte-reference.md',        titre: '📜 Référence T.T.E.',            pourQui: 'Direction, audit IRS, juriste' }
+  { id: '09-comptabilite',         file: 'guide/09-comptabilite.md',         titre: '📋 Comptabilité',                pourQui: 'Direction, DRH, Admin Tech', acces: ROLES_DIR_DRH },
+  { id: '10-tte-reference',        file: 'guide/10-tte-reference.md',        titre: '📜 Référence T.T.E.',            pourQui: 'Direction, DRH, Admin Tech',  acces: ROLES_DIR_DRH }
 ];
+
+function peutVoirGuide(guide, role) {
+  if (!guide.acces) return true;
+  return guide.acces.includes(role);
+}
+const GUIDES_VISIBLES = GUIDES.filter(g => peutVoirGuide(g, profile.role));
 
 // Mapping rôle → guide à pré-sélectionner
 function defaultGuideForRole(role) {
@@ -44,7 +55,7 @@ const html = `
     <aside class="guide-toc panel">
       <div class="panel-title"><span>📚 Tous les guides</span></div>
       <ul class="guide-list">
-        ${GUIDES.map(g => `
+        ${GUIDES_VISIBLES.map(g => `
           <li>
             <a href="?guide=${g.id}" class="guide-link" data-guide-id="${g.id}">
               <div class="guide-link-titre">${g.titre}</div>
@@ -110,6 +121,11 @@ async function loadGuide(id, opts = { pushHistory: true, scrollTop: true }) {
   const guide = GUIDES.find(g => g.id === id);
   if (!guide) {
     renderedEl.innerHTML = `<p class="alert danger">Guide introuvable : <code>${id}</code></p>`;
+    return;
+  }
+  if (!peutVoirGuide(guide, profile.role)) {
+    renderedEl.innerHTML = `<div class="alert danger"><strong>Accès refusé.</strong><br>Ce guide est réservé à la direction, au DRH et à l'admin technique. Contacte le patron si tu penses que c'est une erreur.</div>`;
+    lectureInfoEl.textContent = '';
     return;
   }
 

@@ -99,46 +99,89 @@ Quand le gouvernement (Governor SA / IRS) verse une subvention sur le compte LTD
 
 ---
 
-## 📅 3. Comment clôturer une semaine
+## 📅 3. Clôturer une semaine — workflow lundi matin (v1.7.0)
 
-### Bonne nouvelle : c'est automatique
+> 🔐 **Accès** : ce chapitre est **uniquement consultable par** le patron, le co-patron, le DRH et l'admin technique. Les autres rôles (responsables, vendeurs, pompistes) ne voient pas cette page dans leur sommaire et reçoivent un "Accès refusé" s'ils essaient l'URL directe.
 
-Tous les **lundis à 00:00 (heure Paris)**, la Cloud Function `clotureHebdo` se déclenche **toute seule** et :
-- Agrège la semaine qui vient de finir (lundi précédent 00h → dimanche 23h59)
-- Crée une nouvelle ligne dans l'onglet **Resume** du Sheet (et `/semaines/{date}` côté serveur)
-- Calcule : CA, dépenses, masse salariale, primes (Art. 4-1.10 + Art. 4-1.11), bénéfice net, statut `cloturee`
-- La nouvelle semaine démarre avec compteurs à 0
+> **TL;DR** : dimanche 23h59 sonne. Le cron auto fige le CA + les dépenses à 00h00 pile. **Ne verse AUCUNE paie avant lundi 00h00.** Une fois minuit passé, tu fermes le LTD IG, tu verses les paies dans Discord, puis tu cliques le bouton 🔒 sur /comptabilite — l'idéal est de tout faire entre **lundi 00h00 et 01h00**. Mardi 21h05 c'est le filet de sécurité auto.
 
-**Tu n'as rien à faire activement le lundi.** Le système fait son boulot pendant que tu dors.
+---
 
-### Ce que TOI tu fais avant lundi 00h00 (dimanche soir)
+### 🟢 La routine semaine par semaine — étape par étape
 
-1. **Vérifie la gauge masse salariale** dans Comptabilité — doit être verte (< 85 %) idéalement
-2. **Verse tous les salaires** restants (cf. section 2 ci-dessus)
-3. **Note les éventuelles anomalies** : discordances dans Ventes, dépenses douteuses, etc.
+**Dimanche dans la journée — préparation**
+1. Va sur `/rh` → vérifie la gauge **masse salariale** (doit être ≤ 85 % du CA idéalement, max 90 % pour respecter TTE Art. 4-1.5)
+2. Vérifie la colonne **Salaire estimé** par employé : c'est ce que tu vas devoir verser
+3. Va sur `/comptabilite` → résous les **dépenses orange "À classifier"** (cf. §5)
+4. Note d'éventuelles anomalies à corriger AVANT minuit (ventes oubliées, dépenses douteuses, etc.)
 
-### Quelles colonnes regarder dans l'onglet `Resume` du Sheet
+> ⛔ **NE verse AUCUNE paie avant lundi 00h00** — même si tu as fini ta semaine RP plus tôt. Les paies versées avant minuit ont un timestamp dimanche → elles seront comptées dans la **semaine en cours** (qui s'achève) au lieu de la semaine que tu veux clôturer. La fenêtre paie démarre **strictement à lundi 00h00 Paris**.
 
-Quand tu ouvres l'onglet `Resume` (ou via le Dashboard → Historique des semaines), chaque ligne représente **une semaine clôturée** avec :
+**Dimanche 23h59 → Lundi 00h00 — automatique côté serveur**
+Le cron `clotureHebdo` étape 1 tourne tout seul et :
+- Fige le CA, les dépenses, le bénéfice brut, le nombre de ventes/dépenses dans `/semaines/{date-lundi}` (statut = `cloturee-partielle`)
+- Crée les **snapshots /paiesEstimees** pour chaque employé (= valeur estimée gelée pour la semaine, retrouvable plus tard même si tu supprimes le compte employé)
+- Crée l'onglet snapshot **`Semaine N (jj-jj mois aaaa)`** dans le Sheet (CA + dépenses + paies, figé pour audit IRS)
+- Renomme les onglets live → **`Ventes Semaine N+1 (...)` / `Dépenses Semaine N+1 (...)`** (la nouvelle semaine qui commence)
 
-| Colonne | Source | À quoi ça sert |
-|---------|--------|-----------------|
-| **Semaine** | Auto (date du lundi de début) | Identifiant unique de la semaine |
-| **Date début** | Auto | Lundi 00h00 |
-| **Date fin** | Auto | Dimanche 23h59 |
-| **CA** | Somme des ventes | Recettes brutes |
-| **Bénéfice brut** | Somme des bénéfices ventes | CA − coût d'achat des produits vendus |
-| **Dépenses totales** | Somme des dépenses | Tout ce qui sort (déductible + non) |
-| **Charges déductibles** | Filtre sur `deductible !== false` | Réduit le résultat imposable |
-| **Masse salariale** | Somme des paies versées | Salaires effectivement versés (pas estimés) |
-| **Prime hebdo (Art. 4-1.10)** | Calculée selon tranches CA | 0 / 5k / 10k / 15k |
-| **Prime mensuelle (Art. 4-1.11)** | Calculée selon tranches bénéfice net | 0 / 20k / 40k / 60k |
-| **Bénéfice net** | CA − dépenses totales − masse salariale | Ce qui reste vraiment |
-| **Nb ventes** | Compteur | Pour stat |
-| **Nb dépenses** | Compteur | Pour stat |
-| **Statut** | Auto | `cloturee` quand validé |
+**Lundi 00h00 → 01h00 — TON action manuelle**
+1. **FERME le LTD IG immédiatement** (rideau, plus aucune vente / dépense pendant que tu paies)
+2. Va dans Discord, sur le canal **#paie** : verse les salaires un par un (`/pay @employé montant`)
+   - Référence-toi à `/rh` → toggle **"Semaine 20 (...)"** ou la dernière clôturée pour voir les estimations figées + colonne **Versé ?** + KPI **Reste à verser**
+   - Tu peux verser moins que l'estimé si tu décides (ex: vendeur peu impliqué) — c'est ta décision RP
+3. Coche manuellement chaque case **Versé ?** sur `/rh` au fur et à mesure (le KPI "Reste à verser" descend en temps réel)
+4. Une fois tout versé, va sur `/comptabilite` et clique le bouton **🔒 Clôturer la semaine précédente** :
+   - Vérifie le badge vert : "Clôture la semaine du lun XX → dim XX"
+   - **Coche** : ✅ "J'ai soumis ma déclaration fiscale sur le site IRS"
+   - Optionnel : note de clôture (ex: "Semaine standard, RAS")
+   - Clique **🔒 Clôturer définitivement**
 
-> ⚠ Une fois une semaine clôturée, **tu ne dois pas la modifier** dans le Sheet. C'est figé pour audit. Si une erreur s'est glissée, contacte la direction technique pour passer par la console Firebase (modification tracée).
+**Après lundi 01h00 — ouvre le LTD IG**
+Le statut passe à `cloturee-manuelle`. La masse salariale + le bénéfice net sont figés. Le snapshot `/paiesEstimees` enregistre les montants finaux. Tu peux rouvrir.
+
+**Mardi 21h05 — automatique côté serveur (filet de sécurité)**
+Le cron `clotureHebdoPaies` étape 2 tourne. **Il skip si tu as déjà fait la clôture manuelle** (statut `cloturee-manuelle`). Sinon il ramasse les paies versées dans la fenêtre lundi 00h → mardi 21h et finalise tout seul. Tu n'as RIEN à faire.
+
+---
+
+### 🔴 Ce qu'il NE FAUT PAS faire
+
+| ❌ NE PAS | Pourquoi | Conséquence |
+|---|---|---|
+| Verser une paie **avant dimanche 23h59** | Le cron étape 1 ne ramasse que les paies de lundi 00h+ | Paie ratée pour la semaine N |
+| Laisser le LTD **ouvert IG entre 00h et 01h** | Les ventes/dépenses du lundi tombent dans la semaine N+1, pas N | Le contrôleur IRS voit un mismatch |
+| Verser une paie **après mardi 21h** | La clôture étape 2 est passée, c'est trop tard | Paie comptée pour la semaine N+1 par erreur |
+| **Modifier** une ligne dans un onglet `Semaine N (jj-jj)` après clôture | Les onglets snapshot sont figés pour audit IRS | Désynchro avec Firestore, audit invalidé |
+| **Supprimer** un compte employé avant d'avoir versé sa paie | Sa trace disparaît du Sheet — tu perds l'historique | Écart inexplicable dans la masse salariale (cf. incident Crook semaine 11/05) |
+| Cliquer 🔒 **plus d'une fois** | Idempotent côté serveur mais inutile | Aucune conséquence, juste un appel inutile |
+| Modifier **manuellement** une colonne du Dashboard Sheet | Le cron `dashboardKeepAlive` réécrit toutes les minutes | Tes modifs sont écrasées |
+
+---
+
+### ✅ Comment vérifier que tout s'est bien passé
+
+Après ta clôture lundi 01h, vérifie en 3 secondes :
+
+1. **Page `/comptabilite`** → l'alerte verte "✓ Semaine du XX clôturée le XX à HH:mm par Blake MARS" s'affiche en haut
+2. **Sheet → onglet `📊 Dashboard`** → bandeau "🤠 Semaine 22 — du 25/05 au 31/05" (la nouvelle semaine en cours). Les KPI sont tous à 0 ou très bas (juste le début de S22)
+3. **Sheet → onglet `Semaine 21 (18-24 mai 2026)`** (la semaine qui vient d'être clôturée) → tu vois les 3 KPI cards en haut (CA / Charges dédu / Bénéfice net), la table Ventes IG, la table Dépenses, la table Paies avec **ID Discord bénéf.**
+4. **Page `/rh`** → sélecteur "Semaine 21 du lundi 18/05 au dimanche 24/05" → KPI **Reste à verser = 0 $** (tu as tout coché)
+
+---
+
+### 🆘 Cas spéciaux
+
+**Tu as oublié de fermer le LTD IG et une vente est tombée à 00:05 du lundi matin**
+→ Elle compte pour la semaine N+1 (logique stricte du timestamp). Mentionne-le dans la note de clôture si c'est gênant pour ta compta interne. Pas de fix possible côté code.
+
+**Tu as oublié de cliquer 🔒 manuellement avant mardi 21h05**
+→ Pas grave, le cron étape 2 finalise tout seul. Statut = `cloturee` (vs `cloturee-manuelle` si tu l'avais fait toi-même). Note de clôture restera vide.
+
+**Tu réalises lundi à 11h qu'une paie est mauvaise**
+→ Discord `/pay @employé montant` une 2e fois pour compléter (ou rembourse depuis le compte LTD si tu as trop payé). Coche/décoche dans `/rh` pour réactualiser la trace. Tant que tu es avant mardi 21h, ça passe.
+
+**Tu vires un employé après clôture**
+→ Son snapshot `/paiesEstimees` reste figé même si tu supprimes son compte. L'historique RH reste consultable pour la semaine concernée.
 
 ---
 
