@@ -129,7 +129,7 @@ async function chargerSemaine(payload) {
     listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
     listServicesSemaine(debut, fin).catch(() => []),
     listQuotasSemaine(wId).catch(() => []),
-    listPaiesSemaine(debut, fin).catch(() => []),
+    listPaiesSemaine(debut, fin, wId).catch(() => []),
     getConfig().catch(() => ({})),
     listRedistributionsSemaine(debut, fin).catch(() => []),
     snapshotMode ? listPaiesEstimeesSemaine(wId).catch(() => []) : Promise.resolve([])

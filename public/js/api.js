@@ -355,7 +355,7 @@ export async function listItemsFiveMUniques(maxLignes = 2000) {
 // fenetre de paie associee a la semaine demandee (et non pas dans la
 // semaine N elle-meme — sinon les paies seraient affichees a la mauvaise
 // semaine puisque elles arrivent forcement APRES cloture).
-export async function listPaiesSemaine(dateDebut, dateFin) {
+export async function listPaiesSemaine(dateDebut, dateFin, weekKey = null) {
   // dateDebut = lundi 00h00 de la semaine N, dateFin = dimanche 23h59 de N
   // Fenetre paie : lundi N+1 00h00 (= dateFin + 1s arrondi) -> mardi N+1 21h00
   const debutFenetre = new Date(dateFin.getTime() + 1000);
@@ -369,9 +369,12 @@ export async function listPaiesSemaine(dateDebut, dateFin) {
     orderBy('timestamp', 'desc'));
   const snap = await getDocs(q);
   // Filtre : si une paie a weekKeyAttribuee defini, elle appartient logiquement
-  // a cette semaine-la (taggee a la cloture). Excluss celles attribuees a une
-  // AUTRE semaine que celle demandee (dateDebut = lundi de la semaine N).
-  const wKeyCible = dateDebut.toISOString().slice(0, 10);
+  // a cette semaine-la (taggee a la cloture). Exclu celles attribuees a une
+  // AUTRE semaine que celle demandee.
+  // IMPORTANT : weekKey explicite > calcul depuis dateDebut car .toISOString()
+  // shift en UTC (Paris CEST -> dateDebut lundi 00:00 = dimanche 22:00 UTC ->
+  // slice donnerait le dimanche au lieu du lundi). Le caller doit passer wId.
+  const wKeyCible = weekKey || `${dateDebut.getFullYear()}-${String(dateDebut.getMonth()+1).padStart(2,'0')}-${String(dateDebut.getDate()).padStart(2,'0')}`;
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .filter(p => !p.weekKeyAttribuee || p.weekKeyAttribuee === wKeyCible);
 }

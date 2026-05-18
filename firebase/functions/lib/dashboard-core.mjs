@@ -429,10 +429,14 @@ function buildDashboard(data) {
     rows.push(['—', 'Aucune semaine clôturée pour le moment', null, null, null, null, null, null, null]);
   } else {
     for (const s of semaines) {
+      // s.dateDebut/dateFin sont des Firestore Timestamp côté admin SDK :
+      // toDate() d'abord, fallback parseable string en secours.
+      const dDeb = s.dateDebut?.toDate?.() || (s.dateDebut ? new Date(s.dateDebut) : null);
+      const dFin = s.dateFin?.toDate?.()   || (s.dateFin   ? new Date(s.dateFin)   : null);
       rows.push([
         weekIsoLabel(s.numero || s.id || ''),
-        s.dateDebut ? new Date(s.dateDebut).toLocaleDateString('fr-FR') : '',
-        s.dateFin   ? new Date(s.dateFin).toLocaleDateString('fr-FR')   : '',
+        dDeb && !isNaN(dDeb.getTime()) ? dDeb.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) : '',
+        dFin && !isNaN(dFin.getTime()) ? dFin.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) : '',
         money(s.ca || 0),
         money(s.depensesTotales || s.depenses || 0),
         money(s.masseSalariale || 0),
@@ -677,7 +681,10 @@ function buildFormatRequests(sheetId, rows) {
 
   // === BÉNÉFICE NET CUMULÉ (rows 16-18) === bandeau full-width 9 cols
   // Vert si positif, rouge si négatif (le LTD perd de l'argent net).
-  const cumulPositif = cumulBeneficeNet >= 0;
+  // On infère le signe depuis la valeur déjà écrite en row 17 col 0 (string avec
+  // espace insécable pour les milliers FR) plutôt que de re-passer data ici.
+  const valeurCumul = String(rows[17]?.[0] || '');
+  const cumulPositif = !valeurCumul.startsWith('-');
   const cumulBgValue   = cumulPositif ? C.greenL : C.redL;
   const cumulBgBorder  = cumulPositif ? C.green  : C.red;
   // Label (row 16)
