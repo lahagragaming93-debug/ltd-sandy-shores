@@ -1,7 +1,15 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-18 partie 2 (v1.6.0 — inspection Sheet + Option B + KPI bénéfice cumulé + UX historique semaine + label ISO S20)**
+> Dernière MAJ : **2026-05-18 partie 3 (v1.7.0 — onglet snapshot Sheet par semaine clôturée + hotfix dashboard + KPI Salaires versés)**
+
+## ✅ Résolus session 2026-05-18 (partie 3) — v1.7.0
+
+- **Feature : onglet snapshot Sheet par semaine clôturée** (`firebase/functions/lib/snapshot-sheet-semaine.mjs`) créé/MAJ à chaque clôture. Bandeau titre + KPI cards + 3 sections tables (Ventes avec colonne Source, Dépenses, Paies). Backfill semaine 11/05 → onglet `Semaine 20 (11-17 mai 2026)` 467 lignes.
+- **Helper `week-iso.mjs`** : extraction des helpers ISO (`weekIsoNumber`, `weekIsoLabel`, `snapshotSheetTitle`). Réduit la triplication backend.
+- **Hotfix dashboard Sheet** : `cumulBeneficeNet` hors scope dans `buildFormatRequests` (ReferenceError qui crashait le batch de formatage → Dashboard sans mise en forme) + "Invalid Date" historique semaines (Firestore Timestamp objects).
+- **Hotfix KPI Salaires versés sur /rh** : `wKeyCible = dateDebut.toISOString().slice(0,10)` shift en UTC → filtre `weekKeyAttribuee` rejetait toutes les paies. Acceptation d'un param `weekKey` explicite.
+- **Hotfix pollution paies dashboard backend** : symétrique du fix listPaiesSemaine côté serveur, sinon bénéfice net semaine en cours mangé par paies S-1 (vu -93k$ → +4k$).
 
 ## 🟡 À surveiller / valider après usage
 

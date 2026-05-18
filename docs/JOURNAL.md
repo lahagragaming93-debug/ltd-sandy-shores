@@ -1,7 +1,53 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-18 partie 2 (inspection Sheet + Option B + KPI bénéfice cumulé + historique semaine /ventes /employee /rh + label ISO S20 — v1.6.0)**
+> Dernière mise à jour : **2026-05-18 partie 3 (v1.7.0 — onglet snapshot Sheet par semaine clôturée + hotfix dashboard cassé + KPI Salaires versés)**
+
+---
+
+## ✅ Session 2026-05-18 (partie 3) — v1.7.0 onglet snapshot Sheet + hotfixes
+
+### Hotfix v1.6.1 — Dashboard Sheet cassé après refresh
+- `buildFormatRequests` utilisait `cumulBeneficeNet` hors scope (`ReferenceError`) → crash de tout le batch de formatage → Dashboard sans aucune mise en forme (juste valeurs brutes). Signe déduit depuis la valeur écrite en row 17.
+- Historique des semaines affichait "Invalid Date" car `s.dateDebut`/`s.dateFin` sont des Firestore Timestamp objets, pas des string parseables par `new Date()`. Utilisation de `toDate()` avec fallback.
+
+### Hotfix KPI Salaires versés à 0 sur /rh
+- `listPaiesSemaine` calculait `wKeyCible = dateDebut.toISOString().slice(0, 10)` → shift en UTC (Paris CEST → dateDebut lundi 00:00 = dimanche 22:00 UTC), donc slice retournait le dimanche au lieu du lundi. Le filtre `weekKeyAttribuee === wKeyCible` rejetait alors TOUTES les paies. Acceptation d'un param `weekKey` explicite passé depuis `rh.js` (wId).
+- Symétrique côté backend dans `dashboard-core.chargerDonnees` : ajout du filtre `weekKeyAttribuee === weekKeyCourant` sur les paies semaine. Sinon le lundi matin après clôture, les paies versées pour la semaine précédente polluent le bénéfice net affiché de la semaine en cours (vu -93k$ ramené à +4k$ après fix).
+
+### Diagnostic écart 100 231 vs 97 458 $ sur snapshots /rh
+Le user a coché "Versé" sur les 14 snapshots, mais KPI Salaires versés reste à 97 458 $ vs 100 231 $ estimés.
+- Cause : un employé "Crook" (nom RP) a été supprimé par le patron après la clôture. Sa trace n'existe plus dans /users ni /paies. L'écart 2 773 $ correspond à des montants individuels versés inférieurs aux estimations TTE pour 6 vendeurs.
+- C'est un bon argument pour la feature snapshot : pour les semaines à venir, même si un compte est supprimé après clôture, son snapshot reste figé sur `/rh` (collection `/paiesEstimees` séparée).
+
+### Feature v1.7.0 — Onglet snapshot Sheet par semaine clôturée
+À chaque clôture (manuelle + cron `clotureHebdo` étape 1), création/MAJ d'un onglet dédié dans le Sheet Comptabilité.
+
+- **Module `firebase/functions/lib/snapshot-sheet-semaine.mjs`** : exporte `snapshotSheetSemaine({db, sheets, weekKey, weekDebut, weekFin, semaineData})`.
+  - Titre : `Semaine 20 (11-17 mai 2026)` (numéro ISO + plage de dates en français).
+  - Bandeau titre rouge sang + sous-titre + horodatage du snapshot.
+  - 3 KPI cards en haut : CA total · Charges déductibles · Bénéfice net (chiffres figés depuis `/semaines/{weekKey}`).
+  - 3 sections tables : **Ventes** (toutes les ventes !cachee && !annulee, colonne Source IG/Site/Rattrap.), **Dépenses** (hors paies), **Paies** (fenêtre lun N+1 → mar N+1 21h Paris, filtrées par `weekKeyAttribuee`).
+  - Onglet créé avec `tabColor: C.blood` pour distinguer des onglets live.
+  - Idempotent : 2e clôture de la même semaine = update propre du même onglet.
+
+- **Module `firebase/functions/lib/week-iso.mjs`** : helper partagé extrait (`weekIsoNumber`, `weekIsoLabel`, `snapshotSheetTitle`). Réduit la triplication backend (dashboard-core.mjs + index.js + ce nouveau module).
+
+- **Intégration** dans `cloturerSemaine` (manuelle) + `clotureHebdo` (cron étape 1) : try/catch englobant, ne fait JAMAIS échouer la clôture. `clotureHebdo` a reçu `secrets: [DASHBOARD_SA_KEY]` (nécessaire pour `getSheetsClient()`).
+
+- **Script `firebase/functions/scripts/backfill-snapshot-sheet-semaine-w20.mjs`** : génère rétroactivement l'onglet pour la semaine du 11/05 déjà clôturée.
+
+- **Fix titre** : `snapshotSheetTitle` utilisait `dateFin` du doc Firestore (dim 23:59:59.998Z UTC = 18/05 00:00 Paris) → titre affichait `(11-18 mai)` au lieu de `(11-17 mai)`. Fix : recalculer le dimanche depuis weekKey du lundi + 6 jours à midi local.
+
+- **Fix filtre ventes** : initialement filtre `!cachee && source==='discord' && !annulee` ne retenait que 12 ventes (factures IG dédupliquées) pour la semaine du 11/05 sur 563 totales. Élargi à `!cachee && !annulee` → 322 ventes (manuelles + IG + rattrapage) + colonne "Source" pour distinguer. Patron veut TOUT pour audit IRS.
+
+### Commandes appliquées
+```bash
+git add -f firebase/functions/lib/week-iso.mjs firebase/functions/lib/snapshot-sheet-semaine.mjs
+git add firebase/functions/index.js firebase/functions/scripts/backfill-snapshot-sheet-semaine-w20.mjs public/js/version.js docs/JOURNAL.md docs/ROADMAP.md
+firebase deploy --only functions:cloturerSemaine,functions:clotureHebdo,functions:refreshDashboardNow,functions:dashboardKeepAlive,functions:comptaExport,hosting
+node firebase/functions/scripts/backfill-snapshot-sheet-semaine-w20.mjs
+```
 
 ---
 

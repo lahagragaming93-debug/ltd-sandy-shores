@@ -174,12 +174,11 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
   // === SECTION VENTES ===
   const idxVentesHeader = rows.length; // row 8
   rows.push([`💵 VENTES DE LA SEMAINE (${ventes.length})`, null, null, null, null, null, null, null, null]);
-  rows.push(['Date', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison', 'Source', '']);
+  rows.push(['Date', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison', '', '']);
   const idxVentesDataStart = rows.length;
   if (ventes.length === 0) {
     rows.push(['—', 'Aucune vente sur cette semaine', '', '', '', '', '', '', '']);
   } else {
-    const SOURCE_LABEL = { discord: 'IG', manuelle: 'Site', 'rattrapage-factures': 'Rattrap.' };
     for (const v of ventes) {
       const vendeur = v.vendeurNom || resolveUserLabel(v.vendeurDiscord, usersByDiscord);
       rows.push([
@@ -190,7 +189,7 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
         Number(v.montant) || 0,
         v.paiement || '',
         v.raison || '',
-        SOURCE_LABEL[v.source] || v.source || '—',
+        '',
         ''
       ]);
     }
@@ -532,12 +531,15 @@ export async function snapshotSheetSemaine({ db, sheets, weekKey, weekDebut, wee
     loadUsersByDiscordMap(db)
   ]);
 
-  // Ventes : on inclut TOUTES les ventes visibles (manuelles + discord +
-  // rattrapage), seuls les doublons (cachee) et annulees sont exclus.
-  // L'audit IRS verra la colonne Source pour distinguer.
+  // Ventes : on prend UNIQUEMENT les ventes source='discord' (= remontees par
+  // le bot Faab'Hook), meme cachees (matchees avec une declaration manuelle).
+  // Raison : le controleur IRS doit retrouver chaque vente par son numero de
+  // facture IG original (ex: "1923212") dans son menu IRS — pas le numero
+  // "M20260517-0040" genere par le site lors de la declaration manuelle.
+  // On exclut juste les annulees (supprimees IG par l'employe via F1).
   const ventes = ventesSnap.docs
     .map(d => ({ id: d.id, ...d.data() }))
-    .filter(v => !v.cachee && !v.annulee);
+    .filter(v => v.source === 'discord' && !v.annulee);
 
   // Depenses : exclure type=='paie' (coherent avec cloture).
   const depenses = depensesSnap.docs
