@@ -227,7 +227,7 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
   // === SECTION PAIES ===
   const idxPaiesHeader = rows.length;
   rows.push([`💰 PAIES VERSÉES (fenêtre lundi N+1 → mardi N+1 21h) — ${paies.length}`, null, null, null, null, null, null, null, null]);
-  rows.push(['Date', 'Payeur', 'Bénéficiaire', 'Montant', 'Période', '', '', '', '']);
+  rows.push(['Date', 'Payeur', 'Bénéficiaire', 'ID Discord bénéf.', 'Montant', 'Période', '', '', '']);
   const idxPaiesDataStart = rows.length;
   if (paies.length === 0) {
     rows.push(['—', 'Aucune paie versée pour cette semaine', '', '', '', '', '', '', '']);
@@ -236,13 +236,16 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
       const payeur       = (p.payeurDiscord       && usersByDiscord[String(p.payeurDiscord)])       || cleanNomBot(p.payeurNom)       || resolveUserLabel(p.payeurDiscord,       usersByDiscord);
       const beneficiaire = (p.beneficiaireDiscord && usersByDiscord[String(p.beneficiaireDiscord)]) || cleanNomBot(p.beneficiaireNom) || resolveUserLabel(p.beneficiaireDiscord, usersByDiscord);
       const periodeStr = p.periode || weekIsoLabel(p.weekKeyAttribuee || weekKey);
+      // ID Discord du beneficiaire conserve pour audit IRS (le patron peut
+      // revenir verifier le matricule meme si le compte a ete supprime apres).
       rows.push([
         fmtDateTimeParis(p.timestamp),
         payeur || '',
         beneficiaire || '',
+        String(p.beneficiaireDiscord || ''),
         Number(p.montant) || 0,
         periodeStr,
-        '', '', '', ''
+        '', '', ''
       ]);
     }
   }
@@ -440,12 +443,12 @@ function buildFormatRequests(sheetId, rows, sections) {
     moneyCols: [2],
     nbColsUsed: 8
   });
-  // Paies : 5 cols (Date, Payeur, Beneficiaire, Montant, Periode) -> money col 3
+  // Paies : 6 cols (Date, Payeur, Beneficiaire, ID Discord beneficiaire, Montant, Periode) -> money col 4
   formatSection({
     ...sections.paies,
     headerColor: C.orange,
-    moneyCols: [3],
-    nbColsUsed: 5
+    moneyCols: [4],
+    nbColsUsed: 6
   });
 
   // Footer (derniere ligne) : merged + gris discret

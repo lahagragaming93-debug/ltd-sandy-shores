@@ -3013,14 +3013,17 @@ export const comptaExport = onRequest({
 
     let csv;
     switch (type) {
-      case 'resume':   csv = await csvResume();   break;
+      // 'resume' et 'paies' retires en v1.7.0 : les semaines closes ont leur
+      // onglet snapshot dedie (recap + section paies avec ID Discord). On
+      // garde les endpoints commentes au cas ou besoin de re-export ad-hoc.
+      // case 'resume':   csv = await csvResume();   break;
+      // case 'paies':    csv = await csvPaies(usersByDiscord);    break;
       case 'depenses': csv = await csvDepenses(usersByDiscord); break;
       case 'ventes':   csv = await csvVentes(usersByDiscord);   break;
-      case 'paies':    csv = await csvPaies(usersByDiscord);    break;
       case 'banque':   csv = await csvBanque();   break;
       default:
         return res.status(400).type('text/plain').send(
-          'Type inconnu. Utilise ?type=resume | depenses | ventes | paies | banque');
+          'Type inconnu. Utilise ?type=depenses | ventes | banque (resume/paies retires en v1.7.0)');
     }
     // BOM UTF-8 pour qu'Excel/Sheets gèrent les accents
     res.send('﻿' + csv);
@@ -3071,6 +3074,37 @@ function dateOnly(ts) {
   // Format yyyy-MM-dd reste trié alphabétiquement et est lisible
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
+// Helpers timezone Paris (extraits du handler cloturerSemaine pour reuse global).
+// toParisWall : prend un Date UTC, retourne un Date dont les composantes UTC
+// representent l'horloge Paris ("YYYY-MM-DDThh:mm:ssZ" mais lu comme Paris).
+function toParisWall(d) {
+  const s = d.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
+  return new Date(s.replace(' ', 'T') + 'Z');
+}
+function parisWallToUtcGlobal(parisWall) {
+  let utc = new Date(parisWall.getTime() - 60 * 60 * 1000);
+  for (let i = 0; i < 3; i++) {
+    const wall = toParisWall(utc);
+    const drift = parisWall.getTime() - wall.getTime();
+    if (Math.abs(drift) < 1000) break;
+    utc = new Date(utc.getTime() + drift);
+  }
+  return utc;
+}
+// Retourne { debut, fin } UTC pour la semaine RP courante (lun 00:00 Paris -> dim 23:59:59.999 Paris).
+function weekRangeRPParis() {
+  const nowParis = toParisWall(new Date());
+  const dayParis = nowParis.getUTCDay(); // 0=dim, 1=lun
+  const diff = dayParis === 0 ? 6 : dayParis - 1;
+  const lundiWall = new Date(nowParis);
+  lundiWall.setUTCDate(lundiWall.getUTCDate() - diff);
+  lundiWall.setUTCHours(0, 0, 0, 0);
+  const dimancheWall = new Date(lundiWall);
+  dimancheWall.setUTCDate(dimancheWall.getUTCDate() + 6);
+  dimancheWall.setUTCHours(23, 59, 59, 999);
+  return { debut: parisWallToUtcGlobal(lundiWall), fin: parisWallToUtcGlobal(dimancheWall) };
+}
+
 // Numéro ISO 8601 de semaine (1-53) + label "S20 2026". weekKey = YYYY-MM-DD du lundi.
 // Dupliqué côté frontend dans public/js/utils/formatters.js (any change must mirror).
 function weekIsoNumber(d) {
@@ -3173,7 +3207,15 @@ async function csvResume() {
 }
 
 async function csvDepenses(usersByDiscord) {
-  const snap = await db.collection('depenses').orderBy('timestamp', 'desc').limit(2000).get();
+  // 2026-05-18 (v1.7.0) : filtre semaine RP courante uniquement.
+  // Les semaines clôturées ont leur propre onglet snapshot fige (cf
+  // snapshot-sheet-semaine.mjs). Plus besoin de scroll infini ici.
+  const { debut, fin } = weekRangeRPParis();
+  const snap = await db.collection('depenses')
+    .where('timestamp', '>=', Timestamp.fromDate(debut))
+    .where('timestamp', '<=', Timestamp.fromDate(fin))
+    .orderBy('timestamp', 'desc')
+    .get();
   const lines = [csvRow(
     'Date', 'Raison', 'Montant', 'Type', 'Déductible',
     'Fournisseur', 'Validé par patron', 'Justification', 'Utilisateur'
@@ -3196,7 +3238,14 @@ async function csvDepenses(usersByDiscord) {
 }
 
 async function csvVentes(usersByDiscord) {
-  const snap = await db.collection('ventes').orderBy('timestamp', 'desc').limit(2000).get();
+  // 2026-05-18 (v1.7.0) : filtre semaine RP courante uniquement.
+  // Les semaines clôturées ont leur propre onglet snapshot fige.
+  const { debut, fin } = weekRangeRPParis();
+  const snap = await db.collection('ventes')
+    .where('timestamp', '>=', Timestamp.fromDate(debut))
+    .where('timestamp', '<=', Timestamp.fromDate(fin))
+    .orderBy('timestamp', 'desc')
+    .get();
   // Nouveau format CSV :
   //   - Filtre les ventes cachees (doublons bot remplaces par manuelle)
   //     pour eviter d'afficher 2 lignes pour la meme vente.
@@ -3313,7 +3362,17 @@ function cleanNomBot(raw) {
 }
 
 async function csvPaies(usersByDiscord) {
-  const snap = await db.collection('paies').orderBy('timestamp', 'desc').limit(2000).get();
+  // 2026-05-18 (v1.7.0) : filtre semaine RP courante + fenetre paie post-dim
+  // de la semaine precedente (lun N+1 → mar N+1 21h). Capture les paies
+  // versees lundi matin pour S-1 tant qu'elles restent pertinentes.
+  // Les semaines plus anciennes sont figees dans leurs onglets snapshot.
+  const { debut } = weekRangeRPParis();
+  // Recule au dimanche 23h59 S-1 pour englober la fenetre paie post-dim courante.
+  const debutAvecFenetre = new Date(debut.getTime() - 1000);
+  const snap = await db.collection('paies')
+    .where('timestamp', '>=', Timestamp.fromDate(debutAvecFenetre))
+    .orderBy('timestamp', 'desc')
+    .get();
   const lines = [csvRow('Date', 'Payeur', 'Bénéficiaire', 'Montant', 'Période')];
   for (const d of snap.docs) {
     const p = d.data();
