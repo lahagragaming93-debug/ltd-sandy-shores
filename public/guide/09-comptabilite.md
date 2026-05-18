@@ -126,8 +126,8 @@ Le cron `clotureHebdo` étape 1 tourne tout seul et :
 
 **Lundi 00h00 → 01h00 — TON action manuelle**
 1. **FERME le LTD IG immédiatement** (rideau, plus aucune vente / dépense pendant que tu paies)
-2. Va dans Discord, sur le canal **#paie** : verse les salaires un par un (`/pay @employé montant`)
-   - Référence-toi à `/rh` → toggle **"Semaine 20 (...)"** ou la dernière clôturée pour voir les estimations figées + colonne **Versé ?** + KPI **Reste à verser**
+2. Va **en jeu** verser les salaires un par un via la commande IG (le bot Discord remonte automatiquement chaque versement sur le canal **#paie** pour traçabilité)
+   - Référence-toi à `/rh` → sélectionne **"Semaine 20 (...)"** (la dernière clôturée) pour voir les estimations figées + colonne **Versé ?** + KPI **Reste à verser**
    - Tu peux verser moins que l'estimé si tu décides (ex: vendeur peu impliqué) — c'est ta décision RP
 3. Coche manuellement chaque case **Versé ?** sur `/rh` au fur et à mesure (le KPI "Reste à verser" descend en temps réel)
 4. Une fois tout versé, va sur `/comptabilite` et clique le bouton **🔒 Clôturer la semaine précédente** :
