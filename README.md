@@ -42,8 +42,7 @@ LTD Sandy Shores/
     ├── JOURNAL.md           Journal chronologique session par session
     ├── ROADMAP.md           Chantiers en cours / résolus / à surveiller
     ├── TTE-complet.txt      Référence TTE intégrale (12 chapitres)
-    ├── 07-transmission.md   Passation au vrai patron RP
-    └── handoff-nouveau-ltd/ Bootstrap d'un nouveau LTD (20 fichiers, 7300 LOC)
+    └── 07-transmission.md   Passation au vrai patron RP
 ```
 
 ## Démarrage
@@ -66,15 +65,6 @@ Sources des guides (lisibles aussi sur GitHub) :
 | FAQ + dépannage | [`public/guide/08-faq-depannage.md`](public/guide/08-faq-depannage.md) |
 | 🔐 Comptabilité (direction / DRH / admin) | [`public/guide/09-comptabilite.md`](public/guide/09-comptabilite.md) |
 | 🔐 Référence TTE (direction / DRH / admin) | [`public/guide/10-tte-reference.md`](public/guide/10-tte-reference.md) |
-
-### 🚀 Cloner ce squelette pour un nouveau LTD
-
-Tout est documenté dans le dossier **[`docs/handoff-nouveau-ltd/`](docs/handoff-nouveau-ltd/)** (20 fichiers, ~7300 LOC). Self-contained : une nouvelle conv Claude peut reprendre le projet sans contexte de la conv source.
-
-Commencer par lire :
-1. [`00-INDEX.md`](docs/handoff-nouveau-ltd/00-INDEX.md) — sommaire + plan de lecture
-2. [`11-setup-pas-a-pas.md`](docs/handoff-nouveau-ltd/11-setup-pas-a-pas.md) — bootstrap nouveau LTD en 10 phases (6-10h)
-3. [`16-pour-claude-suivant.md`](docs/handoff-nouveau-ltd/16-pour-claude-suivant.md) — règles d'engagement pour Claude
 
 ### 📓 Reprise de session
 

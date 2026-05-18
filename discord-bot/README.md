@@ -14,7 +14,7 @@ cp .env.example .env
 npm start
 ```
 
-Voir `docs/handoff-nouveau-ltd/07-discord-bot.md` pour le guide complet (architecture, parsers, config, déploiement).
+Bot Discord en service (parse FaabHook → Firestore). Voir `discord-bot/index.js` et `discord-bot/parsers/` pour le détail.
 
 ## Architecture
 
