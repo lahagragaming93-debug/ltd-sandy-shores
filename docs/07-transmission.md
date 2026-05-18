@@ -189,7 +189,7 @@ réinitialiser pour des raisons de sécurité (intendant qui se retire) :
 ### 4.2 Option B — Recréer le bot à zéro
 
 Si le transfert ne se fait pas proprement (Discord est parfois capricieux) :
-1. Le vrai patron suit `docs/02-setup-discord-bot.md` étape 1 sur son compte
+1. Le vrai patron suit `docs/handoff-nouveau-ltd/07-discord-bot.md` (section "Configuration") sur son compte
 2. Crée un nouveau bot, récupère un nouveau token, l'invite sur le serveur
    LTD SandyShores avec les mêmes permissions
 3. Met à jour `DISCORD_TOKEN` dans Railway

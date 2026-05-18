@@ -14,7 +14,7 @@ cp .env.example .env
 npm start
 ```
 
-Voir `docs/02-setup-discord-bot.md` à la racine du projet pour le guide complet.
+Voir `docs/handoff-nouveau-ltd/07-discord-bot.md` pour le guide complet (architecture, parsers, config, déploiement).
 
 ## Architecture
 

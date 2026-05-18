@@ -1,8 +1,8 @@
 // ============================================================
 // Configuration Firebase — À COMPLÉTER avec votre projet
 // ============================================================
-// Voir docs/01-setup-firebase.md pour obtenir ces valeurs.
-// Remplacer les valeurs ci-dessous puis push sur l'hebergement.
+// Voir docs/handoff-nouveau-ltd/11-setup-pas-a-pas.md (Phase 1.1) pour obtenir
+// ces valeurs depuis la console Firebase. Remplacer puis push sur GitHub.
 // ============================================================
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
