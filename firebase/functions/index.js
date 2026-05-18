@@ -16,6 +16,9 @@ import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
 import { snapshotPaiesEstimees } from './lib/paie-calc.mjs';
 import { snapshotSheetSemaine } from './lib/snapshot-sheet-semaine.mjs';
+import { snapshotSheetTitle } from './lib/week-iso.mjs';
+
+const SHEET_ID_COMPTA = '1mD-N3e_JpcLceiLSzDgGe01VKVf4KoO5vedM0OsnwtY';
 
 initializeApp();
 const db = getFirestore();
@@ -140,10 +143,49 @@ export const clotureHebdo = onSchedule({
       semaineData
     });
     console.log('[clotureHebdo] snapshot sheet semaine:', snapSheetRes);
+
+    // === Rename onglets live Ventes/Depenses pour la NOUVELLE semaine ===
+    // Au moment ou le cron tourne (lundi 00h00 Paris), la semaine RP courante
+    // qui vient de commencer est la semaine N+1. On rename les onglets live
+    // pour que leur titre explicite la semaine couverte.
+    await renameLiveOnglets(sheets);
   } catch (e) {
     console.error('[clotureHebdo] snapshotSheetSemaine error:', e?.message || e);
   }
 });
+
+// Rename les onglets live "Ventes"/"Depenses" (ou variantes "Ventes Semaine N ...")
+// avec le titre dynamique pour la semaine RP courante. Idempotent.
+async function renameLiveOnglets(sheets) {
+  try {
+    const { debut: lundiCour, fin: dimCour } = weekRangeRPParis();
+    const wkKey = `${lundiCour.getFullYear()}-${String(lundiCour.getMonth() + 1).padStart(2, '0')}-${String(lundiCour.getDate()).padStart(2, '0')}`;
+    // Ex : "Semaine 21 (18-24 mai 2026)"
+    const suffix = snapshotSheetTitle(wkKey, lundiCour, dimCour).replace(/^Semaine /, 'Semaine ');
+    const titleVentes  = `Ventes ${suffix}`;
+    const titleDepenses = `Dépenses ${suffix}`;
+
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID_COMPTA, includeGridData: false });
+    const reqs = [];
+    for (const s of meta.data.sheets || []) {
+      const t = s.properties.title;
+      const id = s.properties.sheetId;
+      if (/^Ventes( |$)/.test(t) && t !== titleVentes) {
+        reqs.push({ updateSheetProperties: { properties: { sheetId: id, title: titleVentes }, fields: 'title' } });
+      } else if (/^D[ée]penses( |$)/.test(t) && t !== titleDepenses) {
+        reqs.push({ updateSheetProperties: { properties: { sheetId: id, title: titleDepenses }, fields: 'title' } });
+      }
+    }
+    if (reqs.length) {
+      await sheets.spreadsheets.batchUpdate({ spreadsheetId: SHEET_ID_COMPTA, requestBody: { requests: reqs } });
+      console.log(`[renameLiveOnglets] ${reqs.length} onglet(s) renomme(s) -> ${titleVentes} / ${titleDepenses}`);
+    } else {
+      console.log('[renameLiveOnglets] noop (titres deja a jour)');
+    }
+  } catch (e) {
+    console.error('[renameLiveOnglets] error:', e?.message || e);
+  }
+}
 
 // === Cloture etape 2 : masse salariale + benefice net (mardi 21:05 Paris) ===
 // Fenetre de paie : lundi N+1 00:00 -> mardi N+1 21:00. Au mardi 21:05, on
