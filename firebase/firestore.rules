@@ -249,10 +249,15 @@ service cloud.firestore {
     }
 
     // === Alertes ===
+    // Lecture/maj restreinte direction + DRH + super-admin (= roles qui
+    // voient la cloche). Les pompistes/vendeurs/responsables ne voient PAS
+    // les alertes globales (stock bas, ravitaillements, corrections, etc.).
+    // Ils ont leur propre fil personnel dans /avertissements filtre par
+    // employeId.
     match /alertes/{id} {
-      allow read:   if isAuth() && isActif();
+      allow read:   if isAuth() && isActif() && (canAdmin() || isDRH());
       allow create: if canAdmin();
-      allow update: if canAdmin() || isDRH() || isResponsable();
+      allow update: if canAdmin() || isDRH();
       allow delete: if canAdmin();
     }
 

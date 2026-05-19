@@ -3,7 +3,7 @@
 // Compatible tablette FiveM CEF (responsive + bouton retour)
 // ============================================================
 
-import { ROLE_LABELS, canAccess, isEmployeeView } from './utils/permissions.js';
+import { ROLE_LABELS, canAccess, isEmployeeView, isDirection, isSuperAdmin } from './utils/permissions.js';
 import { deconnecter, clearViewAsRole } from './auth.js';
 import { listenAlertesActives, marquerAlerteLue, marquerToutesAlertesLues } from './api.js';
 import { VERSION, AUTHOR, SIGNATURE_COURTE } from './version.js';
@@ -157,7 +157,10 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         <h1 id="page-title">${getPageTitle(activePageKey)}</h1>
         <div class="spacer"></div>
 
-        <!-- Cloche d'alertes -->
+        <!-- Cloche d'alertes : direction + DRH + super-admin uniquement.
+             Les autres roles ne voient ni la cloche ni les alertes globales
+             (stock bas, ravitaillements, corrections, audit pompiste, etc.). -->
+        ${(isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh') ? `
         <div class="alerts-wrapper" id="alerts-wrapper">
           <button class="btn-alerts" id="btn-alerts" title="Alertes" aria-label="Voir les alertes">
             <span class="btn-alerts-ico">🔔</span>
@@ -174,6 +177,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
             </ul>
           </div>
         </div>
+        ` : ''}
 
         ${userChip}
       </header>
@@ -253,9 +257,15 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
   });
 
   // === Cloche d'alertes : ouverture/fermeture du dropdown ===
+  // La cloche n'est rendue que pour direction/DRH/admin-tech. Pour les autres
+  // roles, les elements DOM n'existent pas : on skip tout le bloc.
   const btnAlerts      = document.getElementById('btn-alerts');
   const alertsDropdown = document.getElementById('alerts-dropdown');
   const alertsWrapper  = document.getElementById('alerts-wrapper');
+
+  if (!btnAlerts || !alertsDropdown || !alertsWrapper) {
+    return; // pas de cloche pour ce role -> on s'arrete la
+  }
 
   const openAlerts  = () => alertsDropdown.classList.remove('hidden');
   const closeAlerts = () => alertsDropdown.classList.add('hidden');
