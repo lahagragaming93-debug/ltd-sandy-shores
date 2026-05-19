@@ -97,6 +97,7 @@ const html = `
     <h2 style="margin:0;">${modeVoirComme ? '👁 Espace de' : 'Salut'} <span style="color:var(--color-blood-light);">${escapeHtml(profile.prenom)}${modeVoirComme ? ' ' + escapeHtml(profile.nom) : ''}</span>${modeVoirComme ? '' : ' !'}</h2>
     <div class="muted" style="margin-top:6px;">
       ${ROLE_LABELS[profile.role]} · Semaine du ${debut.toLocaleDateString('fr-FR')} au ${fin.toLocaleDateString('fr-FR')}
+      ${!modeVoirComme ? ' · <a href="tuto.html" style="color:var(--color-sand-light);text-decoration:underline;">📚 Revoir le tutoriel</a>' : ''}
     </div>
     ${!modeVoirComme ? `
       <div class="row center mt-3" style="gap:10px;justify-content:center;flex-wrap:wrap;">

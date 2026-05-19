@@ -64,6 +64,8 @@ export const ACCESS = {
   paies:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
                       'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   guide:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
+                      'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
+  tuto:              [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
                       'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS]
 };
 
