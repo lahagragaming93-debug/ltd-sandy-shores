@@ -158,12 +158,19 @@ function render() {
       const note = notes.find(x => x.id === id);
       if (!note) return;
       const url = note.screenshotUrl || '';
+      const isDataUrl = /^data:/.test(url);
+      // Pour les data: URLs (collees Ctrl+V), on affiche juste l'image
+      // (pas le lien texte qui ferait des milliers de caracteres). Pour les
+      // URLs externes, on affiche aussi le lien cliquable.
+      const linkBlock = isDataUrl
+        ? `<p class="muted" style="font-size:0.78rem;">📋 Image collée par l'employé (stockée inline).</p>`
+        : `<p class="muted" style="font-size:0.82rem;word-break:break-all;">
+             <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
+           </p>`;
       document.getElementById('modal-screen-body').innerHTML = `
-        <p class="muted" style="font-size:0.82rem;word-break:break-all;">
-          <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
-        </p>
+        ${linkBlock}
         <img src="${escapeHtml(url)}" alt="Screenshot" style="max-width:100%;max-height:60vh;border:1px solid var(--color-bone-dark, #444);border-radius:4px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';" />
-        <p class="muted" style="display:none;">Impossible d'afficher l'image (lien non direct). Clique sur le lien ci-dessus pour l'ouvrir.</p>
+        <p class="muted" style="display:none;">Impossible d'afficher l'image. ${isDataUrl ? 'Données corrompues.' : 'Clique sur le lien ci-dessus pour l\'ouvrir.'}</p>
       `;
       document.getElementById('modal-screen').classList.remove('hidden');
     });

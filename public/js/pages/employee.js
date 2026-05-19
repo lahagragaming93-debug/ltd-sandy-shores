@@ -17,6 +17,7 @@ import { money, moneyPrecis, num, pct, datetime, escapeHtml,
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { ouvrirModalNouvelleVente } from '../utils/vente-modal.js';
 import { initSemaineSelector } from '../utils/semaine-selector.js';
+import { toastSuccess, toastError } from '../utils/toast.js';
 
 const { profile: callerProfile } = await requireAuth('employee');
 
@@ -181,16 +182,24 @@ const html = `
               <span>Tu as avancé de ta poche l'essence d'un véhicule LTD ?
               <strong>Procédure</strong> :<br>
               1. Mets l'essence dans le véhicule en jeu<br>
-              2. Prends un screenshot de la confirmation IG (touche F8 ou autre)<br>
-              3. Upload-le sur Discord (un channel privé / un MP staff / Imgur) et copie le lien direct<br>
-              4. Remplis les champs ci-dessous → le patron valide et te rembourse en fin de semaine.</span>
+              2. Prends un screenshot (touche Impr écran / F12 / etc.)<br>
+              3. Reviens ici → clique dans la zone ci-dessous et fais <strong>Ctrl+V</strong> pour coller<br>
+              4. Saisis le montant → le patron valide et te rembourse en fin de semaine.</span>
             </div>
             <label>Montant avancé ($) <span style="color:var(--color-blood-light);">*</span></label>
             <input type="number" id="nf-montant" min="1" step="1" placeholder="Ex : 1200" />
 
-            <label>Lien du screenshot <span style="color:var(--color-blood-light);">*</span></label>
-            <input type="url" id="nf-url" placeholder="https://media.discordapp.net/... ou https://i.imgur.com/..." />
-            <div class="muted" style="font-size:0.72rem;margin:2px 0 8px;">Le lien doit pointer directement vers l'image (clic droit → Copier le lien sur Discord).</div>
+            <label>Screenshot de la confirmation IG <span style="color:var(--color-blood-light);">*</span></label>
+            <div id="nf-paste-zone" tabindex="0" style="border:2px dashed var(--color-bone-dark, #666);border-radius:6px;padding:24px;text-align:center;cursor:pointer;background:rgba(0,0,0,0.18);min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;outline:none;">
+              <div style="font-size:2rem;">📋</div>
+              <div style="margin-top:6px;"><strong>Clique ici puis Ctrl+V</strong> pour coller le screenshot</div>
+              <div class="muted" style="font-size:0.75rem;margin-top:4px;">Image redimensionnée auto (max 1600px, qualité 75%)</div>
+            </div>
+            <div id="nf-preview-zone" class="hidden" style="margin-top:8px;text-align:center;">
+              <img id="nf-preview-img" alt="Preview" style="max-width:100%;max-height:280px;border:1px solid var(--color-bone-dark,#444);border-radius:4px;" />
+              <div class="muted mt-1" id="nf-preview-meta" style="font-size:0.75rem;">—</div>
+              <button class="btn btn-sm btn-ghost mt-1" id="nf-clear-img">✕ Retirer / recoller un autre</button>
+            </div>
 
             <label>Description / contexte <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
             <textarea id="nf-desc" rows="2" maxlength="500" placeholder="Ex : essence Bison patron + Sandking"></textarea>
@@ -912,17 +921,134 @@ if (isPompiste(profile.role) && !modeVoirComme) {
   }
 
   // === Modal Note de frais essence (pompiste avance des frais perso) ===
+  // Le screenshot est colle directement via Ctrl+V dans la dropzone. On
+  // resize l'image (max 1600px) + compress JPEG 75% pour rester sous la
+  // limite Firestore (1 MB par doc, on vise ~700 KB max en base64).
   const btnNoteFrais = document.getElementById('btn-note-frais');
   const modalNF = document.getElementById('modal-note-frais');
   if (btnNoteFrais && modalNF) {
+    let screenshotDataUrl = null;
+
+    const pasteZone = document.getElementById('nf-paste-zone');
+    const previewZone = document.getElementById('nf-preview-zone');
+    const previewImg = document.getElementById('nf-preview-img');
+    const previewMeta = document.getElementById('nf-preview-meta');
+    const clearImgBtn = document.getElementById('nf-clear-img');
+
+    function resetImage() {
+      screenshotDataUrl = null;
+      previewImg.src = '';
+      previewMeta.textContent = '—';
+      previewZone.classList.add('hidden');
+      pasteZone.classList.remove('hidden');
+    }
+
+    // Resize + compress un Blob/File image en JPEG dataURL.
+    // maxDim: dimension max longue (px) — 1600 par defaut pour rester lisible
+    // sans exploser la taille. quality 0.75 = bon compromis.
+    function resizeImageToDataUrl(blob, maxDim = 1600, quality = 0.75) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            let { width: w, height: h } = img;
+            if (w > maxDim || h > maxDim) {
+              if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+              else        { w = Math.round(w * maxDim / h); h = maxDim; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            try {
+              const url = canvas.toDataURL('image/jpeg', quality);
+              resolve({ url, w, h });
+            } catch (e) { reject(e); }
+          };
+          img.onerror = () => reject(new Error('Image illisible'));
+          img.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error('Lecture image impossible'));
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function handlePastedBlob(blob) {
+      try {
+        const { url, w, h } = await resizeImageToDataUrl(blob);
+        // base64 ~ 4/3 de la taille binaire. On vise sous 700 KB pour avoir
+        // de la marge sous la limite Firestore (1 MB par doc).
+        const sizeKb = Math.round(url.length / 1024);
+        if (sizeKb > 900) {
+          // Tente une compression plus aggressive
+          const { url: url2 } = await resizeImageToDataUrl(blob, 1280, 0.65);
+          const sizeKb2 = Math.round(url2.length / 1024);
+          if (sizeKb2 > 900) {
+            toastError(`Image trop lourde (${sizeKb2} KB). Essaie un screenshot plus petit.`);
+            return;
+          }
+          screenshotDataUrl = url2;
+          previewImg.src = url2;
+          previewMeta.textContent = `${w}×${h}px · ${sizeKb2} KB (recompresse)`;
+        } else {
+          screenshotDataUrl = url;
+          previewImg.src = url;
+          previewMeta.textContent = `${w}×${h}px · ${sizeKb} KB`;
+        }
+        previewZone.classList.remove('hidden');
+        pasteZone.classList.add('hidden');
+      } catch (e) {
+        toastError('Impossible de lire l\'image : ' + (e?.message || e));
+      }
+    }
+
+    // Listener paste global (la dropzone capture le focus avant)
+    pasteZone.addEventListener('click', () => pasteZone.focus());
+    pasteZone.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData || window.clipboardData)?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (blob) await handlePastedBlob(blob);
+          return;
+        }
+      }
+      toastError('Aucune image trouvee dans le presse-papier.');
+    });
+    // Fallback : si focus est sur le modal mais pas la dropzone, on capture
+    // quand meme le paste tant que le modal est ouvert.
+    modalNF.addEventListener('paste', async (e) => {
+      if (modalNF.classList.contains('hidden')) return;
+      // Si la dropzone est cachee (image deja collee), ignore
+      if (pasteZone.classList.contains('hidden')) return;
+      // Si le focus est sur un input texte, ne pas intercepter
+      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      const items = (e.clipboardData || window.clipboardData)?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (blob) await handlePastedBlob(blob);
+          return;
+        }
+      }
+    });
+
+    clearImgBtn.addEventListener('click', () => resetImage());
+
     btnNoteFrais.addEventListener('click', () => {
       if ((profile.avertsActifs || 0) >= 3 && !['patron', 'co-patron', 'admin-technique'].includes(profile.role)) {
         alert('Compte bloqué (3 avertissements actifs). Contacte la direction pour déclarer une note de frais.');
         return;
       }
       document.getElementById('nf-montant').value = '';
-      document.getElementById('nf-url').value = '';
       document.getElementById('nf-desc').value = '';
+      resetImage();
       modalNF.classList.remove('hidden');
       setTimeout(() => document.getElementById('nf-montant').focus(), 50);
     });
@@ -931,11 +1057,9 @@ if (isPompiste(profile.role) && !modeVoirComme) {
     });
     document.getElementById('btn-save-note-frais').addEventListener('click', async () => {
       const montant = Number(document.getElementById('nf-montant').value);
-      const screenshotUrl = document.getElementById('nf-url').value.trim();
       const description = document.getElementById('nf-desc').value.trim();
       if (!Number.isFinite(montant) || montant <= 0) return alert('Montant invalide.');
-      if (!screenshotUrl) return alert('Le lien du screenshot est obligatoire.');
-      if (!/^https?:\/\//.test(screenshotUrl)) return alert('Le lien doit commencer par http:// ou https://');
+      if (!screenshotDataUrl) return alert('Colle le screenshot de la confirmation IG (Ctrl+V dans la zone).');
       const btn = document.getElementById('btn-save-note-frais');
       btn.disabled = true; btn.textContent = 'Envoi…';
       try {
@@ -944,11 +1068,12 @@ if (isPompiste(profile.role) && !modeVoirComme) {
         const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/creerNoteFrais', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify({ montant, screenshotUrl, description })
+          body: JSON.stringify({ montant, screenshotUrl: screenshotDataUrl, description })
         });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
         modalNF.classList.add('hidden');
+        toastSuccess('Note de frais envoyée à la direction.');
         // Le listener listenMesNotesFrais en bas de page va auto-rerender.
       } catch (e) {
         alert('Échec : ' + (e?.message || 'erreur inattendue.'));

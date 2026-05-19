@@ -2548,9 +2548,20 @@ export const creerNoteFrais = onRequest({
       return res.status(400).json({ error: 'Montant excessif (> 100 000 $) — verifie ta saisie.' });
     }
     const url = String(screenshotUrl || '').trim();
-    if (!url) return res.status(400).json({ error: 'Le lien du screenshot est obligatoire.' });
-    if (!/^https?:\/\//.test(url)) {
-      return res.status(400).json({ error: 'Le lien doit commencer par http:// ou https://' });
+    if (!url) return res.status(400).json({ error: 'Le screenshot est obligatoire.' });
+    // 2 formats acceptes :
+    //   - https:// (heberge externe : Discord, Imgur, etc.)
+    //   - data:image/... (colle Ctrl+V, encode base64 par le frontend)
+    // Pour data:, on verifie aussi la taille (max 950 KB pour rester sous la
+    // limite Firestore de 1 MB par doc).
+    if (/^https?:\/\//.test(url)) {
+      // OK URL externe
+    } else if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(url)) {
+      if (url.length > 950 * 1024) {
+        return res.status(400).json({ error: 'Screenshot trop lourd (> 950 KB). Le frontend devrait avoir compresse — retente.' });
+      }
+    } else {
+      return res.status(400).json({ error: 'Format screenshot invalide (attendu : URL http(s):// ou image collee data:image/...).' });
     }
     const desc = String(description || '').trim().slice(0, 500);
 

@@ -5,9 +5,11 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenStations, setStation, listRedistributionsSemaine,
-         getConfig, listenConfig, setConfig, doc, deleteDoc } from '../api.js';
+         getConfig, listenConfig, setConfig, doc, deleteDoc,
+         listUsers, listQuotasSemaine } from '../api.js';
 import { db } from '../firebase-config.js';
-import { money, moneyPrecis, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
+import { money, moneyPrecis, num, pct, datetime, escapeHtml,
+         startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin, isPompiste } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique, infoModal } from '../utils/confirmation.js';
@@ -66,6 +68,16 @@ const html = `
     <div class="panel-title"><span>Stations</span></div>
     <div id="stations-grid">Chargement…</div>
   </div>
+
+  ${(fullEdit || profile.role === 'responsable-pompiste') ? `
+  <div class="panel framed">
+    <div class="panel-title">
+      <span>👥 Pilotage pompistes — semaine en cours</span>
+      <span class="muted" style="font-size:0.78rem;" id="pilotage-meta">—</span>
+    </div>
+    <div id="pilotage-pompistes">Chargement…</div>
+  </div>
+  ` : ''}
 
   <div class="panel">
     <div class="panel-title">
@@ -638,6 +650,138 @@ async function chargerRedistributions() {
 }
 chargerRedistributions();
 
+// === Pilotage pompistes (recap par pompiste pour resp-pompiste + direction) ===
+async function chargerPilotagePompistes() {
+  if (!canModerer) return;
+  const div = document.getElementById('pilotage-pompistes');
+  if (!div) return;
+  const wId = weekId();
+  const [users, quotas, redists] = await Promise.all([
+    listUsers().catch(() => []),
+    listQuotasSemaine(wId).catch(() => []),
+    listRedistributionsSemaine(debut, fin).catch(() => [])
+  ]);
+
+  // Pompistes operationnels + resp-pompiste
+  const pompistes = users.filter(u =>
+    u.statut === 'actif' &&
+    (/^pompiste-/.test(u.role || '') || u.role === 'responsable-pompiste')
+  );
+
+  // Quotas indexes par employeId
+  const quotasById = new Map(quotas.map(q => [q.employeId, q]));
+
+  // Agrege les ravitaillements (source manuel-pompiste uniquement, non supprimes)
+  // par pompisteId : nb redistributions, total litres, total bidons, dernier ts.
+  const ravitsById = new Map();
+  for (const r of redists) {
+    if (r.source !== 'manuel-pompiste') continue;
+    if (r.supprimee) continue;
+    if (!r.pompisteId) continue;
+    if (!ravitsById.has(r.pompisteId)) ravitsById.set(r.pompisteId, {
+      nb: 0, litres: 0, bidons: 0, dernier: null
+    });
+    const v = ravitsById.get(r.pompisteId);
+    v.nb++;
+    v.litres += Number(r.litres) || 0;
+    v.bidons += Number(r.bidons) || 0;
+    const ts = r.timestamp?.toMillis?.() || 0;
+    if (ts && (!v.dernier || ts > v.dernier)) v.dernier = ts;
+  }
+
+  // Config quotas
+  const qB = config.quotaBidons      ?? 1700;
+  const qC = config.quotaCaoutchoucs ??  800;
+  const bidonsActif = qB > 0;
+  const caoutsActif = qC > 0;
+
+  // Tri : score decroissant (plus en retard en bas)
+  function scoreOf(p) {
+    const q = quotasById.get(p.id) || {};
+    const sB = bidonsActif ? Math.min(1, (Number(q.bidons) || 0) / qB) : 1;
+    const sC = caoutsActif ? Math.min(1, (Number(q.caoutchoucs) || 0) / qC) : 1;
+    const dims = (bidonsActif ? 1 : 0) + (caoutsActif ? 1 : 0);
+    return dims === 0 ? 0 : ((bidonsActif ? sB : 0) + (caoutsActif ? sC : 0)) / dims;
+  }
+  pompistes.sort((a, b) => scoreOf(b) - scoreOf(a));
+
+  if (pompistes.length === 0) {
+    div.innerHTML = `<p class="muted">Aucun pompiste actif.</p>`;
+    return;
+  }
+
+  // Meta : nb pompistes + total litres redistribues
+  const totalLitres = [...ravitsById.values()].reduce((s, v) => s + v.litres, 0);
+  const totalBidons = [...ravitsById.values()].reduce((s, v) => s + v.bidons, 0);
+  document.getElementById('pilotage-meta').textContent =
+    `${pompistes.length} pompiste${pompistes.length > 1 ? 's' : ''} · ${num(Math.round(totalLitres))} L (${totalBidons.toFixed(0)} bidons) cumulés`;
+
+  function badgeStatus(score, nbRavits, q) {
+    if (nbRavits === 0 && (!q || (!q.bidons && !q.caoutchoucs))) {
+      return '<span class="badge danger" title="Aucune activité cette semaine">⚪ rien fait</span>';
+    }
+    if (score >= 1) return '<span class="badge ok">✓ Quota atteint</span>';
+    if (score >= 0.5) return '<span class="badge neutral">🟢 En cours</span>';
+    return '<span class="badge warn">⚠ En retard</span>';
+  }
+
+  div.innerHTML = `
+    <div class="table-scroll" style="max-height:500px;">
+      <table class="data" id="table-pilotage">
+        <thead><tr>
+          <th data-sort="nom">Pompiste</th>
+          <th data-sort="role">Rôle</th>
+          <th data-sort="bidons">Bidons quota</th>
+          <th data-sort="caoutchoucs">Caoutchoucs quota</th>
+          <th class="right" data-sort="litres">Litres semaine</th>
+          <th class="right" data-sort="nbRavits">Ravitaillements</th>
+          <th data-sort="dernier">Dernière activité</th>
+          <th data-sort="status">Statut</th>
+          <th class="center">Voir</th>
+        </tr></thead>
+        <tbody>
+          ${pompistes.map(p => {
+            const q = quotasById.get(p.id) || {};
+            const bDone = Number(q.bidons || 0);
+            const cDone = Number(q.caoutchoucs || 0);
+            const v = ravitsById.get(p.id) || { nb: 0, litres: 0, bidons: 0, dernier: null };
+            const score = scoreOf(p);
+            const pctB = bidonsActif ? Math.min(100, (bDone / qB) * 100) : 0;
+            const pctC = caoutsActif ? Math.min(100, (cDone / qC) * 100) : 0;
+            const dernierStr = v.dernier
+              ? new Date(v.dernier).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+              : '<span class="muted">—</span>';
+            const bCell = bidonsActif
+              ? `<div class="mono" style="font-size:0.85rem;">${num(bDone)} / ${num(qB)}</div>
+                 <div class="progress" style="height:8px;margin-top:2px;"><div class="fill" style="width:${pctB}%;${bDone >= qB ? 'background:var(--color-cactus,#5a8);' : (pctB < 30 ? 'background:var(--color-blood);' : '')}"></div></div>`
+              : '<span class="muted" style="font-size:0.78rem;">quota désactivé</span>';
+            const cCell = caoutsActif
+              ? `<div class="mono" style="font-size:0.85rem;">${num(cDone)} / ${num(qC)}</div>
+                 <div class="progress" style="height:8px;margin-top:2px;"><div class="fill" style="width:${pctC}%;${cDone >= qC ? 'background:var(--color-cactus,#5a8);' : (pctC < 30 ? 'background:var(--color-blood);' : '')}"></div></div>`
+              : '<span class="muted" style="font-size:0.78rem;">quota désactivé</span>';
+            return `
+              <tr>
+                <td><strong>${escapeHtml(p.prenom || '')} ${escapeHtml(p.nom || '')}</strong></td>
+                <td class="muted" style="font-size:0.78rem;">${escapeHtml(p.role || '')}</td>
+                <td data-sort-value="${bDone}">${bCell}</td>
+                <td data-sort-value="${cDone}">${cCell}</td>
+                <td class="right mono">${num(Math.round(v.litres))} L<div class="muted" style="font-size:0.72rem;">${v.bidons.toFixed(1)} bidons</div></td>
+                <td class="right mono">${v.nb}</td>
+                <td class="mono" style="font-size:0.78rem;" data-sort-value="${v.dernier || 0}">${dernierStr}</td>
+                <td data-sort-value="${score}">${badgeStatus(score, v.nb, q)}</td>
+                <td class="center"><a class="btn btn-sm" href="employee.html?asUser=${escapeHtml(p.id)}" title="Voir l'espace de ce pompiste">👁</a></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  const tPilote = document.getElementById('table-pilotage');
+  makeSortable(tPilote);
+}
+chargerPilotagePompistes();
+
 // === Declarations caoutchoucs de la semaine (resp-pompiste + direction) ===
 async function chargerCaoutchoucs() {
   if (!canModerer) return;
@@ -784,6 +928,7 @@ if (canModerer) {
       editCtx = null;
       chargerRedistributions();
       chargerCaoutchoucs();
+      chargerPilotagePompistes();
     } catch (e) {
       toastError('Échec : ' + (e?.message || 'erreur inattendue.'));
     } finally {
@@ -818,6 +963,7 @@ async function onDeleteRavit(id, list) {
     if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
     toastSuccess(`Ravitaillement supprimé (stock et quota corrigés).`);
     chargerRedistributions();
+    chargerPilotagePompistes();
   } catch (e) {
     toastError('Échec : ' + (e?.message || 'erreur inattendue.'));
   }
@@ -849,6 +995,7 @@ async function onDeleteCaou(id, list) {
     if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
     toastSuccess(`Déclaration caoutchoucs supprimée (quota corrigé).`);
     chargerCaoutchoucs();
+    chargerPilotagePompistes();
   } catch (e) {
     toastError('Échec : ' + (e?.message || 'erreur inattendue.'));
   }
