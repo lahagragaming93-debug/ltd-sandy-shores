@@ -5,7 +5,7 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenStations, setStation, listRedistributionsSemaine,
-         getConfig, setConfig, doc, deleteDoc } from '../api.js';
+         getConfig, listenConfig, setConfig, doc, deleteDoc } from '../api.js';
 import { db } from '../firebase-config.js';
 import { money, moneyPrecis, num, datetime, escapeHtml, startOfWeekRP, endOfWeekRP } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin, isPompiste } from '../utils/permissions.js';
@@ -140,6 +140,27 @@ const html = `
   </div>
 `;
 renderShell(profile, 'stocks_essence', html);
+
+// Listener temps-reel sur /config/global : tablettes in-game (pas de F5).
+// Reload des qu'un champ critique change (quotas, prix essence).
+const _cfgSigStations = JSON.stringify({
+  qB: config.quotaBidons,
+  qC: config.quotaCaoutchoucs,
+  qCA: config.quotaCAVendeur,
+  pE: config.prixEssence
+});
+listenConfig((newCfg) => {
+  const sig = JSON.stringify({
+    qB: newCfg.quotaBidons,
+    qC: newCfg.quotaCaoutchoucs,
+    qCA: newCfg.quotaCAVendeur,
+    pE: newCfg.prixEssence
+  });
+  if (sig !== _cfgSigStations) {
+    console.log('[stations] config changee live -> reload');
+    window.location.reload();
+  }
+});
 
 let stations = [];
 listenStations(s => {

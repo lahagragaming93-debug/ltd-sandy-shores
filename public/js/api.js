@@ -479,6 +479,15 @@ export async function getConfig() {
 export async function setConfig(patch) {
   await setDoc(doc(db, 'config', 'global'), patch, { merge: true });
 }
+// Listener temps reel sur /config/global. Indispensable pour les tablettes
+// in-game (FiveM) qui n'ont pas de F5 : quand la direction modifie les
+// quotas, les pages employe ouvertes doivent voir le changement live.
+// Renvoie une fonction unsubscribe.
+export function listenConfig(cb) {
+  return onSnapshot(doc(db, 'config', 'global'), s => {
+    cb(s.exists() ? s.data() : {});
+  });
+}
 
 // ----- Secrets (tokens, accessibles direction uniquement via rules) -----
 export async function getSecrets() {

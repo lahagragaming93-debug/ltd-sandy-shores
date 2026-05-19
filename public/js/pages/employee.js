@@ -6,7 +6,7 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
-  getServiceOuvert, getQuotaPompiste, getConfig, listenAvertissements, getUserDoc, listenStations,
+  getServiceOuvert, getQuotaPompiste, getConfig, listenConfig, listenAvertissements, getUserDoc, listenStations,
   listRedistributionsSemaine, listAllRedistributionsPompiste
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
@@ -57,6 +57,29 @@ const wId   = weekId();
 const config = await getConfig().catch(() => ({}));
 const quotaCaoutchoucsActif = (config.quotaCaoutchoucs ?? 800) > 0;
 const quotaBidonsActif      = (config.quotaBidons      ?? 1700) > 0;
+
+// Listener temps-reel : si la direction modifie un quota, les tablettes
+// in-game (pas de F5) reloadent automatiquement pour refleter la nouvelle
+// valeur dans tous les KPI/boutons/formules. On compare une signature des
+// champs critiques pour ignorer les writes sans effet sur l'affichage.
+const _cfgSig = JSON.stringify({
+  qB: config.quotaBidons,
+  qC: config.quotaCaoutchoucs,
+  qCA: config.quotaCAVendeur,
+  pE: config.prixEssence
+});
+listenConfig((newCfg) => {
+  const sig = JSON.stringify({
+    qB: newCfg.quotaBidons,
+    qC: newCfg.quotaCaoutchoucs,
+    qCA: newCfg.quotaCAVendeur,
+    pE: newCfg.prixEssence
+  });
+  if (sig !== _cfgSig) {
+    console.log('[employee] config changee live -> reload');
+    window.location.reload();
+  }
+});
 
 const html = `
   ${modeVoirComme ? `

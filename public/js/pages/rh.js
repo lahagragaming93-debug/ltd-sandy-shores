@@ -6,7 +6,7 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listUsers, listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listQuotasSemaine,
-  listPaiesSemaine, getConfig, updateUser, listRedistributionsSemaine,
+  listPaiesSemaine, getConfig, listenConfig, updateUser, listRedistributionsSemaine,
   listPaiesEstimeesSemaine, marquerPaieVersee
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isResponsable, isDirection,
@@ -95,6 +95,23 @@ function labelSemaine(debut, fin) {
 let users = [], ventes = [], ventesAvecCachees = [], services = [],
     quotas = [], paies = [], config = {}, redistributions = [];
 let debut, fin, wId;
+
+// Listener temps-reel sur /config/global : tablettes in-game (pas de F5).
+// Reload si un quota/prix change pendant que la page est ouverte.
+let _cfgSigRh = null;
+listenConfig((newCfg) => {
+  const sig = JSON.stringify({
+    qB: newCfg.quotaBidons,
+    qC: newCfg.quotaCaoutchoucs,
+    qCA: newCfg.quotaCAVendeur,
+    pE: newCfg.prixEssence
+  });
+  if (_cfgSigRh == null) { _cfgSigRh = sig; return; }
+  if (sig !== _cfgSigRh) {
+    console.log('[rh] config changee live -> reload');
+    window.location.reload();
+  }
+});
 let metricsByUser = {};
 // Snapshots /paiesEstimees pour la semaine cible (uniquement en mode 'precedente')
 let snapshotsByUser = {};                 // userId -> doc snapshot
