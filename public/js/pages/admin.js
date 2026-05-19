@@ -925,9 +925,12 @@ document.getElementById('btn-save-cfg').addEventListener('click', async () => {
   const prixEssence = Number(document.getElementById('cfg-prix').value);
   const seuilAlerteEssence = Number(document.getElementById('cfg-seuil').value);
 
-  // Validation : tous strictement positifs (sinon division par zéro dans calcul paie)
-  if (!Number.isFinite(quotaBidons)      || quotaBidons <= 0)      return toastError("Quota bidons doit être > 0.");
-  if (!Number.isFinite(quotaCaoutchoucs) || quotaCaoutchoucs <= 0) return toastError("Quota caoutchoucs doit être > 0.");
+  // Validation : 0 est valide (= dimension desactivee cette semaine). Refuser
+  // negatif, NaN, et le cas "les 2 quotas a 0" qui rend le salaire pompiste
+  // toujours 0 (probable erreur de saisie).
+  if (!Number.isFinite(quotaBidons)      || quotaBidons < 0)       return toastError("Quota bidons doit être ≥ 0 (0 = désactivé).");
+  if (!Number.isFinite(quotaCaoutchoucs) || quotaCaoutchoucs < 0)  return toastError("Quota caoutchoucs doit être ≥ 0 (0 = désactivé).");
+  if (quotaBidons === 0 && quotaCaoutchoucs === 0)                 return toastError("Au moins un des deux quotas pompiste doit être > 0.");
   if (!Number.isFinite(prixEssence)      || prixEssence < 0)       return toastError("Prix essence doit être ≥ 0.");
   if (!Number.isFinite(seuilAlerteEssence)|| seuilAlerteEssence < 0) return toastError("Seuil doit être ≥ 0.");
 

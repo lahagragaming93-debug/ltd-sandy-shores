@@ -6,7 +6,8 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
-  getServiceOuvert, getQuotaPompiste, getConfig, listenAvertissements, getUserDoc, listenStations
+  getServiceOuvert, getQuotaPompiste, getConfig, listenAvertissements, getUserDoc, listenStations,
+  listRedistributionsSemaine, listAllRedistributionsPompiste
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
@@ -51,6 +52,12 @@ const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
 const wId   = weekId();
 
+// Charge config en avance pour pouvoir conditionner le rendu HTML
+// (boutons "Declarer caoutchoucs" grises si quota=0, etc.)
+const config = await getConfig().catch(() => ({}));
+const quotaCaoutchoucsActif = (config.quotaCaoutchoucs ?? 800) > 0;
+const quotaBidonsActif      = (config.quotaBidons      ?? 1700) > 0;
+
 const html = `
   ${modeVoirComme ? `
     <div class="alert" style="background:rgba(70,130,200,0.18);border:2px solid #4a90e2;margin-bottom:12px;font-size:0.95rem;">
@@ -73,8 +80,12 @@ const html = `
           ? '<button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">📝 Déclarer une vente</button>'
           : ''}
         ${isPompiste(profile.role)
-          ? `<button class="btn btn-primary" id="btn-ravitailler" style="font-size:1.05rem;">🛢 Ravitailler une station</button>
-             <a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">🪖 Déclarer des caoutchoucs</a>
+          ? `${quotaBidonsActif
+              ? '<button class="btn btn-primary" id="btn-ravitailler" style="font-size:1.05rem;">🛢 Ravitailler une station</button>'
+              : '<button class="btn" disabled style="font-size:1.05rem;opacity:0.5;cursor:not-allowed;" title="Bidons désactivés cette semaine (quota = 0)">🛢 Ravitailler — désactivé cette semaine</button>'}
+             ${quotaCaoutchoucsActif
+              ? '<a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">🪖 Déclarer des caoutchoucs</a>'
+              : '<button class="btn" disabled style="font-size:1.05rem;opacity:0.5;cursor:not-allowed;" title="Caoutchoucs non requis cette semaine (quota = 0)">🪖 Caoutchoucs — non requis cette semaine</button>'}
              <button class="btn" id="btn-corriger-stock" style="font-size:0.9rem;" title="Corriger le stock d'une station si écart entre site et IG">📐 Corriger un stock</button>`
           : ''}
       </div>
@@ -162,7 +173,7 @@ const html = `
   </div>
 
   <div class="panel">
-    <div class="panel-title"><span>Heures de service</span></div>
+    <div class="panel-title"><span>${isPompiste(profile.role) ? 'Ravitaillements' : 'Heures de service'}</span></div>
     <div id="services">—</div>
   </div>
 
@@ -174,17 +185,27 @@ const html = `
 renderShell(profile, 'employee', html);
 
 const me = getCurrentUser(); // utilisateur connecte (toujours soi-meme, jamais l'employe vise)
-const config = await getConfig().catch(() => ({}));
 
 // === Donnees fixes (semaine en cours + cumul historique) ===
 // Ces requetes restent sur la semaine courante car elles alimentent les blocs
-// "Ventes IG non declarees", "Heures de service" et le service en cours.
-const [ventesAvecCacheesCurr, allServicesCurr, allMyServices, serviceOuvert] = await Promise.all([
+// "Ventes IG non declarees", "Heures de service"/"Ravitaillements" et le service en cours.
+// Pompistes : on charge en plus les redistributions (semaine + cumul) pour
+// remplacer les KPI heures par des KPI litres ravitailles.
+const [ventesAvecCacheesCurr, allServicesCurr, allMyServices, serviceOuvert,
+       redistSemaineAll, redistCumul] = await Promise.all([
   listVentesSemaineIncluantCachees(debut, fin).catch(() => []),
   listServicesSemaine(debut, fin).catch(() => []),
   listAllServicesEmploye(viewedUserId).catch(e => { console.error('[employee] listAllServicesEmploye', e); return []; }),
-  getServiceOuvert(viewedUserId).catch(() => null)
+  getServiceOuvert(viewedUserId).catch(() => null),
+  isPompiste(profile.role) ? listRedistributionsSemaine(debut, fin).catch(() => []) : Promise.resolve([]),
+  isPompiste(profile.role) ? listAllRedistributionsPompiste(viewedUserId).catch(() => []) : Promise.resolve([])
 ]);
+
+// Filtre ravitaillements pompiste : source manuelle + matchant l'employe vise.
+// On utilise litres (pas bidons) pour le KPI car c'est plus parlant (carburant
+// effectivement vendu/redistribue).
+const myRedistSemaine = redistSemaineAll.filter(r => r.pompisteId === viewedUserId && r.source === 'manuel-pompiste');
+const myRedistCumul   = redistCumul.filter(r => r.source === 'manuel-pompiste');
 
 // === Ventes IG (bot Discord) non encore declarees par l'employe ===
 // Filtre :
@@ -404,28 +425,55 @@ function renderVendeur(myVentes, quota, isCurrent) {
 function renderPompiste(quota, isCurrent) {
   const bidons = quota?.bidons || 0;
   const caoutchoucs = quota?.caoutchoucs || 0;
-  const qB = config.quotaBidons || 1700;
-  const qC = config.quotaCaoutchoucs || 800;
+  // Quota a 0 = dimension desactivee cette semaine. ?? au lieu de || pour
+  // distinguer "non configure" (defaut) de "configure a 0" (desactive).
+  const qB = config.quotaBidons      ?? 1700;
+  const qC = config.quotaCaoutchoucs ??  800;
+  const bidonsActif = qB > 0;
+  const caoutsActif = qC > 0;
+  const nbActif = (bidonsActif ? 1 : 0) + (caoutsActif ? 1 : 0);
+
   const score = scorePompiste(bidons, caoutchoucs, qB, qC);
   const salaireEst = salairePompiste(profile.role, bidons, caoutchoucs, qB, qC);
-  const pctB = Math.min(100, (bidons / qB) * 100);
-  const pctC = Math.min(100, (caoutchoucs / qC) * 100);
+  const pctB = bidonsActif ? Math.min(100, (bidons / qB) * 100) : 0;
+  const pctC = caoutsActif ? Math.min(100, (caoutchoucs / qC) * 100) : 0;
 
-  const partPlafond = plafondSalaire / 2;
-  const partBidons = Math.min(partPlafond, (bidons / qB) * partPlafond);
-  const partCaouts = Math.min(partPlafond, (caoutchoucs / qC) * partPlafond);
-  const valeurUnitBidon = qB > 0 ? partPlafond / qB : 0;
-  const valeurUnitCaout = qC > 0 ? partPlafond / qC : 0;
+  // Le plafond est ventile uniquement entre dimensions actives. Si une
+  // dimension est desactivee (quota=0), l'autre porte la totalite.
+  const partPlafond = nbActif > 0 ? plafondSalaire / nbActif : 0;
+  const partBidons  = bidonsActif ? Math.min(partPlafond, (bidons / qB) * partPlafond) : 0;
+  const partCaouts  = caoutsActif ? Math.min(partPlafond, (caoutchoucs / qC) * partPlafond) : 0;
+  const valeurUnitBidon = bidonsActif ? partPlafond / qB : 0;
+  const valeurUnitCaout = caoutsActif ? partPlafond / qC : 0;
+
+  // KPI score : libelle dynamique selon les quotas actifs
+  const scoreLabel = nbActif === 2 ? 'moyenne des 2 quotas'
+                    : (bidonsActif ? 'sur quota bidons (caoutchoucs désactivé)'
+                    : (caoutsActif ? 'sur quota caoutchoucs (bidons désactivé)'
+                    : 'aucun quota actif'));
 
   document.getElementById('kpis-emp').innerHTML = `
-    <div class="kpi"><div class="label">🛢 Bidons ravitaillés</div><div class="value">${num(bidons)}</div><div class="delta">/ ${num(qB)} (${pct(pctB,0)})</div></div>
-    <div class="kpi"><div class="label">🪖 Caoutchoucs produits</div><div class="value">${num(caoutchoucs)}</div><div class="delta">/ ${num(qC)} (${pct(pctC,0)})</div></div>
-    <div class="kpi"><div class="label">📊 Score global</div><div class="value">${pct(score,1)}</div><div class="delta">moyenne des 2 quotas</div></div>
+    <div class="kpi"><div class="label">🛢 Bidons ravitaillés</div><div class="value">${num(bidons)}</div><div class="delta">${bidonsActif ? `/ ${num(qB)} (${pct(pctB,0)})` : 'quota désactivé'}</div></div>
+    <div class="kpi"><div class="label">🪖 Caoutchoucs produits</div><div class="value">${num(caoutchoucs)}</div><div class="delta">${caoutsActif ? `/ ${num(qC)} (${pct(pctC,0)})` : 'quota désactivé'}</div></div>
+    <div class="kpi"><div class="label">📊 Score global</div><div class="value">${pct(score,1)}</div><div class="delta">${scoreLabel}</div></div>
     <div class="kpi"><div class="label">💰 ${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
   `;
 
+  // Texte explicatif dynamique selon les quotas actifs
+  let explicSalaire;
+  if (nbActif === 2) {
+    explicSalaire = `moitié sur les bidons + moitié sur les caoutchoucs. Atteindre les 2 quotas (${num(qB)} bidons + ${num(qC)} caoutchoucs) = plafond ${money(plafondSalaire)}. Tu touches déjà même si tu n'as fait qu'un seul des deux — chaque bidon et chaque caoutchouc compte.`;
+  } else if (bidonsActif) {
+    explicSalaire = `uniquement sur les bidons cette semaine (caoutchoucs désactivés). Atteindre le quota (${num(qB)} bidons) = plafond ${money(plafondSalaire)}.`;
+  } else if (caoutsActif) {
+    explicSalaire = `uniquement sur les caoutchoucs cette semaine (bidons désactivés). Atteindre le quota (${num(qC)} caoutchoucs) = plafond ${money(plafondSalaire)}.`;
+  } else {
+    explicSalaire = `tous les quotas sont désactivés cette semaine. Contacte la direction.`;
+  }
+
   document.getElementById('detail').innerHTML = `
     <div style="display:grid;gap:14px;">
+      ${bidonsActif ? `
       <div>
         <div class="muted mono mb-1">🛢 Bidons d'essence ravitaillés <span style="float:right;color:var(--color-cactus,#5a8);">+${moneyPrecis(valeurUnitBidon)}/bidon</span></div>
         <div class="progress" style="height:24px;">
@@ -433,6 +481,8 @@ function renderPompiste(quota, isCurrent) {
           <div class="label">${num(bidons)} / ${num(qB)} bidons → ${money(partBidons)}</div>
         </div>
       </div>
+      ` : ''}
+      ${caoutsActif ? `
       <div>
         <div class="muted mono mb-1">🪖 Caoutchoucs produits <span style="float:right;color:var(--color-cactus,#5a8);">+${moneyPrecis(valeurUnitCaout)}/caoutchouc</span></div>
         <div class="progress" style="height:24px;">
@@ -440,6 +490,7 @@ function renderPompiste(quota, isCurrent) {
           <div class="label">${num(caoutchoucs)} / ${num(qC)} unités → ${money(partCaouts)}</div>
         </div>
       </div>
+      ` : ''}
       <div>
         <div class="muted mono mb-1">💰 ${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond ${ROLE_LABELS[profile.role]}</div>
         <div class="progress" style="height:28px;">
@@ -449,9 +500,7 @@ function renderPompiste(quota, isCurrent) {
       </div>
       ${isCurrent ? `
       <div class="alert info" style="font-size:0.82rem;margin-top:4px;">
-        💡 <strong>Comment ton salaire est calculé</strong> : moitié sur les bidons + moitié sur les caoutchoucs.
-        Atteindre les 2 quotas (1700 bidons + 800 caoutchoucs) = plafond ${money(plafondSalaire)}.
-        Tu touches déjà même si tu n'as fait qu'un seul des deux — chaque bidon et chaque caoutchouc compte.
+        💡 <strong>Comment ton salaire est calculé</strong> : ${explicSalaire}
       </div>
 
       <!-- État des stations en temps réel -->
@@ -860,48 +909,101 @@ listenAvertissements(viewedUserId, (list) => {
   div.innerHTML = banniere + detail;
 });
 
-// === Heures de service : 3 KPIs (jour / semaine / cumul depuis embauche) ===
-// Inclut le service en cours s'il y en a un (compteur live qui monte tout seul).
+// === Bloc bas : Heures de service (vendeurs/direction) OU Ravitaillements (pompistes) ===
 const sDiv = document.getElementById('services');
-const enServiceBadge = serviceOuvert
-  ? `<div class="alert" style="background:rgba(70,180,90,0.18);border:1px solid #5a8;font-size:0.85rem;margin-bottom:8px;">
-       🟢 <strong>En service</strong> depuis ${debutOuvert.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}
-       (${durationHM(dureeOuvertMs)} écoulées). Les compteurs ci-dessous incluent ce service en cours.
-     </div>`
-  : '';
-const heuresStatsHtml = enServiceBadge + `
-  <div class="kpi-grid mb-2">
-    <div class="kpi"><div class="label">⏱ Aujourd'hui</div><div class="value">${durationHM(heuresJourMs)}</div><div class="delta">depuis 00h00</div></div>
-    <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServicesCurr.length} session${myServicesCurr.length>1?'s':''} terminée${myServicesCurr.length>1?'s':''}${serviceOuvert ? ' + 1 en cours' : ''}</div></div>
-    <div class="kpi"><div class="label">🗂 Cumul depuis embauche</div><div class="value">${durationHM(cumulMs)}</div><div class="delta">${allMyServices.length} sessions total</div></div>
-  </div>
-`;
-if (myServicesCurr.length === 0) {
-  sDiv.innerHTML = heuresStatsHtml + `<p class="muted">Aucune session enregistrée cette semaine.</p>`;
-} else {
-  // Le tableau detaille reste sur la semaine en cours (pas trop long)
-  sDiv.innerHTML = heuresStatsHtml + `
-    <div class="table-scroll" style="max-height:400px;">
-      <table class="data" id="table-mes-services">
-        <thead><tr>
-          <th data-sort="debut">Début</th>
-          <th data-sort="fin">Fin</th>
-          <th class="right" data-sort="duree">Durée</th>
-        </tr></thead>
-        <tbody>
-          ${myServicesCurr.map(s => `
-            <tr>
-              <td>${datetime(s.debut)}</td>
-              <td>${datetime(s.fin)}</td>
-              <td class="right mono" data-sort-value="${s.duree || 0}">${durationHM(s.duree || 0)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+
+if (isPompiste(profile.role)) {
+  // Pompistes : pas de service (logique RP). On affiche les litres
+  // ravitailles : jour / semaine / cumul depuis embauche.
+  const startOfDayMs = startOfDay.getTime();
+  const litresJour = myRedistCumul
+    .filter(r => (r.timestamp?.toMillis?.() || 0) >= startOfDayMs)
+    .reduce((s, r) => s + (Number(r.litres) || 0), 0);
+  const bidonsJour = litresJour / 15;
+  const litresSemaine = myRedistSemaine.reduce((s, r) => s + (Number(r.litres) || 0), 0);
+  const bidonsSemaine = litresSemaine / 15;
+  const litresCumul = myRedistCumul.reduce((s, r) => s + (Number(r.litres) || 0), 0);
+  const bidonsCumul = litresCumul / 15;
+
+  const ravitStatsHtml = `
+    <div class="kpi-grid mb-2">
+      <div class="kpi"><div class="label">⛽ Aujourd'hui</div><div class="value">${num(Math.round(litresJour))} L</div><div class="delta">${bidonsJour.toFixed(1)} bidons · depuis 00h00</div></div>
+      <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${num(Math.round(litresSemaine))} L</div><div class="delta">${bidonsSemaine.toFixed(1)} bidons · ${myRedistSemaine.length} ravitaillement${myRedistSemaine.length>1?'s':''}</div></div>
+      <div class="kpi"><div class="label">🗂 Cumul depuis embauche</div><div class="value">${num(Math.round(litresCumul))} L</div><div class="delta">${bidonsCumul.toFixed(1)} bidons · ${myRedistCumul.length} ravitaillement${myRedistCumul.length>1?'s':''} total</div></div>
     </div>
-    <p class="muted mono mt-2" style="font-size:0.78rem;">
-      Total semaine : ${durationHM(heuresMs)} ${heuresMs >= 7*3600*1000 ? '✓ ≥ 7h' : '— moins de 7h (info uniquement, non bloquant)'}
-    </p>
   `;
-  makeSortable(document.getElementById('table-mes-services'));
+  if (myRedistSemaine.length === 0) {
+    sDiv.innerHTML = ravitStatsHtml + `<p class="muted">Aucun ravitaillement déclaré cette semaine.</p>`;
+  } else {
+    const tri = [...myRedistSemaine].sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+    sDiv.innerHTML = ravitStatsHtml + `
+      <div class="table-scroll" style="max-height:400px;">
+        <table class="data" id="table-mes-ravits">
+          <thead><tr>
+            <th data-sort="date">Date</th>
+            <th data-sort="station">Station</th>
+            <th class="right" data-sort="litres">Litres</th>
+            <th class="right" data-sort="bidons">Bidons</th>
+          </tr></thead>
+          <tbody>
+            ${tri.map(r => `
+              <tr>
+                <td>${datetime(r.timestamp)}</td>
+                <td>${escapeHtml(r.station || r.stationId || '—')}</td>
+                <td class="right mono">${num(Math.round(r.litres || 0))} L</td>
+                <td class="right mono">${(Number(r.bidons) || 0).toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <p class="muted mono mt-2" style="font-size:0.78rem;">
+        Total semaine : ${num(Math.round(litresSemaine))} L (${bidonsSemaine.toFixed(1)} bidons)
+      </p>
+    `;
+    makeSortable(document.getElementById('table-mes-ravits'));
+  }
+} else {
+  // Vendeurs / direction / DRH / responsables : KPI heures de service classique.
+  const enServiceBadge = serviceOuvert
+    ? `<div class="alert" style="background:rgba(70,180,90,0.18);border:1px solid #5a8;font-size:0.85rem;margin-bottom:8px;">
+         🟢 <strong>En service</strong> depuis ${debutOuvert.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}
+         (${durationHM(dureeOuvertMs)} écoulées). Les compteurs ci-dessous incluent ce service en cours.
+       </div>`
+    : '';
+  const heuresStatsHtml = enServiceBadge + `
+    <div class="kpi-grid mb-2">
+      <div class="kpi"><div class="label">⏱ Aujourd'hui</div><div class="value">${durationHM(heuresJourMs)}</div><div class="delta">depuis 00h00</div></div>
+      <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServicesCurr.length} session${myServicesCurr.length>1?'s':''} terminée${myServicesCurr.length>1?'s':''}${serviceOuvert ? ' + 1 en cours' : ''}</div></div>
+      <div class="kpi"><div class="label">🗂 Cumul depuis embauche</div><div class="value">${durationHM(cumulMs)}</div><div class="delta">${allMyServices.length} sessions total</div></div>
+    </div>
+  `;
+  if (myServicesCurr.length === 0) {
+    sDiv.innerHTML = heuresStatsHtml + `<p class="muted">Aucune session enregistrée cette semaine.</p>`;
+  } else {
+    sDiv.innerHTML = heuresStatsHtml + `
+      <div class="table-scroll" style="max-height:400px;">
+        <table class="data" id="table-mes-services">
+          <thead><tr>
+            <th data-sort="debut">Début</th>
+            <th data-sort="fin">Fin</th>
+            <th class="right" data-sort="duree">Durée</th>
+          </tr></thead>
+          <tbody>
+            ${myServicesCurr.map(s => `
+              <tr>
+                <td>${datetime(s.debut)}</td>
+                <td>${datetime(s.fin)}</td>
+                <td class="right mono" data-sort-value="${s.duree || 0}">${durationHM(s.duree || 0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <p class="muted mono mt-2" style="font-size:0.78rem;">
+        Total semaine : ${durationHM(heuresMs)} ${heuresMs >= 7*3600*1000 ? '✓ ≥ 7h' : '— moins de 7h (info uniquement, non bloquant)'}
+      </p>
+    `;
+    makeSortable(document.getElementById('table-mes-services'));
+  }
 }

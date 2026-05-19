@@ -22,16 +22,20 @@ export function salaireVendeur(role, caGenere) {
 }
 
 /**
- * Salaire pompiste — moyenne des deux quotas (bidons + caoutchoucs)
+ * Salaire pompiste — moyenne des quotas actifs (bidons et/ou caoutchoucs).
+ * Quota a 0 = dimension desactivee cette semaine, le plafond se reporte
+ * entierement sur l'autre dimension. Si les deux sont a 0 : salaire = 0.
  */
 export function salairePompiste(role, bidonsRealises, caoutchoucsRealises,
                                 quotaBidons = 1700, quotaCaoutchoucs = 800) {
   if (!isPompiste(role)) return 0;
   const plafond = PLAFOND_SALAIRE[role] ?? 0;
-  const sB = Math.min(1, (bidonsRealises ?? 0) / quotaBidons);
-  const sC = Math.min(1, (caoutchoucsRealises ?? 0) / quotaCaoutchoucs);
-  const score = (sB + sC) / 2;
-  return Math.round(score * plafond);
+  const scores = [];
+  if (quotaBidons > 0)      scores.push(Math.min(1, (bidonsRealises      ?? 0) / quotaBidons));
+  if (quotaCaoutchoucs > 0) scores.push(Math.min(1, (caoutchoucsRealises ?? 0) / quotaCaoutchoucs));
+  if (scores.length === 0) return 0;
+  const moyenne = scores.reduce((s, x) => s + x, 0) / scores.length;
+  return Math.round(moyenne * plafond);
 }
 
 /**
@@ -101,12 +105,15 @@ export function salaireEstime(e, cfg = {}) {
 }
 
 /**
- * Score pompiste en pourcentage — utilisé dans le dashboard employé.
+ * Score pompiste en pourcentage — moyenne des quotas actifs.
+ * Quota a 0 = dimension desactivee, ignoree. Si tous a 0 : score = 0.
  */
 export function scorePompiste(bidons, caoutchoucs, quotaBidons = 1700, quotaCaoutchoucs = 800) {
-  const sB = Math.min(1, (bidons ?? 0) / quotaBidons);
-  const sC = Math.min(1, (caoutchoucs ?? 0) / quotaCaoutchoucs);
-  return ((sB + sC) / 2) * 100;
+  const scores = [];
+  if (quotaBidons > 0)      scores.push(Math.min(1, (bidons      ?? 0) / quotaBidons));
+  if (quotaCaoutchoucs > 0) scores.push(Math.min(1, (caoutchoucs ?? 0) / quotaCaoutchoucs));
+  if (scores.length === 0) return 0;
+  return (scores.reduce((s, x) => s + x, 0) / scores.length) * 100;
 }
 
 // === Primes hebdomadaires (Art. 4-1.10) — tranches de CA ===

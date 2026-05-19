@@ -471,8 +471,8 @@ function ouvrirDetail(uid) {
   if (isPompiste(u.role)) {
     const score = scorePompiste(m.bidons, m.caoutchoucs, config.quotaBidons, config.quotaCaoutchoucs);
     html += `
-      <tr><td>Bidons réalisés</td><td class="right mono">${m.bidons || 0} / ${config.quotaBidons || 1700}</td></tr>
-      <tr><td>Caoutchoucs réalisés</td><td class="right mono">${m.caoutchoucs || 0} / ${config.quotaCaoutchoucs || 800}</td></tr>
+      <tr><td>Bidons réalisés</td><td class="right mono">${m.bidons || 0} / ${(config.quotaBidons ?? 1700) === 0 ? '0 (désactivé)' : (config.quotaBidons ?? 1700)}</td></tr>
+      <tr><td>Caoutchoucs réalisés</td><td class="right mono">${m.caoutchoucs || 0} / ${(config.quotaCaoutchoucs ?? 800) === 0 ? '0 (désactivé)' : (config.quotaCaoutchoucs ?? 800)}</td></tr>
       <tr><td>Score global</td><td class="right mono">${pct(score, 1)}</td></tr>
     `;
   }

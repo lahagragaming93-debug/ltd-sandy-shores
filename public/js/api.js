@@ -178,6 +178,15 @@ export async function listRedistributionsSemaine(dateDebut, dateFin) {
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
+// Toutes les redistributions d'un pompiste (sans filtre date) — pour le
+// cumul depuis embauche. Pas d'orderBy serveur (eviterait un index
+// composite pompisteId+timestamp), on trie cote client.
+export async function listAllRedistributionsPompiste(pompisteId) {
+  const q = query(collection(db, 'redistributions'),
+    where('pompisteId', '==', pompisteId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
 // ----- Services (heures travail) -----
 export async function listServicesSemaine(dateDebut, dateFin) {

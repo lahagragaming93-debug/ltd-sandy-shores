@@ -69,9 +69,14 @@ function salaireVendeur(role, caGenere) {
 function salairePompiste(role, bidons, caoutchoucs, quotaBidons = 1700, quotaCaoutchoucs = 800) {
   if (!isPompiste(role)) return 0;
   const plafond = PLAFOND_SALAIRE[role] ?? 0;
-  const sB = Math.min(1, (bidons ?? 0) / quotaBidons);
-  const sC = Math.min(1, (caoutchoucs ?? 0) / quotaCaoutchoucs);
-  return Math.round(((sB + sC) / 2) * plafond);
+  // Quota a 0 = dimension desactivee. Le plafond se redistribue sur les
+  // dimensions actives uniquement. Si toutes a 0 : salaire = 0.
+  const scores = [];
+  if (quotaBidons > 0)      scores.push(Math.min(1, (bidons      ?? 0) / quotaBidons));
+  if (quotaCaoutchoucs > 0) scores.push(Math.min(1, (caoutchoucs ?? 0) / quotaCaoutchoucs));
+  if (scores.length === 0) return 0;
+  const moyenne = scores.reduce((s, x) => s + x, 0) / scores.length;
+  return Math.round(moyenne * plafond);
 }
 
 function salaireResponsableVente(caGenere) {

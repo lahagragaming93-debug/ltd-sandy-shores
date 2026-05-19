@@ -280,8 +280,10 @@ async function genererAvertissementsAuto(weekKey, debutSem, finSem) {
       const q = qSnap.exists ? qSnap.data() : { bidons: 0, caoutchoucs: 0 };
       const b = Number(q.bidons || 0);
       const c = Number(q.caoutchoucs || 0);
-      if (b < quotaBidons)      motifsManques.push(`bidons ${b}/${quotaBidons}`);
-      if (c < quotaCaoutchoucs) motifsManques.push(`caoutchoucs ${c}/${quotaCaoutchoucs}`);
+      // Quota a 0 = dimension desactivee : pas d'avertissement sur cette
+      // dimension (le pompiste n'avait rien a faire dessus cette semaine).
+      if (quotaBidons      > 0 && b < quotaBidons)      motifsManques.push(`bidons ${b}/${quotaBidons}`);
+      if (quotaCaoutchoucs > 0 && c < quotaCaoutchoucs) motifsManques.push(`caoutchoucs ${c}/${quotaCaoutchoucs}`);
     } else if (/^vendeur-/.test(role)) {
       const ca = caParVendeur[uDoc.id] || 0;
       if (ca < quotaCAVendeur) motifsManques.push(`CA ${Math.round(ca)} \$/${quotaCAVendeur} \$`);
@@ -2229,6 +2231,14 @@ export const pompisteRavitaillerManuel = onRequest({
     const { stationId, bidons, litres } = req.body || {};
     if (!stationId) return res.status(400).json({ error: 'Missing stationId' });
 
+    // Defense en profondeur : refus si la dimension est desactivee cette
+    // semaine (quotaBidons = 0). Symetrique avec pompisteDeclarerCaoutchoucs.
+    const cfgSnap = await db.collection('config').doc('global').get();
+    const quotaB = Number((cfgSnap.exists ? cfgSnap.data() : {}).quotaBidons ?? 1700);
+    if (quotaB === 0) {
+      return res.status(403).json({ error: 'Ravitaillement non requis cette semaine (quota bidons desactive par la direction).' });
+    }
+
     const BIDON_L = 15;
     let nbBidons, litresDemandes;
     // Mode "litres" (depuis Mon espace pompiste 2026-05-14) : prioritaire si fourni
@@ -2459,6 +2469,15 @@ export const pompisteDeclarerCaoutchoucs = onRequest({
     }
     if (nb > 500) {
       return res.status(400).json({ error: 'Maximum 500 caoutchoucs par declaration (anti-erreur de saisie).' });
+    }
+
+    // Defense en profondeur : refus si la dimension est desactivee cette
+    // semaine (quotaCaoutchoucs = 0). Empeche toute declaration meme si le
+    // frontend a ete bypasse.
+    const cfgSnap = await db.collection('config').doc('global').get();
+    const quotaC = Number((cfgSnap.exists ? cfgSnap.data() : {}).quotaCaoutchoucs ?? 800);
+    if (quotaC === 0) {
+      return res.status(403).json({ error: 'Caoutchoucs non requis cette semaine (quota desactive par la direction).' });
     }
 
     const pompisteNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();

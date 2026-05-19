@@ -21,6 +21,11 @@ const fullEdit  = isDirection(profile.role) || isSuperAdmin(profile.role) || pro
 const stockOnly = !fullEdit && (profile.role === 'responsable-pompiste' || isPompiste(profile.role));
 const editable  = fullEdit || stockOnly;
 
+// Charge config en avance pour pouvoir griser le bouton "Declarer caoutchoucs"
+// si la dimension est desactivee cette semaine (quotaCaoutchoucs = 0).
+let config = await getConfig().catch(() => ({}));
+const caoutsActifPage = (config.quotaCaoutchoucs ?? 800) > 0;
+
 const html = `
   <div class="kpi-grid" id="kpis-essence">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
@@ -29,12 +34,15 @@ const html = `
   <div class="page-toolbar">
     ${fullEdit ? '<button class="btn btn-primary btn-icon" id="btn-ajouter-station" title="Ajouter une station essence" data-tooltip="Ajouter station">➕</button>' : ''}
     ${fullEdit ? '<button class="btn btn-icon" id="btn-config-essence" title="Configuration quotas et prix essence" data-tooltip="Configuration">⚙</button>' : ''}
-    ${stockOnly ? '<button class="btn btn-primary btn-compact" id="btn-declarer-caoutchoucs" title="Déclarer le nombre de caoutchoucs fabriqués">📦 Déclarer caoutchoucs</button>' : ''}
+    ${stockOnly ? (caoutsActifPage
+      ? '<button class="btn btn-primary btn-compact" id="btn-declarer-caoutchoucs" title="Déclarer le nombre de caoutchoucs fabriqués">📦 Déclarer caoutchoucs</button>'
+      : '<button class="btn btn-compact" disabled style="opacity:0.5;cursor:not-allowed;" title="Caoutchoucs non requis cette semaine (quota = 0)">📦 Caoutchoucs — non requis</button>'
+    ) : ''}
     <span class="spacer"></span>
     <span class="muted mono" id="stations-count">—</span>
   </div>
 
-  ${stockOnly ? `
+  ${stockOnly && caoutsActifPage ? `
     <!-- Modal declaration caoutchoucs -->
     <div id="modal-caoutchoucs" class="modal-backdrop hidden">
       <div class="modal" style="max-width:480px;">
@@ -134,8 +142,6 @@ const html = `
 renderShell(profile, 'stocks_essence', html);
 
 let stations = [];
-let config = await getConfig().catch(() => ({}));
-
 listenStations(s => {
   stations = s;
   renderStations();
@@ -196,7 +202,7 @@ function miseAJourKpis(stations) {
     <div class="kpi"><div class="label">Stations</div><div class="value">${stations.length}</div><div class="delta">configurées</div></div>
     <div class="kpi"><div class="label">Stock total</div><div class="value">${num(totalActuel)} L</div><div class="delta">${num(totalMax)} L max (${niveau.toFixed(0)}%)</div></div>
     <div class="kpi"><div class="label">Stations en alerte</div><div class="value">${enAlerte}</div><div class="delta ${enAlerte ? 'down' : 'up'}">sous seuil</div></div>
-    <div class="kpi"><div class="label">Quota bidon/sem</div><div class="value">${num(config.quotaBidons || 1700)}</div><div class="delta">par pompiste</div></div>
+    <div class="kpi"><div class="label">Quota bidon/sem</div><div class="value">${num(config.quotaBidons ?? 1700)}</div><div class="delta">par pompiste</div></div>
   `;
 }
 
@@ -390,11 +396,12 @@ if (btnDel) {
 }
 
 // === Modal declaration caoutchoucs (pompiste) ===
-if (stockOnly) {
+// Skip si caoutsActifPage=false : aucun bouton/modal a brancher dans ce cas.
+if (stockOnly && caoutsActifPage) {
   const modalCaou = document.getElementById('modal-caoutchoucs');
   const inputCaou = document.getElementById('caou-nb');
   const previewCaou = document.getElementById('caou-preview');
-  const quotaC = config.quotaCaoutchoucs || 800;
+  const quotaC = config.quotaCaoutchoucs ?? 800;
 
   function ouvrirModalCaou() {
     inputCaou.value = '';
@@ -465,11 +472,23 @@ document.getElementById('btn-cancel-config').addEventListener('click', () => {
 });
 document.getElementById('btn-save-config').addEventListener('click', async () => {
   if (!fullEdit) return toastError("Direction uniquement.");
-  const patch = {
-    quotaBidons: Number(document.getElementById('cfg-quota-bidons').value) || 1700,
-    quotaCaoutchoucs: Number(document.getElementById('cfg-quota-caoutchoucs').value) || 800,
-    quotaCAVendeur: Number(document.getElementById('cfg-quota-ca-vendeur').value) || 30000
+  // 0 est une valeur valide (= dimension desactivee cette semaine). On
+  // utilise donc ?? au lieu de || pour ne pas remplacer 0 par le defaut.
+  const parseQuota = (id, def) => {
+    const raw = document.getElementById(id).value;
+    if (raw === '' || raw == null) return def;
+    const n = Number(raw);
+    return (Number.isFinite(n) && n >= 0) ? n : def;
   };
+  const patch = {
+    quotaBidons:      parseQuota('cfg-quota-bidons',      1700),
+    quotaCaoutchoucs: parseQuota('cfg-quota-caoutchoucs',  800),
+    quotaCAVendeur:   parseQuota('cfg-quota-ca-vendeur', 30000)
+  };
+  // Refus du cas absurde : les deux quotas pompiste a 0 -> salaire toujours 0.
+  if (patch.quotaBidons === 0 && patch.quotaCaoutchoucs === 0) {
+    return toastError("Au moins un des deux quotas pompiste doit être > 0 (sinon salaire toujours 0).");
+  }
   try {
     await setConfig(patch);
     config = { ...config, ...patch };
