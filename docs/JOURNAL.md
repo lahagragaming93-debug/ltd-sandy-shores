@@ -1,7 +1,57 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-18 partie 3 (v1.7.0 — onglet snapshot Sheet par semaine clôturée + hotfix dashboard cassé + KPI Salaires versés)**
+> Dernière mise à jour : **2026-05-19 (v1.7.1 — hotfix quotas pompiste shift UTC/Paris)**
+
+---
+
+## ✅ Session 2026-05-19 — v1.7.1 hotfix quotas pompiste affichés à 0
+
+### Bug remonté par le patron
+Gordy CHAPMAN (pompiste-novice) a ravitaillé 10 stations cette semaine (1000 bidons), mais sur `/employee` ses KPIs affichaient **0 bidon, score 0%, salaire estimé 0 $**. Idem pour les autres pompistes.
+
+### Diagnostic
+La donnée était bien dans Firestore : `/quotasPompiste/2026-05-18_V5PFBSK0JBZ10F3qwa0ARuOrkri1` = 1000 bidons. Le serveur écrit correctement. C'est la **lecture** qui se trompe de doc.
+
+### Cause : bug timezone dans `weekId()` côté frontend
+[`public/js/utils/formatters.js:72`](public/js/utils/formatters.js#L72) — `weekId()` faisait :
+```js
+const start = startOfWeekRP(d);   // lundi 00:00 LOCAL (Paris)
+return start.toISOString().slice(0, 10);
+```
+Le `start` est lundi 00:00 Paris **mais** `toISOString()` convertit en UTC : en CEST (UTC+2), lundi 18 mai 00:00 Paris devient **dimanche 17 mai 22:00 UTC**, la slice rend `"2026-05-17"`.
+
+Conséquence : le serveur stocke le quota dans `2026-05-18_{uid}` (calculé en Paris) mais le client lit `2026-05-17_{uid}` → doc absent → bidons=0, paie estimée=0.
+
+Ironique : le commentaire de `weekRangeFromKey` juste en-dessous documente déjà ce piège ("Parse en local pour eviter le decalage UTC qui projetterait le lundi au dimanche d'avant") mais n'avait pas été appliqué à `weekId()` lui-même.
+
+### Cause secondaire : `currentWeekId()` côté serveur calculait aussi en UTC
+[`firebase/functions/index.js:2057`](firebase/functions/index.js#L2057) — même pattern. Pas le symptôme principal (le serveur en UTC se trompait dans la même direction donc le mismatch était constant), mais incohérent avec le reste du code (clôture, snapshots) qui calcule en Paris. Corrigé aussi pour cohérence.
+
+### Fix
+- **Frontend** : `weekId()` réécrite pour extraire Y-M-D en **heure locale** (`start.getFullYear()` / `getMonth()+1` / `getDate()`) sans passer par `toISOString()`.
+- **Backend** : `currentWeekId()` réécrite avec le même pattern Paris que `cloturerSemaine` (commit `a259805`) — `toLocaleString('sv-SE', { timeZone: 'Europe/Paris' })`.
+
+### Backfill (préventif, pour le scénario UTC serveur)
+Script [`firebase/functions/scripts/backfill-quotas-pompiste.mjs`](firebase/functions/scripts/backfill-quotas-pompiste.mjs) :
+- Recompose les quotas attendus depuis les sources de vérité (`/redistributions` + `/declarationsCaoutchouc`).
+- Compare avec les `/quotasPompiste` existants et liste les écarts.
+- `--apply` réécrit les docs en mode merge.
+
+Au lancement du 19/05 : **0 écart détecté** sur les 14 derniers jours (les ravitaillements n'étaient pas tombés dans la fenêtre lundi 00h-02h Paris). Donc le serveur n'avait pas causé de perte. Mais le script reste utile si le bug serveur s'était déclenché.
+
+### Version
+- `public/js/version.js` : `1.7.0` → **`1.7.1`** (PATCH — bugfix).
+
+### Commandes appliquées
+```bash
+firebase deploy --only functions:pompisteRavitaillerManuel,functions:pompisteDeclarerCaoutchoucs
+# Frontend push GitHub Pages (hosting=GitHub Pages, pas Firebase Hosting) :
+git add public/js/utils/formatters.js public/js/version.js firebase/functions/index.js \
+        firebase/functions/scripts/backfill-quotas-pompiste.mjs docs/JOURNAL.md docs/ROADMAP.md
+git commit -m "Hotfix v1.7.1 : weekId() client lisait la mauvaise semaine (UTC slice)"
+git push
+```
 
 ---
 

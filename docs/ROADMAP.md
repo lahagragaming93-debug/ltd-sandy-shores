@@ -1,7 +1,12 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-18 partie 3 (v1.7.0 — onglet snapshot Sheet par semaine clôturée + hotfix dashboard + KPI Salaires versés)**
+> Dernière MAJ : **2026-05-19 (v1.7.1 — hotfix quotas pompiste shift UTC/Paris)**
+
+## ✅ Résolus session 2026-05-19 — v1.7.1
+
+- **Hotfix quotas pompiste shift UTC/Paris** : `currentWeekId()` côté serveur calculait en UTC alors que le frontend calcule en heure Paris. Ravitaillements / déclarations caoutchoucs validés entre lundi 00h-02h Paris étaient écrits dans la semaine précédente (clôturée) → quota pompiste à 0 sur `/employee`, paie estimée à 0. Fix avec le même pattern Paris que `cloturerSemaine` (commit `a259805`).
+- **Script backfill** `firebase/functions/scripts/backfill-quotas-pompiste.mjs` : recompose les quotas attendus depuis `/redistributions` + `/declarationsCaoutchouc`, compare avec les `/quotasPompiste` existants, dry-run puis `--apply`.
 
 ## ✅ Résolus session 2026-05-18 (partie 3) — v1.7.0
 

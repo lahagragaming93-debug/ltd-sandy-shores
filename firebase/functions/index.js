@@ -2054,13 +2054,24 @@ async function resolveEmployeeIdByName(nomComplet) {
   }
   return null;
 }
+// Renvoie le weekKey YYYY-MM-DD du lundi de la semaine RP en cours, en
+// horloge Europe/Paris (pas UTC).
+// Cloud Functions tournent en UTC : sans correction, une declaration faite
+// entre 00h-02h Paris le lundi (= dim 22h-00h UTC en CEST) range le quota
+// dans la semaine PRECEDENTE (deja cloturee), et le pompiste voit son
+// quota a 0 dans /employee alors que la station a bien ete ravitaillee.
+// Meme pattern que cloturerSemaine (commit a259805).
 function currentWeekId() {
-  const d = new Date();
-  d.setHours(0,0,0,0);
-  const day = d.getDay();
+  const now = new Date();
+  // sv-SE rend "YYYY-MM-DD HH:mm:ss" sans timezone : on lit l'horloge Paris
+  // puis on la traite comme un instant UTC pour pouvoir utiliser getUTC*().
+  const parisStr = now.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
+  const parisWall = new Date(parisStr.replace(' ', 'T') + 'Z');
+  const day = parisWall.getUTCDay();
   const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
+  parisWall.setUTCDate(parisWall.getUTCDate() + diff);
+  parisWall.setUTCHours(0, 0, 0, 0);
+  return parisWall.toISOString().slice(0, 10);
 }
 
 // ----------------------------------------------------------------

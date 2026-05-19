@@ -71,7 +71,16 @@ export function endOfWeekRP(d = new Date()) {
 }
 export function weekId(d = new Date()) {
   const start = startOfWeekRP(d);
-  return start.toISOString().slice(0, 10); // YYYY-MM-DD du lundi
+  // PARIS-LOCAL : on prend Y-M-D du `start` en heure locale, pas via
+  // toISOString() qui convertit en UTC et projette le lundi 00:00 Paris (CEST)
+  // au dimanche 22:00 UTC → la slice rend "dimanche d'avant", mismatch avec
+  // le serveur qui ecrit le weekKey calcule en heure Paris (cf. currentWeekId
+  // dans firebase/functions/index.js). Symptome : /quotasPompiste lu sur le
+  // mauvais doc → bidons affiches a 0 sur /employee.
+  const y = start.getFullYear();
+  const m = String(start.getMonth() + 1).padStart(2, '0');
+  const day = String(start.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // Reconstruit la fenetre [lun 00:00 -> dim 23:59:59.999] d'une semaine arbitraire
