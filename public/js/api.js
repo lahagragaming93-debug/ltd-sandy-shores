@@ -2,7 +2,7 @@
 // API Firestore — wrapper léger pour le frontend
 // ============================================================
 
-import { db } from './firebase-config.js';
+import { db, auth } from './firebase-config.js';
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit, onSnapshot, Timestamp, writeBatch,
@@ -10,6 +10,23 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 export { Timestamp, serverTimestamp };
+
+// ----- Cloud Functions helper -----
+// Centralise l'URL de base + auth Bearer + content-type. Tout appel a une
+// Cloud Function passe par ici pour eviter de copier-coller le boilerplate
+// (8 sites d'appel avant ce helper).
+const CF_BASE = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
+export async function callFunction(name, body = {}) {
+  const idToken = await auth.currentUser.getIdToken();
+  const resp = await fetch(`${CF_BASE}/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+    body: JSON.stringify(body)
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+  return json;
+}
 
 // ----- Utilisateurs -----
 const MAX_USERS = 200;
@@ -178,12 +195,14 @@ export async function listRedistributionsSemaine(dateDebut, dateFin) {
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
-// Toutes les redistributions d'un pompiste (sans filtre date) — pour le
-// cumul depuis embauche. Pas d'orderBy serveur (eviterait un index
-// composite pompisteId+timestamp), on trie cote client.
+// Toutes les redistributions d'un pompiste (cumul depuis embauche). Pas
+// d'orderBy serveur (eviterait un index composite), on trie cote client.
+// Limite a 1000 docs pour proteger les tablettes contre un historique
+// runaway — un pompiste qui depasse 1000 ravitaillements est rarissime.
 export async function listAllRedistributionsPompiste(pompisteId) {
   const q = query(collection(db, 'redistributions'),
-    where('pompisteId', '==', pompisteId));
+    where('pompisteId', '==', pompisteId),
+    limit(1000));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
@@ -498,11 +517,15 @@ export function listenMesNotesFrais(employeId, cb) {
     limit(50));
   return onSnapshot(q, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 }
-// Listener direction/DRH/resp-pompiste : TOUTES les notes de frais.
+// Listener direction/DRH/resp-pompiste : 50 dernieres notes de frais.
+// NB : chaque doc embarque un screenshot base64 jusqu'a ~950 KB. A 50 docs
+// on charge potentiellement 47 MB en RAM cote tablette FiveM — limite a
+// surveiller. Si besoin d'historique plus large, migrer les screenshots
+// vers Firebase Storage et stocker uniquement l'URL dans le doc.
 export function listenAllNotesFrais(cb) {
   const q = query(collection(db, 'notesFrais'),
     orderBy('timestamp', 'desc'),
-    limit(200));
+    limit(50));
   return onSnapshot(q, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 }
 

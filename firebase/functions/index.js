@@ -2056,24 +2056,32 @@ async function resolveEmployeeIdByName(nomComplet) {
   }
   return null;
 }
-// Renvoie le weekKey YYYY-MM-DD du lundi de la semaine RP en cours, en
-// horloge Europe/Paris (pas UTC).
-// Cloud Functions tournent en UTC : sans correction, une declaration faite
-// entre 00h-02h Paris le lundi (= dim 22h-00h UTC en CEST) range le quota
-// dans la semaine PRECEDENTE (deja cloturee), et le pompiste voit son
-// quota a 0 dans /employee alors que la station a bien ete ravitaillee.
-// Meme pattern que cloturerSemaine (commit a259805).
-function currentWeekId() {
-  const now = new Date();
-  // sv-SE rend "YYYY-MM-DD HH:mm:ss" sans timezone : on lit l'horloge Paris
-  // puis on la traite comme un instant UTC pour pouvoir utiliser getUTC*().
-  const parisStr = now.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
+// Renvoie le weekKey YYYY-MM-DD du lundi de la semaine RP pour un timestamp
+// donne, en horloge Europe/Paris. Cloud Functions tournent en UTC : un
+// timestamp slice naivement en ISO range les actions de lundi 00h-02h Paris
+// (= dim 22h-00h UTC CEST) dans la semaine PRECEDENTE. Meme pattern que
+// cloturerSemaine (commit a259805).
+function weekIdFromTimestamp(d) {
+  const parisStr = d.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
   const parisWall = new Date(parisStr.replace(' ', 'T') + 'Z');
   const day = parisWall.getUTCDay();
   const diff = day === 0 ? -6 : 1 - day;
   parisWall.setUTCDate(parisWall.getUTCDate() + diff);
   parisWall.setUTCHours(0, 0, 0, 0);
   return parisWall.toISOString().slice(0, 10);
+}
+function currentWeekId() { return weekIdFromTimestamp(new Date()); }
+
+// Applique une difference au quota pompiste de la semaine d'un timestamp
+// donne. Utilise par les 4 Cloud Functions modifier/supprimer
+// ravitaillement/caoutchoucs pour synchroniser quota et declarations.
+async function applyQuotaPompisteDelta(pompisteId, ts, deltas) {
+  if (!pompisteId) return;
+  const wId = weekIdFromTimestamp(ts || new Date());
+  const patch = { semaine: wId, employeId: pompisteId };
+  if (deltas.bidons != null)      patch.bidons      = FieldValue.increment(deltas.bidons);
+  if (deltas.caoutchoucs != null) patch.caoutchoucs = FieldValue.increment(deltas.caoutchoucs);
+  await db.collection('quotasPompiste').doc(`${wId}_${pompisteId}`).set(patch, { merge: true });
 }
 
 // ----------------------------------------------------------------
@@ -2695,12 +2703,6 @@ export const modifierRavitaillement = onRequest({
     const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
     const decoded = await adminAuth.verifyIdToken(idToken);
-    const callerSnap = await db.collection('users').doc(decoded.uid).get();
-    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
-    const caller = callerSnap.data();
-    if (!assertRespPompisteOrDir(caller.role)) {
-      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
-    }
 
     const { redistributionId, nouveauxBidons } = req.body || {};
     if (!redistributionId) return res.status(400).json({ error: 'Missing redistributionId' });
@@ -2709,9 +2711,16 @@ export const modifierRavitaillement = onRequest({
       return res.status(400).json({ error: 'nouveauxBidons doit etre un nombre > 0' });
     }
 
-    const BIDON_L = 15;
     const ref = db.collection('redistributions').doc(redistributionId);
-    const snap = await ref.get();
+    const [callerSnap, snap] = await Promise.all([
+      db.collection('users').doc(decoded.uid).get(),
+      ref.get()
+    ]);
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if (!assertRespPompisteOrDir(caller.role)) {
+      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
+    }
     if (!snap.exists) return res.status(404).json({ error: 'Redistribution introuvable.' });
     const r = snap.data();
     if (r.supprimee) return res.status(400).json({ error: 'Declaration deja supprimee.' });
@@ -2719,13 +2728,13 @@ export const modifierRavitaillement = onRequest({
       return res.status(400).json({ error: 'Seules les declarations manuelles peuvent etre modifiees ici.' });
     }
 
+    const BIDON_L = 15;
     const bidonsAvant = Number(r.bidons || 0);
     const litresAvant = Number(r.litres || 0);
     const litresApres = nb * BIDON_L;
     const diffLitres = litresApres - litresAvant;
     const diffBidons = nb - bidonsAvant;
 
-    // 1. MAJ station : applique la difference
     const stRef = db.collection('stations').doc(r.stationId);
     const stSnap = await stRef.get();
     if (stSnap.exists) {
@@ -2742,23 +2751,8 @@ export const modifierRavitaillement = onRequest({
       await stRef.set({ stockActuel: nouveauStock }, { merge: true });
     }
 
-    // 2. MAJ quota pompiste de la semaine de la declaration
-    const ts = r.timestamp?.toDate?.() || new Date();
-    const parisStr = ts.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
-    const wall = new Date(parisStr.replace(' ', 'T') + 'Z');
-    const day = wall.getUTCDay();
-    const dDiff = day === 0 ? -6 : 1 - day;
-    wall.setUTCDate(wall.getUTCDate() + dDiff);
-    wall.setUTCHours(0, 0, 0, 0);
-    const wId = wall.toISOString().slice(0, 10);
-    if (r.pompisteId) {
-      await db.collection('quotasPompiste').doc(`${wId}_${r.pompisteId}`).set({
-        semaine: wId, employeId: r.pompisteId,
-        bidons: FieldValue.increment(diffBidons)
-      }, { merge: true });
-    }
+    await applyQuotaPompisteDelta(r.pompisteId, r.timestamp?.toDate?.(), { bidons: diffBidons });
 
-    // 3. Audit : ajoute modifiePar + ancienne valeur
     const modifParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
     await ref.set({
       bidons: nb,
@@ -2788,12 +2782,6 @@ export const supprimerRavitaillement = onRequest({
     const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
     const decoded = await adminAuth.verifyIdToken(idToken);
-    const callerSnap = await db.collection('users').doc(decoded.uid).get();
-    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
-    const caller = callerSnap.data();
-    if (!assertRespPompisteOrDir(caller.role)) {
-      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
-    }
 
     const { redistributionId, raison } = req.body || {};
     if (!redistributionId) return res.status(400).json({ error: 'Missing redistributionId' });
@@ -2801,7 +2789,15 @@ export const supprimerRavitaillement = onRequest({
     if (motif.length < 3) return res.status(400).json({ error: 'Raison obligatoire (≥ 3 caracteres).' });
 
     const ref = db.collection('redistributions').doc(redistributionId);
-    const snap = await ref.get();
+    const [callerSnap, snap] = await Promise.all([
+      db.collection('users').doc(decoded.uid).get(),
+      ref.get()
+    ]);
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if (!assertRespPompisteOrDir(caller.role)) {
+      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
+    }
     if (!snap.exists) return res.status(404).json({ error: 'Redistribution introuvable.' });
     const r = snap.data();
     if (r.supprimee) return res.status(400).json({ error: 'Deja supprimee.' });
@@ -2812,33 +2808,15 @@ export const supprimerRavitaillement = onRequest({
     const bidons = Number(r.bidons || 0);
     const litres = Number(r.litres || 0);
 
-    // 1. Reverse stock station (retrancher les litres ajoutes)
     const stRef = db.collection('stations').doc(r.stationId);
     const stSnap = await stRef.get();
     if (stSnap.exists) {
-      const station = stSnap.data();
-      const stockActuel = Number(station.stockActuel || 0);
-      const nouveauStock = Math.max(0, stockActuel - litres);
-      await stRef.set({ stockActuel: nouveauStock }, { merge: true });
+      const stockActuel = Number(stSnap.data().stockActuel || 0);
+      await stRef.set({ stockActuel: Math.max(0, stockActuel - litres) }, { merge: true });
     }
 
-    // 2. Reverse quota pompiste de la semaine concernee
-    const ts = r.timestamp?.toDate?.() || new Date();
-    const parisStr = ts.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
-    const wall = new Date(parisStr.replace(' ', 'T') + 'Z');
-    const day = wall.getUTCDay();
-    const dDiff = day === 0 ? -6 : 1 - day;
-    wall.setUTCDate(wall.getUTCDate() + dDiff);
-    wall.setUTCHours(0, 0, 0, 0);
-    const wId = wall.toISOString().slice(0, 10);
-    if (r.pompisteId) {
-      await db.collection('quotasPompiste').doc(`${wId}_${r.pompisteId}`).set({
-        semaine: wId, employeId: r.pompisteId,
-        bidons: FieldValue.increment(-bidons)
-      }, { merge: true });
-    }
+    await applyQuotaPompisteDelta(r.pompisteId, r.timestamp?.toDate?.(), { bidons: -bidons });
 
-    // 3. Soft delete + audit
     const supprParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
     await ref.set({
       supprimee: true,
@@ -2866,12 +2844,7 @@ export const modifierDeclarationCaoutchoucs = onRequest({
     const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
     const decoded = await adminAuth.verifyIdToken(idToken);
-    const callerSnap = await db.collection('users').doc(decoded.uid).get();
-    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
-    const caller = callerSnap.data();
-    if (!assertRespPompisteOrDir(caller.role)) {
-      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
-    }
+
     const { declarationId, nouveauxCaoutchoucs } = req.body || {};
     if (!declarationId) return res.status(400).json({ error: 'Missing declarationId' });
     const nb = parseInt(nouveauxCaoutchoucs, 10);
@@ -2880,7 +2853,15 @@ export const modifierDeclarationCaoutchoucs = onRequest({
     }
 
     const ref = db.collection('declarationsCaoutchouc').doc(declarationId);
-    const snap = await ref.get();
+    const [callerSnap, snap] = await Promise.all([
+      db.collection('users').doc(decoded.uid).get(),
+      ref.get()
+    ]);
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if (!assertRespPompisteOrDir(caller.role)) {
+      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
+    }
     if (!snap.exists) return res.status(404).json({ error: 'Declaration introuvable.' });
     const d = snap.data();
     if (d.supprimee) return res.status(400).json({ error: 'Deja supprimee.' });
@@ -2888,21 +2869,7 @@ export const modifierDeclarationCaoutchoucs = onRequest({
     const avant = Number(d.caoutchoucs || 0);
     const diff = nb - avant;
 
-    // Quota pompiste de la semaine de la declaration
-    const ts = d.timestamp?.toDate?.() || new Date();
-    const parisStr = ts.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
-    const wall = new Date(parisStr.replace(' ', 'T') + 'Z');
-    const day = wall.getUTCDay();
-    const dDiff = day === 0 ? -6 : 1 - day;
-    wall.setUTCDate(wall.getUTCDate() + dDiff);
-    wall.setUTCHours(0, 0, 0, 0);
-    const wId = wall.toISOString().slice(0, 10);
-    if (d.pompisteId) {
-      await db.collection('quotasPompiste').doc(`${wId}_${d.pompisteId}`).set({
-        semaine: wId, employeId: d.pompisteId,
-        caoutchoucs: FieldValue.increment(diff)
-      }, { merge: true });
-    }
+    await applyQuotaPompisteDelta(d.pompisteId, d.timestamp?.toDate?.(), { caoutchoucs: diff });
 
     const modifParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
     await ref.set({
@@ -2931,39 +2898,28 @@ export const supprimerDeclarationCaoutchoucs = onRequest({
     const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
     const decoded = await adminAuth.verifyIdToken(idToken);
-    const callerSnap = await db.collection('users').doc(decoded.uid).get();
-    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
-    const caller = callerSnap.data();
-    if (!assertRespPompisteOrDir(caller.role)) {
-      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
-    }
+
     const { declarationId, raison } = req.body || {};
     if (!declarationId) return res.status(400).json({ error: 'Missing declarationId' });
     const motif = String(raison || '').trim();
     if (motif.length < 3) return res.status(400).json({ error: 'Raison obligatoire (≥ 3 caracteres).' });
 
     const ref = db.collection('declarationsCaoutchouc').doc(declarationId);
-    const snap = await ref.get();
+    const [callerSnap, snap] = await Promise.all([
+      db.collection('users').doc(decoded.uid).get(),
+      ref.get()
+    ]);
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if (!assertRespPompisteOrDir(caller.role)) {
+      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
+    }
     if (!snap.exists) return res.status(404).json({ error: 'Declaration introuvable.' });
     const d = snap.data();
     if (d.supprimee) return res.status(400).json({ error: 'Deja supprimee.' });
 
     const nb = Number(d.caoutchoucs || 0);
-
-    const ts = d.timestamp?.toDate?.() || new Date();
-    const parisStr = ts.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
-    const wall = new Date(parisStr.replace(' ', 'T') + 'Z');
-    const day = wall.getUTCDay();
-    const dDiff = day === 0 ? -6 : 1 - day;
-    wall.setUTCDate(wall.getUTCDate() + dDiff);
-    wall.setUTCHours(0, 0, 0, 0);
-    const wId = wall.toISOString().slice(0, 10);
-    if (d.pompisteId) {
-      await db.collection('quotasPompiste').doc(`${wId}_${d.pompisteId}`).set({
-        semaine: wId, employeId: d.pompisteId,
-        caoutchoucs: FieldValue.increment(-nb)
-      }, { merge: true });
-    }
+    await applyQuotaPompisteDelta(d.pompisteId, d.timestamp?.toDate?.(), { caoutchoucs: -nb });
 
     const supprParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
     await ref.set({

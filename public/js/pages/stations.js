@@ -6,8 +6,10 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenStations, setStation, listRedistributionsSemaine,
          getConfig, listenConfig, setConfig, doc, deleteDoc,
-         listUsers, listQuotasSemaine } from '../api.js';
+         listUsers, listQuotasSemaine, callFunction } from '../api.js';
 import { db } from '../firebase-config.js';
+import { collection, query, where, orderBy, getDocs, Timestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { money, moneyPrecis, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin, isPompiste } from '../utils/permissions.js';
@@ -375,20 +377,10 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
       }
     }
     try {
-      const { auth } = await import('../firebase-config.js');
-      const idToken = await auth.currentUser.getIdToken();
-      const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteRavitaillerManuel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-        body: JSON.stringify({ stationId: id, bidons })
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+      const json = await callFunction('pompisteRavitaillerManuel', { stationId: id, bidons });
       const msg = `Ravitaillement enregistré : ${bidons} bidon${bidons > 1 ? 's' : ''} (+${num(json.litresAjoutes)} L). Stock à ${num(json.stockApres)} L.${json.capped ? ' ⚠ plafonné capacité max.' : ''}`;
       toastSuccess(msg);
       modal.classList.add('hidden');
-      // listenStations va re-rendre automatiquement, mais on prepare un refresh
-      // du tableau redistributions
       chargerRedistributions();
     } catch (e) {
       console.error('[stations] ravitaillement pompiste FAIL', id, e);
@@ -505,15 +497,7 @@ if (stockOnly && caoutsActifPage) {
     if (!Number.isFinite(n) || n <= 0) return toastError("Indique un nombre > 0.");
     if (n > 500) return toastError("Maximum 500 par déclaration.");
     try {
-      const { auth } = await import('../firebase-config.js');
-      const idToken = await auth.currentUser.getIdToken();
-      const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteDeclarerCaoutchoucs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-        body: JSON.stringify({ caoutchoucs: n })
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+      await callFunction('pompisteDeclarerCaoutchoucs', { caoutchoucs: n });
       toastSuccess(`Déclaration enregistrée : ${n} caoutchouc${n > 1 ? 's' : ''} ajoutés à ton quota.`);
       modalCaou.classList.add('hidden');
     } catch (e) {
@@ -787,7 +771,6 @@ async function chargerCaoutchoucs() {
   if (!canModerer) return;
   const div = document.getElementById('declarations-caoutchoucs');
   if (!div) return;
-  const { collection, query, where, orderBy, getDocs, Timestamp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
   const q = query(collection(db, 'declarationsCaoutchouc'),
     where('timestamp', '>=', Timestamp.fromDate(debut)),
     where('timestamp', '<=', Timestamp.fromDate(fin)),
@@ -908,21 +891,11 @@ if (canModerer) {
     if (!Number.isFinite(n) || n <= 0) return toastError('Valeur invalide.');
     saveBtn.disabled = true; saveBtn.textContent = 'Envoi…';
     try {
-      const { auth } = await import('../firebase-config.js');
-      const idToken = await auth.currentUser.getIdToken();
-      const url = editCtx.type === 'ravit'
-        ? 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/modifierRavitaillement'
-        : 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/modifierDeclarationCaoutchoucs';
+      const fnName = editCtx.type === 'ravit' ? 'modifierRavitaillement' : 'modifierDeclarationCaoutchoucs';
       const body = editCtx.type === 'ravit'
         ? { redistributionId: editCtx.id, nouveauxBidons: n }
         : { declarationId: editCtx.id, nouveauxCaoutchoucs: n };
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-        body: JSON.stringify(body)
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+      await callFunction(fnName, body);
       toastSuccess(`Déclaration modifiée (stock et quota mis à jour automatiquement).`);
       document.getElementById('modal-edit-decl').classList.add('hidden');
       editCtx = null;
@@ -952,15 +925,7 @@ async function onDeleteRavit(id, list) {
   const raison = prompt('Raison de la suppression (min 3 caractères) :');
   if (!raison || raison.trim().length < 3) return toastError('Raison obligatoire.');
   try {
-    const { auth } = await import('../firebase-config.js');
-    const idToken = await auth.currentUser.getIdToken();
-    const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/supprimerRavitaillement', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-      body: JSON.stringify({ redistributionId: id, raison: raison.trim() })
-    });
-    const json = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    await callFunction('supprimerRavitaillement', { redistributionId: id, raison: raison.trim() });
     toastSuccess(`Ravitaillement supprimé (stock et quota corrigés).`);
     chargerRedistributions();
     chargerPilotagePompistes();
@@ -984,15 +949,7 @@ async function onDeleteCaou(id, list) {
   const raison = prompt('Raison de la suppression (min 3 caractères) :');
   if (!raison || raison.trim().length < 3) return toastError('Raison obligatoire.');
   try {
-    const { auth } = await import('../firebase-config.js');
-    const idToken = await auth.currentUser.getIdToken();
-    const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/supprimerDeclarationCaoutchoucs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-      body: JSON.stringify({ declarationId: id, raison: raison.trim() })
-    });
-    const json = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    await callFunction('supprimerDeclarationCaoutchoucs', { declarationId: id, raison: raison.trim() });
     toastSuccess(`Déclaration caoutchoucs supprimée (quota corrigé).`);
     chargerCaoutchoucs();
     chargerPilotagePompistes();

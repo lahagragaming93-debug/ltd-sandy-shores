@@ -7,7 +7,7 @@ import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
   getServiceOuvert, getQuotaPompiste, getConfig, listenConfig, listenAvertissements, getUserDoc, listenStations,
-  listRedistributionsSemaine, listAllRedistributionsPompiste, listenMesNotesFrais
+  listRedistributionsSemaine, listAllRedistributionsPompiste, listenMesNotesFrais, callFunction
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
@@ -824,17 +824,7 @@ if (isPompiste(profile.role) && !modeVoirComme) {
       const btn = document.getElementById('btn-save-ravit');
       btn.disabled = true; btn.textContent = 'Envoi…';
       try {
-        const { auth } = await import('../firebase-config.js');
-        const idToken = await auth.currentUser.getIdToken();
-        // Le backend convertit bidons -> litres (15 L par bidon) et met a jour
-        // le stock + /redistributions + /quotasPompiste atomiquement.
-        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteRavitaillerManuel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify({ stationId, bidons })
-        });
-        const json = await resp.json().catch(() => ({}));
-        if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+        await callFunction('pompisteRavitaillerManuel', { stationId, bidons });
         modalRav.classList.add('hidden');
         window.location.reload();
       } catch (e) {
@@ -903,15 +893,7 @@ if (isPompiste(profile.role) && !modeVoirComme) {
       const btn = document.getElementById('btn-save-correc');
       btn.disabled = true; btn.textContent = 'Envoi…';
       try {
-        const { auth } = await import('../firebase-config.js');
-        const idToken = await auth.currentUser.getIdToken();
-        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteCorrigerStock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify({ stationId, nouveauStock, raison })
-        });
-        const json = await resp.json().catch(() => ({}));
-        if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+        await callFunction('pompisteCorrigerStock', { stationId, nouveauStock, raison });
         modalCor.classList.add('hidden');
         window.location.reload();
       } catch (e) {
@@ -1004,40 +986,35 @@ if (isPompiste(profile.role) && !modeVoirComme) {
       }
     }
 
-    // Listener paste global (la dropzone capture le focus avant)
+    // Consume une image collee depuis l'event paste. Retourne true si trouvee.
+    async function tryConsumePastedImage(e) {
+      const items = (e.clipboardData || window.clipboardData)?.items;
+      if (!items) return false;
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (blob) await handlePastedBlob(blob);
+          return true;
+        }
+      }
+      return false;
+    }
+
     pasteZone.addEventListener('click', () => pasteZone.focus());
     pasteZone.addEventListener('paste', async (e) => {
-      const items = (e.clipboardData || window.clipboardData)?.items;
-      if (!items) return;
-      for (const item of items) {
-        if (item.type && item.type.startsWith('image/')) {
-          e.preventDefault();
-          const blob = item.getAsFile();
-          if (blob) await handlePastedBlob(blob);
-          return;
-        }
-      }
-      toastError('Aucune image trouvee dans le presse-papier.');
+      const ok = await tryConsumePastedImage(e);
+      if (!ok) toastError('Aucune image trouvee dans le presse-papier.');
     });
-    // Fallback : si focus est sur le modal mais pas la dropzone, on capture
-    // quand meme le paste tant que le modal est ouvert.
+    // Fallback : capture le paste tant que le modal est ouvert et que la
+    // dropzone est encore visible, meme si le focus est ailleurs dans le
+    // modal — sauf input/textarea (l'utilisateur veut coller du texte).
     modalNF.addEventListener('paste', async (e) => {
       if (modalNF.classList.contains('hidden')) return;
-      // Si la dropzone est cachee (image deja collee), ignore
       if (pasteZone.classList.contains('hidden')) return;
-      // Si le focus est sur un input texte, ne pas intercepter
       const tag = (document.activeElement?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;
-      const items = (e.clipboardData || window.clipboardData)?.items;
-      if (!items) return;
-      for (const item of items) {
-        if (item.type && item.type.startsWith('image/')) {
-          e.preventDefault();
-          const blob = item.getAsFile();
-          if (blob) await handlePastedBlob(blob);
-          return;
-        }
-      }
+      await tryConsumePastedImage(e);
     });
 
     clearImgBtn.addEventListener('click', () => resetImage());
@@ -1064,18 +1041,9 @@ if (isPompiste(profile.role) && !modeVoirComme) {
       const btn = document.getElementById('btn-save-note-frais');
       btn.disabled = true; btn.textContent = 'Envoi…';
       try {
-        const { auth } = await import('../firebase-config.js');
-        const idToken = await auth.currentUser.getIdToken();
-        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/creerNoteFrais', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify({ montant, screenshotUrl: screenshotDataUrl, description })
-        });
-        const json = await resp.json().catch(() => ({}));
-        if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+        await callFunction('creerNoteFrais', { montant, screenshotUrl: screenshotDataUrl, description });
         modalNF.classList.add('hidden');
         toastSuccess('Note de frais envoyée à la direction.');
-        // Le listener listenMesNotesFrais en bas de page va auto-rerender.
       } catch (e) {
         alert('Échec : ' + (e?.message || 'erreur inattendue.'));
       } finally {

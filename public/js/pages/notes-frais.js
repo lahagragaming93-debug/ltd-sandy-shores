@@ -8,7 +8,7 @@
 
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listenAllNotesFrais } from '../api.js';
+import { listenAllNotesFrais, callFunction } from '../api.js';
 import { money, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
@@ -242,15 +242,7 @@ async function onAction(id, action) {
     if (!ok) return;
   }
   try {
-    const { auth } = await import('../firebase-config.js');
-    const idToken = await auth.currentUser.getIdToken();
-    const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/traiterNoteFrais', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-      body: JSON.stringify({ noteId: id, action, motifRejet })
-    });
-    const json = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    await callFunction('traiterNoteFrais', { noteId: id, action, motifRejet });
     toastSuccess(`Note de frais ${action === 'approuver' ? 'approuvée' : action === 'rembourser' ? 'marquée remboursée' : 'rejetée'}.`);
   } catch (e) {
     toastError("Échec : " + (e?.message || 'erreur inattendue.'));
