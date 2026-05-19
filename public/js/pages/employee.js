@@ -90,15 +90,15 @@ const html = `
           : ''}
       </div>
 
-      <!-- Modal ravitaillement (pompiste) — ouvre la station + saisie litres -->
+      <!-- Modal ravitaillement (pompiste) — saisie en bidons (1 bidon = 15 L) -->
       ${isPompiste(profile.role) ? `
         <div id="modal-ravit" class="modal-backdrop hidden">
           <div class="modal" style="max-width:540px;">
             <h3>🛢 Ravitailler une station</h3>
             <div class="alert info mb-2" style="font-size:0.82rem;">
               <span class="icon">ℹ</span>
-              <span>Choisis la station que tu viens de ravitailler et saisis le nombre de <strong>litres ajoutés</strong>.
-              Le stock de la station se met à jour automatiquement.</span>
+              <span>Choisis la station que tu viens de ravitailler et saisis le <strong>nombre de bidons ajoutés</strong>.
+              La conversion en litres (1 bidon = 15 L) est automatique.</span>
             </div>
             <label>Station <span style="color:var(--color-blood-light);">*</span></label>
             <select id="ravit-station" style="width:100%;">
@@ -106,9 +106,9 @@ const html = `
             </select>
             <div id="ravit-station-info" class="muted" style="font-size:0.78rem;margin:4px 0 8px;"></div>
 
-            <label>Nombre de litres ajoutés <span style="color:var(--color-blood-light);">*</span></label>
-            <input type="number" id="ravit-litres" min="1" step="1" placeholder="Ex : 75" />
-            <div id="ravit-preview" class="muted" style="font-size:0.78rem;margin:4px 0 0;">1 bidon = 15 L</div>
+            <label>Nombre de bidons ajoutés <span style="color:var(--color-blood-light);">*</span> <span class="muted" style="font-size:0.75rem;">— 1 bidon = 15 L</span></label>
+            <input type="number" id="ravit-bidons" min="1" step="1" placeholder="Ex : 5" />
+            <div id="ravit-preview" class="muted" style="font-size:0.78rem;margin:4px 0 0;">—</div>
 
             <div class="row mt-3">
               <button class="btn btn-primary" id="btn-save-ravit">Valider le ravitaillement</button>
@@ -687,7 +687,7 @@ if (isPompiste(profile.role) && !modeVoirComme) {
   const btnRavit  = document.getElementById('btn-ravitailler');
   const modalRav  = document.getElementById('modal-ravit');
   const selStat   = document.getElementById('ravit-station');
-  const inLitres  = document.getElementById('ravit-litres');
+  const inBidons  = document.getElementById('ravit-bidons');
   const elInfo    = document.getElementById('ravit-station-info');
   const elPrev    = document.getElementById('ravit-preview');
 
@@ -703,16 +703,21 @@ if (isPompiste(profile.role) && !modeVoirComme) {
   function refreshPreview() {
     const sid = selStat.value;
     const s = stationsCacheLocale.find(x => x.id === sid);
-    const l = Number(inLitres.value) || 0;
-    if (l <= 0) { elPrev.innerHTML = '1 bidon = 15 L'; elPrev.style.color = ''; return; }
-    const bidons = (l / BIDON_L);
-    let html = `≈ <strong>${bidons.toFixed(2)}</strong> bidons (1 bidon = 15 L)`;
+    const n = parseInt(inBidons.value, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      elPrev.innerHTML = '—';
+      elPrev.style.color = '';
+      return;
+    }
+    const ajout = n * BIDON_L;
+    let html = `${n} bidon${n > 1 ? 's' : ''} = <strong>${num(ajout)} L</strong>`;
     if (s) {
-      const apres = (s.stockActuel || 0) + l;
+      const apres = (s.stockActuel || 0) + ajout;
       const max = s.stockMax || 0;
       if (max > 0 && apres > max) {
         const libre = Math.max(0, max - (s.stockActuel || 0));
-        html = `⚠ <strong>Dépassement</strong> : la station n'accepte que ${num(libre)} L libres. Saisis moins.`;
+        const bidonsMax = Math.floor(libre / BIDON_L);
+        html = `⚠ <strong>Dépassement</strong> : la station n'accepte que ${bidonsMax} bidons max (${num(libre)} L libres). Saisis moins.`;
         elPrev.style.color = 'var(--color-blood-light)';
       } else {
         html += ` · stock après : <strong>${num(apres)} L</strong>${max ? ` / ${num(max)} L` : ''}`;
@@ -728,32 +733,34 @@ if (isPompiste(profile.role) && !modeVoirComme) {
         stationsCacheLocale.map(s => {
           return `<option value="${s.id}">${escapeHtml(s.nom)} (${num(s.stockActuel || 0)}/${num(s.stockMax || 0)} L)</option>`;
         }).join('');
-      inLitres.value = '';
+      inBidons.value = '';
       elInfo.textContent = '';
-      elPrev.innerHTML = '1 bidon = 15 L';
+      elPrev.innerHTML = '—';
       elPrev.style.color = '';
       modalRav.classList.remove('hidden');
       setTimeout(() => selStat.focus(), 50);
     });
     selStat.addEventListener('change', refreshStationInfo);
-    inLitres.addEventListener('input', refreshPreview);
+    inBidons.addEventListener('input', refreshPreview);
     document.getElementById('btn-cancel-ravit').addEventListener('click', () => {
       modalRav.classList.add('hidden');
     });
     document.getElementById('btn-save-ravit').addEventListener('click', async () => {
       const stationId = selStat.value;
-      const litres = Number(inLitres.value);
+      const bidons = parseInt(inBidons.value, 10);
       if (!stationId) return alert('Sélectionne une station.');
-      if (!Number.isFinite(litres) || litres <= 0) return alert('Litres invalide.');
+      if (!Number.isFinite(bidons) || bidons <= 0) return alert('Saisis un nombre de bidons > 0.');
       const btn = document.getElementById('btn-save-ravit');
       btn.disabled = true; btn.textContent = 'Envoi…';
       try {
         const { auth } = await import('../firebase-config.js');
         const idToken = await auth.currentUser.getIdToken();
+        // Le backend convertit bidons -> litres (15 L par bidon) et met a jour
+        // le stock + /redistributions + /quotasPompiste atomiquement.
         const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/pompisteRavitaillerManuel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify({ stationId, litres })
+          body: JSON.stringify({ stationId, bidons })
         });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
