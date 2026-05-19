@@ -57,7 +57,7 @@ const TUTOS = {
           <p>Tu as <strong>2 missions principales</strong> :</p>
           <ul>
             <li>🛢 <strong>Ravitailler les 8 stations</strong> quand leur stock baisse — c'est ce qui permet aux clients d'acheter du carburant</li>
-            <li>🪖 <strong>Fabriquer les caoutchoucs</strong> à l'atelier — ils servent ensuite à produire les pneus vendus</li>
+            <li>🪖 <strong>Fabriquer les caoutchoucs</strong> à l'atelier — le LTD les revend ensuite à des acheteurs pro</li>
           </ul>
           <p>Tu travailles en <strong>autonomie</strong>. Ton salaire dépend directement de ce que tu produis dans la semaine.</p>
           <div class="tuto-callout warn">
@@ -66,18 +66,13 @@ const TUTOS = {
         `
       },
       {
-        emoji: '🛻',
-        title: 'Étape 1 — Aller chercher le carburant',
+        emoji: '📦',
+        title: 'Étape 1 — Récupérer les bidons',
         body: `
-          <p><span class="ig">EN JEU</span> Rends-toi à la <strong>raffinerie LTD</strong> avec un véhicule de service (camion essence).</p>
-          <ol>
-            <li>Approche-toi du point de chargement marqué sur la map</li>
-            <li>Ouvre l'interaction (touche par défaut : <span class="key">E</span>)</li>
-            <li>Charge ton camion en bidons — chaque bidon contient <strong>15 litres</strong></li>
-            <li>Note dans ta tête combien de bidons tu as embarqués</li>
-          </ol>
-          <div class="tuto-callout warn">
-            ⚠ Conduis prudemment. Le carburant peut prendre feu en cas de gros choc — perte totale de la cargaison.
+          <p><span class="ig">EN JEU</span> Rends-toi aux <strong>stocks de bidons d'essence</strong> du LTD.</p>
+          <p>Prends le nombre de bidons que tu prévois de redistribuer dans les stations. Chaque bidon = <strong>15 litres</strong>.</p>
+          <div class="tuto-callout info">
+            💡 Astuce : avant de partir, jette un œil sur la tablette → "⛽ Stations essence" pour repérer les stations <strong>sous seuil</strong> (en alerte rouge) — ce sont elles à prioriser.
           </div>
         `
       },
@@ -85,16 +80,15 @@ const TUTOS = {
         emoji: '⛽',
         title: 'Étape 2 — Ravitailler la station',
         body: `
-          <p><span class="ig">EN JEU</span> Arrivé à une station, suis cette procédure :</p>
+          <p><span class="ig">EN JEU</span> Va à la station essence à ravitailler.</p>
           <ol>
-            <li>Gare-toi près de la pompe</li>
-            <li>Sors du véhicule, va à l'arrière du camion</li>
-            <li>Interaction <span class="key">E</span> → menu "Décharger"</li>
-            <li>L'essence se transfère dans la cuve de la station — attention à ne pas dépasser sa capacité max</li>
-            <li><strong>Compte le nombre de bidons que tu déverses</strong> — c'est cette valeur que tu déclareras sur le site</li>
+            <li>Approche-toi du menu de ravitaillement de la station</li>
+            <li><strong>Saisis le nombre de bidons</strong> que tu veux ajouter</li>
+            <li>Confirme — le stock IG de la station se met à jour</li>
           </ol>
+          <p>Retiens bien combien de bidons tu as mis : tu vas devoir le déclarer juste après sur la tablette.</p>
           <div class="tuto-callout">
-            💡 Sur la tablette, tu peux voir en temps réel le stock actuel et la <strong>place restante</strong> dans chaque station avant de te déplacer.
+            💡 Tu peux ravitailler plusieurs stations à la suite avant de déclarer — pense juste à noter combien à chaque arrêt.
           </div>
         `
       },
@@ -238,7 +232,7 @@ const TUTOS = {
         title: 'Bienvenue chez LTD Sandy Shores',
         body: `
           <p>Salut <strong>${profile.prenom || 'collègue'}</strong> ! Tu rejoins l'équipe <strong>vente</strong> du LTD.</p>
-          <p>Tu vas vendre les produits de l'épicerie LTD à nos clients particuliers et professionnels.</p>
+          <p>Tu vas vendre les produits de l'épicerie LTD aux clients qui se présentent en magasin.</p>
           <div class="tuto-callout">
             💡 Ce tuto t'explique <strong>toute la procédure</strong> de vente : RP en jeu + déclaration sur la tablette pour que ta commission soit bien calculée.
           </div>
@@ -254,7 +248,7 @@ const TUTOS = {
             <li>💵 <strong>Vendre les produits</strong> de l'inventaire (épicerie + autres)</li>
             <li>📝 <strong>Déclarer chaque vente</strong> sur la tablette (pour que ta commission soit calculée)</li>
           </ul>
-          <p>Ton salaire est <strong>une commission</strong> sur le CA particulier que tu génères.</p>
+          <p>Ton salaire est <strong>une commission</strong> sur le CA que tu génères.</p>
           <div class="tuto-callout warn">
             ⚠ Ce qui n'est pas déclaré n'est <strong>pas commissionné</strong>. Si tu zappes la déclaration, tu travailles gratos.
           </div>
@@ -266,58 +260,57 @@ const TUTOS = {
         body: `
           <p><span class="ig">EN JEU</span> Quand un client entre dans le magasin :</p>
           <ol>
-            <li>Salue-le, demande-lui ce qu'il cherche</li>
-            <li><strong>Identifie le type de client</strong> :
-              <ul>
-                <li>👤 <strong>Particulier</strong> (citoyen lambda) → tu touches une commission</li>
-                <li>🏢 <strong>Entreprise</strong> (autre business du serveur) → pas de commission mais compte pour le CA global LTD</li>
-              </ul>
-            </li>
-            <li>Conseille-le si besoin (RP qualitatif valorisé)</li>
+            <li>Salue-le poliment</li>
+            <li>Demande-lui ce qu'il cherche</li>
+            <li>Conseille-le si besoin (le RP qualitatif est valorisé)</li>
+            <li>Note dans ta tête le total à encaisser</li>
           </ol>
           <div class="tuto-callout">
-            💡 Une vente particulier de 1 000 $ te rapporte plus qu'une vente entreprise de 5 000 $. Ne néglige pas les petits clients.
+            💡 Les <strong>clients pro / entreprises</strong> prennent rendez-vous via Discord avec la direction — ils ne passent jamais directement par toi. Tu n'as donc affaire qu'à des <strong>particuliers</strong>.
           </div>
         `
       },
       {
-        emoji: '🧾',
-        title: 'Étape 2 — La facture in-game',
+        emoji: '💵',
+        title: 'Étape 2 — Encaisser puis remettre',
         body: `
-          <p><span class="ig">EN JEU</span> Pour facturer le client :</p>
+          <p>Ordre <strong>obligatoire</strong> pour chaque vente :</p>
           <ol>
-            <li>Ouvre le <strong>menu vendeur</strong> (selon ta config touches)</li>
-            <li>Crée une <strong>facture</strong> avec le montant total</li>
-            <li>Le client valide le paiement</li>
-            <li>Remets-lui les produits</li>
+            <li><span class="ig">EN JEU</span> Prends connaissance des produits demandés par le client</li>
+            <li><span class="ig">EN JEU</span> Encaisse le client : crée la facture, il paie</li>
+            <li><span class="site">SUR LE SITE</span> Valide la déclaration de vente sur ta tablette (détail produits)</li>
+            <li><span class="ig">EN JEU</span> <strong>Maintenant seulement</strong>, remets les produits au client</li>
           </ol>
-          <div class="tuto-callout">
-            ⚡ <strong>Le bot Discord remonte automatiquement la facture</strong> sur le site dans la minute. Tu n'as plus qu'à déclarer le détail des produits.
+          <div class="tuto-callout danger">
+            💰 <strong>Règle d'or : pas de paiement, pas de produit.</strong><br>
+            Tu encaisses TOUJOURS avant de donner la marchandise. Pas d'exception, pas de "je te paie après". Si le client refuse, il sort sans rien.
+          </div>
+          <div class="tuto-callout info">
+            ⚡ Le bot Discord remonte automatiquement la facture sur le site dans la minute → tu n'as plus qu'à cliquer "📝 Déclarer" pour détailler les produits.
           </div>
         `
       },
       {
         emoji: '📱',
-        title: 'Étape 3 — Déclarer le détail',
+        title: 'Étape 3 — Déclarer le détail sur la tablette',
         body: `
           <p><span class="site">SUR LE SITE</span> Sur <strong>"Mon espace"</strong>, tu verras un bloc orange <strong>"📌 Ventes à déclarer"</strong> avec toutes tes factures non encore détaillées.</p>
           <ol>
             <li>Clique sur <strong>"📝 Déclarer"</strong> à droite de la facture</li>
             <li>Sélectionne les <strong>produits vendus</strong> (le stock se décrémente automatiquement)</li>
-            <li>Précise le <strong>type de client</strong> (particulier / entreprise)</li>
             <li>Vérifie le moyen de paiement (espèces, virement, banque)</li>
             <li>Valide</li>
           </ol>
           <div class="tuto-callout">
-            ✓ Une fois déclaré : ta commission est calculée, le stock à jour, la vente verrouillée.
+            ✓ Une fois déclaré : ta commission est calculée, le stock à jour, la vente verrouillée. <strong>Ensuite</strong> seulement tu remets le produit au client.
           </div>
         `
       },
       {
         emoji: '✍',
-        title: 'Vente directe (sans facture bot)',
+        title: 'Cas particulier — déclarer une vente à la main',
         body: `
-          <p>Parfois tu vends en main propre sans passer par le système de facture (échange RP, livraison). Dans ce cas :</p>
+          <p>Dans 99 % des cas, la facture remonte toute seule via le bot Discord et tu cliques juste "📝 Déclarer". Mais parfois (bug, oubli, vente RP en livraison), tu dois saisir la vente <strong>entièrement à la main</strong>.</p>
           <p><span class="site">SUR LE SITE</span> Bouton <strong>"📝 Déclarer une vente"</strong> en haut de "Mon espace" :</p>
           <ol>
             <li>Choisis les produits dans le menu</li>
@@ -325,25 +318,25 @@ const TUTOS = {
             <li>Précise le paiement</li>
             <li>Valide</li>
           </ol>
-          <div class="tuto-callout warn">
-            ⚠ La direction peut auditer ces ventes manuelles (pas de trace IG automatique). Reste honnête, des écarts répétés mènent à des avertissements.
+          <div class="tuto-callout info">
+            💡 N'utilise cette méthode que <strong>si tu n'as pas pu faire la facture in-game</strong>. Le flow normal (facture IG + déclaration sur la tablette) reste toujours à privilégier.
           </div>
         `
       },
       {
-        emoji: '👤',
-        title: 'Particulier vs Entreprise — pourquoi c\'est crucial',
+        emoji: '💰',
+        title: 'Commission — comment tu es payé',
         body: `
-          <p>Ton salaire = <strong>commission % sur CA particulier UNIQUEMENT</strong>, selon ton grade :</p>
+          <p>Ton salaire est une <strong>commission sur le CA que tu génères</strong>, calculée à la fin de chaque semaine RP (lundi 00h00).</p>
+          <p>Le pourcentage de commission dépend de ton grade :</p>
           <ul>
-            <li>Vendeur novice : <strong>32,5 %</strong></li>
-            <li>Vendeur intermédiaire : <strong>35 %</strong></li>
-            <li>Vendeur expérimenté : <strong>37,5 %</strong></li>
+            <li>🌱 Vendeur novice : <strong>32,5 %</strong></li>
+            <li>💼 Vendeur intermédiaire : <strong>35 %</strong></li>
+            <li>⭐ Vendeur expérimenté : <strong>37,5 %</strong></li>
           </ul>
-          <p>Les ventes <strong>entreprise</strong> alimentent le CA global du LTD (utile pour les primes hebdo/mensuelles) mais <strong>ne te rapportent pas de commission directe</strong>.</p>
-          <div class="tuto-callout warn">
-            ⚠ Tagger "entreprise" une vente particulier = tu perds ta commission.<br>
-            Tagger "particulier" une vente entreprise = fraude, sanction directe.
+          <p>Plus tu vends, plus tu gagnes — jusqu'au plafond (slide suivante).</p>
+          <div class="tuto-callout info">
+            💡 Toute vente non déclarée sur la tablette = pas de commission. <strong>Déclare systématiquement.</strong>
           </div>
         `
       },
@@ -351,14 +344,14 @@ const TUTOS = {
         emoji: '🎯',
         title: 'Quota CA hebdomadaire',
         body: `
-          <p>Tu dois atteindre un <strong>CA particulier minimum / semaine</strong> :</p>
+          <p>Tu dois atteindre un <strong>CA minimum chaque semaine</strong> :</p>
           <ul>
-            <li>Par défaut : <strong>30 000 $</strong> (modifiable par la direction)</li>
-            <li>Si non atteint à la clôture (lundi 00h00) → <strong>1 avertissement auto</strong></li>
+            <li>Actuellement : <strong>40 000 $</strong> de CA (modifiable par la direction selon la semaine)</li>
+            <li>Si non atteint à la clôture (lundi 00h00) → <strong>1 avertissement automatique</strong></li>
           </ul>
-          <p>Sur ton espace, une barre de progression t'indique en temps réel où tu en es.</p>
+          <p>Sur ton espace, une barre de progression t'indique en temps réel où tu en es par rapport au quota.</p>
           <div class="tuto-callout">
-            💡 Le quota est atteint sur le <strong>CA commissionnable</strong> uniquement (= particulier). Vendre 100 000 $ à des entreprises ne compte pas pour le quota.
+            💡 Suivi temps-réel sur "Mon espace" — pas de mauvaise surprise dimanche soir si tu regardes ton avancement régulièrement.
           </div>
         `
       },
@@ -366,16 +359,16 @@ const TUTOS = {
         emoji: '📈',
         title: 'Plafond CA — au-delà ça ne paie plus',
         body: `
-          <p>Plafond CA pour la commission : <strong>40 000 $</strong> de CA particulier / semaine.</p>
+          <p>Plafond CA pour la commission : <strong>40 000 $</strong> de CA / semaine.</p>
           <p>Au-delà, ta commission n'augmente plus (limite imposée par le TTE Chap. IV Art. 4-1.5 sur la masse salariale).</p>
           <p>Plafonds salaire par grade :</p>
           <ul>
-            <li>Vendeur novice : <strong>13 000 $</strong></li>
-            <li>Vendeur intermédiaire : <strong>14 000 $</strong></li>
-            <li>Vendeur expérimenté : <strong>15 000 $</strong></li>
+            <li>🌱 Vendeur novice : <strong>13 000 $</strong></li>
+            <li>💼 Vendeur intermédiaire : <strong>14 000 $</strong></li>
+            <li>⭐ Vendeur expérimenté : <strong>15 000 $</strong></li>
           </ul>
           <div class="tuto-callout">
-            💡 Si tu fais 40 000 $ × 35 % = 14 000 $ → plafond atteint. Au-delà tu travailles bénévolement pour le LTD (qui touche tout en bénéfice).
+            💡 Exemple : 40 000 $ × 35 % = 14 000 $ → plafond atteint pour un intermédiaire. Au-delà tu travailles bénévolement pour le LTD (qui touche tout en bénéfice).
           </div>
         `
       },
@@ -390,7 +383,7 @@ const TUTOS = {
             <li>3 averts actifs = <strong>compte bloqué</strong> (lecture seule, plus de vente possible)</li>
           </ul>
           <div class="tuto-callout danger">
-            🚫 La fraude (tag client erroné, montant déclaré ≠ réel) entraîne un avert direct + sanction RP.
+            🚫 La fraude (montant déclaré ≠ encaissé, vente fictive) entraîne un avert direct + sanction RP.
           </div>
         `
       },
@@ -405,7 +398,7 @@ const TUTOS = {
           </ul>
           <p>Et plus bas en temps réel :</p>
           <ul>
-            <li>Ton <strong>CA particulier</strong> + commission + salaire estimé</li>
+            <li>Ton <strong>CA cumulé</strong> + commission + salaire estimé</li>
             <li>Progression <strong>quota hebdo</strong> + plafond</li>
             <li>Tableau de <strong>toutes tes factures</strong> de la semaine</li>
             <li>Tes <strong>heures de service</strong> cumulées</li>
