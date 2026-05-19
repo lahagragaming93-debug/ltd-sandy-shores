@@ -489,6 +489,23 @@ export function listenConfig(cb) {
   });
 }
 
+// ----- Notes de frais (pompiste avance des frais d'essence vehicule LTD) -----
+// Listener temps-reel : MES notes (filtre client par employeId).
+export function listenMesNotesFrais(employeId, cb) {
+  const q = query(collection(db, 'notesFrais'),
+    where('employeId', '==', employeId),
+    orderBy('timestamp', 'desc'),
+    limit(50));
+  return onSnapshot(q, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+// Listener direction/DRH/resp-pompiste : TOUTES les notes de frais.
+export function listenAllNotesFrais(cb) {
+  const q = query(collection(db, 'notesFrais'),
+    orderBy('timestamp', 'desc'),
+    limit(200));
+  return onSnapshot(q, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+
 // ----- Secrets (tokens, accessibles direction uniquement via rules) -----
 export async function getSecrets() {
   const snap = await getDoc(doc(db, 'config', 'secrets'));

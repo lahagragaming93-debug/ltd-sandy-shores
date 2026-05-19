@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { key: 'banque',          href: 'banque.html',        icon: '🏦', label: 'Banque LTD',         group: 'Finance' },
   { key: 'revenus_carburant', href: 'revenus-carburant.html', icon: '⛽', label: 'Revenus carburant', group: 'Finance' },
   { key: 'rh',              href: 'rh.html',            icon: '☆',  label: 'Ressources humaines',group: 'Personnel' },
+  { key: 'notes_frais',     href: 'notes-frais.html',   icon: '💸', label: 'Notes de frais',     group: 'Personnel' },
   { key: 'admin',           href: 'admin.html',         icon: '⚙',  label: 'Administration',     group: 'Système' },
   { key: 'employee',        href: 'employee.html',      icon: '◉',  label: 'Mon espace',         group: 'Personnel' },
   { key: 'paies',           href: 'paies.html',         icon: '$',  label: 'Mes paies',          group: 'Personnel' },
@@ -380,7 +381,8 @@ function getPageTitle(key) {
     employee: 'Mon espace',
     paies: 'Mes paies',
     guide: 'Guide d\'utilisation',
-    banque: 'Banque LTD'
+    banque: 'Banque LTD',
+    notes_frais: 'Notes de frais'
   };
   return map[key] || 'LTD Sandy Shores';
 }

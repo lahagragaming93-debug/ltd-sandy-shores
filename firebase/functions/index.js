@@ -2507,6 +2507,469 @@ export const pompisteDeclarerCaoutchoucs = onRequest({
   }
 });
 
+// ============================================================
+// NOTES DE FRAIS (essence vehicule LTD avance par le pompiste)
+// ============================================================
+// Le pompiste avance l'essence des vehicules LTD avec son propre argent IG.
+// Il prend un screenshot de la confirmation IG, declare le montant + colle
+// le lien du screenshot. Le patron approuve/rejette/rembourse en fin de
+// semaine.
+// ============================================================
+
+// creerNoteFrais — pompiste/resp-pompiste declare une avance d'essence.
+export const creerNoteFrais = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+    const allowed = isDir || role === 'drh' || role === 'responsable-pompiste' || /^pompiste-/.test(role);
+    if (!allowed) return res.status(403).json({ error: 'Ce role ne peut pas declarer une note de frais.' });
+    if (!isDir && (caller.avertsActifs || 0) >= 3) {
+      return res.status(403).json({ error: 'Compte bloque (3 avertissements actifs). Contacte la direction.' });
+    }
+
+    const { montant, screenshotUrl, description } = req.body || {};
+    const m = Number(montant);
+    if (!Number.isFinite(m) || m <= 0) {
+      return res.status(400).json({ error: 'Montant doit etre un nombre > 0' });
+    }
+    if (m > 100000) {
+      return res.status(400).json({ error: 'Montant excessif (> 100 000 $) — verifie ta saisie.' });
+    }
+    const url = String(screenshotUrl || '').trim();
+    if (!url) return res.status(400).json({ error: 'Le lien du screenshot est obligatoire.' });
+    if (!/^https?:\/\//.test(url)) {
+      return res.status(400).json({ error: 'Le lien doit commencer par http:// ou https://' });
+    }
+    const desc = String(description || '').trim().slice(0, 500);
+
+    const employeNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+    const docRef = await db.collection('notesFrais').add({
+      employeId: decoded.uid,
+      employeNom,
+      employeRole: role,
+      montant: Math.round(m * 100) / 100,
+      screenshotUrl: url,
+      description: desc,
+      timestamp: FieldValue.serverTimestamp(),
+      statut: 'en-attente',
+      traiteePar: null,
+      traiteeParNom: null,
+      traiteeAt: null,
+      motifRejet: null,
+      dateRemboursement: null
+    });
+
+    return res.status(200).json({ ok: true, id: docRef.id });
+  } catch (err) {
+    console.error('[creerNoteFrais]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// traiterNoteFrais — direction approuve / rejette / marque remboursee.
+// Si 'rembourser' : cree aussi un doc /depenses pour l'audit comptable.
+export const traiterNoteFrais = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    const allowed = role === 'patron' || role === 'co-patron' || role === 'admin-technique' || role === 'drh';
+    if (!allowed) return res.status(403).json({ error: 'Direction / DRH uniquement.' });
+
+    const { noteId, action, motifRejet } = req.body || {};
+    if (!noteId) return res.status(400).json({ error: 'Missing noteId' });
+    if (!['approuver', 'rejeter', 'rembourser'].includes(action)) {
+      return res.status(400).json({ error: 'action doit etre "approuver", "rejeter" ou "rembourser".' });
+    }
+
+    const noteRef = db.collection('notesFrais').doc(noteId);
+    const noteSnap = await noteRef.get();
+    if (!noteSnap.exists) return res.status(404).json({ error: 'Note de frais introuvable.' });
+    const note = noteSnap.data();
+
+    const traiteeParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+    const patch = {
+      traiteePar: decoded.uid,
+      traiteeParNom,
+      traiteeAt: FieldValue.serverTimestamp()
+    };
+
+    if (action === 'approuver') {
+      if (note.statut !== 'en-attente') {
+        return res.status(400).json({ error: `Statut actuel "${note.statut}" — seules les notes en-attente peuvent etre approuvees.` });
+      }
+      patch.statut = 'approuvee';
+    } else if (action === 'rejeter') {
+      const motif = String(motifRejet || '').trim();
+      if (motif.length < 3) return res.status(400).json({ error: 'Motif de rejet obligatoire (≥ 3 caracteres).' });
+      patch.statut = 'rejetee';
+      patch.motifRejet = motif.slice(0, 500);
+    } else if (action === 'rembourser') {
+      if (!['en-attente', 'approuvee'].includes(note.statut)) {
+        return res.status(400).json({ error: `Statut actuel "${note.statut}" — deja remboursee/rejetee.` });
+      }
+      patch.statut = 'remboursee';
+      patch.dateRemboursement = FieldValue.serverTimestamp();
+
+      // Audit comptable : creer une entree dans /depenses (deductible IRS).
+      await db.collection('depenses').add({
+        type: 'note-frais-essence',
+        categorie: 'Carburant vehicule LTD',
+        montant: Number(note.montant || 0),
+        beneficiaire: note.employeNom || '',
+        beneficiaireId: note.employeId || '',
+        description: `Remboursement note de frais essence vehicule LTD${note.description ? ' — ' + note.description : ''}`,
+        screenshotUrl: note.screenshotUrl || '',
+        noteFraisId: noteId,
+        par: traiteeParNom,
+        parUid: decoded.uid,
+        deductible: true,
+        timestamp: FieldValue.serverTimestamp()
+      });
+    }
+
+    await noteRef.set(patch, { merge: true });
+    return res.status(200).json({ ok: true, statut: patch.statut });
+  } catch (err) {
+    console.error('[traiterNoteFrais]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// ============================================================
+// MODIFICATION / SUPPRESSION DECLARATIONS POMPISTE
+// ============================================================
+// Le responsable-pompiste (+ direction + DRH) peut corriger ou supprimer
+// une declaration de ravitaillement / caoutchoucs. La fonction recalcule
+// les impacts : stock station, quota pompiste de la semaine. Audit : la
+// declaration n'est jamais hard-deletee, juste marquee supprimee=true.
+// ============================================================
+
+function assertRespPompisteOrDir(role) {
+  const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+  return isDir || role === 'drh' || role === 'responsable-pompiste';
+}
+
+// modifierRavitaillement — change le nb de bidons d'une /redistributions
+// existante. Recalcule stockAvant/Apres + diff de quota.
+export const modifierRavitaillement = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if (!assertRespPompisteOrDir(caller.role)) {
+      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
+    }
+
+    const { redistributionId, nouveauxBidons } = req.body || {};
+    if (!redistributionId) return res.status(400).json({ error: 'Missing redistributionId' });
+    const nb = Number(nouveauxBidons);
+    if (!Number.isFinite(nb) || nb <= 0) {
+      return res.status(400).json({ error: 'nouveauxBidons doit etre un nombre > 0' });
+    }
+
+    const BIDON_L = 15;
+    const ref = db.collection('redistributions').doc(redistributionId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Redistribution introuvable.' });
+    const r = snap.data();
+    if (r.supprimee) return res.status(400).json({ error: 'Declaration deja supprimee.' });
+    if (r.source !== 'manuel-pompiste') {
+      return res.status(400).json({ error: 'Seules les declarations manuelles peuvent etre modifiees ici.' });
+    }
+
+    const bidonsAvant = Number(r.bidons || 0);
+    const litresAvant = Number(r.litres || 0);
+    const litresApres = nb * BIDON_L;
+    const diffLitres = litresApres - litresAvant;
+    const diffBidons = nb - bidonsAvant;
+
+    // 1. MAJ station : applique la difference
+    const stRef = db.collection('stations').doc(r.stationId);
+    const stSnap = await stRef.get();
+    if (stSnap.exists) {
+      const station = stSnap.data();
+      const stockActuel = Number(station.stockActuel || 0);
+      const stockMax = Number(station.stockMax || 0);
+      const nouveauStock = stockActuel + diffLitres;
+      if (stockMax > 0 && nouveauStock > stockMax) {
+        return res.status(400).json({ error: `Correction impossible : la station deborderait (${nouveauStock} L > capacite ${stockMax} L).` });
+      }
+      if (nouveauStock < 0) {
+        return res.status(400).json({ error: `Correction impossible : stockActuel deviendrait negatif (${nouveauStock} L).` });
+      }
+      await stRef.set({ stockActuel: nouveauStock }, { merge: true });
+    }
+
+    // 2. MAJ quota pompiste de la semaine de la declaration
+    const ts = r.timestamp?.toDate?.() || new Date();
+    const parisStr = ts.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
+    const wall = new Date(parisStr.replace(' ', 'T') + 'Z');
+    const day = wall.getUTCDay();
+    const dDiff = day === 0 ? -6 : 1 - day;
+    wall.setUTCDate(wall.getUTCDate() + dDiff);
+    wall.setUTCHours(0, 0, 0, 0);
+    const wId = wall.toISOString().slice(0, 10);
+    if (r.pompisteId) {
+      await db.collection('quotasPompiste').doc(`${wId}_${r.pompisteId}`).set({
+        semaine: wId, employeId: r.pompisteId,
+        bidons: FieldValue.increment(diffBidons)
+      }, { merge: true });
+    }
+
+    // 3. Audit : ajoute modifiePar + ancienne valeur
+    const modifParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+    await ref.set({
+      bidons: nb,
+      litres: litresApres,
+      modifiePar: decoded.uid,
+      modifieParNom: modifParNom,
+      modifieAt: FieldValue.serverTimestamp(),
+      bidonsAvantModif: bidonsAvant,
+      litresAvantModif: litresAvant
+    }, { merge: true });
+
+    return res.status(200).json({ ok: true, bidonsAvant, bidonsApres: nb, diffBidons, diffLitres });
+  } catch (err) {
+    console.error('[modifierRavitaillement]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// supprimerRavitaillement — soft delete. Reverse stock + quota.
+export const supprimerRavitaillement = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if (!assertRespPompisteOrDir(caller.role)) {
+      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
+    }
+
+    const { redistributionId, raison } = req.body || {};
+    if (!redistributionId) return res.status(400).json({ error: 'Missing redistributionId' });
+    const motif = String(raison || '').trim();
+    if (motif.length < 3) return res.status(400).json({ error: 'Raison obligatoire (≥ 3 caracteres).' });
+
+    const ref = db.collection('redistributions').doc(redistributionId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Redistribution introuvable.' });
+    const r = snap.data();
+    if (r.supprimee) return res.status(400).json({ error: 'Deja supprimee.' });
+    if (r.source !== 'manuel-pompiste') {
+      return res.status(400).json({ error: 'Seules les declarations manuelles peuvent etre supprimees ici.' });
+    }
+
+    const bidons = Number(r.bidons || 0);
+    const litres = Number(r.litres || 0);
+
+    // 1. Reverse stock station (retrancher les litres ajoutes)
+    const stRef = db.collection('stations').doc(r.stationId);
+    const stSnap = await stRef.get();
+    if (stSnap.exists) {
+      const station = stSnap.data();
+      const stockActuel = Number(station.stockActuel || 0);
+      const nouveauStock = Math.max(0, stockActuel - litres);
+      await stRef.set({ stockActuel: nouveauStock }, { merge: true });
+    }
+
+    // 2. Reverse quota pompiste de la semaine concernee
+    const ts = r.timestamp?.toDate?.() || new Date();
+    const parisStr = ts.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
+    const wall = new Date(parisStr.replace(' ', 'T') + 'Z');
+    const day = wall.getUTCDay();
+    const dDiff = day === 0 ? -6 : 1 - day;
+    wall.setUTCDate(wall.getUTCDate() + dDiff);
+    wall.setUTCHours(0, 0, 0, 0);
+    const wId = wall.toISOString().slice(0, 10);
+    if (r.pompisteId) {
+      await db.collection('quotasPompiste').doc(`${wId}_${r.pompisteId}`).set({
+        semaine: wId, employeId: r.pompisteId,
+        bidons: FieldValue.increment(-bidons)
+      }, { merge: true });
+    }
+
+    // 3. Soft delete + audit
+    const supprParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+    await ref.set({
+      supprimee: true,
+      supprimeePar: decoded.uid,
+      supprimeeParNom: supprParNom,
+      supprimeeAt: FieldValue.serverTimestamp(),
+      raisonSuppression: motif.slice(0, 500)
+    }, { merge: true });
+
+    return res.status(200).json({ ok: true, bidonsRetires: bidons, litresRetires: litres });
+  } catch (err) {
+    console.error('[supprimerRavitaillement]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// modifierDeclarationCaoutchoucs — change le nb de caoutchoucs d'un doc.
+export const modifierDeclarationCaoutchoucs = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if (!assertRespPompisteOrDir(caller.role)) {
+      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
+    }
+    const { declarationId, nouveauxCaoutchoucs } = req.body || {};
+    if (!declarationId) return res.status(400).json({ error: 'Missing declarationId' });
+    const nb = parseInt(nouveauxCaoutchoucs, 10);
+    if (!Number.isFinite(nb) || nb <= 0) {
+      return res.status(400).json({ error: 'nouveauxCaoutchoucs doit etre un entier > 0' });
+    }
+
+    const ref = db.collection('declarationsCaoutchouc').doc(declarationId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Declaration introuvable.' });
+    const d = snap.data();
+    if (d.supprimee) return res.status(400).json({ error: 'Deja supprimee.' });
+
+    const avant = Number(d.caoutchoucs || 0);
+    const diff = nb - avant;
+
+    // Quota pompiste de la semaine de la declaration
+    const ts = d.timestamp?.toDate?.() || new Date();
+    const parisStr = ts.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
+    const wall = new Date(parisStr.replace(' ', 'T') + 'Z');
+    const day = wall.getUTCDay();
+    const dDiff = day === 0 ? -6 : 1 - day;
+    wall.setUTCDate(wall.getUTCDate() + dDiff);
+    wall.setUTCHours(0, 0, 0, 0);
+    const wId = wall.toISOString().slice(0, 10);
+    if (d.pompisteId) {
+      await db.collection('quotasPompiste').doc(`${wId}_${d.pompisteId}`).set({
+        semaine: wId, employeId: d.pompisteId,
+        caoutchoucs: FieldValue.increment(diff)
+      }, { merge: true });
+    }
+
+    const modifParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+    await ref.set({
+      caoutchoucs: nb,
+      modifiePar: decoded.uid,
+      modifieParNom: modifParNom,
+      modifieAt: FieldValue.serverTimestamp(),
+      caoutchoucsAvantModif: avant
+    }, { merge: true });
+
+    return res.status(200).json({ ok: true, avant, apres: nb, diff });
+  } catch (err) {
+    console.error('[modifierDeclarationCaoutchoucs]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// supprimerDeclarationCaoutchoucs — soft delete + reverse quota.
+export const supprimerDeclarationCaoutchoucs = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    if (!assertRespPompisteOrDir(caller.role)) {
+      return res.status(403).json({ error: 'Direction / DRH / Responsable pompiste uniquement.' });
+    }
+    const { declarationId, raison } = req.body || {};
+    if (!declarationId) return res.status(400).json({ error: 'Missing declarationId' });
+    const motif = String(raison || '').trim();
+    if (motif.length < 3) return res.status(400).json({ error: 'Raison obligatoire (≥ 3 caracteres).' });
+
+    const ref = db.collection('declarationsCaoutchouc').doc(declarationId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Declaration introuvable.' });
+    const d = snap.data();
+    if (d.supprimee) return res.status(400).json({ error: 'Deja supprimee.' });
+
+    const nb = Number(d.caoutchoucs || 0);
+
+    const ts = d.timestamp?.toDate?.() || new Date();
+    const parisStr = ts.toLocaleString('sv-SE', { timeZone: 'Europe/Paris', hour12: false });
+    const wall = new Date(parisStr.replace(' ', 'T') + 'Z');
+    const day = wall.getUTCDay();
+    const dDiff = day === 0 ? -6 : 1 - day;
+    wall.setUTCDate(wall.getUTCDate() + dDiff);
+    wall.setUTCHours(0, 0, 0, 0);
+    const wId = wall.toISOString().slice(0, 10);
+    if (d.pompisteId) {
+      await db.collection('quotasPompiste').doc(`${wId}_${d.pompisteId}`).set({
+        semaine: wId, employeId: d.pompisteId,
+        caoutchoucs: FieldValue.increment(-nb)
+      }, { merge: true });
+    }
+
+    const supprParNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+    await ref.set({
+      supprimee: true,
+      supprimeePar: decoded.uid,
+      supprimeeParNom: supprParNom,
+      supprimeeAt: FieldValue.serverTimestamp(),
+      raisonSuppression: motif.slice(0, 500)
+    }, { merge: true });
+
+    return res.status(200).json({ ok: true, caoutchoucsRetires: nb });
+  } catch (err) {
+    console.error('[supprimerDeclarationCaoutchoucs]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
 // ----------------------------------------------------------------
 // declarerVente — Employe declare une vente manuelle sur le site.
 // ----------------------------------------------------------------

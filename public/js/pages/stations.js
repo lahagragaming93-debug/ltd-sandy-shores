@@ -68,9 +68,39 @@ const html = `
   </div>
 
   <div class="panel">
-    <div class="panel-title"><span>Redistributions de la semaine</span></div>
+    <div class="panel-title">
+      <span>Redistributions de la semaine</span>
+      ${(fullEdit || profile.role === 'responsable-pompiste') ? '<span class="muted" style="font-size:0.78rem;">Suivi déclarations — modifier / supprimer</span>' : ''}
+    </div>
     <div id="redistributions">Chargement…</div>
   </div>
+
+  ${(fullEdit || profile.role === 'responsable-pompiste') ? `
+  <div class="panel">
+    <div class="panel-title">
+      <span>Déclarations caoutchoucs de la semaine</span>
+      <span class="muted" style="font-size:0.78rem;">Suivi déclarations — modifier / supprimer</span>
+    </div>
+    <div id="declarations-caoutchoucs">Chargement…</div>
+  </div>
+  ` : ''}
+
+  <!-- Modal modification declaration (ravitaillement ou caoutchoucs) -->
+  ${(fullEdit || profile.role === 'responsable-pompiste') ? `
+  <div id="modal-edit-decl" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:480px;">
+      <h3 id="edit-decl-title">Modifier la déclaration</h3>
+      <p class="muted" id="edit-decl-info" style="font-size:0.85rem;">—</p>
+      <label id="edit-decl-label">Nouvelle valeur</label>
+      <input type="number" id="edit-decl-input" min="1" step="1" />
+      <div class="muted mt-1" id="edit-decl-preview" style="font-size:0.78rem;">—</div>
+      <div class="row mt-3">
+        <button class="btn btn-primary" id="btn-edit-decl-save">Enregistrer</button>
+        <button class="btn btn-ghost" id="btn-edit-decl-cancel">Annuler</button>
+      </div>
+    </div>
+  </div>
+  ` : ''}
 
   <!-- Modal station -->
   <div id="modal-station" class="modal-backdrop hidden">
@@ -520,11 +550,16 @@ document.getElementById('btn-save-config').addEventListener('click', async () =>
 });
 } // fin if (fullEdit) — bloc Modal config
 
-// === Redistributions de la semaine ===
+// === Redistributions de la semaine + Déclarations caoutchoucs ===
 const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
+const canModerer = fullEdit || profile.role === 'responsable-pompiste';
+
 async function chargerRedistributions() {
-  const list = await listRedistributionsSemaine(debut, fin).catch(() => []);
+  const listRaw = await listRedistributionsSemaine(debut, fin).catch(() => []);
+  // Cache les redistributions supprimees pour les non-direction. Direction
+  // les voit grisees (audit). On filtre ici pour eviter de polluer la table.
+  const list = canModerer ? listRaw : listRaw.filter(r => !r.supprimee);
   const div = document.getElementById('redistributions');
   if (list.length === 0) {
     div.innerHTML = `<p class="muted">Aucune redistribution cette semaine (logs Discord à venir).</p>`;
@@ -542,10 +577,13 @@ async function chargerRedistributions() {
         <th class="right" data-sort="montant">Montant</th>
         <th class="right" data-sort="stockAvant">Stock avant</th>
         <th class="right" data-sort="stockApres">Stock après</th>
+        ${canModerer ? '<th class="center">Actions</th>' : ''}
       </tr></thead>
       <tbody>
         ${list.map(r => {
           const manuel = r.source === 'manuel-pompiste';
+          const supprimee = r.supprimee === true;
+          const modifie = r.modifiePar != null;
           const sourceLabel = manuel
             ? `<span class="badge" style="background:rgba(255,180,0,0.15);color:var(--color-gold);">manuel</span>`
             : `<span class="muted" style="font-size:0.8rem;">FiveM</span>`;
@@ -555,9 +593,21 @@ async function chargerRedistributions() {
           const litresStr = manuel && r.bidons
             ? `${num(r.litres)} <span class="muted" style="font-size:0.75rem;">(${r.bidons} bidon${r.bidons > 1 ? 's' : ''})</span>`
             : num(r.litres);
+          const flag = supprimee
+            ? '<span class="badge danger" style="font-size:0.7rem;">supprimée</span>'
+            : (modifie ? '<span class="badge warn" style="font-size:0.7rem;" title="Modifiée">✏</span>' : '');
+          let actions = '';
+          if (canModerer && manuel && !supprimee) {
+            actions = `<div style="display:flex;gap:4px;justify-content:center;">
+              <button class="btn btn-sm" data-edit-ravit="${r.id}" title="Modifier le nb de bidons">✏</button>
+              <button class="btn btn-sm btn-danger" data-del-ravit="${r.id}" title="Supprimer (reverse stock + quota)">🗑</button>
+            </div>`;
+          } else if (canModerer && supprimee) {
+            actions = `<span class="muted" style="font-size:0.72rem;" title="Supprimée par ${escapeHtml(r.supprimeeParNom || '?')} — ${escapeHtml(r.raisonSuppression || '')}">supprimée</span>`;
+          }
           return `
-            <tr>
-              <td>${datetime(r.timestamp)}</td>
+            <tr style="${supprimee ? 'opacity:0.4;text-decoration:line-through;' : ''}">
+              <td>${datetime(r.timestamp)} ${flag}</td>
               <td>${sourceLabel}</td>
               <td>${escapeHtml(r.station || r.stationId || '—')}</td>
               <td>${pompiste}</td>
@@ -566,6 +616,7 @@ async function chargerRedistributions() {
               <td class="right mono">${money(r.montant)}</td>
               <td class="right mono muted">${r.stockAvant != null ? num(r.stockAvant) + ' L' : '—'}</td>
               <td class="right mono">${r.stockApres != null ? num(r.stockApres) + ' L' : '—'}</td>
+              ${canModerer ? `<td class="center">${actions}</td>` : ''}
             </tr>
           `;
         }).join('')}
@@ -575,5 +626,230 @@ async function chargerRedistributions() {
   const tRedis = document.getElementById('table-redistributions');
   wrapScroll(tRedis, 400);
   makeSortable(tRedis);
+
+  if (canModerer) {
+    div.querySelectorAll('[data-edit-ravit]').forEach(b => {
+      b.addEventListener('click', () => ouvrirEditRavit(b.dataset.editRavit, list));
+    });
+    div.querySelectorAll('[data-del-ravit]').forEach(b => {
+      b.addEventListener('click', () => onDeleteRavit(b.dataset.delRavit, list));
+    });
+  }
 }
 chargerRedistributions();
+
+// === Declarations caoutchoucs de la semaine (resp-pompiste + direction) ===
+async function chargerCaoutchoucs() {
+  if (!canModerer) return;
+  const div = document.getElementById('declarations-caoutchoucs');
+  if (!div) return;
+  const { collection, query, where, orderBy, getDocs, Timestamp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const q = query(collection(db, 'declarationsCaoutchouc'),
+    where('timestamp', '>=', Timestamp.fromDate(debut)),
+    where('timestamp', '<=', Timestamp.fromDate(fin)),
+    orderBy('timestamp', 'desc'));
+  let listRaw;
+  try { const snap = await getDocs(q); listRaw = snap.docs.map(d => ({ id: d.id, ...d.data() })); }
+  catch (e) { console.error('[caoutchoucs] load failed', e); listRaw = []; }
+  if (listRaw.length === 0) {
+    div.innerHTML = `<p class="muted">Aucune déclaration caoutchoucs cette semaine.</p>`;
+    return;
+  }
+  div.innerHTML = `
+    <table class="data" id="table-caoutchoucs">
+      <thead><tr>
+        <th data-sort="date">Date</th>
+        <th data-sort="pompiste">Pompiste</th>
+        <th class="right" data-sort="caoutchoucs">Caoutchoucs</th>
+        <th class="center">Actions</th>
+      </tr></thead>
+      <tbody>
+        ${listRaw.map(d => {
+          const supprimee = d.supprimee === true;
+          const modifie = d.modifiePar != null;
+          const flag = supprimee
+            ? '<span class="badge danger" style="font-size:0.7rem;">supprimée</span>'
+            : (modifie ? '<span class="badge warn" style="font-size:0.7rem;" title="Modifiée">✏</span>' : '');
+          let actions = '';
+          if (!supprimee) {
+            actions = `<div style="display:flex;gap:4px;justify-content:center;">
+              <button class="btn btn-sm" data-edit-caou="${d.id}" title="Modifier">✏</button>
+              <button class="btn btn-sm btn-danger" data-del-caou="${d.id}" title="Supprimer">🗑</button>
+            </div>`;
+          } else {
+            actions = `<span class="muted" style="font-size:0.72rem;" title="Supprimée par ${escapeHtml(d.supprimeeParNom || '?')} — ${escapeHtml(d.raisonSuppression || '')}">supprimée</span>`;
+          }
+          return `
+            <tr style="${supprimee ? 'opacity:0.4;text-decoration:line-through;' : ''}">
+              <td>${datetime(d.timestamp)} ${flag}</td>
+              <td>${escapeHtml(d.pompisteNom || '?')}</td>
+              <td class="right mono">${num(d.caoutchoucs || 0)}</td>
+              <td class="center">${actions}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+  const t = document.getElementById('table-caoutchoucs');
+  wrapScroll(t, 400);
+  makeSortable(t);
+
+  div.querySelectorAll('[data-edit-caou]').forEach(b => {
+    b.addEventListener('click', () => ouvrirEditCaou(b.dataset.editCaou, listRaw));
+  });
+  div.querySelectorAll('[data-del-caou]').forEach(b => {
+    b.addEventListener('click', () => onDeleteCaou(b.dataset.delCaou, listRaw));
+  });
+}
+chargerCaoutchoucs();
+
+// === Modal edition (ravitaillement ou caoutchoucs) ===
+let editCtx = null; // { type:'ravit'|'caou', id, original }
+function ouvrirEditRavit(id, list) {
+  const r = list.find(x => x.id === id);
+  if (!r) return;
+  editCtx = { type: 'ravit', id, original: r };
+  document.getElementById('edit-decl-title').textContent = `✏ Modifier ravitaillement`;
+  document.getElementById('edit-decl-info').innerHTML =
+    `<strong>${escapeHtml(r.pompisteNom || '?')}</strong> · ${escapeHtml(r.station || r.stationId)}<br>Valeur actuelle : <strong>${r.bidons || '?'} bidon(s)</strong> = ${num(r.litres || 0)} L`;
+  document.getElementById('edit-decl-label').textContent = 'Nouvelle valeur en bidons (1 bidon = 15 L)';
+  const input = document.getElementById('edit-decl-input');
+  input.value = r.bidons || '';
+  input.min = '1'; input.step = '1';
+  refreshEditPreview();
+  document.getElementById('modal-edit-decl').classList.remove('hidden');
+}
+function ouvrirEditCaou(id, list) {
+  const d = list.find(x => x.id === id);
+  if (!d) return;
+  editCtx = { type: 'caou', id, original: d };
+  document.getElementById('edit-decl-title').textContent = `✏ Modifier déclaration caoutchoucs`;
+  document.getElementById('edit-decl-info').innerHTML =
+    `<strong>${escapeHtml(d.pompisteNom || '?')}</strong><br>Valeur actuelle : <strong>${d.caoutchoucs || 0} caoutchoucs</strong>`;
+  document.getElementById('edit-decl-label').textContent = 'Nouvelle valeur en caoutchoucs';
+  const input = document.getElementById('edit-decl-input');
+  input.value = d.caoutchoucs || '';
+  input.min = '1'; input.step = '1';
+  refreshEditPreview();
+  document.getElementById('modal-edit-decl').classList.remove('hidden');
+}
+function refreshEditPreview() {
+  if (!editCtx) return;
+  const n = parseInt(document.getElementById('edit-decl-input').value, 10);
+  const p = document.getElementById('edit-decl-preview');
+  if (!Number.isFinite(n) || n <= 0) { p.textContent = '—'; return; }
+  if (editCtx.type === 'ravit') {
+    const original = editCtx.original;
+    const diffBidons = n - (original.bidons || 0);
+    const diffLitres = diffBidons * 15;
+    p.innerHTML = `${n} bidon(s) = ${num(n * 15)} L · diff : ${diffBidons >= 0 ? '+' : ''}${diffBidons} bidons (${diffLitres >= 0 ? '+' : ''}${num(diffLitres)} L sur le stock station)`;
+  } else {
+    const diff = n - (editCtx.original.caoutchoucs || 0);
+    p.innerHTML = `${n} caoutchoucs · diff : ${diff >= 0 ? '+' : ''}${diff} sur le quota pompiste`;
+  }
+}
+if (canModerer) {
+  const editInput = document.getElementById('edit-decl-input');
+  if (editInput) editInput.addEventListener('input', refreshEditPreview);
+  const cancelBtn = document.getElementById('btn-edit-decl-cancel');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => {
+    document.getElementById('modal-edit-decl').classList.add('hidden');
+    editCtx = null;
+  });
+  const saveBtn = document.getElementById('btn-edit-decl-save');
+  if (saveBtn) saveBtn.addEventListener('click', async () => {
+    if (!editCtx) return;
+    const n = parseInt(document.getElementById('edit-decl-input').value, 10);
+    if (!Number.isFinite(n) || n <= 0) return toastError('Valeur invalide.');
+    saveBtn.disabled = true; saveBtn.textContent = 'Envoi…';
+    try {
+      const { auth } = await import('../firebase-config.js');
+      const idToken = await auth.currentUser.getIdToken();
+      const url = editCtx.type === 'ravit'
+        ? 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/modifierRavitaillement'
+        : 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/modifierDeclarationCaoutchoucs';
+      const body = editCtx.type === 'ravit'
+        ? { redistributionId: editCtx.id, nouveauxBidons: n }
+        : { declarationId: editCtx.id, nouveauxCaoutchoucs: n };
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        body: JSON.stringify(body)
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+      toastSuccess(`Déclaration modifiée (stock et quota mis à jour automatiquement).`);
+      document.getElementById('modal-edit-decl').classList.add('hidden');
+      editCtx = null;
+      chargerRedistributions();
+      chargerCaoutchoucs();
+    } catch (e) {
+      toastError('Échec : ' + (e?.message || 'erreur inattendue.'));
+    } finally {
+      saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer';
+    }
+  });
+}
+
+async function onDeleteRavit(id, list) {
+  const r = list.find(x => x.id === id);
+  if (!r) return;
+  const ok = await confirmCritique({
+    titre: 'Supprimer ce ravitaillement',
+    message: `<strong>${escapeHtml(r.pompisteNom || '?')}</strong> · ${escapeHtml(r.station || r.stationId)}<br>
+      ${r.bidons || '?'} bidon(s) = ${num(r.litres || 0)} L<br><br>
+      La suppression va <strong>retirer ${num(r.litres || 0)} L du stock de la station</strong> et <strong>retirer ${r.bidons || 0} bidons du quota du pompiste</strong>. Une raison obligatoire sera demandée.`,
+    btnConfirm: 'Continuer',
+    delaiSec: 2
+  });
+  if (!ok) return;
+  const raison = prompt('Raison de la suppression (min 3 caractères) :');
+  if (!raison || raison.trim().length < 3) return toastError('Raison obligatoire.');
+  try {
+    const { auth } = await import('../firebase-config.js');
+    const idToken = await auth.currentUser.getIdToken();
+    const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/supprimerRavitaillement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+      body: JSON.stringify({ redistributionId: id, raison: raison.trim() })
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    toastSuccess(`Ravitaillement supprimé (stock et quota corrigés).`);
+    chargerRedistributions();
+  } catch (e) {
+    toastError('Échec : ' + (e?.message || 'erreur inattendue.'));
+  }
+}
+
+async function onDeleteCaou(id, list) {
+  const d = list.find(x => x.id === id);
+  if (!d) return;
+  const ok = await confirmCritique({
+    titre: 'Supprimer cette déclaration caoutchoucs',
+    message: `<strong>${escapeHtml(d.pompisteNom || '?')}</strong><br>
+      ${d.caoutchoucs || 0} caoutchoucs<br><br>
+      La suppression va <strong>retirer ${d.caoutchoucs || 0} caoutchoucs du quota du pompiste</strong>. Raison obligatoire.`,
+    btnConfirm: 'Continuer',
+    delaiSec: 2
+  });
+  if (!ok) return;
+  const raison = prompt('Raison de la suppression (min 3 caractères) :');
+  if (!raison || raison.trim().length < 3) return toastError('Raison obligatoire.');
+  try {
+    const { auth } = await import('../firebase-config.js');
+    const idToken = await auth.currentUser.getIdToken();
+    const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/supprimerDeclarationCaoutchoucs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+      body: JSON.stringify({ declarationId: id, raison: raison.trim() })
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    toastSuccess(`Déclaration caoutchoucs supprimée (quota corrigé).`);
+    chargerCaoutchoucs();
+  } catch (e) {
+    toastError('Échec : ' + (e?.message || 'erreur inattendue.'));
+  }
+}

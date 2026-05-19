@@ -154,12 +154,36 @@ service cloud.firestore {
     match /redistributions/{id} {
       allow read:   if isAuth() && isActif();
       allow create: if canAdmin() || isDRH() || (isRespPompiste() && isNotBlocked());
-      allow update, delete: if canAdmin() || isDRH();
+      // Update/delete : direction + DRH + resp-pompiste (suivi declarations
+      // permet corrections/suppressions, audit via Cloud Function).
+      allow update, delete: if canAdmin() || isDRH() || (isRespPompiste() && isNotBlocked());
     }
     match /declarationsCaoutchouc/{id} {
       allow read:   if isAuth() && isActif();
       allow create: if canAdmin() || isDRH() || (isRespPompiste() && isNotBlocked());
-      allow update, delete: if canAdmin() || isDRH();
+      allow update, delete: if canAdmin() || isDRH() || (isRespPompiste() && isNotBlocked());
+    }
+
+    // === Notes de frais (essence vehicule LTD avances par les pompistes) ===
+    // Le pompiste avance les frais d'essence de sa propre poche, joint le
+    // screenshot IG et declare le montant. La direction approuve/rembourse.
+    //
+    // Lecture :
+    //   - l'employe sur SES notes (filtre client par employeId)
+    //   - direction + DRH + responsable-pompiste (validation et suivi)
+    // Creation : pompiste sur son propre uid uniquement (et resp + direction).
+    // Update : direction + DRH (passage en approuvee/remboursee/rejetee).
+    // Delete : direction uniquement (cas exceptionnel, audit).
+    match /notesFrais/{id} {
+      allow read:   if isAuth() && isActif() && (
+        canAdmin() || isDRH() || isRespPompiste() ||
+        (resource != null && resource.data.employeId == request.auth.uid)
+      );
+      allow create: if isAuth() && isActif() && isNotBlocked() &&
+        request.resource.data.employeId == request.auth.uid &&
+        (role().matches('pompiste-.*') || isRespPompiste() || canAdmin() || isDRH());
+      allow update: if canAdmin() || isDRH();
+      allow delete: if canAdmin();
     }
 
     // === Avertissements (3 actifs = compte bloque) ===

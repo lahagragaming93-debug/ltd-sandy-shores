@@ -7,7 +7,7 @@ import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
   getServiceOuvert, getQuotaPompiste, getConfig, listenConfig, listenAvertissements, getUserDoc, listenStations,
-  listRedistributionsSemaine, listAllRedistributionsPompiste
+  listRedistributionsSemaine, listAllRedistributionsPompiste, listenMesNotesFrais
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
@@ -109,7 +109,8 @@ const html = `
              ${quotaCaoutchoucsActif
               ? '<a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">🪖 Déclarer des caoutchoucs</a>'
               : '<button class="btn" disabled style="font-size:1.05rem;opacity:0.5;cursor:not-allowed;" title="Caoutchoucs non requis cette semaine (quota = 0)">🪖 Caoutchoucs — non requis cette semaine</button>'}
-             <button class="btn" id="btn-corriger-stock" style="font-size:0.9rem;" title="Corriger le stock d'une station si écart entre site et IG">📐 Corriger un stock</button>`
+             <button class="btn" id="btn-corriger-stock" style="font-size:0.9rem;" title="Corriger le stock d'une station si écart entre site et IG">📐 Corriger un stock</button>
+             <button class="btn" id="btn-note-frais" style="font-size:0.9rem;background:rgba(70,180,90,0.18);border:1px solid #5a8;" title="Déclarer une avance d'essence pour véhicule LTD">💸 Note de frais essence</button>`
           : ''}
       </div>
 
@@ -170,6 +171,36 @@ const html = `
             </div>
           </div>
         </div>
+
+        <!-- Modal note de frais (avance essence vehicule LTD) -->
+        <div id="modal-note-frais" class="modal-backdrop hidden">
+          <div class="modal" style="max-width:540px;">
+            <h3>💸 Déclarer une note de frais essence</h3>
+            <div class="alert info mb-2" style="font-size:0.82rem;">
+              <span class="icon">ℹ</span>
+              <span>Tu as avancé de ta poche l'essence d'un véhicule LTD ?
+              <strong>Procédure</strong> :<br>
+              1. Mets l'essence dans le véhicule en jeu<br>
+              2. Prends un screenshot de la confirmation IG (touche F8 ou autre)<br>
+              3. Upload-le sur Discord (un channel privé / un MP staff / Imgur) et copie le lien direct<br>
+              4. Remplis les champs ci-dessous → le patron valide et te rembourse en fin de semaine.</span>
+            </div>
+            <label>Montant avancé ($) <span style="color:var(--color-blood-light);">*</span></label>
+            <input type="number" id="nf-montant" min="1" step="1" placeholder="Ex : 1200" />
+
+            <label>Lien du screenshot <span style="color:var(--color-blood-light);">*</span></label>
+            <input type="url" id="nf-url" placeholder="https://media.discordapp.net/... ou https://i.imgur.com/..." />
+            <div class="muted" style="font-size:0.72rem;margin:2px 0 8px;">Le lien doit pointer directement vers l'image (clic droit → Copier le lien sur Discord).</div>
+
+            <label>Description / contexte <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
+            <textarea id="nf-desc" rows="2" maxlength="500" placeholder="Ex : essence Bison patron + Sandking"></textarea>
+
+            <div class="row mt-3">
+              <button class="btn btn-primary" id="btn-save-note-frais">Envoyer la note</button>
+              <button class="btn btn-ghost" id="btn-cancel-note-frais">Annuler</button>
+            </div>
+          </div>
+        </div>
       ` : ''}
     ` : ''}
   </div>
@@ -199,6 +230,13 @@ const html = `
     <div class="panel-title"><span>${isPompiste(profile.role) ? 'Ravitaillements' : 'Heures de service'}</span></div>
     <div id="services">—</div>
   </div>
+
+  ${isPompiste(profile.role) ? `
+    <div class="panel">
+      <div class="panel-title"><span>💸 Mes notes de frais essence</span></div>
+      <div id="notes-frais-perso">Chargement…</div>
+    </div>
+  ` : ''}
 
   <p class="muted text-center mt-3" style="font-size:0.78rem;">
     Données mises à jour en continu via les logs Discord.<br>
@@ -872,6 +910,53 @@ if (isPompiste(profile.role) && !modeVoirComme) {
       }
     });
   }
+
+  // === Modal Note de frais essence (pompiste avance des frais perso) ===
+  const btnNoteFrais = document.getElementById('btn-note-frais');
+  const modalNF = document.getElementById('modal-note-frais');
+  if (btnNoteFrais && modalNF) {
+    btnNoteFrais.addEventListener('click', () => {
+      if ((profile.avertsActifs || 0) >= 3 && !['patron', 'co-patron', 'admin-technique'].includes(profile.role)) {
+        alert('Compte bloqué (3 avertissements actifs). Contacte la direction pour déclarer une note de frais.');
+        return;
+      }
+      document.getElementById('nf-montant').value = '';
+      document.getElementById('nf-url').value = '';
+      document.getElementById('nf-desc').value = '';
+      modalNF.classList.remove('hidden');
+      setTimeout(() => document.getElementById('nf-montant').focus(), 50);
+    });
+    document.getElementById('btn-cancel-note-frais').addEventListener('click', () => {
+      modalNF.classList.add('hidden');
+    });
+    document.getElementById('btn-save-note-frais').addEventListener('click', async () => {
+      const montant = Number(document.getElementById('nf-montant').value);
+      const screenshotUrl = document.getElementById('nf-url').value.trim();
+      const description = document.getElementById('nf-desc').value.trim();
+      if (!Number.isFinite(montant) || montant <= 0) return alert('Montant invalide.');
+      if (!screenshotUrl) return alert('Le lien du screenshot est obligatoire.');
+      if (!/^https?:\/\//.test(screenshotUrl)) return alert('Le lien doit commencer par http:// ou https://');
+      const btn = document.getElementById('btn-save-note-frais');
+      btn.disabled = true; btn.textContent = 'Envoi…';
+      try {
+        const { auth } = await import('../firebase-config.js');
+        const idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/creerNoteFrais', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ montant, screenshotUrl, description })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+        modalNF.classList.add('hidden');
+        // Le listener listenMesNotesFrais en bas de page va auto-rerender.
+      } catch (e) {
+        alert('Échec : ' + (e?.message || 'erreur inattendue.'));
+      } finally {
+        btn.disabled = false; btn.textContent = 'Envoyer la note';
+      }
+    });
+  }
 }
 
 // === Bouton "Declarer une vente" ===
@@ -1036,4 +1121,63 @@ if (isPompiste(profile.role)) {
     `;
     makeSortable(document.getElementById('table-mes-services'));
   }
+}
+
+// ============================================================
+// Bloc Mes notes de frais (pompiste uniquement, mode live)
+// ============================================================
+if (isPompiste(profile.role) && !modeVoirComme) {
+  const STATUT = {
+    'en-attente': { label: '⏳ En attente', cls: 'warn' },
+    'approuvee':  { label: '✓ Approuvée',   cls: 'neutral' },
+    'remboursee': { label: '💰 Remboursée', cls: 'ok' },
+    'rejetee':    { label: '✕ Rejetée',     cls: 'danger' }
+  };
+  listenMesNotesFrais(viewedUserId, (mesNotes) => {
+    const div = document.getElementById('notes-frais-perso');
+    if (!div) return;
+    if (mesNotes.length === 0) {
+      div.innerHTML = `<p class="muted">Aucune note de frais déclarée. Clique sur "💸 Note de frais essence" en haut de la page pour en créer une.</p>`;
+      return;
+    }
+    const totalAttente   = mesNotes.filter(n => n.statut === 'en-attente').reduce((s, n) => s + (Number(n.montant) || 0), 0);
+    const totalRemb      = mesNotes.filter(n => n.statut === 'remboursee').reduce((s, n) => s + (Number(n.montant) || 0), 0);
+    div.innerHTML = `
+      <div class="kpi-grid mb-2">
+        <div class="kpi"><div class="label">⏳ En attente</div><div class="value">${money(totalAttente)}</div><div class="delta">${mesNotes.filter(n => n.statut === 'en-attente').length} note(s)</div></div>
+        <div class="kpi"><div class="label">💰 Déjà remboursé</div><div class="value">${money(totalRemb)}</div><div class="delta">${mesNotes.filter(n => n.statut === 'remboursee').length} note(s)</div></div>
+      </div>
+      <div class="table-scroll" style="max-height:300px;">
+        <table class="data">
+          <thead><tr>
+            <th>Date</th>
+            <th class="right">Montant</th>
+            <th>Description</th>
+            <th>Screenshot</th>
+            <th>Statut</th>
+            <th>Traitée le</th>
+          </tr></thead>
+          <tbody>
+            ${mesNotes.map(n => {
+              const st = STATUT[n.statut] || { label: n.statut, cls: 'neutral' };
+              const dateTraitee = n.dateRemboursement || n.traiteeAt;
+              const motifLine = n.motifRejet
+                ? `<div class="muted" style="font-size:0.72rem;color:var(--color-blood-light, #d88);">Motif : ${escapeHtml(n.motifRejet)}</div>`
+                : '';
+              return `
+                <tr>
+                  <td class="mono" style="font-size:0.78rem;">${datetime(n.timestamp)}</td>
+                  <td class="right mono"><strong>${money(n.montant || 0)}</strong></td>
+                  <td style="max-width:240px;">${escapeHtml(n.description || '—')}${motifLine}</td>
+                  <td><a href="${escapeHtml(n.screenshotUrl || '#')}" target="_blank" rel="noopener" class="btn btn-sm">📸 Voir</a></td>
+                  <td><span class="badge ${st.cls}">${st.label}</span></td>
+                  <td class="muted" style="font-size:0.78rem;">${dateTraitee ? datetime(dateTraitee) : '—'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
 }

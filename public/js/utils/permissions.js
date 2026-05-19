@@ -57,6 +57,8 @@ export const ACCESS = {
   revenus_carburant: [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
   // Admin : direction + DRH + responsables + super-admins
   admin:             [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
+  // Notes de frais (validation + remboursement) : direction + DRH + resp-pompiste
+  notes_frais:       [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
                       'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   paies:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
