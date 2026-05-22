@@ -30,4 +30,3 @@ export function toast(msg, type = 'info', durationMs = 3500) {
 
 export const toastSuccess = (m) => toast(m, 'success');
 export const toastError   = (m) => toast(m, 'error', 5000);
-export const toastWarn    = (m) => toast(m, 'warn');

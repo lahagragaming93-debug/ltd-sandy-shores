@@ -3,8 +3,8 @@
 // ============================================================
 // Usage typique sur une page avec KPI :
 //
-//   import { renderPeriodFilter, getPeriode, attachPeriodFilter,
-//            injectSemainesHistoriques } from '../utils/period-filter.js';
+//   import { renderPeriodFilter, getPeriode, attachPeriodFilter }
+//     from '../utils/period-filter.js';
 //
 //   // 1. Insérer le sélecteur dans le HTML de la page
 //   <div class="page-toolbar">${renderPeriodFilter('semaine')}</div>
@@ -12,10 +12,7 @@
 //   // 2. Brancher : recharger quand la période change
 //   attachPeriodFilter(() => chargerTout());
 //
-//   // 3. (Optionnel) Injecter les semaines historiques dans le dropdown
-//   await injectSemainesHistoriques({ limit: 12 });
-//
-//   // 4. Récupérer les bornes pour les requêtes Firestore
+//   // 3. Récupérer les bornes pour les requêtes Firestore
 //   const { debut, fin, label } = getPeriode();
 //   //   - debut/fin : Date | null (null => pas de borne = depuis ouverture)
 //   //   - label : string lisible pour affichage UI (format long si week:XXX)
@@ -112,46 +109,6 @@ export function getPeriodeLabel() {
   if (sel?.value?.startsWith('week:')) return label;
   const fmt = (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   return `${label} (${fmt(debut)} → ${fmt(fin)})`;
-}
-
-// Injecte les semaines historiques (depuis /semaines clôturées) dans le
-// dropdown sous forme d'optgroup. À appeler après renderPeriodFilter.
-//   await injectSemainesHistoriques({ limit: 12 });
-// L'utilisateur choisit alors directement "Semaine 20 du lundi 11/05 au
-// dimanche 17/05/2026" sans passer par "Personnalisé".
-export async function injectSemainesHistoriques({ limit = 12 } = {}) {
-  const sel = document.getElementById('filtre-periode');
-  if (!sel) return;
-  // Évite double injection (HMR ou re-render)
-  if (sel.querySelector('optgroup[data-source="semaines-historiques"]')) return;
-  let semaines = [];
-  try {
-    // Import dynamique : period-filter peut être utilisé sur des pages où
-    // l'API n'est pas systématiquement chargée. Lazy-load + tolère l'absence.
-    const api = await import('../api.js');
-    if (typeof api.listSemaines === 'function') {
-      semaines = await api.listSemaines(limit);
-    }
-  } catch (e) {
-    console.warn('[period-filter] impossible de charger les semaines historiques :', e);
-    return;
-  }
-  if (!semaines.length) return;
-  const optgroup = document.createElement('optgroup');
-  optgroup.label = '📅 Semaines clôturées';
-  optgroup.dataset.source = 'semaines-historiques';
-  for (const s of semaines) {
-    const weekKey = s.numero || s.id;
-    if (!weekKey) continue;
-    const opt = document.createElement('option');
-    opt.value = `week:${weekKey}`;
-    opt.textContent = weekIsoLabel(weekKey, { long: true });
-    optgroup.appendChild(opt);
-  }
-  // Insère AVANT "Personnalisé" pour ranger les options logiquement
-  const customOpt = sel.querySelector('option[value="custom"]');
-  if (customOpt) sel.insertBefore(optgroup, customOpt);
-  else sel.appendChild(optgroup);
 }
 
 // Branche le changement de filtre. Appelle onChange() à chaque modification

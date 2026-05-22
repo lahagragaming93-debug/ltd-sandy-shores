@@ -15,10 +15,6 @@ const NF_DECIMAL = new Intl.NumberFormat('fr-FR', {
 export function money(n)   { return (NF_MONEY.format(n ?? 0)) + ' $'; }
 // Variante avec 2 decimales — pour prix au litre, prix unitaire, etc.
 export function moneyPrecis(n) { return (NF_MONEY_PRECIS.format(n ?? 0)) + ' $'; }
-export function moneySigned(n) {
-  const v = n ?? 0;
-  return (v >= 0 ? '+' : '') + NF_MONEY.format(v) + ' $';
-}
 export function num(n)     { return NF_DECIMAL.format(n ?? 0); }
 export function pct(n, decimals = 0) {
   return (n ?? 0).toFixed(decimals) + ' %';
