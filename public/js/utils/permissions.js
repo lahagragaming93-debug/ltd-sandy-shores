@@ -44,7 +44,7 @@ const POMPISTES = ['pompiste-novice', 'pompiste-intermediaire', 'pompiste-experi
 
 export const ACCESS = {
   dashboard:         [...DIRECTION, 'drh', ...SUPER_ADMINS],
-  stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente', ...SUPER_ADMINS],
+  stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   stocks_essence:    [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
   ventes:            [...DIRECTION, 'drh', 'responsable-vente', ...SUPER_ADMINS],
   comptabilite:      LECTURE_COMPTA,
@@ -130,10 +130,10 @@ export function canEditConfig(role) {
   return isDirection(role) || isSuperAdmin(role);
 }
 
-// Création d'un nouveau produit dans le catalogue : direction + DRH + super-admin
-// (la modification des prix/seuils existants reste accessible au Resp Vente)
+// Création d'un nouveau produit dans le catalogue : direction + DRH + Resp Pompiste + super-admin
+// 2026-05-22 : Resp Pompiste ajoute (demande patron — gestion complete des stocks epicerie).
 export function canCreateProduit(role) {
-  return isDirection(role) || role === 'drh' || isSuperAdmin(role);
+  return isDirection(role) || role === 'drh' || role === 'responsable-pompiste' || isSuperAdmin(role);
 }
 
 export function defaultLandingPage(role) {

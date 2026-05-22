@@ -84,17 +84,18 @@ service cloud.firestore {
     }
 
     // === Produits ===
+    // 2026-05-22 : Resp Pompiste ajoute (gestion complete des stocks epicerie, demande patron).
     match /produits/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || isDRH();
-      allow update: if canAdmin() || isDRH() || isRespVente();
-      allow delete: if canAdmin() || isDRH();
+      allow create: if canAdmin() || isDRH() || isRespPompiste();
+      allow update: if canAdmin() || isDRH() || isRespVente() || isRespPompiste();
+      allow delete: if canAdmin() || isDRH() || isRespPompiste();
     }
 
     // === Historique des prix (audit trail, append-only) ===
     match /historiquePrix/{id} {
-      allow read:   if canAdmin() || isDRH();
-      allow create: if canAdmin() || isDRH() || isRespVente();
+      allow read:   if canAdmin() || isDRH() || isRespPompiste();
+      allow create: if canAdmin() || isDRH() || isRespVente() || isRespPompiste();
       allow update, delete: if false;
     }
 
@@ -103,13 +104,13 @@ service cloud.firestore {
     // (cf. UI Stocks → "+ Ajouter un produit" + champ "Stock initial")
     match /stocks/{id} {
       allow read:  if isAuth() && isActif();
-      allow write: if canAdmin() || isRespVente() || isDRH();
+      allow write: if canAdmin() || isRespVente() || isDRH() || isRespPompiste();
     }
 
     // === Mouvements de stock (append-only depuis l'app) ===
     match /mouvementsStock/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || isRespVente() || isDRH();
+      allow create: if canAdmin() || isRespVente() || isDRH() || isRespPompiste();
       allow update, delete: if canAdmin();
     }
 
