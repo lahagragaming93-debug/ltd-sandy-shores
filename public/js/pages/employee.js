@@ -738,6 +738,8 @@ async function renderClassementPompiste() {
     return m;
   };
 
+  // Filtre uniformément : on n'affiche que ceux qui ont ravitaillé sur la
+  // periode. Un pompiste a 0 litres n'a pas sa place dans un classement.
   const classer = (agg) => pompistes
     .map(p => ({
       uid:    p.id,
@@ -746,7 +748,7 @@ async function renderClassementPompiste() {
       statut: p.statut || 'actif',
       ...(agg.get(p.id) || { litres: 0, bidons: 0 })
     }))
-    .filter(p => p.statut === 'actif' || p.litres > 0)  // suspendus visibles uniquement s'ils ont des perfs
+    .filter(p => p.litres > 0)
     .sort((a, b) => b.litres - a.litres);
 
   const periodes = {
