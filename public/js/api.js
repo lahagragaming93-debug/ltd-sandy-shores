@@ -210,6 +210,27 @@ export async function listAllRedistributionsPompiste(pompisteId) {
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
+// Toutes les redistributions manuel-pompiste sur une plage temporelle
+// (classement semaine / mois cote employee). Filtre source serveur pour
+// reduire le payload et eviter les docs 'manuel-correction-pompiste'.
+export async function listRedistributionsRangeManuel(dateDebut, dateFin) {
+  const q = query(collection(db, 'redistributions'),
+    where('source', '==', 'manuel-pompiste'),
+    where('timestamp', '>=', Timestamp.fromDate(dateDebut)),
+    where('timestamp', '<=', Timestamp.fromDate(dateFin)));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+// Toutes les redistributions manuel-pompiste (depuis l'origine). Pour le
+// classement 'depuis embauche'. Limite generous (5000 docs ≈ ~2 MB) ;
+// si on depasse, basculer en agregation pre-calculee dans /statsRedistributions.
+export async function listAllRedistributionsManuel() {
+  const q = query(collection(db, 'redistributions'),
+    where('source', '==', 'manuel-pompiste'),
+    limit(5000));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
 // ----- Services (heures travail) -----
 export async function listServicesSemaine(dateDebut, dateFin) {

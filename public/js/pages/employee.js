@@ -7,7 +7,8 @@ import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
   getServiceOuvert, getQuotaPompiste, getQuotaVendeur, getConfig, listenConfig, listenAvertissements,
-  getUserDoc, listenStations, listRedistributionsSemaine, listAllRedistributionsPompiste,
+  getUserDoc, listUsers, listenStations, listRedistributionsSemaine, listAllRedistributionsPompiste,
+  listRedistributionsRangeManuel, listAllRedistributionsManuel,
   listenMesNotesFrais, callFunction
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
@@ -680,6 +681,9 @@ function renderPompiste(quota, isCurrent) {
         <div class="muted mono mb-1">⛽ État des stations en temps réel</div>
         <div id="pompiste-stations">Chargement…</div>
       </div>
+
+      <!-- Classement ravitaillement (live, indep. de la semaine consultee) -->
+      <div id="classement-pompiste">Chargement du classement…</div>
       ` : `
       <div class="alert" style="background:rgba(70,130,200,0.10);border:1px solid #4a90e2;font-size:0.82rem;margin-top:4px;">
         📁 Semaine clôturée — chiffres figés. Bascule sur « Semaine en cours » pour les actions du moment.
@@ -690,7 +694,107 @@ function renderPompiste(quota, isCurrent) {
 
   // Le listener stations + modals ravitaillement/correction ne sont brancher
   // que sur la semaine en cours (sinon UI confusante : "ravitaille" dans le passe ?).
-  if (isCurrent) initPompisteActions();
+  if (isCurrent) {
+    initPompisteActions();
+    renderClassementPompiste();
+  }
+}
+
+// Classement ravitaillement (semaine / mois / depuis embauche).
+// Live, independant de la semaine consultee dans le selecteur — c'est un
+// outil de motivation, pas une vue historique.
+async function renderClassementPompiste() {
+  const container = document.getElementById('classement-pompiste');
+  if (!container) return;
+
+  const now = new Date();
+  const weekStart = startOfWeekRP(now);
+  const weekEnd   = endOfWeekRP(now);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const [users, rSem, rMois, rAll] = await Promise.all([
+    listUsers().catch(() => []),
+    listRedistributionsRangeManuel(weekStart, weekEnd).catch(() => []),
+    listRedistributionsRangeManuel(monthStart, monthEnd).catch(() => []),
+    listAllRedistributionsManuel().catch(() => [])
+  ]);
+
+  // Pompistes ravitailleurs = pompiste-* + responsable-pompiste (peu importe statut
+  // pour que les ex-pompistes apparaissent encore dans 'depuis embauche').
+  const pompistes = users.filter(u =>
+    /^pompiste-/.test(u.role) || u.role === 'responsable-pompiste'
+  );
+
+  const aggregate = (redists) => {
+    const m = new Map();
+    for (const r of redists) {
+      if (!r.pompisteId) continue;
+      const cur = m.get(r.pompisteId) || { litres: 0, bidons: 0 };
+      cur.litres += Number(r.litres || 0);
+      cur.bidons += Number(r.bidons || 0);
+      m.set(r.pompisteId, cur);
+    }
+    return m;
+  };
+
+  const classer = (agg) => pompistes
+    .map(p => ({
+      uid:    p.id,
+      nom:    `${p.prenom || ''} ${p.nom || ''}`.trim() || p.username || p.id,
+      role:   p.role,
+      statut: p.statut || 'actif',
+      ...(agg.get(p.id) || { litres: 0, bidons: 0 })
+    }))
+    .filter(p => p.statut === 'actif' || p.litres > 0)  // suspendus visibles uniquement s'ils ont des perfs
+    .sort((a, b) => b.litres - a.litres);
+
+  const periodes = {
+    semaine: { label: 'Semaine', list: classer(aggregate(rSem)) },
+    mois:    { label: 'Mois',    list: classer(aggregate(rMois)) },
+    total:   { label: 'Depuis embauche', list: classer(aggregate(rAll)) }
+  };
+
+  const rangBadge = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+  const renderList = (list) => {
+    if (list.length === 0) return '<p class="muted text-center">Aucun ravitaillement sur cette période.</p>';
+    return `
+      <ol style="list-style:none;padding:0;margin:0;">
+        ${list.map((p, i) => {
+          const isMe = p.uid === viewedUserId;
+          const inactif = p.statut !== 'actif';
+          return `
+            <li style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;${isMe ? 'background:rgba(255,180,80,0.18);font-weight:bold;' : ''}${inactif ? 'opacity:0.6;' : ''}">
+              <span style="width:36px;text-align:center;font-size:1.05rem;">${rangBadge(i)}</span>
+              <span style="flex:1;">${escapeHtml(p.nom)}${isMe ? ' (toi)' : ''}${inactif ? ' <span class="muted" style="font-size:0.72rem;">(inactif)</span>' : ''}</span>
+              <span class="mono" style="text-align:right;">${num(Math.round(p.litres))} L <span class="muted" style="font-size:0.78rem;">· ${num(p.bidons)} bidons</span></span>
+            </li>
+          `;
+        }).join('')}
+      </ol>
+    `;
+  };
+
+  container.innerHTML = `
+    <div class="panel" style="padding:12px;margin-top:6px;">
+      <div class="panel-title" style="margin-bottom:8px;"><span>🏆 Classement ravitaillement</span><span class="muted" style="font-size:0.78rem;">les ravitaillements au-delà du quota comptent aussi</span></div>
+      <div class="row" style="gap:6px;margin-bottom:10px;">
+        <button class="btn btn-sm btn-primary" data-cl-period="semaine">Semaine</button>
+        <button class="btn btn-sm" data-cl-period="mois">Mois</button>
+        <button class="btn btn-sm" data-cl-period="total">Depuis embauche</button>
+      </div>
+      <div id="cl-list">${renderList(periodes.semaine.list)}</div>
+    </div>
+  `;
+
+  container.querySelectorAll('[data-cl-period]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('[data-cl-period]').forEach(b => b.classList.remove('btn-primary'));
+      btn.classList.add('btn-primary');
+      const key = btn.dataset.clPeriod;
+      document.getElementById('cl-list').innerHTML = renderList(periodes[key].list);
+    });
+  });
 }
 
 function renderAutre(myVentes, quota, sDebut, sFin, isCurrent) {

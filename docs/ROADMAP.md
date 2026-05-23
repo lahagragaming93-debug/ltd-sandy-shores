@@ -1,7 +1,12 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-23 (v1.10.0 — paie vendeur CA prorata + bonus quota fabrication)**
+> Dernière MAJ : **2026-05-23 (v1.10.1 — classement ravitaillement pompiste)**
+
+## ✅ Résolus session 2026-05-23 — v1.10.1
+
+- **Classement ravitaillement pompiste** sur l'espace pompiste : 3 onglets (Semaine / Mois / Depuis embauche), tri par litres décroissants. Compte aussi les ravitaillements au-delà du quota hebdo (base pour future prime). Pompistes inactifs visibles uniquement s'ils ont des perfs.
+- Nouvel index Firestore `redistributions(source, timestamp)`.
 
 ## ✅ Résolus session 2026-05-23 — v1.10.0
 

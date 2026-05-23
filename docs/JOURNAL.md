@@ -1,7 +1,29 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-23 (v1.10.0 — nouveau système paie vendeur + quota fabrication)**
+> Dernière mise à jour : **2026-05-23 (v1.10.1 — classement ravitaillement pompiste)**
+
+---
+
+## ✅ Session 2026-05-23 — v1.10.1 classement ravitaillement pompiste
+
+### Demande patron
+Afficher un classement des meilleurs ravitailleurs sur l'espace pompiste pour pousser à la performance. Les ravitaillements au-delà du quota hebdo (les pompistes peuvent continuer à déclarer après plafond atteint) comptent pour ce classement — base d'attribution d'une future prime.
+
+### Changements code
+- **[`public/js/api.js`](public/js/api.js)** : nouveaux helpers `listRedistributionsRangeManuel(debut, fin)` et `listAllRedistributionsManuel()` — filtre serveur `source='manuel-pompiste'` (exclut corrections / sources auto).
+- **[`public/js/pages/employee.js`](public/js/pages/employee.js)** : nouvelle section "🏆 Classement ravitaillement" dans `renderPompiste`, visible uniquement sur la semaine en cours (indépendante du sélecteur historique). Fonction `renderClassementPompiste()` qui charge en parallèle les datasets semaine / mois courant / total, agrège par `pompisteId`, trie par litres décroissants. 3 onglets : Semaine / Mois / Depuis embauche. Pompiste connecté mis en surbrillance.
+- **[`firebase/firestore.indexes.json`](firebase/firestore.indexes.json)** : nouvel index composite `redistributions(source ASC, timestamp ASC)` pour les queries de classement avec filtre temporel.
+
+### Méthode
+- Métrique : litres ravitaillés (= source de vérité homogène, indép. de la station). Affichage litres + bidons en sous-info.
+- Caoutchoucs exclus pour V1 (focus "meilleur ravitailleur").
+- "Depuis embauche" : total brut sans normalisation — récompense l'ancienneté + l'activité.
+- Visibilité : tous les pompistes-* + responsable-pompiste. Suspendus visibles uniquement s'ils ont des perfs (`litres > 0`), pour ne pas polluer le top.
+
+### Déploiement
+- `firebase deploy --only firestore:indexes` (sinon erreur "missing index" sur la query range).
+- Pas de Cloud Function nouvelle, aucune écriture, lectures uniquement.
 
 ---
 
