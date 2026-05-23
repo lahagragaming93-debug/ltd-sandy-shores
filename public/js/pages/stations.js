@@ -37,7 +37,7 @@ const html = `
 
   <div class="page-toolbar">
     ${fullEdit ? '<button class="btn btn-primary btn-icon" id="btn-ajouter-station" title="Ajouter une station essence" data-tooltip="Ajouter station">➕</button>' : ''}
-    ${fullEdit ? '<button class="btn btn-icon" id="btn-config-essence" title="Configuration quotas et prix essence" data-tooltip="Configuration">⚙</button>' : ''}
+    ${fullEdit ? '<a class="btn btn-icon" href="rh.html#panel-quotas-hebdo" title="Quotas hebdomadaires (page RH)" data-tooltip="Quotas hebdo">⚙</a>' : ''}
     ${stockOnly ? (caoutsActifPage
       ? '<button class="btn btn-primary btn-compact" id="btn-declarer-caoutchoucs" title="Déclarer le nombre de caoutchoucs fabriqués">📦 Déclarer caoutchoucs</button>'
       : '<button class="btn btn-compact" disabled style="opacity:0.5;cursor:not-allowed;" title="Caoutchoucs non requis cette semaine (quota = 0)">📦 Caoutchoucs — non requis</button>'
@@ -159,29 +159,6 @@ const html = `
     </div>
   </div>
 
-  <!-- Modal config essence -->
-  <div id="modal-config" class="modal-backdrop hidden">
-    <div class="modal" style="max-width:560px;">
-      <h3>Configuration essence</h3>
-
-      <div class="alert info mb-2" style="font-size:0.82rem;">
-        <span class="icon">ℹ</span>
-        <span>Effet immédiat sur le calcul des paies pompistes (bidons + caoutchoucs) et vendeurs (CA hebdo). Le prix au litre et le seuil d'alerte se modifient station par station.</span>
-      </div>
-
-      <label>Quota bidons / pompiste / semaine</label>
-      <input type="number" id="cfg-quota-bidons" min="0" />
-      <label>Quota caoutchoucs / pompiste / semaine</label>
-      <input type="number" id="cfg-quota-caoutchoucs" min="0" />
-      <label>Quota CA / vendeur / semaine ($)</label>
-      <input type="number" id="cfg-quota-ca-vendeur" min="0" step="1000" />
-
-      <div class="row mt-3" style="flex-wrap:wrap; gap:8px;">
-        <button class="btn btn-primary" id="btn-save-config">Enregistrer config</button>
-        <button class="btn btn-ghost" id="btn-cancel-config">Fermer</button>
-      </div>
-    </div>
-  </div>
 `;
 renderShell(profile, 'stocks_essence', html);
 
@@ -506,45 +483,8 @@ if (stockOnly && caoutsActifPage) {
   });
 }
 
-// === Modal config (reserve fullEdit) ===
-if (fullEdit) {
-document.getElementById('btn-config-essence').addEventListener('click', () => {
-  document.getElementById('cfg-quota-bidons').value = config.quotaBidons ?? 1700;
-  document.getElementById('cfg-quota-caoutchoucs').value = config.quotaCaoutchoucs ?? 800;
-  document.getElementById('cfg-quota-ca-vendeur').value = config.quotaCAVendeur ?? 30000;
-  document.getElementById('modal-config').classList.remove('hidden');
-});
-document.getElementById('btn-cancel-config').addEventListener('click', () => {
-  document.getElementById('modal-config').classList.add('hidden');
-});
-document.getElementById('btn-save-config').addEventListener('click', async () => {
-  if (!fullEdit) return toastError("Direction uniquement.");
-  // 0 est une valeur valide (= dimension desactivee cette semaine). On
-  // utilise donc ?? au lieu de || pour ne pas remplacer 0 par le defaut.
-  const parseQuota = (id, def) => {
-    const raw = document.getElementById(id).value;
-    if (raw === '' || raw == null) return def;
-    const n = Number(raw);
-    return (Number.isFinite(n) && n >= 0) ? n : def;
-  };
-  const patch = {
-    quotaBidons:      parseQuota('cfg-quota-bidons',      1700),
-    quotaCaoutchoucs: parseQuota('cfg-quota-caoutchoucs',  800),
-    quotaCAVendeur:   parseQuota('cfg-quota-ca-vendeur', 30000)
-  };
-  // Refus du cas absurde : les deux quotas pompiste a 0 -> salaire toujours 0.
-  if (patch.quotaBidons === 0 && patch.quotaCaoutchoucs === 0) {
-    return toastError("Au moins un des deux quotas pompiste doit être > 0 (sinon salaire toujours 0).");
-  }
-  try {
-    await setConfig(patch);
-    config = { ...config, ...patch };
-    toastSuccess("Configuration enregistrée.");
-    document.getElementById('modal-config').classList.add('hidden');
-    miseAJourKpis(stations);
-  } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
-});
-} // fin if (fullEdit) — bloc Modal config
+// Les quotas hebdo (bidons / caoutchoucs / CA vendeur / fabrication) sont
+// centralises sur RH > "Quotas hebdomadaires". Le bouton ⚙ y redirige.
 
 // === Redistributions de la semaine + Déclarations caoutchoucs ===
 const debut = startOfWeekRP();

@@ -1,7 +1,46 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-19 (v1.7.1 — hotfix quotas pompiste shift UTC/Paris)**
+> Dernière mise à jour : **2026-05-23 (v1.10.0 — nouveau système paie vendeur + quota fabrication)**
+
+---
+
+## ✅ Session 2026-05-23 — v1.10.0 paie vendeur : CA prorata + bonus quota fabrication
+
+### Décision patron
+Restructurer la paie vendeur pour décorréler la rémunération du seul CA. Le plafond CA passe à 30 000 $ avec un salaire CA plafonné à 10/11/12k selon grade ; les 3 000 $ restants pour atteindre le plafond total 13/14/15k proviennent d'un **bonus quota fabrication** (4 produits possibles : pioche, eau purifiée, mastic carrosserie, visseries). Bascule pilotée par `config.quotaCAVendeur` : reste à 40 000 = ancien système, baisse à 30 000 = nouveau système.
+
+### Changements code
+- **[`public/js/utils/permissions.js`](public/js/utils/permissions.js)** : `isNouveauSystemeVendeur(cfg|qCA)`, `PLAFOND_CA_VENDEUR` (10/11/12k), `BONUS_QUOTA_VENDEUR_MAX = 3000`, `PRODUITS_QUOTA_FAB`.
+- **[`public/js/utils/paie.js`](public/js/utils/paie.js)** : `salaireVendeur(role, ca, fabrications, quotaFab, quotaCAVendeur)` avec aiguillage ancien/nouveau ; helpers `scoreQuotaFabrication`, `fabricationsFromQuotaDoc`.
+- **[`public/js/data/produits.js`](public/js/data/produits.js)** : `mastic-carrosserie` ajouté (placeholder à compléter), `jerrican` supprimé. Helper `nomProduit(id)` exporté.
+- **[`firebase/functions/index.js`](firebase/functions/index.js)** : nouvelle Cloud Function `vendeurDeclarerFabrication` (audit `/fabrications` + increment `/quotasVendeur/{weekId}_{uid}.{produitId}`). `genererAvertissementsAuto` ajoute les motifs fabrication non atteint.
+- **[`firebase/functions/lib/paie-calc.mjs`](firebase/functions/lib/paie-calc.mjs)** : miroir backend du nouveau calcul, snapshotPaiesEstimees charge aussi `quotasVendeur`.
+- **[`firebase/firestore.rules`](firebase/firestore.rules)** : règles `quotasVendeur` (read auth, write CF) + `fabrications` (read direction/DRH, write CF).
+- **[`public/js/pages/rh.js`](public/js/pages/rh.js)** : nouveau panel centralisé "⚙ Quotas hebdomadaires" (pompiste + CA vendeur + 4 produits fabrication). Affichage modal détail vendeur avec décomposition CA + bonus.
+- **[`public/js/pages/employee.js`](public/js/pages/employee.js)** : section "🛠 Déclarer une fabrication" (saisie libre par produit), barres de progression par produit, KPI score + bonus.
+- **[`public/js/pages/stations.js`](public/js/pages/stations.js)** : modale config quotas supprimée, le bouton ⚙ pointe vers RH#panel-quotas-hebdo.
+- **[`public/js/api.js`](public/js/api.js)** : `CF_BASE` dynamique (emulator local sur `localhost`, prod sinon). Helpers `getQuotaVendeur`, `listenQuotaVendeur`, `listQuotasVendeurSemaine`.
+- **Tutos + guides** : [`tuto.js`](public/js/pages/tuto.js), [`05-vendeur.md`](public/guide/05-vendeur.md), [`02-drh.md`](public/guide/02-drh.md), [`08-faq-depannage.md`](public/guide/08-faq-depannage.md), [`01-direction.md`](public/guide/01-direction.md) — slides + sections "Comprendre ta paie" entièrement réécrites, jerrican retiré.
+
+### Routine simplify post-implementation
+Trois reviews (reuse / quality / efficiency) en parallèle. Findings appliqués :
+- Helper `fabricationsFromQuotaDoc` unifie 4 call sites dupliqués (rh.js, employee.js, comptabilite.js, dashboard.js).
+- Helper `nomProduit` exporté depuis `produits.js`, retire la duplication CATALOGUE.find(...) dans employee.js et rh.js.
+- `PRODUITS_QUOTA_FAB` importé depuis `paie-calc.mjs` côté CF (supprime `PRODUITS_FAB` + `PRODUITS_QUOTA_FAB_CF` dupliqués dans index.js).
+- `genererAvertissementsAuto` : pré-fetch en parallèle de users + ventes + quotasPompiste + quotasVendeur + avertissements existants → ~10-30× plus rapide (N round-trips séquentiels → 5 batch). Insertion via `batch.commit()` au lieu de N `.set()` séquentiels.
+- `window.location.reload()` après déclaration fabrication → remplacé par re-fetch ciblé + `renderVendeur()` (économise ~3 reads).
+- Code mort supprimé : alias `CA_PLAFOND_VENDEUR = 30000` jamais utilisé hors import, `quotaFabActif` calculé jamais lu.
+
+### Compatibilité
+- **Non-rétroactif** : les semaines déjà clôturées gardent leur snapshot intact. Le calcul historique reste l'ancien tant que `quotaCAVendeur >= 40 000`.
+- **Bascule manuelle** : tant que le patron laisse `quotaCAVendeur = 40 000` (valeur Firestore par défaut actuelle), tous les vendeurs voient l'ancien système. Pour activer le nouveau : baisser à 30 000 sur le panel RH > Quotas hebdo.
+- Le `swap-jerrican-mastic.mjs` (script ponctuel) retire le doc Firestore `jerrican` et ajoute `mastic-carrosserie` avec placeholders.
+
+### À faire avant déploiement prod (manuel)
+1. `firebase deploy --only functions:vendeurDeclarerFabrication,firestore:rules`
+2. `node firebase/functions/scripts/swap-jerrican-mastic.mjs` (optionnel — synchronise Firestore avec le catalogue code)
+3. Quand prêt à activer : panel RH > Quotas hebdomadaires → quotaCAVendeur = 30 000 + saisir quotas fabrication par produit + Enregistrer.
 
 ---
 

@@ -15,7 +15,11 @@ export { Timestamp, serverTimestamp };
 // Centralise l'URL de base + auth Bearer + content-type. Tout appel a une
 // Cloud Function passe par ici pour eviter de copier-coller le boilerplate
 // (8 sites d'appel avant ce helper).
-const CF_BASE = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
+// En LOCAL (hostname=localhost/127.0.0.1) : pointe sur l'emulator Firebase
+// Functions (port 5001) pour tester sans deployer.
+export const CF_BASE = (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname))
+  ? 'http://localhost:5001/ltd-sandy-shores-f3919/europe-west1'
+  : 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
 export async function callFunction(name, body = {}) {
   const idToken = await auth.currentUser.getIdToken();
   const resp = await fetch(`${CF_BASE}/${name}`, {
@@ -240,6 +244,25 @@ export async function getQuotaPompiste(employeId, weekId) {
 }
 export async function listQuotasSemaine(weekId) {
   const snap = await getDocs(query(collection(db, 'quotasPompiste'),
+    where('semaine', '==', weekId)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// ----- Quotas vendeurs (fabrication hebdo) -----
+// Doc symetrique a quotasPompiste : /quotasVendeur/{weekId}_{uid}
+// Champs : { semaine, employeId, pioche, 'bouteille-eau-purifiee',
+//            'mastic-carrosserie', visseries } — incrementes par CF.
+export async function getQuotaVendeur(employeId, weekId) {
+  const snap = await getDoc(doc(db, 'quotasVendeur', `${weekId}_${employeId}`));
+  return snap.exists() ? snap.data() : {};
+}
+export function listenQuotaVendeur(employeId, weekId, cb) {
+  return onSnapshot(doc(db, 'quotasVendeur', `${weekId}_${employeId}`), s => {
+    cb(s.exists() ? s.data() : {});
+  });
+}
+export async function listQuotasVendeurSemaine(weekId) {
+  const snap = await getDocs(query(collection(db, 'quotasVendeur'),
     where('semaine', '==', weekId)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }

@@ -6,12 +6,16 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listUsers, listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listQuotasSemaine,
-  listPaiesSemaine, getConfig, listenConfig, updateUser, listRedistributionsSemaine,
-  listPaiesEstimeesSemaine, marquerPaieVersee
+  listQuotasVendeurSemaine, listPaiesSemaine, getConfig, listenConfig, setConfig, updateUser,
+  listRedistributionsSemaine, listPaiesEstimeesSemaine, marquerPaieVersee
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isResponsable, isDirection,
-         isSuperAdmin, compteEnFinance, PLAFOND_SALAIRE } from '../utils/permissions.js';
-import { salaireEstime, scorePompiste, checkMasseSalariale } from '../utils/paie.js';
+         isSuperAdmin, compteEnFinance, PLAFOND_SALAIRE, PLAFOND_CA_VENDEUR,
+         BONUS_QUOTA_VENDEUR_MAX, CA_PLAFOND_VENDEUR_LEGACY,
+         PRODUITS_QUOTA_FAB, isNouveauSystemeVendeur } from '../utils/permissions.js';
+import { salaireEstime, scorePompiste, scoreQuotaFabrication, checkMasseSalariale,
+         fabricationsFromQuotaDoc } from '../utils/paie.js';
+import { nomProduit } from '../data/produits.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
@@ -30,6 +34,45 @@ const html = `
   <div class="kpi-grid" id="kpis-rh">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
+
+  ${editable ? `
+  <div class="panel framed" id="panel-quotas-hebdo">
+    <div class="panel-title">
+      <span>⚙ Quotas hebdomadaires <span class="muted" style="font-size:0.78rem;">— centralisé · prend effet à la prochaine clôture</span></span>
+      <button class="btn btn-sm" id="btn-toggle-quotas" title="Ouvrir / fermer le bloc">Afficher</button>
+    </div>
+    <div id="bloc-quotas" class="hidden">
+      <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-start;">
+        <div class="panel" style="flex:1 1 280px;min-width:240px;padding:10px;">
+          <div class="mono mb-1" style="font-size:0.92rem;">🛢 Pompistes</div>
+          <label class="muted" style="font-size:0.78rem;">Bidons (0 = désactivé)</label>
+          <input type="number" id="q-bidons" min="0" step="1" />
+          <label class="muted" style="font-size:0.78rem;margin-top:6px;display:block;">Caoutchoucs (0 = désactivé)</label>
+          <input type="number" id="q-caoutchoucs" min="0" step="1" />
+        </div>
+        <div class="panel" style="flex:1 1 280px;min-width:240px;padding:10px;">
+          <div class="mono mb-1" style="font-size:0.92rem;">💰 Vendeurs — CA hebdo</div>
+          <label class="muted" style="font-size:0.78rem;">Quota CA (avert auto si non atteint)</label>
+          <input type="number" id="q-ca-vendeur" min="0" step="100" />
+        </div>
+        <div class="panel" style="flex:2 1 360px;min-width:280px;padding:10px;">
+          <div class="mono mb-1" style="font-size:0.92rem;">📦 Vendeurs — Quota fabrication (bonus max 3 000 $)</div>
+          <div class="muted" style="font-size:0.75rem;margin-bottom:6px;">0 = produit désactivé cette semaine. Le bonus est versé au prorata du score moyen des produits actifs.</div>
+          <div class="row" style="gap:8px;flex-wrap:wrap;">
+            <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Pioche</label><input type="number" id="q-fab-pioche" min="0" step="1" /></div>
+            <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Eau purifiée</label><input type="number" id="q-fab-eau" min="0" step="1" /></div>
+            <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Mastic carrosserie</label><input type="number" id="q-fab-mastic" min="0" step="1" /></div>
+            <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Visseries</label><input type="number" id="q-fab-visseries" min="0" step="1" /></div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-2" style="gap:8px;align-items:center;">
+        <button class="btn btn-primary" id="btn-save-quotas">💾 Enregistrer les quotas</button>
+        <span class="muted" id="lbl-quotas-state" style="font-size:0.78rem;">—</span>
+      </div>
+    </div>
+  </div>
+  ` : ''}
 
   <div class="page-toolbar">
     <select id="filtre-role" title="Filtrer par rôle">
@@ -93,7 +136,8 @@ function labelSemaine(debut, fin) {
 }
 
 let users = [], ventes = [], ventesAvecCachees = [], services = [],
-    quotas = [], paies = [], config = {}, redistributions = [];
+    quotas = [], paies = [], config = {}, redistributions = [],
+    quotasVendeur = [];
 let debut, fin, wId;
 
 // Listener temps-reel sur /config/global : tablettes in-game (pas de F5).
@@ -104,6 +148,7 @@ listenConfig((newCfg) => {
     qB: newCfg.quotaBidons,
     qC: newCfg.quotaCaoutchoucs,
     qCA: newCfg.quotaCAVendeur,
+    qF: newCfg.quotaFabrication || null,
     pE: newCfg.prixEssence
   });
   if (_cfgSigRh == null) { _cfgSigRh = sig; return; }
@@ -149,12 +194,14 @@ async function chargerSemaine(payload) {
     listPaiesSemaine(debut, fin, wId).catch(() => []),
     getConfig().catch(() => ({})),
     listRedistributionsSemaine(debut, fin).catch(() => []),
-    snapshotMode ? listPaiesEstimeesSemaine(wId).catch(() => []) : Promise.resolve([])
+    snapshotMode ? listPaiesEstimeesSemaine(wId).catch(() => []) : Promise.resolve([]),
+    listQuotasVendeurSemaine(wId).catch(() => [])
   ];
 
-  const [u, v, vc, s, q, p, c, r, snaps] = await Promise.all(tasks);
+  const [u, v, vc, s, q, p, c, r, snaps, qv] = await Promise.all(tasks);
   users = u; ventes = v; ventesAvecCachees = vc; services = s;
   quotas = q; paies = p; config = c; redistributions = r;
+  quotasVendeur = qv;
 
   snapshotsByUser = {};
   (snaps || []).forEach(sn => { if (sn.userId) snapshotsByUser[sn.userId] = sn; });
@@ -228,6 +275,8 @@ function calculerMetriques() {
     const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0);
 
     const myQuota = quotas.find(q => q.employeId === u.id) || { bidons: 0, caoutchoucs: 0 };
+    const myQuotaV = quotasVendeur.find(q => q.employeId === u.id) || {};
+    const fabrications = fabricationsFromQuotaDoc(myQuotaV);
 
     const myPaies = paies.filter(p => p.beneficiaireId === u.id);
     const totalPaie = myPaies.reduce((s, p) => s + (p.montant || 0), 0);
@@ -237,6 +286,7 @@ function calculerMetriques() {
       caGenere: caParticulier, // commission sur particulier seulement
       bidonsRealises: myQuota.bidons || 0,
       caoutchoucsRealises: myQuota.caoutchoucs || 0,
+      fabrications,
       salaireDecide: u.salaireDecide || 0
     };
     const estime = salaireEstime(employe, config);
@@ -245,6 +295,7 @@ function calculerMetriques() {
       ca, caParticulier, benefice, heuresMs, ventes: myVentes,
       bidons: myQuota.bidons || 0,
       caoutchoucs: myQuota.caoutchoucs || 0,
+      fabrications,
       salaireEstime: estime,
       totalPaie
     };
@@ -341,7 +392,21 @@ function renderTable() {
       const part = caTotal > 0 && caShow < caTotal
         ? ` <span class="muted" style="font-size:0.72rem;">(sur ${money(caTotal)} total)</span>`
         : '';
-      progressLabel = `${money(caShow)} / ${money(40000)}${part}`;
+      // Choisit plafond CA selon le declencheur quotaCAVendeur (panel Quotas hebdo)
+      const nouveauVendeur = isNouveauSystemeVendeur(config);
+      const quotaCAShow = Number(config.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
+      const plafondCAShow = nouveauVendeur ? quotaCAShow : CA_PLAFOND_VENDEUR_LEGACY;
+      // Score quota fabrication uniquement avec le nouveau systeme
+      let fabLabel = '';
+      if (nouveauVendeur) {
+        const fabSnap = snap?.fabrications || m.fabrications || {};
+        const scoreFab = scoreQuotaFabrication(fabSnap, config.quotaFabrication || {});
+        const quotaFabActif = Object.values(config.quotaFabrication || {}).some(v => Number(v) > 0);
+        if (quotaFabActif) {
+          fabLabel = `<br><span class="muted" style="font-size:0.72rem;">📦 quota fab ${pct(scoreFab*100, 0)} · bonus ${money(Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX))}</span>`;
+        }
+      }
+      progressLabel = `${money(caShow)} / ${money(plafondCAShow)}${part}${fabLabel}`;
     } else if (isPompiste(u.role)) {
       const score = scorePompiste(bidonsShow, caoutShow, config.quotaBidons, config.quotaCaoutchoucs);
       progressLabel = `${pct(score, 0)}`;
@@ -443,6 +508,66 @@ function renderTable() {
   document.getElementById(id).addEventListener('input', renderTable);
 });
 
+// === Bloc Quotas hebdomadaires (centralise, direction/DRH/admin-tech) ===
+// Regroupe les 3 familles : pompiste (bidons/caoutchoucs), vendeur CA,
+// vendeur fabrication (4 produits). Source unique, evite la dispersion.
+if (editable) {
+  const toggleBtn = document.getElementById('btn-toggle-quotas');
+  const blocQ     = document.getElementById('bloc-quotas');
+  const lblState  = document.getElementById('lbl-quotas-state');
+
+  function ouvrirQuotas() {
+    const c = config || {};
+    document.getElementById('q-bidons').value      = c.quotaBidons      ?? 1700;
+    document.getElementById('q-caoutchoucs').value = c.quotaCaoutchoucs ?? 800;
+    document.getElementById('q-ca-vendeur').value  = c.quotaCAVendeur   ?? 30000;
+    const qf = c.quotaFabrication || {};
+    document.getElementById('q-fab-pioche').value    = qf['pioche']                ?? 0;
+    document.getElementById('q-fab-eau').value       = qf['bouteille-eau-purifiee']?? 0;
+    document.getElementById('q-fab-mastic').value    = qf['mastic-carrosserie']    ?? 0;
+    document.getElementById('q-fab-visseries').value = qf['visseries']             ?? 0;
+    blocQ.classList.remove('hidden');
+    toggleBtn.textContent = 'Masquer';
+    lblState.textContent = 'Valeurs chargées · 0 = produit désactivé.';
+  }
+  function fermerQuotas() {
+    blocQ.classList.add('hidden');
+    toggleBtn.textContent = 'Afficher';
+  }
+  toggleBtn.addEventListener('click', () => {
+    if (blocQ.classList.contains('hidden')) ouvrirQuotas();
+    else fermerQuotas();
+  });
+
+  document.getElementById('btn-save-quotas').addEventListener('click', async () => {
+    const parseQ = (id, fallback) => {
+      const v = Number(document.getElementById(id).value);
+      return Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback;
+    };
+    const patch = {
+      quotaBidons:      parseQ('q-bidons',      1700),
+      quotaCaoutchoucs: parseQ('q-caoutchoucs',  800),
+      quotaCAVendeur:   parseQ('q-ca-vendeur', 30000),
+      quotaFabrication: {
+        'pioche':                 parseQ('q-fab-pioche',    0),
+        'bouteille-eau-purifiee': parseQ('q-fab-eau',       0),
+        'mastic-carrosserie':     parseQ('q-fab-mastic',    0),
+        'visseries':              parseQ('q-fab-visseries', 0)
+      }
+    };
+    try {
+      lblState.textContent = 'Enregistrement…';
+      await setConfig(patch);
+      lblState.textContent = '✓ Quotas enregistrés — les pages employé se rechargent automatiquement.';
+      toastSuccess('Quotas mis à jour.');
+    } catch (e) {
+      console.error('[rh] setConfig quotas', e);
+      lblState.textContent = '✗ Erreur lors de l\'enregistrement.';
+      toastError(e.message || 'Erreur enregistrement.');
+    }
+  });
+}
+
 // Sélecteur de semaine factorisé : courante + N dernières clôturées (snapshots).
 // Appelle chargerSemaine immédiatement avec le payload de la semaine restaurée
 // depuis sessionStorage (clé "rh-semaine") ou "current" par défaut.
@@ -484,6 +609,29 @@ function ouvrirDetail(uid) {
       <tr><td>Bénéfice généré pour le LTD</td><td class="right mono">${money(m.benefice || 0)}</td></tr>
       <tr><td>Nombre de ventes</td><td class="right mono">${(m.ventes || []).length}</td></tr>
     `;
+    // Decomposition CA + bonus uniquement avec le nouveau systeme
+    if (isNouveauSystemeVendeur(config)) {
+      const plafondCA = PLAFOND_CA_VENDEUR[u.role] || 0;
+      const quotaCAConfig = Number(config.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
+      const salaireCAPart = Math.round((quotaCAConfig > 0 ? Math.min(1, cp / quotaCAConfig) : 0) * plafondCA);
+      const fab = m.fabrications || {};
+      const qFab = config.quotaFabrication || {};
+      const scoreFab = scoreQuotaFabrication(fab, qFab);
+      const bonusFab = Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX);
+      html += `<tr><td>Part CA du salaire <span class="muted">(prorata ${money(quotaCAConfig)})</span></td><td class="right mono">${money(salaireCAPart)} / ${money(plafondCA)}</td></tr>`;
+      const produitsAffiches = PRODUITS_QUOTA_FAB.filter(id => Number(qFab[id] || 0) > 0 || Number(fab[id] || 0) > 0);
+      if (produitsAffiches.length > 0) {
+        html += `<tr><td colspan="2" class="muted" style="padding-top:10px;font-weight:bold;">📦 Quota fabrication</td></tr>`;
+        for (const id of produitsAffiches) {
+          const q = Number(qFab[id] || 0);
+          const f = Number(fab[id] || 0);
+          const lbl = q === 0 ? `${f} (hors quota)` : `${f} / ${q}`;
+          html += `<tr><td>↳ ${escapeHtml(nomProduit(id))}</td><td class="right mono">${lbl}</td></tr>`;
+        }
+        html += `<tr><td>Score quota fabrication</td><td class="right mono">${pct(scoreFab * 100, 0)}</td></tr>`;
+        html += `<tr><td>Bonus quota du salaire</td><td class="right mono">${money(bonusFab)} / ${money(BONUS_QUOTA_VENDEUR_MAX)}</td></tr>`;
+      }
+    }
   }
   if (isPompiste(u.role)) {
     const score = scorePompiste(m.bidons, m.caoutchoucs, config.quotaBidons, config.quotaCaoutchoucs);

@@ -203,6 +203,19 @@ service cloud.firestore {
     match /quotasPompiste/{id}  { allow read: if isAuth() && isActif();
                                   allow write: if canAdmin(); }
 
+    // === Quotas vendeurs (fabrication hebdo) ===
+    // Lecture : tous les actifs (vendeur voit son quota, RH voit la table).
+    // Ecriture : CF Admin SDK uniquement (vendeurDeclarerFabrication).
+    match /quotasVendeur/{id}   { allow read: if isAuth() && isActif();
+                                  allow write: if canAdmin(); }
+
+    // === Audit fabrications vendeur (1 doc par declaration) ===
+    // Lecture : direction + DRH (audit). Ecriture : CF Admin SDK uniquement.
+    match /fabrications/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+
     // === Dépenses ===
     match /depenses/{id} {
       allow read:   if isAuth() && (canAdmin() || isDRH());

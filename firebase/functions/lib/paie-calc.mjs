@@ -32,13 +32,39 @@ export const PLAFOND_SALAIRE = {
 
 export const DRH_SALAIRE_FIXE = 18000;
 export const CA_PLAFOND_RESP_VENTE = 40000;
-export const CA_PLAFOND_VENDEUR = 40000;
 
+// === Vendeurs : bascule pilotee par config.quotaCAVendeur ===
+// Voir public/js/utils/permissions.js pour la doc complete.
+export const CA_PLAFOND_VENDEUR_LEGACY = 40000;
+
+export function isNouveauSystemeVendeur(cfgOrQuotaCA) {
+  const q = (cfgOrQuotaCA && typeof cfgOrQuotaCA === 'object')
+    ? Number(cfgOrQuotaCA.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY)
+    : Number(cfgOrQuotaCA);
+  if (!Number.isFinite(q) || q <= 0) return false;
+  return q < CA_PLAFOND_VENDEUR_LEGACY;
+}
+
+// Ancien systeme (quotaCAVendeur = 40 000)
 export const COMMISSION_VENDEUR = {
   'vendeur-novice':         0.325,
   'vendeur-intermediaire':  0.350,
   'vendeur-experimente':    0.375
 };
+
+// Nouveau systeme (quotaCAVendeur < 40 000)
+export const PLAFOND_CA_VENDEUR = {
+  'vendeur-novice':         10000,
+  'vendeur-intermediaire':  11000,
+  'vendeur-experimente':    12000
+};
+export const BONUS_QUOTA_VENDEUR_MAX = 3000;
+export const PRODUITS_QUOTA_FAB = [
+  'pioche',
+  'bouteille-eau-purifiee',
+  'mastic-carrosserie',
+  'visseries'
+];
 
 const DIRECTION = ['patron', 'co-patron'];
 const SUPER_ADMINS = ['admin-technique'];
@@ -57,13 +83,32 @@ export function compteEnFinance(role) { return !isSuperAdmin(role); }
 // Formules salaire
 // ============================================================
 
-function salaireVendeur(role, caGenere) {
+function scoreQuotaFabrication(fabrications = {}, quotaFab = {}) {
+  const ratios = [];
+  for (const id of PRODUITS_QUOTA_FAB) {
+    const q = Number(quotaFab[id] ?? 0);
+    if (q > 0) ratios.push(Math.min(1, (Number(fabrications[id] ?? 0)) / q));
+  }
+  if (ratios.length === 0) return 0;
+  return ratios.reduce((s, x) => s + x, 0) / ratios.length;
+}
+
+function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {}, quotaCAVendeur = CA_PLAFOND_VENDEUR_LEGACY) {
   if (!isVendeur(role)) return 0;
-  const commission = COMMISSION_VENDEUR[role] ?? 0;
   const plafondSalaire = PLAFOND_SALAIRE[role] ?? 0;
-  const caRetenu = Math.min(caGenere || 0, CA_PLAFOND_VENDEUR);
-  const brut = caRetenu * commission;
-  return Math.min(Math.round(brut), plafondSalaire);
+  const qCA = Number(quotaCAVendeur);
+
+  if (!isNouveauSystemeVendeur(qCA)) {
+    const commission = COMMISSION_VENDEUR[role] ?? 0;
+    const caRetenu = Math.min(caGenere || 0, CA_PLAFOND_VENDEUR_LEGACY);
+    return Math.min(Math.round(caRetenu * commission), plafondSalaire);
+  }
+
+  const plafondCA = PLAFOND_CA_VENDEUR[role] ?? 0;
+  const ratioCA = qCA > 0 ? Math.min(1, (caGenere || 0) / qCA) : 0;
+  const salaireCA = ratioCA * plafondCA;
+  const bonusFab = scoreQuotaFabrication(fabrications, quotaFab) * BONUS_QUOTA_VENDEUR_MAX;
+  return Math.min(Math.round(salaireCA + bonusFab), plafondSalaire);
 }
 
 function salairePompiste(role, bidons, caoutchoucs, quotaBidons = 1700, quotaCaoutchoucs = 800) {
@@ -131,12 +176,14 @@ function salaireDirection(role, salaireDecide) {
 //  - direction & responsable-pompiste : fallback sur PLAFOND si salaireDecide
 //    null/0 (sinon ils n'apparaissent pas dans la masse salariale).
 // ============================================================
-export function calculerPaieEstimee({ user, ventes = [], redistributions = [], quota = null, cfg = {} } = {}) {
-  if (!user) return { montantEstime: 0, ca: 0, caParticulier: 0, bidons: 0, caoutchoucs: 0, formule: 'no-user' };
+export function calculerPaieEstimee({ user, ventes = [], redistributions = [], quota = null, quotaV = null, cfg = {} } = {}) {
+  if (!user) return { montantEstime: 0, ca: 0, caParticulier: 0, bidons: 0, caoutchoucs: 0, fabrications: {}, formule: 'no-user' };
 
   const role = user.role || '';
   const quotaBidons = cfg.quotaBidons ?? 1700;
   const quotaCaoutchoucs = cfg.quotaCaoutchoucs ?? 800;
+  const quotaFab = cfg.quotaFabrication || {};
+  const quotaCAVendeur = Number(cfg.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
 
   // CA personnel = ventes attribuees a cet utilisateur
   const myVentes = ventes.filter(v => v.vendeurId === user.id);
@@ -149,12 +196,18 @@ export function calculerPaieEstimee({ user, ventes = [], redistributions = [], q
   const bidons = quota?.bidons || 0;
   const caoutchoucs = quota?.caoutchoucs || 0;
 
+  // Quota vendeur fabrication
+  const fabrications = {};
+  for (const id of PRODUITS_QUOTA_FAB) fabrications[id] = Number(quotaV?.[id] || 0);
+
   let montantEstime = 0;
   let formule = '';
 
   if (isVendeur(role)) {
-    montantEstime = salaireVendeur(role, caParticulier);
-    formule = `vendeur (CA particulier × commission)`;
+    montantEstime = salaireVendeur(role, caParticulier, fabrications, quotaFab, quotaCAVendeur);
+    formule = isNouveauSystemeVendeur(quotaCAVendeur)
+      ? `vendeur (CA prorata ${quotaCAVendeur} + bonus quota fab max 3k)`
+      : `vendeur (CA × commission, plafond 40k)`;
   } else if (isPompiste(role)) {
     montantEstime = salairePompiste(role, bidons, caoutchoucs, quotaBidons, quotaCaoutchoucs);
     formule = `pompiste (moyenne quota bidons/caoutchoucs)`;
@@ -184,6 +237,7 @@ export function calculerPaieEstimee({ user, ventes = [], redistributions = [], q
     caParticulier,
     bidons,
     caoutchoucs,
+    fabrications,
     formule
   };
 }
@@ -225,12 +279,13 @@ export async function snapshotPaiesEstimees({ db, FieldValue, Timestamp, weekKey
   }
 
   try {
-    const [usersSnap, ventesSnap, quotasSnap, cfgSnap, redistSnap] = await Promise.all([
+    const [usersSnap, ventesSnap, quotasSnap, quotasVSnap, cfgSnap, redistSnap] = await Promise.all([
       db.collection('users').where('statut', '==', 'actif').get(),
       db.collection('ventes')
         .where('timestamp', '>=', Timestamp.fromDate(debut))
         .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
       db.collection('quotasPompiste').where('semaine', '==', weekKey).get(),
+      db.collection('quotasVendeur').where('semaine', '==', weekKey).get(),
       db.collection('config').doc('global').get(),
       db.collection('redistributions')
         .where('timestamp', '>=', Timestamp.fromDate(debut))
@@ -244,6 +299,11 @@ export async function snapshotPaiesEstimees({ db, FieldValue, Timestamp, weekKey
     quotasSnap.docs.forEach(d => {
       const q = d.data();
       if (q.employeId) quotaByUser[q.employeId] = q;
+    });
+    const quotaVByUser = {};
+    quotasVSnap.docs.forEach(d => {
+      const q = d.data();
+      if (q.employeId) quotaVByUser[q.employeId] = q;
     });
     const cfg = cfgSnap.exists ? cfgSnap.data() : {};
 
@@ -266,6 +326,7 @@ export async function snapshotPaiesEstimees({ db, FieldValue, Timestamp, weekKey
           ventes,
           redistributions,
           quota: quotaByUser[user.id] || null,
+          quotaV: quotaVByUser[user.id] || null,
           cfg
         });
 
@@ -281,6 +342,7 @@ export async function snapshotPaiesEstimees({ db, FieldValue, Timestamp, weekKey
           caParticulier: calc.caParticulier,
           bidons: calc.bidons,
           caoutchoucs: calc.caoutchoucs,
+          fabrications: calc.fabrications,
           formule: calc.formule,
           paye: false,
           datePaiement: null,

@@ -56,7 +56,7 @@ Au changement → les KPI, le graphique ventes et le Top 5 produits se recalcule
 | 🛒 **Vente épicerie** | Produits vendus aux particuliers (bonbons, tickets, ballons, outils légers…) | ✅ Oui (CA × commission) |
 | 🏢 **Vente partenaire** | Produits vendus aux pros / autres entreprises (eau purifiée, whey, huile…) | ❌ Non (CA LTD seulement) |
 | 📦 **Achat fournisseur** | Matières premières achetées (acier, cuivre, corde, caoutchouc, charbon…) — **non revendues** | — (jamais vendues) |
-| 🔧 **Quincaillerie** | Produits craftés par les vendeurs (Visseries, Pioche, Jerrican, Filet, Lumière violette…) | ✅ Oui (commission) |
+| 🔧 **Quincaillerie** | Produits craftés par les vendeurs (Visseries, Pioche, Mastic carrosserie, Filet, Lumière violette…) | ✅ Oui (commission) |
 | 📜 **Mouvements** | Historique 20 derniers mouvements de stock |
 
 > 💡 Un produit peut apparaître **dans 2 onglets en même temps** s'il a un fournisseur défini : par exemple, Pince Coupante = Vente épicerie + Achat fournisseur (acheté chez Yootool).

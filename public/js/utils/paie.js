@@ -3,22 +3,79 @@
 // Réf : prompt projet, conforme TTE Chap. IV — Secteur 2
 // ============================================================
 
-import { PLAFOND_SALAIRE, COMMISSION_VENDEUR, CA_PLAFOND_VENDEUR,
+import { PLAFOND_SALAIRE, PLAFOND_CA_VENDEUR, BONUS_QUOTA_VENDEUR_MAX,
+         CA_PLAFOND_VENDEUR_LEGACY, COMMISSION_VENDEUR,
+         PRODUITS_QUOTA_FAB, isNouveauSystemeVendeur,
          CA_PLAFOND_RESP_VENTE, DRH_SALAIRE_FIXE,
          isVendeur, isPompiste, isResponsable, isDirection } from './permissions.js';
 
 /**
- * Salaire vendeur — commission sur CA, plafond CA 40 000 $
- * @param {string} role
- * @param {number} caGenere     Chiffre d'affaires généré par le vendeur
+ * Extrait les compteurs de fabrication d'un doc /quotasVendeur/{weekId}_{uid}.
+ * Normalise a 0 les produits absents. Garantit que les call sites restent en
+ * phase si on ajoute un 5e produit au catalogue.
  */
-export function salaireVendeur(role, caGenere) {
+export function fabricationsFromQuotaDoc(quotaVDoc = {}) {
+  const out = {};
+  for (const id of PRODUITS_QUOTA_FAB) out[id] = Number(quotaVDoc?.[id] || 0);
+  return out;
+}
+
+/**
+ * Score quota fabrication vendeur — moyenne des ratios actifs.
+ * Symetrique a scorePompiste : produit avec quota a 0 = desactive, ignore.
+ * Si aucun produit actif (tous a 0) : 0.
+ * Chaque ratio est plafonne a 1 (depasser un produit ne compense pas un autre).
+ */
+export function scoreQuotaFabrication(fabrications = {}, quotaFab = {}) {
+  const ratios = [];
+  for (const id of PRODUITS_QUOTA_FAB) {
+    const q = Number(quotaFab[id] ?? 0);
+    if (q > 0) {
+      ratios.push(Math.min(1, (Number(fabrications[id] ?? 0)) / q));
+    }
+  }
+  if (ratios.length === 0) return 0;
+  return ratios.reduce((s, x) => s + x, 0) / ratios.length;
+}
+
+/**
+ * Salaire vendeur. Aiguillage selon la valeur de quotaCAVendeur :
+ *
+ * - ANCIEN systeme (quotaCAVendeur >= 40 000) :
+ *     salaire = MIN(MIN(CA, 40 000) × commission[role], plafond[role])
+ *
+ * - NOUVEAU systeme (quotaCAVendeur < 40 000) :
+ *     partCA   = MIN(CA / quotaCAVendeur, 1) × PLAFOND_CA_VENDEUR[role]
+ *     bonusFab = score_quota_fabrication × 3 000             (plafonne 3 000)
+ *     total    = MIN(partCA + bonusFab, plafond[role])
+ *
+ * Le declenchement est manuel : le patron modifie quotaCAVendeur sur le
+ * panel RH > Quotas hebdo pour faire basculer tous les vendeurs.
+ *
+ * @param {string} role
+ * @param {number} caGenere
+ * @param {object} fabrications     { produitId: quantite, ... }  cumul semaine
+ * @param {object} quotaFab         { produitId: quota, ... }     config hebdo
+ * @param {number} quotaCAVendeur   cible CA hebdo (40 000 = ancien, sinon nouveau)
+ */
+export function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {}, quotaCAVendeur = CA_PLAFOND_VENDEUR_LEGACY) {
   if (!isVendeur(role)) return 0;
-  const commission = COMMISSION_VENDEUR[role] ?? 0;
   const plafondSalaire = PLAFOND_SALAIRE[role] ?? 0;
-  const caRetenu = Math.min(caGenere || 0, CA_PLAFOND_VENDEUR);
-  const brut = caRetenu * commission;
-  return Math.min(Math.round(brut), plafondSalaire);
+  const qCA = Number(quotaCAVendeur);
+
+  if (!isNouveauSystemeVendeur(qCA)) {
+    // ANCIEN systeme : CA × commission, plafond CA 40 000
+    const commission = COMMISSION_VENDEUR[role] ?? 0;
+    const caRetenu = Math.min(caGenere || 0, CA_PLAFOND_VENDEUR_LEGACY);
+    return Math.min(Math.round(caRetenu * commission), plafondSalaire);
+  }
+
+  // NOUVEAU systeme : prorata CA sur quotaCAVendeur + bonus quota fabrication
+  const plafondCA = PLAFOND_CA_VENDEUR[role] ?? 0;
+  const ratioCA = qCA > 0 ? Math.min(1, (caGenere || 0) / qCA) : 0;
+  const salaireCA = ratioCA * plafondCA;
+  const bonusFab = scoreQuotaFabrication(fabrications, quotaFab) * BONUS_QUOTA_VENDEUR_MAX;
+  return Math.min(Math.round(salaireCA + bonusFab), plafondSalaire);
 }
 
 /**
@@ -82,9 +139,11 @@ export function salaireDirection(role, salaireDecide) {
 export function salaireEstime(e, cfg = {}) {
   const quotaBidons = cfg.quotaBidons ?? 1700;
   const quotaCaoutchoucs = cfg.quotaCaoutchoucs ?? 800;
+  const quotaFab = cfg.quotaFabrication ?? {};
+  const quotaCA = Number(cfg.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
 
   if (isVendeur(e.role)) {
-    return salaireVendeur(e.role, e.caGenere ?? 0);
+    return salaireVendeur(e.role, e.caGenere ?? 0, e.fabrications ?? {}, quotaFab, quotaCA);
   }
   if (isPompiste(e.role)) {
     return salairePompiste(e.role, e.bidonsRealises ?? 0,

@@ -193,8 +193,8 @@ export const CATALOGUE = [
     note: 'Crafté : 1×Charbon + 3×Acier → 5×Visseries (coût 26$, TEMP 38$ si acier 60$)' },
   { id: 'pioche',                  nom: 'Pioche',                  categorie: 'outillage',        prixVente: 29.55, pourPro: false, enFabrication: true,
     note: 'Crafté : 1×Charbon + 3×Acier → 11×Pioches (coût 11.82$, TEMP 17.27$)' },
-  { id: 'jerrican',                nom: 'Jerrican',                categorie: 'auto',             prixVente: 18.75, pourPro: false, enFabrication: true,
-    note: 'Crafté : 4×Caoutchouc + 1×Bidon vide → 3×Jerricans (coût 7.50$)' },
+  { id: 'mastic-carrosserie',      nom: 'Mastic carrosserie',      categorie: 'auto',             prixVente: 0,    pourPro: false, enFabrication: true,
+    note: 'Prix de vente et recette de craft à compléter par le patron.' },
   { id: 'plomberie',               nom: 'Plomberie',               categorie: 'divers',           prixVente: 0,    pourPro: false, enFabrication: true, intrant: true,
     note: 'Composant intermédiaire — utilisé pour Lumière violette. Crafté : 1×Charbon + 2×Cuivre + 5×Bobine → 1×Plomberie (coût 131.75$). intrant=true bloque le modal vente.' },
   { id: 'cable-electrique',        nom: 'Câble électrique',        categorie: 'electronique',     prixVente: 0,    pourPro: false, enFabrication: true, intrant: true,
@@ -212,3 +212,7 @@ export const CATALOGUE = [
 // Items spéciaux pour quotas pompistes (ID logs-ig)
 export const ITEM_BIDON      = 'bidon-essence';
 export const ITEM_CAOUTCHOUC = 'caoutchouc';
+
+const _PRODUIT_BY_ID = new Map(CATALOGUE.map(p => [p.id, p]));
+export function getProduitById(id) { return _PRODUIT_BY_ID.get(id); }
+export function nomProduit(id) { return _PRODUIT_BY_ID.get(id)?.nom || id; }

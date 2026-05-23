@@ -1,7 +1,22 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-19 (v1.7.1 — hotfix quotas pompiste shift UTC/Paris)**
+> Dernière MAJ : **2026-05-23 (v1.10.0 — paie vendeur CA prorata + bonus quota fabrication)**
+
+## ✅ Résolus session 2026-05-23 — v1.10.0
+
+- **Refonte paie vendeur** : CA × commission → (CA prorata sur `quotaCAVendeur`) + bonus quota fabrication max 3 000 $. Bascule pilotée par `config.quotaCAVendeur` (40 000 = ancien, < 40 000 = nouveau). Plafonds inchangés (13/14/15k total).
+- **Quota fabrication hebdo vendeur** (4 produits : pioche / eau purifiée / mastic carrosserie / visseries). Cloud Function `vendeurDeclarerFabrication` (audit `/fabrications` + increment `/quotasVendeur/{weekId}_{uid}`). Section "🛠 Déclarer une fabrication" sur l'espace vendeur (saisie libre).
+- **Panel centralisé "⚙ Quotas hebdomadaires"** sur RH : regroupe pompiste (bidons/caoutchoucs) + CA vendeur + 4 quotas fabrication. Supprime la modale config quotas de Stations (le bouton ⚙ redirige).
+- **Catalogue** : `mastic-carrosserie` ajouté (placeholder prix=0 à compléter), `jerrican` supprimé (fausse donnée).
+- **Optimisation `genererAvertissementsAuto`** : N round-trips séquentiels → 5 batch parallèles (users + ventes + quotasPompiste + quotasVendeur + avertissements existants) + `batch.commit()`. ~10-30× plus rapide selon effectif.
+- **Helpers partagés** : `fabricationsFromQuotaDoc(qv)`, `nomProduit(id)`, `isNouveauSystemeVendeur(cfg|qCA)`, `scoreQuotaFabrication(fabrications, quotaFab)`.
+
+## 🟡 À surveiller / valider après usage v1.10.0
+
+- **Date d'activation** : décidée par le patron en baissant `quotaCAVendeur` à 30 000 sur le panel RH. Tant que c'est 40 000 = ancien système actif (rétrocompat totale).
+- **Prix vente + recette de craft `mastic-carrosserie`** : placeholder à compléter via Stocks → Modifier produit → Prix achat / Prix vente / Recette.
+- **Avertissements auto fabrication** : motifs ajoutés à la clôture lundi 00h si quota fab actif (> 0) ET non atteint individuellement. Surveiller le volume après la première clôture v1.10.0.
 
 ## ✅ Résolus session 2026-05-19 — v1.7.1
 

@@ -26,9 +26,9 @@ C'est tout ! En tant que vendeur, tu as un accès très restreint et c'est norma
 | KPI | Signification |
 |-----|---------------|
 | **Mon CA** | Total des montants des factures que tu as faites cette semaine |
-| **Mon salaire** | CA retenu × ta commission (32,5 % / 35 % / 37,5 %) |
-| **Progression CA** | Barre vers le plafond de 40 000 $ (au-delà, le CA retenu plafonne) |
-| **Salaire estimé** | Ce que tu vas recevoir en fin de semaine, plafonné selon ton grade |
+| **CA commissionnable** | Sous-total des ventes "particulier" (base du salaire CA) |
+| **Score quota fab** *(si quota actif)* | % moyen de tes fabrications hebdo (pioche / eau purifiée / mastic / visseries) |
+| **Salaire estimé** | Part CA + bonus quota fabrication, plafonné selon ton grade |
 
 ### Tableau de tes ventes
 30 dernières factures :
@@ -77,7 +77,7 @@ Pour qu'une vente compte dans ta commission, **tu dois la déclarer toi-même** 
 ### Ce que tu vois dans la modal
 - Les produits **"PRO"** (eau purifiée, huile, matières premières, etc.) sont **invisibles** — tu ne peux pas les vendre, c'est réservé direction
 - Les **matières premières** (acier, cuivre, corde…) aussi invisibles — elles servent uniquement aux crafts, jamais à la vente
-- Tu vois : produits **épicerie particuliers** + **Quincaillerie** (Visseries, Pioche, Jerrican, Filet, Lumière violette…)
+- Tu vois : produits **épicerie particuliers** + **Quincaillerie** (Visseries, Pioche, Mastic carrosserie, Filet, Lumière violette…)
 
 ### Si la facture in-game n'apparaît pas après 30 secondes
 - Vérifie dans Discord que le canal `#suivi-facture` a bien remonté ta vente
@@ -112,57 +112,69 @@ Cas typique : tu factures un client, il n'a pas l'argent, tu supprimes la factur
 
 ## 💡 Comprendre ta paie
 
+Depuis le **23 mai 2026**, ton salaire a deux composantes : la **part CA** (jusqu'à 10/11/12k selon ton grade) + le **bonus quota fabrication** (jusqu'à 3 000 $). Le total est plafonné à 13/14/15k.
+
 ### Formule
 ```
-commission = 32,5 % (Novice) / 35 % (Inter) / 37,5 % (Exp)
-plafond    = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
+Part CA   = (CA commissionnable / 30 000) × plafond_CA[grade]
+            (plafonné à plafond_CA, atteint à 30 000 $ de CA)
+Bonus fab = score_quota × 3 000 $
+            (score_quota = moyenne des ratios fabriqué/quota sur les produits actifs)
 
-CA commissionnable = somme des ventes "particulier" (hors produits pro)
-CA retenu          = MIN( CA commissionnable, 40 000 $ )
+Salaire   = MIN( Part CA + Bonus fab, plafond_total[grade] )
 
-Salaire = MIN( CA retenu × commission, plafond )
+plafond_CA    = 10 000 $ (Novice) / 11 000 $ (Inter) / 12 000 $ (Exp)
+plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 ```
 
-> ⚠ **Important** : ton salaire est calculé uniquement sur les ventes de produits **particulier** (bonbons, tickets à gratter, ballons, outils, etc.). Les produits **professionnels** (eau purifiée, whey, huile, matières premières…) sont vendus uniquement par la direction aux autres entreprises — ils alimentent le CA du LTD mais **ne te rapportent pas de commission**.
+> ⚠ **Important** : la part CA se calcule uniquement sur les ventes de produits **particulier** (bonbons, tickets à gratter, ballons, outils, etc.). Les produits **professionnels** (whey, huile, matières premières…) sont vendus uniquement par la direction aux autres entreprises.
 >
-> Si tu vois un badge **PRO** sur un produit dans le catalogue, il est invisible dans ta modal de déclaration de vente (réservé direction).
+> En revanche le **quota fabrication** est complètement indépendant des ventes : tu craftes les unités demandées et tu les déclares dans **Mon espace → "🛠 Déclarer une fabrication"**, peu importe ce que tu en fais ensuite.
 
-### En clair
+### Le quota fabrication
 
-#### Cas 1 — CA inférieur au plafond CA (40 000)
-Ton salaire = ton CA × ta commission.
+- Chaque semaine, le patron définit un quota par produit parmi : **Pioche / Eau purifiée / Mastic carrosserie / Visseries** (un produit avec quota = 0 est désactivé pour la semaine).
+- Tu déclares tes fabrications via la section **🛠 Déclarer une fabrication** : saisis la quantité, clique **Valider**.
+- Ton score = **moyenne des ratios** (`fait / quota`) sur les produits actifs, chacun plafonné à 100 %.
+- Le bonus est versé **au prorata** du score (50 % du score = 1 500 $ de bonus).
 
-**Exemple Vendeur Inter** :
-- Tu fais 25 000 $ de CA dans la semaine
-- Salaire = 25 000 × 35 % = **8 750 $**
+### Exemples
 
-#### Cas 2 — CA supérieur à 40 000 (plafond CA)
-Le CA au-delà de 40 000 $ **n'est plus commissionné** : on retient seulement les 40 000 premiers $.
+#### Vendeur Inter (plafond CA 11 000, bonus max 3 000)
 
-**Exemple Vendeur Exp** :
-- Tu fais 60 000 $ de CA
-- CA retenu = 40 000 $
-- Salaire = 40 000 × 37,5 % = **15 000 $** (= plafond Exp)
+- CA commissionnable : **18 000 $** → Part CA = (18000/30000) × 11000 = **6 600 $**
+- Quota fab : 50 pioches + 200 eaux. Tu fais 50 pioches + 100 eaux. Score = (1 + 0,5) / 2 = **75 %** → Bonus = **2 250 $**
+- Salaire total : 6 600 + 2 250 = **8 850 $**
 
-> 💡 Vendre **plus de 40 000 $ de CA** ne fait **plus monter ta commission**. Mais ça reste utile pour le LTD (et pour les primes hebdo collectives).
+#### Vendeur Exp qui fait tout (plafond total 15 000)
 
-#### Cas 3 — Plafond salaire
-Le calibrage CA × commission est aligné avec les plafonds : atteindre 40 000 $ de CA = atteindre ton plafond salaire.
+- CA = 30 000 $ → Part CA = **12 000 $** (plafond CA atteint)
+- Quota fab 100 % → Bonus = **3 000 $**
+- Salaire total : 12 000 + 3 000 = **15 000 $** (= plafond)
 
-| Grade | Calcul au plafond CA | Plafond salaire |
-|-------|----------------------|-----------------|
-| Novice | 40 000 × 32,5 % | 13 000 $ |
-| Inter | 40 000 × 35 % | 14 000 $ |
-| Exp | 40 000 × 37,5 % | 15 000 $ |
+#### Semaine sans quota fabrication (tous quotas à 0)
+
+- Bonus = 0 $. Seule la part CA compte (max 10/11/12k selon ton grade).
+
+| Grade  | Plafond CA (à 30k) | Bonus max | Plafond total |
+|--------|--------------------|-----------|---------------|
+| Novice | 10 000 $           | 3 000 $   | 13 000 $      |
+| Inter  | 11 000 $           | 3 000 $   | 14 000 $      |
+| Exp    | 12 000 $           | 3 000 $   | 15 000 $      |
 
 ---
 
 ## 📈 Comment maximiser ta paie
 
 ### 1. Maximise ton CA
-- Le calcul prend le **CA** (montant total facturé) × ta commission
-- Vise les **40 000 $** de CA pour atteindre ton plafond salaire
+- Vise les **30 000 $** de CA commissionnable pour atteindre ton plafond CA (10/11/12k selon grade)
+- Au-delà de 30 000 $, la part CA est plafonnée — mais ça reste utile pour le LTD et les primes hebdo collectives
 - Le bénéfice généré (CA − coût d'achat) sert au LTD pour la compta — pas à ta paie
+
+### 1bis. Atteins ton quota de fabrication
+- Si la semaine a un quota actif (pioche / eau / mastic / visseries), chaque produit fabriqué t'avance vers le bonus 3 000 $
+- Le bonus est versé **au prorata** : 50 % du score = 1 500 $
+- Déclare régulièrement tes craftings dans **Mon espace → 🛠 Déclarer une fabrication**
 
 ### 2. Optimise tes heures de service
 - Pas d'heures = pas de présence = pas de ventes attribuées (et la direction ne te paiera pas)
@@ -197,8 +209,9 @@ C'est normal et c'est par sécurité — chacun ne voit que ses propres infos.
 
 ### Tous les jours
 - En arrivant en service → vérifie ton **Mon espace** :
-  - Combien j'ai déjà fait ?
-  - Combien me reste-t-il pour atteindre les 40 000 $ ?
+  - Combien j'ai déjà fait en CA ?
+  - Combien me reste-t-il pour atteindre les **30 000 $** (plafond CA) ?
+  - Si quota fab actif : où j'en suis sur le score (% moyen) ?
   - Mon salaire estimé évolue-t-il bien ?
 
 ### Fin de service
@@ -217,7 +230,7 @@ C'est normal et c'est par sécurité — chacun ne voit que ses propres infos.
 Le bot Discord n'a peut-être pas remonté ta facture (canal `#suivi-facture`). Attends 30 secondes, sinon préviens ton responsable.
 
 **« Pourquoi mon salaire estimé est nul alors que j'ai vendu ? »**
-Si ton CA s'affiche bien mais que le salaire reste à 0 $, c'est probablement un bug — préviens la direction (le calcul est : `CA × ta commission`, plafonné à 40 000 $ de CA).
+Si ton CA s'affiche bien mais que le salaire reste à 0 $, c'est probablement un bug — préviens la direction (le calcul est : `(CA / 30 000) × plafond_CA` pour la part CA, plus `score_quota × 3 000` pour le bonus fab).
 
 **« Est-ce que je peux dépasser le plafond ? »**
 Non, c'est un plafond légal TTE. Pour gagner plus, il faut **monter en grade** (Novice → Inter → Exp).

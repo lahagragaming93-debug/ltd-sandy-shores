@@ -9,11 +9,12 @@ import { renderShell, roleBadgeHtml } from '../layout.js';
 import {
   listVentesSemaine, listDepensesSemaine, listPaiesSemaine, listSemaines,
   ajouterDepense, listUsers, listStatsHebdoOfficielles, listRedistributionsSemaine,
-  listServicesSemaine, listQuotasSemaine, getConfig, listSubventionsSemaine
+  listServicesSemaine, listQuotasSemaine, listQuotasVendeurSemaine, getConfig, listSubventionsSemaine
 } from '../api.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId } from '../utils/formatters.js';
-import { checkMasseSalariale, primeHebdo, primeMensuelle, salaireEstime } from '../utils/paie.js';
+import { checkMasseSalariale, primeHebdo, primeMensuelle, salaireEstime,
+         fabricationsFromQuotaDoc } from '../utils/paie.js';
 import { isDirection, isVendeur, isPompiste, isResponsable, isSuperAdmin, compteEnFinance, ROLE_LABELS, PLAFOND_SALAIRE, DRH_SALAIRE_FIXE } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -292,7 +293,7 @@ async function chargerTout() {
     return;
   }
 
-  const [ventes, depenses, paies, u, redistributions, services, quotas, cfg, subventions] = await Promise.all([
+  const [ventes, depenses, paies, u, redistributions, services, quotas, quotasV, cfg, subventions] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
@@ -300,6 +301,7 @@ async function chargerTout() {
     listRedistributionsSemaine(debut, fin).catch(() => []),
     listServicesSemaine(debut, fin).catch(() => []),
     listQuotasSemaine(weekId()).catch(() => []),
+    listQuotasVendeurSemaine(weekId()).catch(() => []),
     getConfig().catch(() => ({})),
     listSubventionsSemaine(debut, fin).catch(() => [])
   ]);
@@ -333,11 +335,13 @@ async function chargerTout() {
     const myV = ventes.filter(v => v.vendeurId === usr.id);
     const myCaParticulier = myV.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
     const q = quotas.find(qu => qu.employeId === usr.id) || { bidons: 0, caoutchoucs: 0 };
+    const qv = quotasV.find(qu => qu.employeId === usr.id) || {};
     masseEstimee += salaireEstime({
       role: usr.role,
       caGenere: myCaParticulier,
       bidonsRealises: q.bidons,
       caoutchoucsRealises: q.caoutchoucs,
+      fabrications: fabricationsFromQuotaDoc(qv),
       salaireDecide: usr.salaireDecide
     }, cfg);
   }

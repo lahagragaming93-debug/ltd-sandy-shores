@@ -8,9 +8,9 @@ import {
   listVentesSemaine, listenStocks, listenStations, listDepensesSemaine,
   listPaiesSemaine, listSemaines, listenAlertesActives, getConfig,
   getDernierSoldeBanque, listRedistributionsSemaine,
-  listUsers, listServicesSemaine, listQuotasSemaine
+  listUsers, listServicesSemaine, listQuotasSemaine, listQuotasVendeurSemaine
 } from '../api.js';
-import { salaireEstime } from '../utils/paie.js';
+import { salaireEstime, fabricationsFromQuotaDoc } from '../utils/paie.js';
 import { compteEnFinance } from '../utils/permissions.js';
 import { weekId } from '../utils/formatters.js';
 import { startOfWeekRP, endOfWeekRP, money, num, pct, datetime, escapeHtml } from '../utils/formatters.js';
@@ -109,7 +109,7 @@ async function chargerKpis() {
   document.getElementById('periode-semaine').textContent =
     `${debut.toLocaleDateString('fr-FR')} → ${fin.toLocaleDateString('fr-FR')} · ${getPeriodeLabel()}`;
 
-  const [ventes, depenses, paies, config, soldeBanque, redistributions, allUsers, services, quotas] = await Promise.all([
+  const [ventes, depenses, paies, config, soldeBanque, redistributions, allUsers, services, quotas, quotasV] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
@@ -118,7 +118,8 @@ async function chargerKpis() {
     listRedistributionsSemaine(debut, fin).catch(() => []),
     listUsers().catch(() => []),
     listServicesSemaine(debut, fin).catch(() => []),
-    listQuotasSemaine(weekId()).catch(() => [])
+    listQuotasSemaine(weekId()).catch(() => []),
+    listQuotasVendeurSemaine(weekId()).catch(() => [])
   ]);
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
@@ -137,11 +138,13 @@ async function chargerKpis() {
     const myV = ventes.filter(v => v.vendeurId === usr.id);
     const myCaParticulier = myV.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
     const q = quotas.find(qu => qu.employeId === usr.id) || { bidons: 0, caoutchoucs: 0 };
+    const qv = quotasV.find(qu => qu.employeId === usr.id) || {};
     masseEstimee += salaireEstime({
       role: usr.role,
       caGenere: myCaParticulier,
       bidonsRealises: q.bidons,
       caoutchoucsRealises: q.caoutchoucs,
+      fabrications: fabricationsFromQuotaDoc(qv),
       salaireDecide: usr.salaireDecide
     }, config);
   }

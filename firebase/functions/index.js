@@ -14,7 +14,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
-import { snapshotPaiesEstimees } from './lib/paie-calc.mjs';
+import { snapshotPaiesEstimees, PRODUITS_QUOTA_FAB } from './lib/paie-calc.mjs';
 import { snapshotSheetSemaine } from './lib/snapshot-sheet-semaine.mjs';
 import { snapshotSheetTitle } from './lib/week-iso.mjs';
 
@@ -255,52 +255,72 @@ async function genererAvertissementsAuto(weekKey, debutSem, finSem) {
   const cfg = (await db.collection('config').doc('global').get()).data() || {};
   const quotaBidons       = Number(cfg.quotaBidons       ?? 1700);
   const quotaCaoutchoucs  = Number(cfg.quotaCaoutchoucs  ??  800);
-  const quotaCAVendeur    = Number(cfg.quotaCAVendeur    ?? 30000);
+  const quotaCAVendeur    = Number(cfg.quotaCAVendeur    ?? 40000);
+  const quotaFab          = cfg.quotaFabrication || {};
 
-  const usersSnap = await db.collection('users').where('statut', '==', 'actif').get();
-  const ventesSnap = await db.collection('ventes')
-    .where('timestamp', '>=', Timestamp.fromDate(debutSem))
-    .where('timestamp', '<=', Timestamp.fromDate(finSem)).get();
+  // Pre-fetch en parallele : users, ventes semaine, quotasPompiste, quotasVendeur.
+  // Evite N round-trips sequentiels dans la boucle (cf. routine simplify).
+  const [usersSnap, ventesSnap, quotasPSnap, quotasVSnap] = await Promise.all([
+    db.collection('users').where('statut', '==', 'actif').get(),
+    db.collection('ventes')
+      .where('timestamp', '>=', Timestamp.fromDate(debutSem))
+      .where('timestamp', '<=', Timestamp.fromDate(finSem)).get(),
+    db.collection('quotasPompiste').where('semaine', '==', weekKey).get(),
+    db.collection('quotasVendeur').where('semaine', '==', weekKey).get()
+  ]);
+
   const caParVendeur = {};
   ventesSnap.docs.forEach(d => {
     const v = d.data();
     if (v.vendeurId) caParVendeur[v.vendeurId] = (caParVendeur[v.vendeurId] || 0) + (Number(v.montant) || 0);
   });
+  const quotaPByUser = new Map(quotasPSnap.docs.map(d => [d.data().employeId, d.data()]));
+  const quotaVByUser = new Map(quotasVSnap.docs.map(d => [d.data().employeId, d.data()]));
 
+  // Pre-fetch des avertissements auto deja existants pour cette semaine.
+  // Sans ce batch, on faisait 1 .get() par user (.docs.length round-trips).
+  const avertsSnap = await db.collection('avertissements')
+    .where('semaineSource', '==', weekKey).where('auto', '==', true).get();
+  const avertsExistants = new Set(avertsSnap.docs.map(d => d.id));
+
+  const batch = db.batch();
   let nbCrees = 0;
+
   for (const uDoc of usersSnap.docs) {
     const u = uDoc.data();
     const role = u.role || '';
     const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
     if (isDir) continue;
 
-    let motifsManques = [];
+    const motifsManques = [];
     if (/^pompiste-/.test(role) || role === 'responsable-pompiste') {
-      const qSnap = await db.collection('quotasPompiste').doc(`${weekKey}_${uDoc.id}`).get();
-      const q = qSnap.exists ? qSnap.data() : { bidons: 0, caoutchoucs: 0 };
+      const q = quotaPByUser.get(uDoc.id) || { bidons: 0, caoutchoucs: 0 };
       const b = Number(q.bidons || 0);
       const c = Number(q.caoutchoucs || 0);
-      // Quota a 0 = dimension desactivee : pas d'avertissement sur cette
-      // dimension (le pompiste n'avait rien a faire dessus cette semaine).
+      // Quota a 0 = dimension desactivee : pas d'avertissement.
       if (quotaBidons      > 0 && b < quotaBidons)      motifsManques.push(`bidons ${b}/${quotaBidons}`);
       if (quotaCaoutchoucs > 0 && c < quotaCaoutchoucs) motifsManques.push(`caoutchoucs ${c}/${quotaCaoutchoucs}`);
     } else if (/^vendeur-/.test(role)) {
       const ca = caParVendeur[uDoc.id] || 0;
       if (ca < quotaCAVendeur) motifsManques.push(`CA ${Math.round(ca)} \$/${quotaCAVendeur} \$`);
+      const qv = quotaVByUser.get(uDoc.id) || {};
+      for (const pid of PRODUITS_QUOTA_FAB) {
+        const q = Number(quotaFab[pid] || 0);
+        if (q <= 0) continue;
+        const fait = Number(qv[pid] || 0);
+        if (fait < q) motifsManques.push(`${pid} ${fait}/${q}`);
+      }
     } else {
       continue;
     }
 
     if (motifsManques.length === 0) continue;
-    const motif = `Quota hebdo non atteint (semaine ${weekKey}) : ${motifsManques.join(', ')}`;
     const id = `auto_${weekKey}_${uDoc.id}`;
-    // Skip si deja existant (pour ne pas reactiver un avert deja retire par le patron).
-    const existing = await db.collection('avertissements').doc(id).get();
-    if (existing.exists) continue;
-    await db.collection('avertissements').doc(id).set({
+    if (avertsExistants.has(id)) continue;
+    batch.set(db.collection('avertissements').doc(id), {
       employeId: uDoc.id,
       employeNom: `${u.prenom || ''} ${u.nom || ''}`.trim(),
-      motif,
+      motif: `Quota hebdo non atteint (semaine ${weekKey}) : ${motifsManques.join(', ')}`,
       parQui: 'system',
       parQuiNom: 'Clôture hebdo automatique',
       auto: true,
@@ -310,6 +330,7 @@ async function genererAvertissementsAuto(weekKey, debutSem, finSem) {
     });
     nbCrees++;
   }
+  if (nbCrees > 0) await batch.commit();
   console.log(`[avertissements-auto] semaine ${weekKey} : ${nbCrees} avert(s) crees`);
 }
 
@@ -2511,6 +2532,81 @@ export const pompisteDeclarerCaoutchoucs = onRequest({
     return res.status(200).json({ ok: true, caoutchoucs: nb });
   } catch (err) {
     console.error('[pompisteDeclarerCaoutchoucs]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+// ----------------------------------------------------------------
+// vendeurDeclarerFabrication — Le vendeur declare N unites craftees
+// d'un produit du quota fabrication hebdo.
+// ----------------------------------------------------------------
+// Symetrique de pompisteDeclarerCaoutchoucs : modal cote vendeur.
+//   1. Audit /fabrications (qui, quoi, combien, quand)
+//   2. Incremente /quotasVendeur/{semaine}_{uid}.{produitId} de N
+// Si quota du produit = 0 cette semaine : declaration acceptee mais
+// le bonus quota n'est pas impacte (utile pour le futur classement
+// hebdo craft).
+// ----------------------------------------------------------------
+export const vendeurDeclarerFabrication = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    const isDir = role === 'patron' || role === 'co-patron' || role === 'admin-technique';
+    // Quotas fabrication = vendeurs uniquement. Direction garde l'acces pour debug.
+    const allowed = isDir || /^vendeur-/.test(role);
+    if (!allowed) return res.status(403).json({ error: 'Seuls les vendeurs peuvent declarer une fabrication.' });
+    if (!isDir && (caller.avertsActifs || 0) >= 3) {
+      return res.status(403).json({ error: 'Compte bloque (3 avertissements actifs). Contacte la direction pour qu\'elle en retire un.' });
+    }
+
+    const { produitId, quantite } = req.body || {};
+    const pid = String(produitId || '').trim();
+    if (!PRODUITS_QUOTA_FAB.includes(pid)) {
+      return res.status(400).json({ error: `produitId invalide. Attendu : ${PRODUITS_QUOTA_FAB.join(', ')}.` });
+    }
+    const nb = Number(quantite);
+    if (!Number.isFinite(nb) || nb <= 0 || !Number.isInteger(nb)) {
+      return res.status(400).json({ error: 'quantite doit etre un entier > 0' });
+    }
+    if (nb > 1000) {
+      return res.status(400).json({ error: 'Maximum 1000 unites par declaration (anti-erreur de saisie).' });
+    }
+
+    const vendeurNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+
+    // 1. Audit /fabrications
+    await db.collection('fabrications').add({
+      produitId: pid,
+      quantite: nb,
+      vendeurId: decoded.uid,
+      vendeurNom,
+      source: 'manuel-vendeur',
+      timestamp: FieldValue.serverTimestamp()
+    });
+
+    // 2. Incremente quota vendeur (le champ porte le nom du produit)
+    const wId = currentWeekId();
+    const docId = `${wId}_${decoded.uid}`;
+    await db.collection('quotasVendeur').doc(docId).set({
+      semaine: wId,
+      employeId: decoded.uid,
+      [pid]: FieldValue.increment(nb)
+    }, { merge: true });
+
+    return res.status(200).json({ ok: true, produitId: pid, quantite: nb });
+  } catch (err) {
+    console.error('[vendeurDeclarerFabrication]', err);
     return res.status(500).json({ error: err.message || 'Internal error' });
   }
 });

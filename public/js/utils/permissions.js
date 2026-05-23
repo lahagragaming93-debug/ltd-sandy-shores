@@ -169,10 +169,53 @@ export const DRH_SALAIRE_FIXE = 18000;
 // son plafond salaire (17 000 $). Formule pro-rata = (CA / 40 000) × 17 000.
 export const CA_PLAFOND_RESP_VENTE = 40000;
 
+// === Vendeurs : bascule entre ancien et nouveau systeme ===
+// Le DECLENCHEUR est la valeur de config.quotaCAVendeur (panel RH > Quotas hebdo) :
+//
+//  - quotaCAVendeur >= 40 000 (= CA_PLAFOND_VENDEUR_LEGACY) :
+//      ANCIEN SYSTEME : salaire = MIN(MIN(CA, 40 000) × commission[role],
+//      plafond[role]). Plafond salaire 13/14/15k atteignable uniquement
+//      via le CA. Pas de bonus quota fabrication.
+//
+//  - quotaCAVendeur <  40 000 (typiquement 30 000) :
+//      NOUVEAU SYSTEME : partCA = MIN(CA / quotaCAVendeur, 1) × plafondCA[role]
+//      + bonusFab = score_quota_fab × 3 000. Plafond total inchange 13/14/15k.
+//      Le patron decide du moment du changement en baissant quotaCAVendeur
+//      (40 000 → 30 000) sur le panel RH apres cloture.
+//
+// Cf. /02-drh.md (section "Comprendre les calculs de paie") pour la doc.
+export const CA_PLAFOND_VENDEUR_LEGACY = 40000;
+
+export function isNouveauSystemeVendeur(cfgOrQuotaCA) {
+  const q = (cfgOrQuotaCA && typeof cfgOrQuotaCA === 'object')
+    ? Number(cfgOrQuotaCA.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY)
+    : Number(cfgOrQuotaCA);
+  if (!Number.isFinite(q) || q <= 0) return false;
+  return q < CA_PLAFOND_VENDEUR_LEGACY;
+}
+
+// --- Ancien systeme ---
 export const COMMISSION_VENDEUR = {
   'vendeur-novice':         0.325,
   'vendeur-intermediaire':  0.350,
   'vendeur-experimente':    0.375
 };
 
-export const CA_PLAFOND_VENDEUR = 40000;
+// --- Nouveau systeme ---
+export const PLAFOND_CA_VENDEUR = {
+  'vendeur-novice':         10000,
+  'vendeur-intermediaire':  11000,
+  'vendeur-experimente':    12000
+};
+export const BONUS_QUOTA_VENDEUR_MAX = 3000;
+export const PRODUITS_QUOTA_FAB = [
+  'pioche',
+  'bouteille-eau-purifiee',
+  'mastic-carrosserie',
+  'visseries'
+];
+
+// Valeur par defaut quand config.quotaCAVendeur est absent en Firestore.
+// = ancien plafond (= ancien systeme reste actif tant que le patron n'a pas
+// baisse le quota cote panel RH).
+export const QUOTA_CA_VENDEUR_DEFAULT = CA_PLAFOND_VENDEUR_LEGACY;

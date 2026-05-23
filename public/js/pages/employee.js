@@ -6,12 +6,17 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listVentesSemaineIncluantCachees, listServicesSemaine, listAllServicesEmploye,
-  getServiceOuvert, getQuotaPompiste, getConfig, listenConfig, listenAvertissements, getUserDoc, listenStations,
-  listRedistributionsSemaine, listAllRedistributionsPompiste, listenMesNotesFrais, callFunction
+  getServiceOuvert, getQuotaPompiste, getQuotaVendeur, getConfig, listenConfig, listenAvertissements,
+  getUserDoc, listenStations, listRedistributionsSemaine, listAllRedistributionsPompiste,
+  listenMesNotesFrais, callFunction
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
-         CA_PLAFOND_VENDEUR, COMMISSION_VENDEUR } from '../utils/permissions.js';
-import { salaireVendeur, salairePompiste, scorePompiste } from '../utils/paie.js';
+         CA_PLAFOND_VENDEUR_LEGACY, PLAFOND_CA_VENDEUR,
+         BONUS_QUOTA_VENDEUR_MAX, PRODUITS_QUOTA_FAB,
+         isNouveauSystemeVendeur } from '../utils/permissions.js';
+import { salaireVendeur, salairePompiste, scorePompiste, scoreQuotaFabrication,
+         fabricationsFromQuotaDoc } from '../utils/paie.js';
+import { nomProduit } from '../data/produits.js';
 import { money, moneyPrecis, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, durationHM } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -58,6 +63,7 @@ const wId   = weekId();
 const config = await getConfig().catch(() => ({}));
 const quotaCaoutchoucsActif = (config.quotaCaoutchoucs ?? 800) > 0;
 const quotaBidonsActif      = (config.quotaBidons      ?? 1700) > 0;
+const quotaFabrication = config.quotaFabrication || {};
 
 // Listener temps-reel : si la direction modifie un quota, les tablettes
 // in-game (pas de F5) reloadent automatiquement pour refleter la nouvelle
@@ -67,6 +73,7 @@ const _cfgSig = JSON.stringify({
   qB: config.quotaBidons,
   qC: config.quotaCaoutchoucs,
   qCA: config.quotaCAVendeur,
+  qF: config.quotaFabrication || null,
   pE: config.prixEssence
 });
 listenConfig((newCfg) => {
@@ -74,6 +81,7 @@ listenConfig((newCfg) => {
     qB: newCfg.quotaBidons,
     qC: newCfg.quotaCaoutchoucs,
     qCA: newCfg.quotaCAVendeur,
+    qF: newCfg.quotaFabrication || null,
     pE: newCfg.prixEssence
   });
   if (sig !== _cfgSig) {
@@ -403,16 +411,17 @@ async function chargerEtRendreDetail({ debut: sDebut, fin: sFin, isCurrent, week
   // - semaine cloturee : weekKey du selecteur (= id du doc /semaines)
   const wIdCible = isCurrent ? wId : weekKey;
 
-  const [allVentes, allServices, quota] = await Promise.all([
+  const [allVentes, allServices, quota, quotaV] = await Promise.all([
     listVentesSemaine(sDebut, sFin).catch(() => []),
     listServicesSemaine(sDebut, sFin).catch(() => []),
-    getQuotaPompiste(viewedUserId, wIdCible).catch(() => ({ bidons: 0, caoutchoucs: 0 }))
+    getQuotaPompiste(viewedUserId, wIdCible).catch(() => ({ bidons: 0, caoutchoucs: 0 })),
+    getQuotaVendeur(viewedUserId, wIdCible).catch(() => ({}))
   ]);
 
   const myVentes = allVentes.filter(v => v.vendeurId === viewedUserId);
 
   if (isVendeur(profile.role)) {
-    renderVendeur(myVentes, quota, isCurrent);
+    renderVendeur(myVentes, quotaV, isCurrent);
   } else if (isPompiste(profile.role)) {
     renderPompiste(quota, isCurrent);
   } else {
@@ -420,23 +429,62 @@ async function chargerEtRendreDetail({ debut: sDebut, fin: sFin, isCurrent, week
   }
 }
 
-function renderVendeur(myVentes, quota, isCurrent) {
+function renderVendeur(myVentes, quotaV, isCurrent) {
   const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
   const caParticulier = myVentes.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
   const caPro = ca - caParticulier;
-  const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
-  const salaireEst = salaireVendeur(profile.role, caParticulier);
-  const progressionCA = Math.min(100, (caParticulier / CA_PLAFOND_VENDEUR) * 100);
-  const commission = COMMISSION_VENDEUR[profile.role] * 100;
-  const quotaCA = Number(config.quotaCAVendeur ?? 30000);
+
+  // Fabrications de la semaine (cumul par produit) + score quota
+  const fabrications = fabricationsFromQuotaDoc(quotaV);
+  const scoreFab = scoreQuotaFabrication(fabrications, quotaFabrication);
+  const bonusFab = Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX);
+  // Le declencheur du nouveau systeme = quotaCAVendeur < 40 000 (panel RH)
+  const quotaCA = Number(config.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
+  const salaireEst = salaireVendeur(profile.role, caParticulier, fabrications, quotaFabrication, quotaCA);
+  const nouveauSysteme = isNouveauSystemeVendeur(quotaCA);
+
+  // Part CA pure (pour afficher la decomposition au vendeur)
+  const plafondCAVendeur = PLAFOND_CA_VENDEUR[profile.role] || 0;
+  const salaireCAPart = nouveauSysteme
+    ? Math.round((quotaCA > 0 ? Math.min(1, caParticulier / quotaCA) : 0) * plafondCAVendeur)
+    : salaireEst;  // ancien systeme : la totalite vient du CA
+
+  // Plafond CA et barres dependent du systeme actif
+  const plafondCAAffiche = nouveauSysteme ? quotaCA : CA_PLAFOND_VENDEUR_LEGACY;
+  const progressionCA = plafondCAAffiche > 0 ? Math.min(100, (caParticulier / plafondCAAffiche) * 100) : 0;
   const pctQuotaCA = quotaCA > 0 ? Math.min(100, (caParticulier / quotaCA) * 100) : 0;
+
+  // Produits actifs cette semaine. Visible uniquement avec le nouveau systeme.
+  const produitsActifs = nouveauSysteme
+    ? PRODUITS_QUOTA_FAB.filter(id => Number(quotaFabrication[id] || 0) > 0)
+    : [];
 
   document.getElementById('kpis-emp').innerHTML = `
     <div class="kpi"><div class="label">${isCurrent ? 'Ton CA' : 'CA de la semaine'}</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes${caPro > 0 ? ` · ${money(caPro)} hors commission` : ''}</div></div>
-    <div class="kpi"><div class="label">CA commissionnable</div><div class="value">${money(caParticulier)}</div><div class="delta">base du salaire</div></div>
-    <div class="kpi"><div class="label">Quota CA hebdo</div><div class="value">${pct(pctQuotaCA, 0)}</div><div class="delta ${caParticulier >= quotaCA ? 'up' : 'down'}">${money(caParticulier)} / ${money(quotaCA)}</div></div>
-    <div class="kpi"><div class="label">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">${commission}% · plafond ${money(plafondSalaire)}</div></div>
+    <div class="kpi"><div class="label">CA commissionnable</div><div class="value">${money(caParticulier)}</div><div class="delta">base du salaire CA</div></div>
+    ${produitsActifs.length > 0
+      ? `<div class="kpi"><div class="label">📦 Score quota fab</div><div class="value">${pct(scoreFab*100, 0)}</div><div class="delta ${scoreFab>=1?'up':'down'}">bonus ${money(bonusFab)} / ${money(BONUS_QUOTA_VENDEUR_MAX)}</div></div>`
+      : `<div class="kpi"><div class="label">Quota CA hebdo</div><div class="value">${pct(pctQuotaCA, 0)}</div><div class="delta ${caParticulier >= quotaCA ? 'up' : 'down'}">${money(caParticulier)} / ${money(quotaCA)}</div></div>`}
+    <div class="kpi"><div class="label">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">${nouveauSysteme ? `CA ${money(salaireCAPart)} + bonus ${money(bonusFab)}` : 'commission CA'} · plafond ${money(plafondSalaire)}</div></div>
   `;
+
+  // Section "Declarer fabrication" : visible UNIQUEMENT semaine en cours +
+  // au moins un produit actif + pas en mode "voir comme"
+  const blocDeclarerFab = (isCurrent && !modeVoirComme && produitsActifs.length > 0) ? `
+    <div class="panel-title mt-3" style="margin-bottom:6px;"><span>🛠 Déclarer une fabrication</span><span class="muted" style="font-size:0.78rem;">cumul de la semaine — saisie libre par produit</span></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap;">
+      ${produitsActifs.map(id => `
+        <div class="panel" style="flex:1 1 240px;min-width:220px;padding:10px;">
+          <div class="mono" style="font-size:0.92rem;margin-bottom:4px;">${escapeHtml(nomProduit(id))}</div>
+          <div class="muted" style="font-size:0.78rem;margin-bottom:6px;">Quota : ${num(quotaFabrication[id])} · fait : ${num(fabrications[id])}</div>
+          <div class="row" style="gap:6px;">
+            <input type="number" min="1" step="1" placeholder="+ qté" data-fab-qte="${id}" style="flex:1;min-width:80px;" />
+            <button class="btn btn-primary btn-sm" data-fab-valider="${id}">Valider</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
 
   document.getElementById('detail').innerHTML = `
     <div class="row" style="gap:14px;flex-direction:column;align-items:stretch;">
@@ -448,20 +496,42 @@ function renderVendeur(myVentes, quota, isCurrent) {
         </div>
       </div>
       <div>
-        <div class="muted mono mb-1">Progression vers plafond CA (${money(CA_PLAFOND_VENDEUR)} — au-delà, plus de commission)</div>
+        <div class="muted mono mb-1">${nouveauSysteme
+          ? `Progression vers plafond part CA (${money(quotaCA)} = plafond part CA ${money(plafondCAVendeur)})`
+          : `Progression vers plafond CA (${money(CA_PLAFOND_VENDEUR_LEGACY)} — au-delà, plus de commission)`}</div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${progressionCA}%"></div>
-          <div class="label">${money(caParticulier)} / ${money(CA_PLAFOND_VENDEUR)}</div>
+          <div class="label">${money(caParticulier)} / ${money(plafondCAAffiche)}</div>
         </div>
       </div>
+      ${produitsActifs.length > 0 ? `
+        <div>
+          <div class="muted mono mb-1">📦 Quotas de fabrication (bonus jusqu'à ${money(BONUS_QUOTA_VENDEUR_MAX)} · score moyen des produits actifs)</div>
+          ${produitsActifs.map(id => {
+            const fait = fabrications[id];
+            const q = quotaFabrication[id];
+            const pctP = q > 0 ? Math.min(100, (fait / q) * 100) : 0;
+            return `
+              <div class="row" style="align-items:center;gap:8px;margin-bottom:4px;">
+                <div class="mono" style="min-width:200px;font-size:0.85rem;">${escapeHtml(nomProduit(id))}</div>
+                <div class="progress" style="flex:1;height:20px;">
+                  <div class="fill" style="width:${pctP}%;${fait>=q?'background:var(--color-cactus,#5a8);':''}"></div>
+                  <div class="label">${num(fait)} / ${num(q)} (${pct(pctP,0)})</div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      ` : ''}
       <div>
-        <div class="muted mono mb-1">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond</div>
+        <div class="muted mono mb-1">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond${nouveauSysteme ? ` — part CA ${money(salaireCAPart)} + bonus quota ${money(bonusFab)}` : ''}</div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${plafondSalaire ? (salaireEst/plafondSalaire)*100 : 0}%"></div>
           <div class="label">${money(salaireEst)} / ${money(plafondSalaire)}</div>
         </div>
       </div>
     </div>
+
+    ${blocDeclarerFab}
 
     <div class="panel-title mt-3" style="margin-bottom:6px;"><span>📋 Mes factures de la semaine</span><span class="muted" style="font-size:0.78rem;">${myVentes.length} vente${myVentes.length>1?'s':''}</span></div>
     <div class="table-scroll" style="max-height:400px;">
@@ -491,6 +561,37 @@ function renderVendeur(myVentes, quota, isCurrent) {
     </div>
   `;
   if (myVentes.length > 0) makeSortable(document.getElementById('table-mes-ventes'));
+
+  // Branche les boutons "Valider" de declaration fabrication
+  if (isCurrent && !modeVoirComme && produitsActifs.length > 0) {
+    document.querySelectorAll('[data-fab-valider]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pid = btn.dataset.fabValider;
+        const input = document.querySelector(`[data-fab-qte="${pid}"]`);
+        const qte = Number(input?.value || 0);
+        if (!qte || qte <= 0 || !Number.isInteger(qte)) {
+          toastError('Saisis un nombre entier > 0.');
+          input?.focus();
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          await callFunction('vendeurDeclarerFabrication', { produitId: pid, quantite: qte });
+          toastSuccess(`+${qte} ${nomProduit(pid)} déclaré(s)`);
+          // Re-fetch cible : nouveau doc quotasVendeur + re-render KPI/barres.
+          // Evite un full reload (= refetch ventes/services/etc inchanges).
+          const nouveauQuotaV = await getQuotaVendeur(viewedUserId, wId).catch(() => quotaV);
+          renderVendeur(myVentes, nouveauQuotaV, isCurrent);
+        } catch (e) {
+          console.error('[employee] vendeurDeclarerFabrication', e);
+          toastError(e.message || 'Erreur lors de la déclaration.');
+          btn.disabled = false;
+          btn.textContent = 'Valider';
+        }
+      });
+    });
+  }
 }
 
 function renderPompiste(quota, isCurrent) {
