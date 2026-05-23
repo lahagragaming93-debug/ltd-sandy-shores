@@ -713,12 +713,14 @@ async function renderClassementPompiste() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
   const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+  const logErr = (label) => (e) => { console.error(`[classement] ${label}:`, e); return []; };
   const [users, rSem, rMois, rAll] = await Promise.all([
-    listUsers().catch(() => []),
-    listRedistributionsRangeManuel(weekStart, weekEnd).catch(() => []),
-    listRedistributionsRangeManuel(monthStart, monthEnd).catch(() => []),
-    listAllRedistributionsManuel().catch(() => [])
+    listUsers().catch(logErr('listUsers')),
+    listRedistributionsRangeManuel(weekStart, weekEnd).catch(logErr('semaine')),
+    listRedistributionsRangeManuel(monthStart, monthEnd).catch(logErr('mois')),
+    listAllRedistributionsManuel().catch(logErr('total'))
   ]);
+  console.log('[classement] semaine docs:', rSem.length, '· mois docs:', rMois.length, '· total docs:', rAll.length);
 
   // Pompistes ravitailleurs = pompiste-* + responsable-pompiste (peu importe statut
   // pour que les ex-pompistes apparaissent encore dans 'depuis embauche').
