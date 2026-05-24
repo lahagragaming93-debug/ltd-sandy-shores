@@ -27,11 +27,11 @@ const canCreate = canCreateProduit(profile.role);
 const html = `
   <!-- Onglets de section -->
   <div class="row mb-2" id="onglets-stocks" style="gap:6px;flex-wrap:wrap;">
-    <button class="btn btn-tab active" data-section="vente_epicerie" title="Stock vendable aux particuliers (commission vendeur)">🛒 Vente épicerie <span class="badge neutral" data-count="vente_epicerie">0</span></button>
-    <button class="btn btn-tab" data-section="vente_pro" title="Stock vendable aux partenaires pros (CA LTD)">🏢 Vente partenaire <span class="badge neutral" data-count="vente_pro">0</span></button>
-    <button class="btn btn-tab" data-section="achat_fournisseur" title="Matières premières achetées (non revendues)">📦 Achat fournisseur <span class="badge neutral" data-count="achat_fournisseur">0</span></button>
-    <button class="btn btn-tab" data-section="fabrication" title="Quincaillerie — produits craftés par les vendeurs">🔧 Quincaillerie <span class="badge neutral" data-count="fabrication">0</span></button>
-    <button class="btn btn-tab" data-section="mouvements" title="Historique des derniers mouvements (entrée/sortie/ajustement)">📜 Mouvements</button>
+    <button class="btn btn-tab active" data-section="vente_epicerie" title="Stock vendable aux particuliers (commission vendeur)">Vente épicerie <span class="badge neutral" data-count="vente_epicerie">0</span></button>
+    <button class="btn btn-tab" data-section="vente_pro" title="Stock vendable aux partenaires pros (CA LTD)">Vente partenaire <span class="badge neutral" data-count="vente_pro">0</span></button>
+    <button class="btn btn-tab" data-section="achat_fournisseur" title="Matières premières achetées (non revendues)">Achat fournisseur <span class="badge neutral" data-count="achat_fournisseur">0</span></button>
+    <button class="btn btn-tab" data-section="fabrication" title="Quincaillerie — produits craftés par les vendeurs">Quincaillerie <span class="badge neutral" data-count="fabrication">0</span></button>
+    <button class="btn btn-tab" data-section="mouvements" title="Historique des derniers mouvements (entrée/sortie/ajustement)">Mouvements</button>
   </div>
 
   <div class="page-toolbar">
@@ -42,20 +42,20 @@ const html = `
     </select>
     <select id="filtre-alerte" title="Filtrer par niveau">
       <option value="">Tous niveaux</option>
-      <option value="rupture">⚠ Ruptures</option>
-      <option value="bas">⚠ Sous seuil</option>
+      <option value="rupture">Ruptures</option>
+      <option value="bas">Sous seuil</option>
       <option value="ok">OK</option>
     </select>
-    <input type="text" id="filtre-recherche" placeholder="🔍 Rechercher…" style="flex:1;min-width:160px;" />
+    <input type="text" id="filtre-recherche" placeholder="Rechercher…" style="flex:1;min-width:160px;" />
     ${canCreate ? `
-      <button class="btn btn-primary btn-icon" id="btn-nouveau-produit" title="Ajouter un produit au catalogue" data-tooltip="Ajouter produit">➕</button>
+      <button class="btn btn-primary" id="btn-nouveau-produit" title="Ajouter un produit au catalogue" data-tooltip="Ajouter produit">+ Ajouter</button>
     ` : ''}
   </div>
 
   <!-- Panel unique : affiche la section active -->
   <div class="panel framed" id="panel-section-actif">
     <div class="panel-title">
-      <span id="section-titre">🛒 Vente épicerie — particuliers</span>
+      <span id="section-titre">Vente épicerie — particuliers</span>
       <span class="muted mono" id="stats-stock">—</span>
     </div>
     <div class="table-scroll">
@@ -68,7 +68,7 @@ const html = `
 
   <!-- Panel mouvements (affiche uniquement quand section = mouvements) -->
   <div class="panel framed hidden" id="panel-mouvements">
-    <div class="panel-title"><span>📜 Derniers mouvements de stock</span></div>
+    <div class="panel-title"><span>Derniers mouvements de stock</span></div>
     <div id="mouvements">Chargement…</div>
   </div>
 
@@ -77,7 +77,6 @@ const html = `
     <div class="modal" style="max-width:560px;">
       <h3>+ Ajouter un produit au catalogue</h3>
       <div class="alert info mb-2" style="font-size:0.82rem;">
-        <span class="icon">ℹ</span>
         <span>L'<strong>identifiant</strong> du produit est généré automatiquement à partir du nom (slug). Il sert de clé technique : il ne sera plus modifiable après création. Le nom, lui, reste éditable.</span>
       </div>
       <label>Nom du produit *</label>
@@ -97,10 +96,10 @@ const html = `
       <input type="number" id="new-produit-stock" min="0" step="1" value="0" />
       <label>Section de stock</label>
       <select id="new-produit-section">
-        <option value="vente_epicerie">🛒 Vente épicerie — particuliers (commission vendeur)</option>
-        <option value="vente_pro">🏢 Vente partenaire — pros (CA LTD, pas de commission)</option>
-        <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
-        <option value="fabrication">🔧 Quincaillerie (produit crafté par les vendeurs)</option>
+        <option value="vente_epicerie">Vente épicerie — particuliers (commission vendeur)</option>
+        <option value="vente_pro">Vente partenaire — pros (CA LTD, pas de commission)</option>
+        <option value="achat_fournisseur">Achat fournisseur — matière première (non vendue)</option>
+        <option value="fabrication">Quincaillerie (produit crafté par les vendeurs)</option>
       </select>
       <label>Fournisseur <span class="muted" style="font-size:0.75rem;">— optionnel (ex. "Yootool", "GB Foundry")</span></label>
       <input type="text" id="new-produit-fournisseur" placeholder="Vide si pas applicable" maxlength="60" />
@@ -124,10 +123,10 @@ const html = `
       </div>
       <label>Section de stock</label>
       <select id="edit-section">
-        <option value="vente_epicerie">🛒 Vente épicerie — particuliers (commission vendeur)</option>
-        <option value="vente_pro">🏢 Vente partenaire — pros (CA LTD, pas de commission)</option>
-        <option value="achat_fournisseur">📦 Achat fournisseur — matière première (non vendue)</option>
-        <option value="fabrication">🔧 Quincaillerie (produit crafté par les vendeurs)</option>
+        <option value="vente_epicerie">Vente épicerie — particuliers (commission vendeur)</option>
+        <option value="vente_pro">Vente partenaire — pros (CA LTD, pas de commission)</option>
+        <option value="achat_fournisseur">Achat fournisseur — matière première (non vendue)</option>
+        <option value="fabrication">Quincaillerie (produit crafté par les vendeurs)</option>
       </select>
       <label>Fournisseur <span class="muted" style="font-size:0.75rem;">— apparaît aussi dans l'onglet Achat fournisseur</span></label>
       <input type="text" id="edit-fournisseur" placeholder="ex. Yootool, GB Foundry" maxlength="60" />
@@ -152,10 +151,10 @@ let sortState = { key: 'nom', dir: 'asc' };
 let sectionActive = 'vente_epicerie';
 
 const SECTION_LABELS = {
-  vente_epicerie:    { titre: '🛒 Vente épicerie — particuliers',           sub: '(commission vendeur)' },
-  vente_pro:         { titre: '🏢 Vente partenaire — professionnels',       sub: '(CA LTD, pas de commission)' },
-  achat_fournisseur: { titre: '📦 Achat fournisseur — matières premières',  sub: '(achetées, non revendues)' },
-  fabrication:       { titre: '🔧 Quincaillerie',                            sub: '(produits craftés par les vendeurs)' }
+  vente_epicerie:    { titre: 'Vente épicerie — particuliers',           sub: '(commission vendeur)' },
+  vente_pro:         { titre: 'Vente partenaire — professionnels',       sub: '(CA LTD, pas de commission)' },
+  achat_fournisseur: { titre: 'Achat fournisseur — matières premières',  sub: '(achetées, non revendues)' },
+  fabrication:       { titre: 'Quincaillerie',                          sub: '(produits craftés par les vendeurs)' }
 };
 
 // Determine la section d'appartenance d'un produit (1 seule)
@@ -248,13 +247,13 @@ function ligneProduit({ p, qte, seuil, statut, section }, colonnes) {
   const marge = (p.prixVente || 0) - (p.prixAchat || 0);
   const cls = qte < 0 ? 'alert-out' : (statut === 'rupture' ? 'alert-out' : (statut === 'bas' ? 'alert-low' : ''));
   const badgeStatut = qte < 0
-    ? `<span class="badge danger" title="Stock négatif — incohérence">⚠ ${num(qte)}</span>`
+    ? `<span class="badge danger" title="Stock négatif — incohérence">NÉG ${num(qte)}</span>`
     : (statut === 'rupture'
         ? '<span class="badge danger">RUPTURE</span>'
         : (statut === 'bas' ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>'));
   // Badge fournisseur (si defini)
   const fournisseurBadge = p.fournisseur && String(p.fournisseur).trim()
-    ? ` <span class="badge neutral" title="Acheté chez ${escapeHtml(p.fournisseur)}" style="font-size:0.65rem;">📦 ${escapeHtml(p.fournisseur)}</span>`
+    ? ` <span class="badge neutral" title="Acheté chez ${escapeHtml(p.fournisseur)}" style="font-size:0.65rem;">${escapeHtml(p.fournisseur)}</span>`
     : '';
   // Sur l'onglet achat_fournisseur, on ajoute la section principale
   // (utile car un produit avec fournisseur peut "vivre" dans vente_epicerie/pro/fabrication)
@@ -277,8 +276,8 @@ function ligneProduit({ p, qte, seuil, statut, section }, colonnes) {
     <tr class="${cls}">
       ${colonnes.map(k => cellules[k]).join('')}
       ${editable ? `<td class="actions-cell">
-        <button class="btn btn-icon btn-sm btn-ghost" data-edit="${p.id}" title="Modifier le produit (prix, seuil, stock)" data-tooltip="Modifier">✏</button>
-        ${canCreate ? `<button class="btn btn-icon btn-sm btn-danger" data-delete-produit="${p.id}" title="Supprimer du catalogue" data-tooltip="Supprimer">🗑</button>` : ''}
+        <button class="btn btn-sm btn-ghost" data-edit="${p.id}" title="Modifier le produit (prix, seuil, stock)" data-tooltip="Modifier">Modifier</button>
+        ${canCreate ? `<button class="btn btn-sm btn-danger" data-delete-produit="${p.id}" title="Supprimer du catalogue" data-tooltip="Supprimer">Suppr.</button>` : ''}
       </td>` : ''}
     </tr>
   `;
@@ -299,7 +298,7 @@ function wireActions(tbody) {
           • Stock actuel : <strong>${stock}</strong> unités (le stock est conservé en base mais ne sera plus visible)<br>
           • Les ventes passées avec ce produit restent dans l'historique<br>
           • L'historique des prix (audit) reste consultable<br><br>
-          ⚠ Si ce produit a encore des stocks ou apparaît dans les logs FiveM, il sera <strong>recréé automatiquement</strong> par le bot.`,
+          Si ce produit a encore des stocks ou apparaît dans les logs FiveM, il sera <strong>recréé automatiquement</strong> par le bot.`,
         btnConfirm: 'Supprimer le produit',
         delaiSec: 3,
         requireType: 'SUPPRIMER'

@@ -1,4 +1,4 @@
-# 📋 Guide DRH — Ressources Humaines
+# Guide DRH — Ressources Humaines
 
 > Tu es le **garant des employés** : leurs heures, leurs paies, la conformité aux plafonds TTE.
 > Tu **gères aussi les comptes** (création, modification, suspension, suppression) — sauf le Patron et le Co-Patron, qui restent hors de ton périmètre.
@@ -6,39 +6,39 @@
 
 ---
 
-## 🎯 Tes modules
+## Tes modules
 
 | Module | Accès | Rôle |
 |--------|-------|------|
-| 📊 Dashboard | Lecture | Vue d'ensemble (CA, masse, alertes) |
-| 🛒 Stocks épicerie | **Lecture + écriture** | Voir, modifier les stocks, **et créer de nouveaux produits** au catalogue |
-| ⛽ Stations essence | **Lecture + écriture** | Modifier capacité / prix / stock / N° pompe, ajouter ou supprimer une station |
-| 💵 Ventes | Lecture | Voir les factures de la semaine |
-| 📋 Comptabilité | Lecture | Voir les comptes (pas modifier) |
-| 🧑‍💼 **Ressources humaines** | **Lecture + écriture** | Gérer effectif et salaires décidés |
-| ⚙ **Administration** | **Lecture + écriture (sauf direction)** | Créer / modifier / suspendre / supprimer des comptes |
-| 👤 Mon espace + 💰 Mes paies | Lecture | Tes infos perso |
+| Dashboard | Lecture | Vue d'ensemble (CA, masse, alertes) |
+| Stocks épicerie | **Lecture + écriture** | Voir, modifier les stocks, **et créer de nouveaux produits** au catalogue |
+| Stations essence | **Lecture + écriture** | Modifier capacité / prix / stock / N° pompe, ajouter ou supprimer une station |
+| Ventes | Lecture | Voir les factures de la semaine |
+| Comptabilité | Lecture | Voir les comptes (pas modifier) |
+| **Ressources humaines** | **Lecture + écriture** | Gérer effectif et salaires décidés |
+| **Administration** | **Lecture + écriture (sauf direction)** | Créer / modifier / suspendre / supprimer des comptes |
+| Mon espace + Mes paies | Lecture | Tes infos perso |
 
-> 🔒 Tu n'as pas accès à : **Configuration globale** dans Administration (réservée à la direction).
+> Tu n'as pas accès à : **Configuration globale** dans Administration (réservée à la direction).
 >
-> 🔐 **Périmètre Administration** : tu peux gérer **tous les comptes sauf le Patron et le Co-Patron** (les comptes hors périmètre apparaissent en lecture seule, actions grisées). Tu peux gérer un autre DRH.
+> **Périmètre Administration** : tu peux gérer **tous les comptes sauf le Patron et le Co-Patron** (les comptes hors périmètre apparaissent en lecture seule, actions grisées). Tu peux gérer un autre DRH.
 >
-> 🆕 **2026-05-13** : tu peux désormais modifier les stocks épicerie et essence (alignement avec la direction sur décision du patron).
+> **2026-05-13** : tu peux désormais modifier les stocks épicerie et essence (alignement avec la direction sur décision du patron).
 
 ---
 
-## 🧑‍💼 Le module RH en détail
+## Le module RH en détail
 
 ### Ce que tu vois
 
-#### 🗓 Sélecteur semaine (en haut)
+#### Sélecteur semaine (en haut)
 Toggle binaire pour choisir la semaine affichée :
 - **Cette semaine (en cours)** — par défaut, montre la semaine RP en cours (lundi 00h00 → maintenant).
 - **Semaine précédente (à payer)** — bascule à utiliser **le lundi matin** après la clôture auto de 00h00, pour voir les salaires estimés à verser sur la semaine clôturée.
 
 Le badge à droite affiche les dates exactes de la semaine affichée. Le marqueur **« À PAYER »** est visible quand tu es sur la semaine précédente.
 
-> 💡 La page recharge automatiquement (ventes, services, quotas, paies, redistributions carburant) sur la fenêtre choisie. Pas besoin de F5.
+> La page recharge automatiquement (ventes, services, quotas, paies, redistributions carburant) sur la fenêtre choisie. Pas besoin de F5.
 
 #### KPI en haut
 | KPI | Signification |
@@ -58,7 +58,7 @@ Le badge à droite affiche les dates exactes de la semaine affichée. Le marqueu
 Une ligne par employé avec :
 - **Nom + rôle** (badge coloré)
 - **ID Discord** (utile pour matcher avec les logs)
-- **Heures de service** de la semaine — si < 7h, marqueur ⚠
+- **Heures de service** de la semaine — si < 7h, marqueur d'alerte
 - **CA / Quota** (varie selon le rôle) :
   - Vendeur : `CA généré / 30 000` (plafond CA) + score quota fabrication si actif
   - Pompiste : `% score` (moyenne bidons + caoutchoucs)
@@ -66,11 +66,11 @@ Une ligne par employé avec :
 - **Salaire estimé / plafond**
 - **Statut** + bouton **« Détail »**
 
-#### 💸 Colonne « Versé ? » (mode semaine précédente uniquement)
+#### Colonne « Versé ? » (mode semaine précédente uniquement)
 
 **Workflow lundi matin** (depuis 2026-05-18, Option B « snapshots ») :
 
-1. À la **clôture** (manuelle bouton 🔒 ou cron lundi 00h00 Paris), le système prend une photo des estimations de chaque employé actif → collection `/paiesEstimees/{weekKey}_{userId}`. Ces chiffres sont **figés** : ils ne bougent plus, même si tu modifies une vente ou un salaire décidé après coup.
+1. À la **clôture** (manuelle bouton cadenas ou cron lundi 00h00 Paris), le système prend une photo des estimations de chaque employé actif → collection `/paiesEstimees/{weekKey}_{userId}`. Ces chiffres sont **figés** : ils ne bougent plus, même si tu modifies une vente ou un salaire décidé après coup.
 2. Tu bascules le toggle sur **« Semaine précédente (à payer) »**.
 3. Le tableau affiche les estimations **figées à la clôture** (pas un recalcul live).
 4. Une colonne **« Versé ? »** apparaît :
@@ -82,14 +82,14 @@ Une ligne par employé avec :
 6. Le KPI **« Reste à verser »** baisse à chaque coche.
 7. Une fois à **0 $**, tu as fini la semaine.
 
-> ✅ **Idempotent** : si tu re-clôtures la même semaine (cas rare), aucun snapshot existant n'est écrasé — la trace est conservée.
-> 🔓 **Reset** : décoche pour annuler le marquage (les champs `datePaiement` et `paieMatcheeId` sont remis à null).
-> 👥 **Droits** : Patron, Co-Patron, DRH, Admin Technique peuvent cocher.
+> **Idempotent** : si tu re-clôtures la même semaine (cas rare), aucun snapshot existant n'est écrasé — la trace est conservée.
+> **Reset** : décoche pour annuler le marquage (les champs `datePaiement` et `paieMatcheeId` sont remis à null).
+> **Droits** : Patron, Co-Patron, DRH, Admin Technique peuvent cocher.
 
 ### Ce que tu peux faire
 
-#### 🔍 Voir le détail d'un employé
-- Clique **« Détail »** (icône 👁) sur n'importe quelle ligne → modale avec :
+#### Voir le détail d'un employé
+- Clique **« Détail »** sur n'importe quelle ligne → modale avec :
   - Infos perso : ID Discord, ID Perso, date d'entrée
   - Heures service de la semaine + sessions individuelles
   - Salaires versés cette semaine (depuis `/paies`)
@@ -97,19 +97,19 @@ Une ligne par employé avec :
 
   **Pour un vendeur** :
   - CA total généré, **CA particulier** (commissionnable) et CA pro (non commissionné), bénéfice
-  - **Tableau de TOUTES les factures** (manuelles 📝 + bot 🤖 + cachées ⚠) avec colonnes : date, source, n°, client, montant, bénéfice, commissionnable, statut → permet de comparer "ce que le bot a vu" vs "ce que le vendeur a déclaré"
+  - **Tableau de TOUTES les factures** (manuelles + bot + cachées) avec colonnes : date, source, n°, client, montant, bénéfice, commissionnable, statut → permet de comparer "ce que le bot a vu" vs "ce que le vendeur a déclaré"
 
   **Pour un pompiste** : bidons / quota, caoutchoucs / quota, score %
   **Pour responsable / direction / DRH** : champ **« Salaire décidé »** + bouton **« Décider salaire »**
 
-#### 👁 Voir l'espace personnel d'un employé (mode débug)
-- Bouton **« 👁 Voir son espace »** en bas de la modale détail
+#### Voir l'espace personnel d'un employé (mode débug)
+- Bouton **« Voir son espace »** en bas de la modale détail
 - Te redirige sur **employee.html** mais affiche **les données de cet employé** (CA, factures, alertes, etc.) — exactement ce qu'il voit lui-même
-- Bandeau bleu en haut : "🔍 Mode débug — lecture seule"
+- Bandeau bleu en haut : "Mode débug — lecture seule"
 - Utile quand un employé dit "j'ai un problème" → tu vois exactement ce qu'il voit et tu identifies le bug
 - Tous les boutons d'action sont désactivés (impossible de déclarer une vente à sa place)
 
-#### 💰 Décider un salaire (responsables, direction, DRH inclus)
+#### Décider un salaire (responsables, direction, DRH inclus)
 - Saisis le montant dans le champ
 - Le système refuse si > plafond du rôle
 - Plafonds :
@@ -119,33 +119,33 @@ Une ligne par employé avec :
   - Responsable Pompiste : **17 000 $/sem max** (à toi de décider)
 - Clique **« Décider salaire »** → enregistré immédiatement
 
-> ⚠ Ton salaire DRH est **fixe à 18 000 $**, tu n'as pas à le décider.
+> Ton salaire DRH est **fixe à 18 000 $**, tu n'as pas à le décider.
 
 ### Ce que tu peux AUSSI faire (stocks épicerie + essence)
-- ✅ **Ajouter un nouveau produit** au catalogue (Stocks épicerie → « + Ajouter un produit »)
-- ✅ **Modifier** les fiches produits existantes (nom, prix achat/vente, seuil)
-- ✅ **Ajuster manuellement les stocks** épicerie (avec justification obligatoire — tracé dans les mouvements)
-- ✅ **Gérer les stations essence** : ajouter / supprimer une station, modifier sa capacité, son prix, son stock actuel, son N° de pompe
-- ✅ Les Responsables Vente peuvent modifier les fiches mais **pas créer** de nouveaux produits — c'est ton rôle (et celui de la direction)
+- **Ajouter un nouveau produit** au catalogue (Stocks épicerie → « + Ajouter un produit »)
+- **Modifier** les fiches produits existantes (nom, prix achat/vente, seuil)
+- **Ajuster manuellement les stocks** épicerie (avec justification obligatoire — tracé dans les mouvements)
+- **Gérer les stations essence** : ajouter / supprimer une station, modifier sa capacité, son prix, son stock actuel, son N° de pompe
+- Les Responsables Vente peuvent modifier les fiches mais **pas créer** de nouveaux produits — c'est ton rôle (et celui de la direction)
 
 ### Ce que tu ne peux PAS faire
 
-- ❌ Ajouter une dépense (Comptabilité lecture seule)
-- ❌ Modifier la **Configuration globale** dans Administration (quotas, prix essence, webhook — réservée à la direction)
-- ❌ Gérer les comptes **Patron** et **Co-Patron** (hors périmètre — apparaissent grisés dans Administration)
+- Ajouter une dépense (Comptabilité lecture seule)
+- Modifier la **Configuration globale** dans Administration (quotas, prix essence, webhook — réservée à la direction)
+- Gérer les comptes **Patron** et **Co-Patron** (hors périmètre — apparaissent grisés dans Administration)
 
 > Si tu as besoin d'une de ces actions → demande au Patron ou Co-Patron.
 
 ---
 
-## ⚙ Le module Administration (gestion des comptes)
+## Le module Administration (gestion des comptes)
 
-Tu y accèdes via la sidebar — **« ⚙ Administration »**.
+Tu y accèdes via la sidebar — **« Administration »**.
 
 ### Ton périmètre
-- ✅ Tu peux **créer / modifier / suspendre / supprimer** : DRH, Responsables, Vendeurs, Pompistes
-- ❌ Tu ne peux **pas** toucher à : Patron, Co-Patron (lignes grisées)
-- ✅ Tu peux changer le rôle d'un employé (ex. promouvoir un Vendeur Novice → Intermédiaire)
+- Tu peux **créer / modifier / suspendre / supprimer** : DRH, Responsables, Vendeurs, Pompistes
+- Tu ne peux **pas** toucher à : Patron, Co-Patron (lignes grisées)
+- Tu peux changer le rôle d'un employé (ex. promouvoir un Vendeur Novice → Intermédiaire)
 
 ### Créer un compte
 Bouton **« + Créer un compte »**. Remplis :
@@ -158,15 +158,15 @@ Bouton **« + Créer un compte »**. Remplis :
 
 ### Suspendre / Supprimer
 - **Suspendre** = licenciement RP. L'employé perd l'accès immédiatement, le compte reste consultable et réactivable. Confirmation 3 secondes.
-- **Supprimer définitivement** : confirmation 3 secondes + **tape `SUPPRIMER`** pour activer le bouton. Supprime le profil Firestore. ⚠ Le compte Firebase Auth (login/email) doit être supprimé séparément depuis la console Firebase pour libérer l'email — demande à la direction.
+- **Supprimer définitivement** : confirmation 3 secondes + **tape `SUPPRIMER`** pour activer le bouton. Supprime le profil Firestore. Le compte Firebase Auth (login/email) doit être supprimé séparément depuis la console Firebase pour libérer l'email — demande à la direction.
 
 ### À ne pas faire
-- ❌ Ne supprime pas un compte sans avoir noté ses derniers chiffres (les ventes/paies passées restent en base mais lui-même disparaît)
-- ❌ Ne donne **jamais** un mot de passe par téléphone vocal — toujours via DM Discord ou autre canal écrit traçable
+- Ne supprime pas un compte sans avoir noté ses derniers chiffres (les ventes/paies passées restent en base mais lui-même disparaît)
+- Ne donne **jamais** un mot de passe par téléphone vocal — toujours via DM Discord ou autre canal écrit traçable
 
 ---
 
-## 💡 Comprendre les calculs de paie
+## Comprendre les calculs de paie
 
 ### Vendeur (modèle 2026-05-23 : CA prorata + bonus quota fabrication)
 ```
@@ -182,7 +182,7 @@ Bonus fab = score_quota_fabrication × 3 000 $
 Salaire   = MIN( Part CA + Bonus fab, plafond total )
 ```
 
-> 🏢 **Distinction particulier / professionnel**
+> **Distinction particulier / professionnel**
 >
 > Chaque produit du catalogue a un flag `pourPro` :
 > - **Particulier** (pourPro=false) : vendu par les vendeurs aux clients → entre dans le CA commissionnable
@@ -190,7 +190,7 @@ Salaire   = MIN( Part CA + Bonus fab, plafond total )
 >
 > Tu peux basculer un produit entre les 2 régimes à tout moment depuis **Stocks → Modifier produit → checkbox "Vendu aux professionnels uniquement"**.
 
-> 🛠 **Quota fabrication** : les 4 produits éligibles sont définis dans `permissions.js` → `PRODUITS_QUOTA_FAB` (pioche, eau purifiée, mastic carrosserie, visseries). Le patron règle les quantités hebdo sur la page RH → bloc "Quotas hebdomadaires". Un quota = 0 désactive le produit pour la semaine.
+> **Quota fabrication** : les 4 produits éligibles sont définis dans `permissions.js` → `PRODUITS_QUOTA_FAB` (pioche, eau purifiée, mastic carrosserie, visseries). Le patron règle les quantités hebdo sur la page RH → bloc "Quotas hebdomadaires". Un quota = 0 désactive le produit pour la semaine.
 
 **Exemple concret** (Vendeur Intermédiaire — quota 50 pioches + 200 eaux actif) :
 - CA commissionnable : 18 000 $ → Part CA = (18000/30000) × 11000 = **6 600 $**
@@ -202,7 +202,7 @@ Salaire   = MIN( Part CA + Bonus fab, plafond total )
 - Score quota 100 % → Bonus = **3 000 $**
 - Salaire = MIN(12 000 + 3 000, 15 000) = **15 000 $** (= plafond total)
 
-> 💡 Sans quota fabrication actif (tous à 0), seule la part CA compte et le vendeur plafonne à 10/11/12k au lieu de 13/14/15k.
+> Sans quota fabrication actif (tous à 0), seule la part CA compte et le vendeur plafonne à 10/11/12k au lieu de 13/14/15k.
 
 ### Pompiste
 ```
@@ -239,7 +239,7 @@ Salaire = score moyen × plafond
 
 ---
 
-## 📜 Conformité TTE — ce que tu surveilles
+## Conformité TTE — ce que tu surveilles
 
 ### Plafonds individuels (déjà bloqués par le site)
 | Rôle | Plafond hebdo |
@@ -287,7 +287,7 @@ Salaire = score moyen × plafond
 
 ---
 
-## 📅 Ta semaine type
+## Ta semaine type
 
 ### Lundi matin
 - Vue rapide du dashboard
@@ -308,7 +308,7 @@ Salaire = score moyen × plafond
 
 ---
 
-## 🚨 Les 3 erreurs DRH à éviter
+## Les 3 erreurs DRH à éviter
 
 1. **Décider un salaire par à-coups** sans vérifier la masse globale après. Toujours regarder le KPI « masse salariale % » dans le dashboard ou la compta.
 2. **Oublier qu'un employé suspendu n'apparaît plus en effectif actif** mais peut encore avoir des paies versées dans la semaine (filtre statut « tous » pour vérifier).
@@ -316,7 +316,7 @@ Salaire = score moyen × plafond
 
 ---
 
-## ➡ La suite
+## La suite
 
 - **[07-automatismes.md](07-automatismes.md)** : pour comprendre comment les heures de service et les paies arrivent automatiquement depuis Discord
 - **[08-faq-depannage.md](08-faq-depannage.md)** : « pourquoi cet employé n'a pas de salaire estimé ? », etc.

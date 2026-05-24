@@ -1,10 +1,10 @@
-# ❓ FAQ + Dépannage
+# FAQ + Dépannage
 
 > Les **20 questions courantes** avec leurs solutions. Cherche par mot-clé (Ctrl+F) ou parcours par rubrique.
 
 ---
 
-## 🔐 Connexion / Compte
+## Connexion / Compte
 
 ### « Je ne peux pas me connecter, ça me dit "Email ou mot de passe incorrect" »
 1. Vérifie l'orthographe de l'email (pas d'espace, pas de majuscule à oublier)
@@ -32,7 +32,7 @@ Ne devrait jamais arriver. Si ça t'arrive : ferme l'onglet et rouvre l'URL. Si 
 
 ---
 
-## 💵 Ventes / CA
+## Ventes / CA
 
 ### « J'ai fait une vente in-game mais elle n'apparaît pas dans Mon espace »
 Vérifications dans l'ordre :
@@ -57,7 +57,7 @@ Une vente est marquée discordance quand le système n'a pas trouvé de **sortie
 
 ---
 
-## 🛒 Stocks
+## Stocks
 
 ### « Le stock n'a pas baissé après ma vente »
 Ça peut être :
@@ -77,7 +77,7 @@ Peut-être un **décalage** entre le stock système et le stock réel (oubli d'i
 ### « Je veux ajouter un nouveau produit au catalogue »
 Va dans **Stocks épicerie** → bouton **« + Ajouter un produit »** (en haut à côté des filtres).
 
-> 🔒 Bouton visible uniquement pour **Patron, Co-Patron et DRH**. Les Responsables Vente peuvent modifier les prix/seuils existants mais pas créer de nouveau produit (gestion catalogue = gestion direction/DRH).
+> Bouton visible uniquement pour **Patron, Co-Patron et DRH**. Les Responsables Vente peuvent modifier les prix/seuils existants mais pas créer de nouveau produit (gestion catalogue = gestion direction/DRH).
 
 Renseigne :
 - **Nom** (obligatoire) — l'identifiant technique se génère tout seul à partir du nom (slug). Tu peux le modifier si besoin (lettres minuscules / chiffres / tirets uniquement).
@@ -88,14 +88,14 @@ Renseigne :
 
 Le produit apparaît immédiatement dans le tableau et est utilisable par toute l'équipe.
 
-> ⚠ Si tu mets un prix d'achat **supérieur** au prix de vente, un modal critique 3 secondes te prévient (vente à perte).
+> Si tu mets un prix d'achat **supérieur** au prix de vente, un modal critique 3 secondes te prévient (vente à perte).
 
 ### « Pourquoi le seuil d'alerte ne se déclenche pas ? »
 Vérifie que le seuil est **strictement supérieur à 0** dans la fiche produit. Avec seuil = 0, l'alerte ne se déclenche qu'à rupture (qte = 0).
 
 ---
 
-## ⛽ Stations essence
+## Stations essence
 
 ### « Le stock de la station n'a pas monté après ma redistribution »
 - Vérifie sur Discord que le log `#suivi-achat-essence` est bien apparu (avec ton message)
@@ -111,7 +111,7 @@ Voir avec le Responsable Pompiste / direction. Stratégie historique :
 
 ---
 
-## 💰 Paie / Salaire
+## Paie / Salaire
 
 ### « Mon salaire estimé est trop bas par rapport à mes performances »
 Possibilités :
@@ -131,7 +131,7 @@ Au-delà de **30 000 $** de CA commissionnable, la part CA du salaire est **plaf
 
 ---
 
-## 🧑‍💼 Comptes / Profils
+## Comptes / Profils
 
 ### « Mon nom RP est mal orthographié dans le site »
 Demande à un Patron : **Admin → Modifier ton compte → Prénom / NOM** → corrige.
@@ -147,7 +147,7 @@ Préviens la direction. Ton compte sera suspendu (≠ supprimé : tes paies pass
 
 ---
 
-## 📊 Comptabilité / TTE
+## Comptabilité / TTE
 
 ### « C'est quoi la "masse salariale" et pourquoi elle ne doit pas dépasser 90 % ? »
 Masse salariale = total des salaires versés (et estimés) divisé par le CA de la semaine, en pourcentage.
@@ -166,7 +166,7 @@ Calculées automatiquement, intégrées à la comptabilité.
 
 ---
 
-## 📱 Tablette FiveM / Mobile
+## Tablette FiveM / Mobile
 
 ### « Sur la tablette in-game, le menu est trop petit / mal placé »
 Le site a 4 breakpoints responsive (1280, 1024, 600, 380 px). Si la tablette FiveM utilise une résolution non standard, dis-le à la direction technique pour ajuster.
@@ -182,20 +182,20 @@ Les boutons ont une zone tactile minimum de 44 px sur mobile. Si vraiment ça ne
 
 ---
 
-## 🚨 Alertes / Notifications
+## Alertes / Notifications
 
-### « Je vois un badge rouge ⚠ avec un nombre en haut à droite — c'est quoi ? »
+### « Je vois un badge rouge avec un nombre en haut à droite — c'est quoi ? »
 Le **compteur d'alertes actives**. Clique dessus pour voir le détail (rupture stock, station basse, vente sans stock, masse salariale critique).
 
 ### « Comment je désactive les notifications Discord ? »
-Va dans **Admin → ⚙ Configuration globale → URL Webhook Discord** → vide le champ → enregistre. Plus rien ne sera posté sur Discord.
+Va dans **Admin → Configuration globale → URL Webhook Discord** → vide le champ → enregistre. Plus rien ne sera posté sur Discord.
 
 ### « Comment je sais qu'une alerte a été résolue ? »
 Pour l'instant, les alertes sont créées mais **pas marquées comme résolues** automatiquement. Le compteur diminuera quand le problème sera réglé (ex. stock remis, station rechargée). Une UI de gestion d'alertes pourrait être ajoutée plus tard.
 
 ---
 
-## 🔧 Côté technique (direction)
+## Côté technique (direction)
 
 ### « La clôture hebdo n'a pas eu lieu »
 Console Firebase → Functions → `clotureHebdo` → Logs. Si erreur visible → relancer manuellement (besoin d'un dev). Très rare.
@@ -211,7 +211,7 @@ Pas de backup automatique configuré. Tu peux exporter manuellement via la conso
 
 ---
 
-## 🆘 Quand rien ne marche
+## Quand rien ne marche
 
 1. **Recharge la page** (F5)
 2. **Vide le cache** (Ctrl+Shift+R)
@@ -223,6 +223,6 @@ Pas de backup automatique configuré. Tu peux exporter manuellement via la conso
 
 ---
 
-## ➡ Tu n'as pas trouvé ta réponse ?
+## Tu n'as pas trouvé ta réponse ?
 
 Relis le guide qui correspond à ton rôle (sommaire dans [00-index.md](00-index.md)) ou demande directement sur Discord.

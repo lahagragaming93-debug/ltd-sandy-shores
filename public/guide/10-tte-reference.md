@@ -1,4 +1,4 @@
-# 📜 T.T.E. — Référence intégrale
+# T.T.E. — Référence intégrale
 
 > **Code des Taxes, du Travail & des Entreprises** — *United States of America, State of San Andreas*
 >
@@ -8,9 +8,9 @@
 
 ---
 
-## 🗺 Sommaire
+## Sommaire
 
-- [📋 Récap rapide pour le LTD](#-récap-rapide-pour-le-ltd)
+- [Récap rapide pour le LTD](#-récap-rapide-pour-le-ltd)
 - [Préambule](#préambule)
 - [Chapitre I — Les Services Publics](#chapitre-i--les-services-publics)
 - [Chapitre II — Réglementations Étatiques](#chapitre-ii--réglementations-étatiques)
@@ -24,14 +24,14 @@
 - [Chapitre X — Les Auto-Entreprises](#chapitre-x--les-auto-entreprises)
 - [Chapitre XI — Carte Grise et Autres](#chapitre-xi--carte-grise-et-autres)
 - [Chapitre XII — Contrôle Fiscal](#chapitre-xii--contrôle-fiscal)
-- [🚧 Trous résiduels à compléter](#-trous-résiduels-à-compléter)
-- [🔗 Index — Où ces règles sont-elles implémentées dans le site ?](#-index--où-ces-règles-sont-elles-implémentées-dans-le-site-)
+- [Trous résiduels à compléter](#-trous-résiduels-à-compléter)
+- [Index — Où ces règles sont-elles implémentées dans le site ?](#-index--où-ces-règles-sont-elles-implémentées-dans-le-site-)
 
 ---
 
-## 📋 Récap rapide pour le LTD
+## Récap rapide pour le LTD
 
-> 🏢 **Classification : Secteur 2** — confirmée explicitement à l'Art. 4-1.9.1 ("LTD toutes localisations").
+> **Classification : Secteur 2** — confirmée explicitement à l'Art. 4-1.9.1 ("LTD toutes localisations").
 
 ### Ce qui s'applique directement
 | Sujet | Référence | Plafond / Règle |
@@ -62,11 +62,11 @@
 | 4 | 250 001 – 500 000 $ | **36 %** |
 | 5 | > 500 000 $ | **46 %** |
 
-### Statut d'implémentation site
-- ✅ = déjà géré par le site
-- 🟡 = partiellement géré ou à renforcer
-- ❌ = à implémenter
-- ⚪ = hors scope LTD
+### Légende statut d'implémentation site
+- **OK** = déjà géré par le site
+- **partiel** = partiellement géré ou à renforcer
+- **à implémenter** = non encore codé
+- **hors scope** = hors scope LTD
 
 ---
 
@@ -80,7 +80,7 @@
 
 ## Chapitre I — Les Services Publics
 
-> ⚪ **Hors scope LTD** (LTD = entreprise privée). Conservé pour référence.
+> **Hors scope LTD** (LTD = entreprise privée). Conservé pour référence.
 
 ### Article I-I — Les relations interservices
 
@@ -128,7 +128,7 @@
 
 **Art. 2-2.2** — Le gérant peut nommer **un seul co-gérant** (mêmes droits/devoirs). Pas besoin de déclaration au Gouvernement. Subordonné au gérant.
 
-> 📌 **LTD applicable** : Blake MARS = gérant. Si nomination d'un co-gérant, pas de déclaration officielle requise mais usage interne à clarifier.
+> **LTD applicable** : Blake MARS = gérant. Si nomination d'un co-gérant, pas de déclaration officielle requise mais usage interne à clarifier.
 
 ### Article II-III — Contrat de travail
 
@@ -150,11 +150,11 @@
 
 **Art. 2-3.7** — Visite médicale obligatoire (à charge employeur) pour SASP, SAMC, sécurité. Sous **7 jours après embauche**. Pas obligatoire pour autres métiers.
 
-> 🟡 **Statut site** : pas de tracking des contrats RP côté site (gérés hors plateforme). À voir avec direction si on veut ajouter une section "Contrat" sur la fiche employé.
+> **Statut site** : pas de tracking des contrats RP côté site (gérés hors plateforme). À voir avec direction si on veut ajouter une section "Contrat" sur la fiche employé.
 
 ### Article II-IV — *(à recevoir — TROU CRITIQUE)*
 
-> 🔴 **Articles cités mais absents** : **Art. 2-4.3 (licenciement abusif)** et **Art. 2-4.4 (faute grave)** — référencés dans Art. 4-1.9.3 pour le versement de salaire.
+> **Articles cités mais absents** : **Art. 2-4.3 (licenciement abusif)** et **Art. 2-4.4 (faute grave)** — référencés dans Art. 4-1.9.3 pour le versement de salaire.
 
 ### Article II-V — Droit de grève
 
@@ -168,7 +168,7 @@
 
 **Art. 2-6.3** — **Facture obligatoire** pour toute prestation. Conservation **min 6 semaines**.
 
-> 🟡 **Statut site** : prix de vente visible côté Stocks, mais pas de contrôle automatique vs coût de revient. À renforcer si on veut respecter le cap 2,5× — surtout pour les produits crafts et vente partenaire (déjà à 2,1× donc OK).
+> **Statut site** : prix de vente visible côté Stocks, mais pas de contrôle automatique vs coût de revient. À renforcer si on veut respecter le cap 2,5× — surtout pour les produits crafts et vente partenaire (déjà à 2,1× donc OK).
 
 ---
 
@@ -192,7 +192,7 @@
 
 **Art. 3-1.5** — Don reçu : à remplir dans la catégorie **"Montant Dons Reçu"** de la déclaration fiscale. Justification exigible à tout moment.
 
-> ❌ **Statut site** : aucune catégorie "Dons" actuellement. À ajouter dans la page Comptabilité si le LTD fait/reçoit des dons.
+> **Statut site** : aucune catégorie "Dons" actuellement. À ajouter dans la page Comptabilité si le LTD fait/reçoit des dons.
 
 ---
 
@@ -202,35 +202,35 @@
 
 **Art. 4-1.1** — Tenue obligatoire : comptabilité, contrats, fiches paye, factures. Consultable DOJ/Gouvernement. **Conservation 6 sem min**, au-delà sur demande motivée.
 
-> ✅ **Statut site** : conservation 100 % historique (purge désactivée). Conforme largement.
+> **Statut site** : conservation 100 % historique (purge désactivée). Conforme largement.
 
 **Art. 4-1.2** — Dirigeants (gérant + co-gérant) **personnellement responsables**. Poursuites individuelles + sanctions financières/prison possibles.
 
-**Art. 4-1.3** ⭐ — Déclaration fiscale fidèle. Calcul automatique selon cases remplies sur postes comptables (cf. Art. IV-II).
+**Art. 4-1.3** — Déclaration fiscale fidèle. Calcul automatique selon cases remplies sur postes comptables (cf. Art. IV-II).
 
-**Art. 4-1.4** ⭐ — **Sont déductibles** : frais d'avocats, achats de matière première, frais d'entretien des véhicules. **Toute autre charge = non déductible**.
+**Art. 4-1.4** — **Sont déductibles** : frais d'avocats, achats de matière première, frais d'entretien des véhicules. **Toute autre charge = non déductible**.
 
-> 🟡 **Statut site** : 5 catégories (matières-premières, frais-avocat, entretien-vehicules, autre-deductible, non-deductible). La catégorie `autre-deductible` n'est pas conforme au TTE (pas listée dans Art. 4-1.4). À nettoyer.
+> **Statut site** : 5 catégories (matières-premieres, frais-avocat, entretien-vehicules, autre-deductible, non-deductible). La catégorie `autre-deductible` n'est pas conforme au TTE (pas listée dans Art. 4-1.4). À nettoyer.
 
 **Art. 4-1.5** — Chaque sortie d'argent **justifiable par facture/document officiel**, même prélèvement gérant. Toute transaction enregistrée en compta.
 
-> 🟡 **Statut site** : champ "raison" libre dans les dépenses, pas de champ "réf justificatif" obligatoire. À renforcer.
+> **Statut site** : champ "raison" libre dans les dépenses, pas de champ "réf justificatif" obligatoire. À renforcer.
 
 **Art. 4-1.6** — Entreprise doit **ouvrir min 4 fois/semaine**. Sinon sanctions jusqu'à saisie du lieu (sauf justificatifs exceptionnels).
 
-> ❌ **Statut site** : non tracké. Pourrait être calculé depuis les services ouverts.
+> **Statut site** : non tracké. Pourrait être calculé depuis les services ouverts.
 
 **Art. 4-1.7** — Règlement intérieur obligatoire, rédigé par direction. Relecture avocat IRS possible mais non obligatoire.
 
 **Art. 4-1.8** — Règles d'hygiène strictes. Tatouage : gants. Cuisine : normes hygiène.
 
-> ⚪ **Hors scope LTD** (épicerie + carburant, pas tatouage/cuisine).
+> **Hors scope LTD** (épicerie + carburant, pas tatouage/cuisine).
 
 **Art. 4-1.9** — **Gestion des salaires** :
 - Tout salaire hors prime **≤ 20 000 $/entreprise**
 - **Salaires et primes EN LIQUIDE INTERDITS** sous peine de poursuite
 
-> 🔴 **Statut site** : pas de validation que les versements sont via virement bancaire uniquement. À renforcer : tout salaire/prime doit transiter par IBAN.
+> **Statut site** : pas de validation que les versements sont via virement bancaire uniquement. À renforcer : tout salaire/prime doit transiter par IBAN.
 
 **Art. 4-1.9.1** — Classification par secteur :
 
@@ -241,7 +241,7 @@
 | **3** | Services de proximité, commerces, restauration, événementiel | Pawnshop, Unicorn, Riverside, Pacific Bluffs, Hen House, Yellow Jack, Esthétiques, Rex's Dinner, Pearl's, Delight, UwU Café, Maze Event |
 | **4** | Entreprises artistiques | Weazel News, Life Invader, ULM Records, Underdogs Records |
 
-> 🏢 **Le LTD = Secteur 2**.
+> **Le LTD = Secteur 2**.
 
 **Art. 4-1.9.2** — Plafonds salaire hebdomadaire :
 
@@ -249,7 +249,7 @@
 
 Restes à payer : durée max **1 semaine**. Non payables si démission/licenciement, sauf à hauteur du salaire max TTE.
 
-> 🟡 **Statut site** : plafonds actuels (13/14/15 k vendeur, 17 k responsables, 18 k DRH) **plus stricts que la loi** — conformes mais sous le max légal. Calibrage business volontaire.
+> **Statut site** : plafonds actuels (13/14/15 k vendeur, 17 k responsables, 18 k DRH) **plus stricts que la loi** — conformes mais sous le max légal. Calibrage business volontaire.
 
 **Art. 4-1.9.3** — Versement après licenciement/démission :
 - **Avant dimanche soir** (clôture compta + déclaration) : aucun versement (sauf licenciement abusif Art. 2-4.3)
@@ -266,7 +266,7 @@ Restes à payer : durée max **1 semaine**. Non payables si démission/licenciem
 | Secteur 4 — Artistes | 120 000 $ |
 | **Direction / Gestion** | **40 000 $** |
 
-> ❌ **Statut site** : pas de gestion du reste à payer ni des règles de versement post-licenciement. À implémenter si le LTD a souvent des licenciements.
+> **Statut site** : pas de gestion du reste à payer ni des règles de versement post-licenciement. À implémenter si le LTD a souvent des licenciements.
 
 **Art. 4-1.10** — **Prime hebdomadaire** selon tranches CA :
 
@@ -280,7 +280,7 @@ Restes à payer : durée max **1 semaine**. Non payables si démission/licenciem
 
 Distribution max **30 % des salariés** total, **5 000 $/salarié max**. Sans limite pour service public.
 
-> 🟡 **Statut site** : code actuel utilise tranches 5k/10k/15k qui ne matchent pas. À corriger après confirmation patron (interprétation "tranche du CA total" vs "tranche par salarié").
+> **Statut site** : code actuel utilise tranches 5k/10k/15k qui ne matchent pas. À corriger après confirmation patron (interprétation "tranche du CA total" vs "tranche par salarié").
 
 **Art. 4-1.11** — **Prime mensuelle** (4 sem complètes), max 30 % du bénéfice net cumulé. Démarre semaine 18. Condition : bénéfice net cumulé positif.
 
@@ -294,35 +294,35 @@ Distribution max **30 % des salariés** total, **5 000 $/salarié max**. Sans li
 
 Enveloppe globale à répartir entre salariés.
 
-> 🟡 **Statut site** : barèmes actuels (20k/40k/60k) ne matchent pas. À corriger.
+> **Statut site** : barèmes actuels (20k/40k/60k) ne matchent pas. À corriger.
 
 **Art. 4-1.12** — Exception métiers artistiques (% min 60 % artiste, 20 % employeur, max 60 000 $/sem). Ingénieur son/graphiste max 7 000 $/production, 60 000 $/sem max.
 
-> ⚪ Hors scope LTD.
+> Hors scope LTD.
 
 **Art. 4-1.13** — **Masse salariale ≤ 90 % du CA** (salaires + primes hebdo + primes mensuelles).
 
-> ✅ **Statut site** : gauge masse salariale + statut TTE sur le dashboard et la compta. Conforme. Mais vérifier que les primes sont bien incluses dans le calcul.
+> **Statut site** : gauge masse salariale + statut TTE sur le dashboard et la compta. Conforme. Mais vérifier que les primes sont bien incluses dans le calcul.
 
 **Art. 4-1.14** — Agences immobilières : max 5 véhicules tranche 150 000-450 000 $. Pas de motos, pas de véhicules > 450 000 $ (sauf véhicule plaisir patron Art. 4-2.12). Délai 3 sem min avant revente.
 
-> ⚪ Hors scope LTD.
+> Hors scope LTD.
 
 ### Article IV-II — Définition des postes comptables
 
 **Art. 4-2.1** — **CA** : totalité des revenus (ventes, contrats, abonnements). Lundi 00h00 → Dimanche 23h59.
 
-> ✅ Conforme côté site (semaine RP Lun-Dim).
+> Conforme côté site (semaine RP Lun-Dim).
 
 **Art. 4-2.2** — **Autres entrées** : entrées liées à activité secondaire ou vente de biens de l'entreprise. Inclut bénéfices événements.
 
-> ❌ Catégorie absente côté site. À ajouter si pertinent (ex. vente de matériel obsolète, événements).
+> Catégorie absente côté site. À ajouter si pertinent (ex. vente de matériel obsolète, événements).
 
 **Art. 4-2.3** — **Bénéfice net** : après impôts.
 
-**Art. 4-2.4** ⭐ — **Résultat imposable** : `(CA + Autres entrées) − charges déductibles`. Base de l'impôt.
+**Art. 4-2.4** — **Résultat imposable** : `(CA + Autres entrées) − charges déductibles`. Base de l'impôt.
 
-> 🟡 **Statut site** : à vérifier que la formule actuelle inclut bien les "Autres entrées" (probablement non, à corriger).
+> **Statut site** : à vérifier que la formule actuelle inclut bien les "Autres entrées" (probablement non, à corriger).
 
 **Art. 4-2.5** — **Salaires** : cumul de tous les salaires versés.
 
@@ -330,21 +330,21 @@ Enveloppe globale à répartir entre salariés.
 
 **Art. 4-2.7** — **Primes mensuelles** (cf. Art. 4-1.11).
 
-**Art. 4-2.8** ⭐ — **Frais d'avocat** : honoraires déductibles. **Max 30 000 $/sem**. Certains frais d'avocats **non déductibles à 100 %**, notamment en matière de comptabilité. Frais des **cabinets comptables également notifiés dans cette partie**.
+**Art. 4-2.8** — **Frais d'avocat** : honoraires déductibles. **Max 30 000 $/sem**. Certains frais d'avocats **non déductibles à 100 %**, notamment en matière de comptabilité. Frais des **cabinets comptables également notifiés dans cette partie**.
 
-> 🟡 **Statut site** : cap 30k mentionné en label mais pas validé serveur. Pas de séparation avocat/comptabilité (cap compta = 8k, cf. Art. 7-9.3). À corriger.
+> **Statut site** : cap 30k mentionné en label mais pas validé serveur. Pas de séparation avocat/comptabilité (cap compta = 8k, cf. Art. 7-9.3). À corriger.
 
 **Art. 4-2.9** — **Matières premières et marchandises** : tous achats à transformer/revendre. Inclut outillage et matériel de production.
 - Véhicules : pas matériel sauf concessionnaires
 - Immobilier : pas matériel sauf agences immo
 
-> ✅ Conforme côté site.
+> Conforme côté site.
 
 **Art. 4-2.10** — **Nourriture employés** : déductible **max 750 $/employé**. Surplus = non déductible.
 
-> ❌ Catégorie absente côté site. À ajouter si le LTD nourrit ses employés (ex. boissons, repas équipe).
+> Catégorie absente côté site. À ajouter si le LTD nourrit ses employés (ex. boissons, repas équipe).
 
-**Art. 4-2.11** ⭐ — **Frais immobilier** :
+**Art. 4-2.11** — **Frais immobilier** :
 - 1 garage par entreprise : déductible
 - Stockage ou local : déductible **uniquement** pour : Garages, Cabinets d'Avocats, Restaurants, Bars, Boîtes de nuit, Entreprises industrielles de production → 1,5 t max ou 1 bureau
 - Presse & Médias : studio photo ou bureau
@@ -352,9 +352,9 @@ Enveloppe globale à répartir entre salariés.
 - **Tout autre type** (dont LTD) : **défini avec l'IRS**
 - **Non-respect → amende 4 000 $**
 
-> 🔴 **Statut site** : pas de catégorie immo dédiée. Tout est en `autre-deductible`. À séparer + gérer le cas LTD (en attendant accord IRS, à classer en non-déductible).
+> **Statut site** : pas de catégorie immo dédiée. Tout est en `autre-deductible`. À séparer + gérer le cas LTD (en attendant accord IRS, à classer en non-déductible).
 
-**Art. 4-2.12** ⭐ — **Frais véhicule** : achat, réparation, carburant. Entreprises autorisées :
+**Art. 4-2.12** — **Frais véhicule** : achat, réparation, carburant. Entreprises autorisées :
 - Garages, Cabinets d'Avocat, Restaurants, Bars, Boîtes de nuit, Entreprises industrielles de production, Agences immo
 - Garages : 1 fois 2 dépanneuses
 - Restaurants/bars/boîtes : 2 scooters + 2 utilitaires speedo
@@ -365,7 +365,7 @@ Enveloppe globale à répartir entre salariés.
 - **Véhicule plaisir patron** : 1 max, 25 % du solde après charges/salaires. Dépassement = abus lourdement sanctionné
 - **Non-respect → amende 4 000 $**
 
-> 🔴 **Statut site** : catégorie `entretien-vehicules` actuellement déductible sans condition. Le LTD pas listé → **risque amende**. À reclasser en non-déductible par défaut, sauf accord IRS spécifique.
+> **Statut site** : catégorie `entretien-vehicules` actuellement déductible sans condition. Le LTD pas listé → **risque amende**. À reclasser en non-déductible par défaut, sauf accord IRS spécifique.
 
 **Art. 4-2.13** — **Tranche** = taux d'imposition selon CA (cf. Art. 4-3.2).
 
@@ -373,15 +373,15 @@ Enveloppe globale à répartir entre salariés.
 
 **Art. 4-2.15** — **CA commis d'office** : cabinets d'avocat uniquement. **Non imposable**.
 
-> ⚪ Hors scope LTD.
+> Hors scope LTD.
 
 **Art. 4-2.16** — **Subvention** : déclarable directement. **Non imposable**.
 
-> ❌ Catégorie absente côté site. À ajouter si le LTD reçoit des subventions.
+> Catégorie absente côté site. À ajouter si le LTD reçoit des subventions.
 
-**Art. 4-2.17** ⭐ — Section **"Dépenses non-déductibles"** sur la déclaration fiscale. **Remplissage complet obligatoire** pour traçabilité. **Non-respect → amende 4 000 $**.
+**Art. 4-2.17** — Section **"Dépenses non-déductibles"** sur la déclaration fiscale. **Remplissage complet obligatoire** pour traçabilité. **Non-respect → amende 4 000 $**.
 
-> 🟡 **Statut site** : option `non-deductible` existe, pas de validation "remplie". À renforcer.
+> **Statut site** : option `non-deductible` existe, pas de validation "remplie". À renforcer.
 
 ### Article IV-III — Impôts
 
@@ -400,7 +400,7 @@ Enveloppe globale à répartir entre salariés.
 
 Applicable depuis semaine 18 / 2024. Modifiable par décret financier.
 
-> ❌ **Statut site** : pas de calcul d'impôt automatique côté site (le bot serveur FiveM gère probablement ça via #statsbank). À comparer avec les statsbank reçues + ajouter un poste "Impôt estimé" dans la compta.
+> **Statut site** : pas de calcul d'impôt automatique côté site (le bot serveur FiveM gère probablement ça via #statsbank). À comparer avec les statsbank reçues + ajouter un poste "Impôt estimé" dans la compta.
 
 **Art. 4-3.3** — Déclaration fiscale avant **mardi 21 h**. Retard sanctionné (Art. 4-4.1).
 
@@ -435,7 +435,7 @@ Sanction commune (tous paliers) : saisie banques gérant 50 %, co-gérant 35 %, 
 
 **Art. 4-5.4** — **Résultat cumulé déficitaire sur 4 semaines** : cessation de paiement possible. Gouvernement peut remettre l'entreprise à un nouveau gérant.
 
-> 📌 **LTD applicable** : entreprise en transition (Blake MARS vient de reprendre, déficits S15-17 normaux). À surveiller à partir de S19 — si déficit cumulé sur 4 sem → risque cessation. Voir [[projet_reprise_entreprise]].
+> **LTD applicable** : entreprise en transition (Blake MARS vient de reprendre, déficits S15-17 normaux). À surveiller à partir de S19 — si déficit cumulé sur 4 sem → risque cessation. Voir [[projet_reprise_entreprise]].
 
 ---
 
@@ -451,7 +451,7 @@ Sanction commune (tous paliers) : saisie banques gérant 50 %, co-gérant 35 %, 
 
 **Art. 5-1.4** — **Donation d'entreprise INTERDITE**. Tentative = saisie immédiate sans contrepartie. **Tout changement de patron/co-patron doit être communiqué** au Gouvernement.
 
-> 📌 **LTD applicable** : si Blake MARS transmet la direction à un autre RP, **prévenir le Gouvernement obligatoirement**. Voir [[projet_transmission]].
+> **LTD applicable** : si Blake MARS transmet la direction à un autre RP, **prévenir le Gouvernement obligatoirement**. Voir [[projet_transmission]].
 
 ### Article V-II — Saisie d'une entreprise
 
@@ -469,13 +469,13 @@ Sanction commune (tous paliers) : saisie banques gérant 50 %, co-gérant 35 %, 
 
 ## Chapitre VI — Presse
 
-> 🚧 **À recevoir intégralement.**
+> **À recevoir intégralement.**
 
 ---
 
 ## Chapitre VII — Avocat, Notaire, Comptable
 
-> ⚪ **Quasi-intégralement hors scope LTD** (LTD = épicerie, pas cabinet). Conservé pour référence.
+> **Quasi-intégralement hors scope LTD** (LTD = épicerie, pas cabinet). Conservé pour référence.
 
 ### Article VII-I — Définitions
 
@@ -485,7 +485,7 @@ Sanction commune (tous paliers) : saisie banques gérant 50 %, co-gérant 35 %, 
 
 **(c) COMPTABLE** — Tenue comptable déclarative. À défaut, le **gérant assume**. Doit se recenser IRS/DOJ avant d'exercer. **Max 2 sociétés** (compte comme emploi). **Pas de bénévolat** (travail dissimulé).
 
-> 📌 **LTD applicable** : le gérant Blake assume la comptabilité (pas de comptable externe identifié). À noter si externalisation envisagée → cap 8 000 $/sem (Art. 7-9.3).
+> **LTD applicable** : le gérant Blake assume la comptabilité (pas de comptable externe identifié). À noter si externalisation envisagée → cap 8 000 $/sem (Art. 7-9.3).
 
 ### Article VII-II — Secret professionnel
 
@@ -509,7 +509,7 @@ Sanction commune (tous paliers) : saisie banques gérant 50 %, co-gérant 35 %, 
 - Personnes morales : **1 000 – 6 000 $**
 - Personnes physiques : 500 – 3 000 $
 
-**Art. 7-5.4** ⭐ — Frais de gestion des contrats = **frais d'avocats déductibles à hauteur de 30 000 $/sem**.
+**Art. 7-5.4** — Frais de gestion des contrats = **frais d'avocats déductibles à hauteur de 30 000 $/sem**.
 
 ### Article VII-VI — Protection juridique
 
@@ -523,7 +523,7 @@ Sanction commune (tous paliers) : saisie banques gérant 50 %, co-gérant 35 %, 
 - Personnes morales : **5 000 – 20 000 $**
 - Personnes physiques : 1 000 – 10 000 $
 
-**Art. 7-6.5** ⭐ — Frais gestion contrats = **frais d'avocats déductibles à hauteur de 30 000 $/sem**.
+**Art. 7-6.5** — Frais gestion contrats = **frais d'avocats déductibles à hauteur de 30 000 $/sem**.
 
 ### Article VII-VII — Gestion des plaintes
 
@@ -557,9 +557,9 @@ Sanction commune (tous paliers) : saisie banques gérant 50 %, co-gérant 35 %, 
 - Personne morale : **4 000 – 16 000 $**
 - Personne physique : 2 000 – 8 000 $
 
-**Art. 7-9.3** ⭐ — **Comptabilités déductibles max 8 000 $/sem** (séparé du cap avocat 30 k).
+**Art. 7-9.3** — **Comptabilités déductibles max 8 000 $/sem** (séparé du cap avocat 30 k).
 
-> 🔴 **Statut site** : actuellement, tout est dans `frais-avocat` (cap 30 k). À séparer en **`frais-comptabilite` (cap 8 k)** côté UI compta + validation serveur.
+> **Statut site** : actuellement, tout est dans `frais-avocat` (cap 30 k). À séparer en **`frais-comptabilite` (cap 8 k)** côté UI compta + validation serveur.
 
 ### Article VII-X — Vice de procédure
 
@@ -610,13 +610,13 @@ Règles à respecter pour éviter radiation : pas de casier, pas d'actes crimine
 **Art. 7-14.3** — Cabinets comptables **reconnus IRS** à date :
 - **Cabinet Caillou's Clarity Accounting**
 
-> 📌 **LTD applicable** : si externalisation compta envisagée, passer obligatoirement par Caillou's Clarity Accounting (seul cabinet reconnu actuellement).
+> **LTD applicable** : si externalisation compta envisagée, passer obligatoirement par Caillou's Clarity Accounting (seul cabinet reconnu actuellement).
 
 ---
 
 ## Chapitre VIII — Associations
 
-> ⚪ **Hors scope LTD** (LTD = entreprise lucrative). Conservé pour référence si création d'association liée.
+> **Hors scope LTD** (LTD = entreprise lucrative). Conservé pour référence si création d'association liée.
 
 ### Article VIII-I — Associations
 
@@ -638,7 +638,7 @@ Règles à respecter pour éviter radiation : pas de casier, pas d'actes crimine
 
 ## Chapitre IX — Décorateurs d'Intérieurs
 
-> ⚪ **Hors scope LTD**.
+> **Hors scope LTD**.
 
 ### Article IX-I — Généralités
 
@@ -677,7 +677,7 @@ Règles à respecter pour éviter radiation : pas de casier, pas d'actes crimine
 
 ## Chapitre X — Les Auto-Entreprises
 
-> ⚪ **Hors scope LTD** (LTD = entreprise classique). Conservé pour référence.
+> **Hors scope LTD** (LTD = entreprise classique). Conservé pour référence.
 
 ### Article X-I — Définitions
 
@@ -718,7 +718,7 @@ Concessionnaires autorisés :
 - **HDM** : utilitaires et poids lourds
 - **LS Motorcycles** : motos, quads, vélos
 
-> 📌 **LTD applicable** : si le LTD acquiert des véhicules (utilitaires ravitaillement), passer par HDM pour les utilitaires. Pour les frais, attention Art. 4-2.12 (LTD pas listé en entreprise autorisée à déduire véhicules).
+> **LTD applicable** : si le LTD acquiert des véhicules (utilitaires ravitaillement), passer par HDM pour les utilitaires. Pour les frais, attention Art. 4-2.12 (LTD pas listé en entreprise autorisée à déduire véhicules).
 
 ---
 
@@ -739,7 +739,7 @@ Concessionnaires autorisés :
 - Saisie biens mobiliers + gel comptes jusqu'à régularisation
 - Amendes pour irrégularités
 
-**⚠ CONTRÔLE SANS PRÉAVIS.**
+**CONTRÔLE SANS PRÉAVIS.**
 
 Suspicion blanchiment/terrorisme/détournement/fraude → gel comptes et biens.
 
@@ -747,44 +747,44 @@ Suspicion blanchiment/terrorisme/détournement/fraude → gel comptes et biens.
 
 **Art. 12-1.7** — **Service entreprise facturé/réglé en espèces main à main**, ou virement bancaire **sans facture** = **délit**. Assimilé à blanchiment/détournement/fraude. Contrôle + saisie possibles.
 
-> 🟡 **Statut site** : factures IG sont remontées par le bot → traçabilité OK. Mais attention aux ventes "espèces" en main à main hors facture IG (Art. 12-1.7) — interdit même en RP.
+> **Statut site** : factures IG sont remontées par le bot → traçabilité OK. Mais attention aux ventes "espèces" en main à main hors facture IG (Art. 12-1.7) — interdit même en RP.
 
 ---
 
-## 🚧 Trous résiduels à compléter
+## Trous résiduels à compléter
 
 | Trou | Statut | Importance |
 |---|---|---|
-| **Art. I-III** | Trou entre I-II et I-IV | 🟢 mineur (hors scope LTD) |
-| **Art. II-IV** | TROU CRITIQUE — contient Art. 2-4.3 (licenciement abusif) et Art. 2-4.4 (faute grave), tous deux référencés dans Art. 4-1.9.3 | 🔴 critique |
-| **Chap. VI — Presse** | Intégralement absent | 🟢 hors scope LTD |
-| **Art. 7-14.2** | Trou entre 7-14.1 et 7-14.3 | 🟢 mineur |
+| **Art. I-III** | Trou entre I-II et I-IV | mineur (hors scope LTD) |
+| **Art. II-IV** | TROU CRITIQUE — contient Art. 2-4.3 (licenciement abusif) et Art. 2-4.4 (faute grave), tous deux référencés dans Art. 4-1.9.3 | critique |
+| **Chap. VI — Presse** | Intégralement absent | hors scope LTD |
+| **Art. 7-14.2** | Trou entre 7-14.1 et 7-14.3 | mineur |
 
 ---
 
-## 🔗 Index — Où ces règles sont-elles implémentées dans le site ?
+## Index — Où ces règles sont-elles implémentées dans le site ?
 
 | Article | Implémentation | Page concernée |
 |---|---|---|
-| Art. 4-1.1 (conservation 6 sem) | ✅ historique 100 % conservé | toutes |
-| Art. 4-1.9.2 (plafonds salaire) | 🟡 plafonds plus stricts que TTE | `/rh`, `/comptabilite`, `permissions.js` |
-| Art. 4-1.10 (prime hebdo) | 🟡 barème à vérifier | `paie.js` |
-| Art. 4-1.11 (prime mensuelle) | 🟡 barème à vérifier | `paie.js` |
-| Art. 4-1.13 (masse salariale 90%) | ✅ gauge + alerte | `/dashboard`, `/comptabilite` |
-| Art. 4-1.9 (versement liquide interdit) | ❌ pas de blocage côté code | `/comptabilite` |
-| Art. 4-2.4 (résultat imposable) | 🟡 formule à vérifier | `/comptabilite` |
-| Art. 4-2.8 + 7-9.3 (cap avocat 30k / compta 8k) | 🟡 cap mentionné, séparation absente | `/comptabilite` |
-| Art. 4-2.10 (nourriture 750$/emp) | ❌ catégorie absente | `/comptabilite` |
-| Art. 4-2.11 (frais immo conditionnels) | 🔴 confondu dans autre-deductible | `/comptabilite` |
-| Art. 4-2.12 (frais véhicule conditionnels) | 🔴 déductible sans condition | `/comptabilite` |
-| Art. 4-2.16 (subvention) | ❌ catégorie absente | `/comptabilite` |
-| Art. 4-2.17 (non-déductibles obligatoires) | 🟡 option existe, pas de validation | `/comptabilite` |
-| Art. 4-3.2 (impôts) | ❌ calcul automatique absent | `/comptabilite` |
-| Art. 4-3.3 / 4-3.4 (deadlines mardi/mercredi) | ❌ pas de rappel | `/dashboard` |
-| Art. 4-5.4 (déficit 4 sem → cessation) | ❌ pas d'alerte | `/dashboard` |
-| Art. 5-1.4 (notification changement patron) | ❌ pas tracké | `/admin` |
-| Art. 3-1.x (dons versé/reçu) | ❌ catégories absentes | `/comptabilite` |
-| Art. 12-1.7 (vente cash sans facture) | 🟡 factures bot traçables | `/ventes`, `/comptabilite` |
+| Art. 4-1.1 (conservation 6 sem) | OK — historique 100 % conservé | toutes |
+| Art. 4-1.9.2 (plafonds salaire) | partiel — plafonds plus stricts que TTE | `/rh`, `/comptabilite`, `permissions.js` |
+| Art. 4-1.10 (prime hebdo) | partiel — barème à vérifier | `paie.js` |
+| Art. 4-1.11 (prime mensuelle) | partiel — barème à vérifier | `paie.js` |
+| Art. 4-1.13 (masse salariale 90%) | OK — gauge + alerte | `/dashboard`, `/comptabilite` |
+| Art. 4-1.9 (versement liquide interdit) | à implémenter — pas de blocage côté code | `/comptabilite` |
+| Art. 4-2.4 (résultat imposable) | partiel — formule à vérifier | `/comptabilite` |
+| Art. 4-2.8 + 7-9.3 (cap avocat 30k / compta 8k) | partiel — cap mentionné, séparation absente | `/comptabilite` |
+| Art. 4-2.10 (nourriture 750$/emp) | à implémenter — catégorie absente | `/comptabilite` |
+| Art. 4-2.11 (frais immo conditionnels) | non conforme — confondu dans autre-deductible | `/comptabilite` |
+| Art. 4-2.12 (frais véhicule conditionnels) | non conforme — déductible sans condition | `/comptabilite` |
+| Art. 4-2.16 (subvention) | à implémenter — catégorie absente | `/comptabilite` |
+| Art. 4-2.17 (non-déductibles obligatoires) | partiel — option existe, pas de validation | `/comptabilite` |
+| Art. 4-3.2 (impôts) | à implémenter — calcul automatique absent | `/comptabilite` |
+| Art. 4-3.3 / 4-3.4 (deadlines mardi/mercredi) | à implémenter — pas de rappel | `/dashboard` |
+| Art. 4-5.4 (déficit 4 sem → cessation) | à implémenter — pas d'alerte | `/dashboard` |
+| Art. 5-1.4 (notification changement patron) | à implémenter — pas tracké | `/admin` |
+| Art. 3-1.x (dons versé/reçu) | à implémenter — catégories absentes | `/comptabilite` |
+| Art. 12-1.7 (vente cash sans facture) | partiel — factures bot traçables | `/ventes`, `/comptabilite` |
 
 > Voir aussi : [[references_tte_charges_deductibles]] et [[references_tte_salaires_primes]] dans la mémoire pour les règles consolidées.
 

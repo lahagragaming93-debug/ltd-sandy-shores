@@ -25,19 +25,19 @@ const html = `
     ${renderPeriodFilter('semaine')}
     <select id="filtre-type" title="Filtrer par type de mouvement">
       <option value="">Tous types</option>
-      <option value="add">🟢 Entrées</option>
-      <option value="remove">🔴 Sorties</option>
+      <option value="add">Entrées</option>
+      <option value="remove">Sorties</option>
     </select>
-    <input type="text" id="filtre-recherche" placeholder="🔍 Filtrer par raison…" style="flex:1;min-width:160px;" />
-    <button class="btn btn-icon" id="btn-recharger" title="Recharger les données" data-tooltip="Recharger">🔄</button>
-    <button class="btn btn-icon" id="btn-export" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
+    <input type="text" id="filtre-recherche" placeholder="Filtrer par raison…" style="flex:1;min-width:160px;" />
+    <button class="btn" id="btn-recharger" title="Recharger les données" data-tooltip="Recharger">Recharger</button>
+    <button class="btn" id="btn-export" title="Exporter en CSV" data-tooltip="Export CSV">Exporter CSV</button>
     <span class="spacer"></span>
     <span class="muted mono" id="stats-mvts">—</span>
   </div>
 
   <div class="panel framed">
     <div class="panel-title">
-      <span>🏦 Mouvements bancaires LTD</span>
+      <span>Mouvements bancaires LTD</span>
       <span class="muted" style="font-size:0.75rem;">— combinés : xbankaccount + #depenses, ordre chronologique décroissant</span>
     </div>
     <div class="table-scroll">
@@ -207,23 +207,23 @@ function rendre() {
   const periodeLabel = getPeriodeLabel();
 
   document.getElementById('kpis-banque').innerHTML = `
-    <div class="kpi kpi-recette">
-      <div class="label">💰 Solde actuel</div>
+    <div class="kpi kpi-bank">
+      <div class="label">Solde actuel</div>
       <div class="value">${money(soldeLive.montant)}</div>
       <div class="delta">au ${escapeHtml(datetime(soldeLive.date) || '—')} · live, indépendant du filtre</div>
     </div>
-    <div class="kpi" style="border-color:var(--color-success);">
-      <div class="label">🟢 Entrées <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
+    <div class="kpi kpi-recette">
+      <div class="label">Entrées <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalEntrees)}</div>
       <div class="delta">${nbAdd} mouvements</div>
     </div>
     <div class="kpi kpi-depense">
-      <div class="label">🔴 Sorties <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
+      <div class="label">Sorties <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalSorties)}</div>
       <div class="delta">${nbRemove} mouvements</div>
     </div>
-    <div class="kpi" style="border-color:var(--color-info);">
-      <div class="label">📊 Net <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
+    <div class="kpi ${(totalEntrees - totalSorties) >= 0 ? 'kpi-positive' : 'kpi-negative'}" style="border-color:var(--color-info);">
+      <div class="label">Net <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalEntrees - totalSorties)}</div>
       <div class="delta">entrées − sorties sur la période</div>
     </div>
@@ -241,8 +241,8 @@ function rendre() {
   tbody.innerHTML = visibles.slice(0, 1000).map(m => {
     const isAdd = m.type === 'add';
     const badge = isAdd
-      ? '<span class="badge ok">🟢 Entrée</span>'
-      : '<span class="badge danger">🔴 Sortie</span>';
+      ? '<span class="badge ok">Entrée</span>'
+      : '<span class="badge danger">Sortie</span>';
     const colorMontant = isAdd ? 'color:var(--color-success);' : 'color:var(--color-danger);';
     return `
       <tr>

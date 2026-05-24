@@ -54,11 +54,11 @@ export function confirmAction({
 } = {}) {
   return new Promise((resolve) => {
     const id = nextId();
-    const ic = icon ?? (type === 'danger' ? '⚠' : type === 'warn' ? '⚠' : 'ℹ');
+    const ic = icon ?? '';
     const node = mountModal(`
       <div class="modal-backdrop confirm-modal" id="${id}" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
         <div class="modal modal-confirm modal-${type}">
-          <h3 id="${id}-title" class="confirm-title"><span class="confirm-ico">${ic}</span> ${escapeHtml(titre)}</h3>
+          <h3 id="${id}-title" class="confirm-title">${ic ? `<span class="confirm-ico">${ic}</span>` : ''}${escapeHtml(titre)}</h3>
           <div class="confirm-message">${message}</div>
           <div class="confirm-actions">
             <button class="btn btn-ghost" data-action="cancel">${escapeHtml(btnCancel)}</button>
@@ -113,7 +113,7 @@ export function confirmCritique({
     const node = mountModal(`
       <div class="modal-backdrop confirm-modal critique" id="${id}" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
         <div class="modal modal-confirm modal-danger modal-critique">
-          <div class="critique-band">⚠ ACTION CRITIQUE</div>
+          <div class="critique-band">ACTION CRITIQUE</div>
           <h3 id="${id}-title" class="confirm-title">${escapeHtml(titre)}</h3>
           <div class="confirm-message">${message}</div>
           ${typeBlock}
@@ -193,11 +193,11 @@ export function infoModal({
 } = {}) {
   return new Promise((resolve) => {
     const id = nextId();
-    const ic = icon ?? (type === 'danger' ? '⛔' : type === 'warn' ? '⚠' : type === 'success' ? '✓' : 'ℹ');
+    const ic = icon ?? '';
     const node = mountModal(`
       <div class="modal-backdrop confirm-modal" id="${id}" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
         <div class="modal modal-confirm modal-${type}">
-          <h3 id="${id}-title" class="confirm-title"><span class="confirm-ico">${ic}</span> ${escapeHtml(titre)}</h3>
+          <h3 id="${id}-title" class="confirm-title">${ic ? `<span class="confirm-ico">${ic}</span>` : ''}${escapeHtml(titre)}</h3>
           <div class="confirm-message">${message}</div>
           <div class="confirm-actions">
             <button class="btn btn-primary" data-action="ok">${escapeHtml(btnOk)}</button>

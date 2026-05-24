@@ -51,11 +51,11 @@ const html = `
     </select>
     <span class="spacer"></span>
     <span class="muted mono" id="stats-carb">—</span>
-    <button class="btn btn-icon" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
+    <button class="btn" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">Exporter CSV</button>
   </div>
 
   <div class="panel framed">
-    <div class="panel-title"><span>📊 Chiffre d'affaires carburant par jour</span></div>
+    <div class="panel-title"><span>Chiffre d'affaires carburant par jour</span></div>
     <div style="height:260px;position:relative;">
       <canvas id="chart-carb"></canvas>
     </div>
@@ -63,7 +63,7 @@ const html = `
 
   <div class="panel framed">
     <div class="panel-title">
-      <span>⛽ Récap par station</span>
+      <span>Récap par station</span>
       <span class="muted" style="font-size:0.75rem;">— click sur en-tête pour trier</span>
     </div>
     <div class="table-scroll">
@@ -84,7 +84,7 @@ const html = `
 
   <div class="panel">
     <div class="panel-title">
-      <span>📋 Détail des transactions</span>
+      <span>Détail des transactions</span>
       <span class="muted" style="font-size:0.75rem;">— ordre chronologique</span>
     </div>
     <div class="table-scroll">
@@ -161,22 +161,22 @@ function rendre() {
 
   document.getElementById('kpis-carb').innerHTML = `
     <div class="kpi kpi-recette">
-      <div class="label">💚 CA carburant</div>
+      <div class="label">CA carburant</div>
       <div class="value">${money(ca)}</div>
       <div class="delta">${rows.length} transactions</div>
     </div>
     <div class="kpi">
-      <div class="label">⛽ Litres vendus</div>
+      <div class="label">Litres vendus</div>
       <div class="value">${litres > 0 ? num(litres) + ' L' : '<span class="muted">—</span>'}</div>
       <div class="delta">${litres > 0 ? 'total période' : 'pas de détail'}</div>
     </div>
     <div class="kpi">
-      <div class="label">💵 Prix moyen / L</div>
+      <div class="label">Prix moyen / L</div>
       <div class="value">${litres > 0 ? moneyPrecis(prixMoyen) : '<span class="muted">—</span>'}</div>
       <div class="delta">${litres > 0 ? 'pondéré' : 'pas de détail'}</div>
     </div>
     <div class="kpi">
-      <div class="label">🏪 Stations actives</div>
+      <div class="label">Stations actives</div>
       <div class="value">${vraiesStations.size > 0 ? vraiesStations.size : '<span class="muted">—</span>'}</div>
       <div class="delta">${vraiesStations.size > 0 ? 'avec détail' : 'pas de détail'}</div>
     </div>

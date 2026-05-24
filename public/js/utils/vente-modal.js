@@ -16,10 +16,9 @@ const FUNCTIONS_BASE = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctio
 const MODAL_HTML = `
   <div id="modal-vente" class="modal-backdrop hidden">
     <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto;">
-      <h3 id="modal-vente-title">📝 Déclarer une vente</h3>
+      <h3 id="modal-vente-title">Déclarer une vente</h3>
 
       <div class="alert info mb-2" style="font-size:0.82rem;" id="modal-vente-info-bloc">
-        <span class="icon">ℹ</span>
         <span id="modal-vente-info">
           Saisis chaque produit vendu et la quantité. Le <strong>prix de vente</strong>
           et le <strong>bénéfice</strong> sont calculés automatiquement depuis le catalogue.
@@ -33,7 +32,7 @@ const MODAL_HTML = `
 
       <!-- Etape 1 (mode employe vendeur) : selectionner la facture bot a declarer -->
       <div id="vente-select-bot-bloc" class="hidden">
-        <label>📋 Facture in-game à déclarer <span style="color:var(--color-blood-light);">*</span></label>
+        <label>Facture in-game à déclarer <span style="color:var(--color-blood-light);">*</span></label>
         <select id="vente-select-bot" style="width:100%;">
           <option value="">— Sélectionne la facture —</option>
         </select>
@@ -274,15 +273,15 @@ function recalculer() {
     const btnValider = document.getElementById('btn-vente-valider');
     if (Math.abs(ecart) < 0.01) {
       info.className = 'alert info';
-      info.innerHTML = `✅ <strong>Montant correspond</strong> à la facture in-game #${escapeHtml(String(venteBotChoisie.factureId))} (${moneyPrecis(cible)}). Tu peux valider.`;
+      info.innerHTML = `<strong>Montant correspond</strong> à la facture in-game #${escapeHtml(String(venteBotChoisie.factureId))} (${moneyPrecis(cible)}). Tu peux valider.`;
       btnValider.disabled = false;
     } else if (montantEffectif === 0) {
       info.className = 'alert info';
-      info.innerHTML = `🎯 Cible : <strong>${moneyPrecis(cible)}</strong> — facture #${escapeHtml(String(venteBotChoisie.factureId))}.<br>Ajoute les produits que tu as vendus.`;
+      info.innerHTML = `Cible : <strong>${moneyPrecis(cible)}</strong> — facture #${escapeHtml(String(venteBotChoisie.factureId))}.<br>Ajoute les produits que tu as vendus.`;
       btnValider.disabled = true;
     } else {
       info.className = 'alert warn';
-      info.innerHTML = `⚠ <strong>Écart : ${ecart > 0 ? '+' : ''}${moneyPrecis(ecart)}</strong> — il faut atteindre <strong>${moneyPrecis(cible)}</strong> (facture in-game). Vérifie les produits/quantités.`;
+      info.innerHTML = `<strong>Écart : ${ecart > 0 ? '+' : ''}${moneyPrecis(ecart)}</strong> — il faut atteindre <strong>${moneyPrecis(cible)}</strong> (facture in-game). Vérifie les produits/quantités.`;
       btnValider.disabled = true;
     }
     info.classList.remove('hidden');
@@ -369,7 +368,7 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role, factureBotIdPr
   onSuccessCb = onSuccess || null;
   venteBotChoisie = null;
 
-  document.getElementById('modal-vente-title').textContent = '📝 Déclarer une vente';
+  document.getElementById('modal-vente-title').textContent = 'Déclarer une vente';
   document.getElementById('vente-mode').value = 'create';
   document.getElementById('vente-id').value = '';
   document.getElementById('vente-facture-bot-id').value = '';
@@ -409,7 +408,7 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role, factureBotIdPr
       selectBot.innerHTML = '<option value="">— Aucune facture in-game à déclarer —</option>';
       selectBot.disabled = true;
       infoBot.className = 'alert warn';
-      infoBot.innerHTML = `⚠ <strong>Aucune facture in-game non déclarée dans les 24 dernières heures.</strong><br>
+      infoBot.innerHTML = `<strong>Aucune facture in-game non déclarée dans les 24 dernières heures.</strong><br>
         Pour déclarer une vente, il faut d'abord faire la facture en jeu. Le bot Discord la remontera ici dans les secondes qui suivent.<br>
         <em>Si tu en attends une, patiente quelques secondes puis rouvre cette fenêtre.</em>`;
       infoBot.classList.remove('hidden');
@@ -470,7 +469,7 @@ export async function ouvrirModalModifierVente(vente, { onSuccess } = {}) {
   produitsVisibles = produitsCache.filter(p => !p.intrant);
   onSuccessCb = onSuccess || null;
 
-  document.getElementById('modal-vente-title').textContent = `✏ Modifier la vente #${vente.factureId || vente.id}`;
+  document.getElementById('modal-vente-title').textContent = `Modifier la vente #${vente.factureId || vente.id}`;
   document.getElementById('vente-mode').value = 'edit';
   document.getElementById('vente-id').value = vente.id;
   document.getElementById('vente-client').value = vente.client || '';

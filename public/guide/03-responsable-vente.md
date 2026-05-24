@@ -1,4 +1,4 @@
-# 🛒 Guide Responsable Vente
+# Guide Responsable Vente
 
 > Tu pilotes l'**épicerie** : tu gères le catalogue, les prix, les stocks. Tu vois les ventes faites par ton équipe.
 > Tu **gères aussi tes vendeurs** depuis Administration : créer, modifier, suspendre, supprimer, changer leur grade.
@@ -6,23 +6,23 @@
 
 ---
 
-## 🎯 Tes modules
+## Tes modules
 
 | Module | Accès | Rôle |
 |--------|-------|------|
-| 🛒 **Stocks épicerie** | **Lecture + écriture** | C'est ton outil principal |
-| 💵 **Ventes** | Lecture | Suivre l'activité de l'équipe |
-| 🧑‍💼 RH | Lecture | Voir l'effectif (pas modifier) |
-| ⚙ **Administration** | **Lecture + écriture (vendeurs uniquement)** | Gérer ton équipe |
-| 👤 Mon espace + 💰 Mes paies | Lecture | Tes infos perso |
+| **Stocks épicerie** | **Lecture + écriture** | C'est ton outil principal |
+| **Ventes** | Lecture | Suivre l'activité de l'équipe |
+| RH | Lecture | Voir l'effectif (pas modifier) |
+| **Administration** | **Lecture + écriture (vendeurs uniquement)** | Gérer ton équipe |
+| Mon espace + Mes paies | Lecture | Tes infos perso |
 
-> 🔒 Tu **n'as pas accès** à : Dashboard, Stations essence, Comptabilité, **Configuration globale** dans Administration.
+> Tu **n'as pas accès** à : Dashboard, Stations essence, Comptabilité, **Configuration globale** dans Administration.
 >
-> 🔐 **Périmètre Administration** : tu peux gérer **uniquement les vendeurs** (Novice, Intermédiaire, Expérimenté). Tous les autres comptes apparaissent grisés (lecture seule).
+> **Périmètre Administration** : tu peux gérer **uniquement les vendeurs** (Novice, Intermédiaire, Expérimenté). Tous les autres comptes apparaissent grisés (lecture seule).
 
 ---
 
-## ⚙ Administration — Gestion de tes vendeurs
+## Administration — Gestion de tes vendeurs
 
 ### Ce que tu peux faire
 - **Créer un compte vendeur** (Novice / Inter / Exp)
@@ -33,9 +33,9 @@
 - **Supprimer définitivement** — confirmation 3 secondes + tape `SUPPRIMER` pour activer le bouton
 
 ### À ne pas faire
-- ❌ Ne supprime pas un vendeur sans avoir noté ses derniers chiffres
-- ❌ Ne donne **jamais** un mot de passe par téléphone vocal — toujours via DM Discord ou autre canal écrit traçable
-- ❌ Ne tente pas de promouvoir un vendeur en Responsable ou DRH — c'est hors de ton périmètre (le sélecteur ne le proposera pas)
+- Ne supprime pas un vendeur sans avoir noté ses derniers chiffres
+- Ne donne **jamais** un mot de passe par téléphone vocal — toujours via DM Discord ou autre canal écrit traçable
+- Ne tente pas de promouvoir un vendeur en Responsable ou DRH — c'est hors de ton périmètre (le sélecteur ne le proposera pas)
 
 ### Promotion d'un vendeur
 1. Dans Admin, ligne du vendeur → sélecteur **Rôle** → choisis le nouveau grade (Novice / Inter / Exp)
@@ -44,7 +44,7 @@
 
 ---
 
-## 🛒 Stocks épicerie — Ton outil principal
+## Stocks épicerie — Ton outil principal
 
 ### Ce que tu vois
 
@@ -61,14 +61,14 @@ Chaque ligne :
 - Prix vente (in-game)
 - Marge (= vente − achat)
 - Seuil d'alerte (à partir duquel le produit passe en « BAS »)
-- Badge statut : 🔴 RUPTURE (stock = 0), 🟠 BAS (≤ seuil), 🟢 OK
+- Badge statut : RUPTURE (stock = 0), BAS (≤ seuil), OK
 
 #### Mouvements récents
 20 derniers ajustements de stock : ajout (vert) ou retrait (rouge), produit, quantité, source (utilisateur ou bot Discord), raison.
 
 ### Ce que tu peux faire
 
-#### ✏ Modifier un produit
+#### Modifier un produit
 Bouton **« Modifier »** sur chaque ligne. Modale avec :
 
 | Champ | Quoi mettre |
@@ -86,39 +86,39 @@ Bouton **« Modifier »** sur chaque ligne. Modale avec :
 - Un ajustement sans raison **ne passe pas** (validation bloquée)
 - Le stock se met à jour en temps réel sur tous les écrans (ordi, tablette, téléphone)
 
-#### ➕ Ajouter un nouveau produit au catalogue
-> 🔒 **Réservé à la direction et au DRH.** En tant que Responsable Vente, tu **ne vois pas** ce bouton. Si tu as besoin d'un nouveau produit (nouveau stock à référencer), demande à la direction ou au DRH de le créer.
+#### Ajouter un nouveau produit au catalogue
+> **Réservé à la direction et au DRH.** En tant que Responsable Vente, tu **ne vois pas** ce bouton. Si tu as besoin d'un nouveau produit (nouveau stock à référencer), demande à la direction ou au DRH de le créer.
 
-#### 🔄 Réinitialiser depuis catalogue (à manier avec précaution)
+#### Réinitialiser depuis catalogue (à manier avec précaution)
 Bouton **« Réinitialiser depuis catalogue »** — modal CRITIQUE 3 sec.
-- ⚠ **Écrase** : noms, catégories, prix de vente, seuils
-- ✓ **Préserve** : prix d'achat existants
-- ✓ **Conserve** : produits hors catalogue (rien n'est supprimé)
+- **Écrase** : noms, catégories, prix de vente, seuils
+- **Préserve** : prix d'achat existants
+- **Conserve** : produits hors catalogue (rien n'est supprimé)
 
 > N'utilise **que** si tu veux remettre la liste des produits aux valeurs par défaut (par exemple après une mauvaise saisie en série).
 
 ### Bonnes pratiques
 
-#### ✅ À faire
+#### À faire
 - **Vérifie les seuils d'alerte** chaque semaine. Un produit qui se vend bien doit avoir un seuil élevé pour anticiper la rupture.
 - **Mets à jour les prix d'achat** dès qu'un fournisseur change ses tarifs. Sinon, le bénéfice net affiché en compta est faux.
 - **Investigue les écarts** dans Mouvements récents (ex. un retrait sans raison expliquée).
 
-#### ❌ À ne pas faire
-- ❌ **Ne change jamais le prix de vente sans prévenir tes vendeurs** — ils risquent de facturer à l'ancien prix.
-- ❌ Ne mets pas un prix d'achat à 0 « pour faire simple » — la marge devient artificiellement énorme et fausse le bénéfice net en compta.
-- ❌ N'utilise pas l'ajustement manuel pour « rattraper » un bug Discord — préviens d'abord la direction (peut-être que le bot est en panne).
-- ❌ Ne réinitialise pas le catalogue par habitude — c'est une opération massive qui efface ton travail de tarification.
+#### À ne pas faire
+- **Ne change jamais le prix de vente sans prévenir tes vendeurs** — ils risquent de facturer à l'ancien prix.
+- Ne mets pas un prix d'achat à 0 « pour faire simple » — la marge devient artificiellement énorme et fausse le bénéfice net en compta.
+- N'utilise pas l'ajustement manuel pour « rattraper » un bug Discord — préviens d'abord la direction (peut-être que le bot est en panne).
+- Ne réinitialise pas le catalogue par habitude — c'est une opération massive qui efface ton travail de tarification.
 
 ---
 
-## 💵 Ventes — Suivre ton équipe
+## Ventes — Suivre ton équipe
 
 ### Ce que tu vois
 - **KPI** : CA semaine, bénéfice brut, panier moyen, paiements (espèces vs carte)
 - **Filtres** : par vendeur, par paiement, recherche libre
 - **Tableau factures** : date, n°, vendeur, client, montant, bénéfice, paiement, raison, vérification stock
-- **🚨 Discordances** : factures sans sortie de stock corrélée
+- **Discordances** : factures sans sortie de stock corrélée
 
 ### Ce que tu peux faire
 - **Filtrer** par vendeur pour voir l'activité individuelle
@@ -131,7 +131,7 @@ Bouton **« Réinitialiser depuis catalogue »** — modal CRITIQUE 3 sec.
 
 ---
 
-## 🧑‍💼 RH — Vue lecture seule
+## RH — Vue lecture seule
 
 Tu peux **voir** :
 - Les effectifs vendeurs / pompistes (utile pour planning)
@@ -140,11 +140,11 @@ Tu peux **voir** :
 
 Tu ne peux **pas** modifier les rôles, salaires ou statuts. C'est la direction et le DRH qui s'en chargent.
 
-> 💡 Si un de tes vendeurs n'est pas performant, **note les chiffres** et fais un retour à la direction. Ne tente pas de le suspendre toi-même (tu n'as pas accès).
+> Si un de tes vendeurs n'est pas performant, **note les chiffres** et fais un retour à la direction. Ne tente pas de le suspendre toi-même (tu n'as pas accès).
 
 ---
 
-## 📅 Ta semaine type
+## Ta semaine type
 
 ### Lundi matin
 - **Stocks** : check rapide des ruptures et bas (filtre « niveau d'alerte »)
@@ -164,7 +164,7 @@ Tu ne peux **pas** modifier les rôles, salaires ou statuts. C'est la direction 
 
 ---
 
-## 💰 Comprendre ta paie
+## Comprendre ta paie
 
 Tu es payé en **salaire fixe**, décidé par la direction ou le DRH (modal « Décider salaire » dans RH).
 
@@ -176,7 +176,7 @@ Va voir **Mes paies** pour ton historique de versements.
 
 ---
 
-## 🚨 Les 3 erreurs à éviter
+## Les 3 erreurs à éviter
 
 1. **Modifier un prix de vente sans annoncer** à l'équipe — vendeurs en décalage, clients mécontents.
 2. **Laisser un produit en rupture > 24h** sans alerter la direction — perte de CA directe.
@@ -184,7 +184,7 @@ Va voir **Mes paies** pour ton historique de versements.
 
 ---
 
-## ➡ La suite
+## La suite
 
 - **[07-automatismes.md](07-automatismes.md)** : comprendre comment les ventes et les sorties de stock arrivent depuis Discord
 - **[08-faq-depannage.md](08-faq-depannage.md)** : « pourquoi le stock n'a pas baissé après cette vente ? »

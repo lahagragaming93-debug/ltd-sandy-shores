@@ -38,25 +38,25 @@ const html = `
   ${editable ? `
   <div class="panel framed" id="panel-quotas-hebdo">
     <div class="panel-title">
-      <span>⚙ Quotas hebdomadaires <span class="muted" style="font-size:0.78rem;">— centralisé · prend effet à la prochaine clôture</span></span>
+      <span>Quotas hebdomadaires <span class="muted" style="font-size:0.78rem;">— centralisé · prend effet à la prochaine clôture</span></span>
       <button class="btn btn-sm" id="btn-toggle-quotas" title="Ouvrir / fermer le bloc">Afficher</button>
     </div>
     <div id="bloc-quotas" class="hidden">
       <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-start;">
         <div class="panel" style="flex:1 1 280px;min-width:240px;padding:10px;">
-          <div class="mono mb-1" style="font-size:0.92rem;">🛢 Pompistes</div>
+          <div class="mono mb-1" style="font-size:0.92rem;">Pompistes</div>
           <label class="muted" style="font-size:0.78rem;">Bidons (0 = désactivé)</label>
           <input type="number" id="q-bidons" min="0" step="1" />
           <label class="muted" style="font-size:0.78rem;margin-top:6px;display:block;">Caoutchoucs (0 = désactivé)</label>
           <input type="number" id="q-caoutchoucs" min="0" step="1" />
         </div>
         <div class="panel" style="flex:1 1 280px;min-width:240px;padding:10px;">
-          <div class="mono mb-1" style="font-size:0.92rem;">💰 Vendeurs — CA hebdo</div>
+          <div class="mono mb-1" style="font-size:0.92rem;">Vendeurs — CA hebdo</div>
           <label class="muted" style="font-size:0.78rem;">Quota CA (avert auto si non atteint)</label>
           <input type="number" id="q-ca-vendeur" min="0" step="100" />
         </div>
         <div class="panel" style="flex:2 1 360px;min-width:280px;padding:10px;">
-          <div class="mono mb-1" style="font-size:0.92rem;">📦 Vendeurs — Quota fabrication (bonus max 3 000 $)</div>
+          <div class="mono mb-1" style="font-size:0.92rem;">Vendeurs — Quota fabrication (bonus max 3 000 $)</div>
           <div class="muted" style="font-size:0.75rem;margin-bottom:6px;">0 = produit désactivé cette semaine. Le bonus est versé au prorata du score moyen des produits actifs.</div>
           <div class="row" style="gap:8px;flex-wrap:wrap;">
             <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Pioche</label><input type="number" id="q-fab-pioche" min="0" step="1" /></div>
@@ -67,7 +67,7 @@ const html = `
         </div>
       </div>
       <div class="row mt-2" style="gap:8px;align-items:center;">
-        <button class="btn btn-primary" id="btn-save-quotas">💾 Enregistrer les quotas</button>
+        <button class="btn btn-primary" id="btn-save-quotas">Enregistrer les quotas</button>
         <span class="muted" id="lbl-quotas-state" style="font-size:0.78rem;">—</span>
       </div>
     </div>
@@ -84,7 +84,7 @@ const html = `
       <option value="actif">Actifs</option>
       <option value="suspendu">Suspendus</option>
     </select>
-    <input type="text" id="filtre-recherche" placeholder="🔍 Rechercher (nom, Discord)" style="flex:1;min-width:160px;" />
+    <input type="text" id="filtre-recherche" placeholder="Rechercher (nom, Discord)" style="flex:1;min-width:160px;" />
   </div>
 
   <div class="panel framed">
@@ -119,8 +119,8 @@ const html = `
       <h3 id="emp-nom">—</h3>
       <div id="emp-content">—</div>
       <div class="row mt-3">
-        ${editable ? '<button class="btn btn-primary" id="btn-decide-salaire" title="Décider un salaire fixe (responsables/direction)">💰 Décider salaire</button>' : ''}
-        <button class="btn" id="btn-voir-espace" title="Ouvrir l'espace personnel de cet employé (lecture seule, debug)">👁 Voir son espace</button>
+        ${editable ? '<button class="btn btn-primary" id="btn-decide-salaire" title="Décider un salaire fixe (responsables/direction)">Décider salaire</button>' : ''}
+        <button class="btn" id="btn-voir-espace" title="Ouvrir l'espace personnel de cet employé (lecture seule, debug)">Voir son espace</button>
         <button class="btn btn-ghost" id="btn-close-emp">Fermer</button>
       </div>
     </div>
@@ -375,7 +375,7 @@ function renderTable() {
     const m = metricsByUser[u.id] || {};
     const heures = durationHM(m.heuresMs || 0);
     const heuresOK = (m.heuresMs || 0) >= 7 * 3600 * 1000;
-    const heuresMark = heuresOK ? '' : '<span class="muted">⚠</span> ';
+    const heuresMark = heuresOK ? '' : '<span class="muted">!</span> ';
     const plafond = PLAFOND_SALAIRE[u.role] || 0;
 
     // En mode snapshot : source de verite = doc /paiesEstimees figeé.
@@ -403,7 +403,7 @@ function renderTable() {
         const scoreFab = scoreQuotaFabrication(fabSnap, config.quotaFabrication || {});
         const quotaFabActif = Object.values(config.quotaFabrication || {}).some(v => Number(v) > 0);
         if (quotaFabActif) {
-          fabLabel = `<br><span class="muted" style="font-size:0.72rem;">📦 quota fab ${pct(scoreFab*100, 0)} · bonus ${money(Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX))}</span>`;
+          fabLabel = `<br><span class="muted" style="font-size:0.72rem;">quota fab ${pct(scoreFab*100, 0)} · bonus ${money(Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX))}</span>`;
         }
       }
       progressLabel = `${money(caShow)} / ${money(plafondCAShow)}${part}${fabLabel}`;
@@ -464,7 +464,7 @@ function renderTable() {
         ${cellVerse}
         <td><span class="badge ${u.statut === 'actif' ? 'ok' : 'warn'}">${u.statut || 'actif'}</span></td>
         <td class="actions-cell">
-          <button class="btn btn-icon btn-sm btn-ghost" data-detail="${u.id}" title="Voir le détail (heures, ventes, salaire estimé)" data-tooltip="Détail">👁</button>
+          <button class="btn btn-sm btn-ghost" data-detail="${u.id}" title="Voir le détail (heures, ventes, salaire estimé)" data-tooltip="Détail">Détail</button>
         </td>
       </tr>
     `;
@@ -558,11 +558,11 @@ if (editable) {
     try {
       lblState.textContent = 'Enregistrement…';
       await setConfig(patch);
-      lblState.textContent = '✓ Quotas enregistrés — les pages employé se rechargent automatiquement.';
+      lblState.textContent = 'Quotas enregistrés — les pages employé se rechargent automatiquement.';
       toastSuccess('Quotas mis à jour.');
     } catch (e) {
       console.error('[rh] setConfig quotas', e);
-      lblState.textContent = '✗ Erreur lors de l\'enregistrement.';
+      lblState.textContent = 'Erreur lors de l\'enregistrement.';
       toastError(e.message || 'Erreur enregistrement.');
     }
   });
@@ -621,7 +621,7 @@ function ouvrirDetail(uid) {
       html += `<tr><td>Part CA du salaire <span class="muted">(prorata ${money(quotaCAConfig)})</span></td><td class="right mono">${money(salaireCAPart)} / ${money(plafondCA)}</td></tr>`;
       const produitsAffiches = PRODUITS_QUOTA_FAB.filter(id => Number(qFab[id] || 0) > 0 || Number(fab[id] || 0) > 0);
       if (produitsAffiches.length > 0) {
-        html += `<tr><td colspan="2" class="muted" style="padding-top:10px;font-weight:bold;">📦 Quota fabrication</td></tr>`;
+        html += `<tr><td colspan="2" class="muted" style="padding-top:10px;font-weight:bold;">Quota fabrication</td></tr>`;
         for (const id of produitsAffiches) {
           const q = Number(qFab[id] || 0);
           const f = Number(fab[id] || 0);
@@ -660,7 +660,7 @@ function ouvrirDetail(uid) {
       const nbAnn = mesVentes.filter(v => v.annulee).length;
       const nbCac = mesVentes.filter(v => v.cachee && !v.annulee).length;
       html += `
-        <h4 class="mt-3" style="margin-bottom:6px;">📋 Factures de la semaine — comparaison bot / manuelle</h4>
+        <h4 class="mt-3" style="margin-bottom:6px;">Factures de la semaine — comparaison bot / manuelle</h4>
         <p class="muted" style="font-size:0.78rem;margin:0 0 8px;">
           ${mesVentes.length} factures totales · ${nbBot} bot · ${nbMan} manuelles · ${nbCac > 0 ? `<span class="alerte-fort">${nbCac} cachées (doublons)</span>` : '0 cachée'}${nbAnn > 0 ? ` · <span class="alerte-fort">${nbAnn} annulée${nbAnn > 1 ? 's' : ''} IG</span>` : ''}
         </p>
@@ -681,22 +681,22 @@ function ouvrirDetail(uid) {
               const date = datetime(v.timestamp);
               const isManuelle = v.source === 'manuelle';
               const source = isManuelle
-                ? '<span class="badge ok" title="Déclarée manuellement par le vendeur">📝 Man.</span>'
-                : '<span class="badge neutral" title="Remontée automatiquement par le bot Discord">🤖 Bot</span>';
+                ? '<span class="badge ok" title="Déclarée manuellement par le vendeur">Manuelle</span>'
+                : '<span class="badge neutral" title="Remontée automatiquement par le bot Discord">Bot</span>';
               const cm = v.montantParticulier ?? v.montant ?? 0;
               const benefice = v.benefice != null ? money(v.benefice) : '<span class="muted">—</span>';
               let statut, trClass = '';
               if (v.annulee) {
                 const motif = escapeHtml(v.motifAnnulation || 'Annulée');
-                statut = `<span class="badge warn" title="${motif}">❌ Annulée</span>`;
+                statut = `<span class="badge warn" title="${motif}">Annulée</span>`;
                 trClass = 'muted';
               } else if (v.cachee) {
-                statut = `<span class="badge warn" title="Doublon caché — remplacée par #${v.remplaceeParFactureId || '?'}">⚠ Cachée</span>`;
+                statut = `<span class="badge warn" title="Doublon caché — remplacée par #${v.remplaceeParFactureId || '?'}">Cachée</span>`;
                 trClass = 'muted';
               } else if (cm === 0 && (v.montant || 0) > 0) {
                 statut = '<span class="badge neutral" title="Ne compte pas dans la commission (produits pro)">CA pro</span>';
               } else {
-                statut = '<span class="badge ok">✓ Compte</span>';
+                statut = '<span class="badge ok">Compte</span>';
               }
               return `
                 <tr class="${trClass}">
@@ -715,7 +715,7 @@ function ouvrirDetail(uid) {
         </table>
         </div>
         <p class="muted" style="font-size:0.74rem;margin:4px 0 0;">
-          💡 <strong>Comparaison</strong> : si tu vois 2 lignes pour la même vente (1 bot + 1 manuelle avec même montant), la bot est cachée (badge ⚠) — seule la manuelle compte. ${nbCac > 0 ? 'Détecte automatiquement les doublons.' : 'Aucun doublon détecté cette semaine pour cet employé.'}
+          <strong>Comparaison</strong> : si tu vois 2 lignes pour la même vente (1 bot + 1 manuelle avec même montant), la bot est cachée — seule la manuelle compte. ${nbCac > 0 ? 'Détecte automatiquement les doublons.' : 'Aucun doublon détecté cette semaine pour cet employé.'}
         </p>
       `;
     }
@@ -730,7 +730,7 @@ function ouvrirDetail(uid) {
   if (u.role === 'drh') {
     html += `
       <div class="alert info" style="font-size:0.85rem;">
-        💼 <strong>Salaire DRH fixe : 18 000 $/semaine</strong> — imposé par le patron, non modifiable.
+        <strong>Salaire DRH fixe : 18 000 $/semaine</strong> — imposé par le patron, non modifiable.
       </div>
     `;
   } else if (isResponsable(u.role) || isDirection(u.role)) {

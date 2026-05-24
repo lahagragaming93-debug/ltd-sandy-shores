@@ -94,7 +94,7 @@ listenConfig((newCfg) => {
 const html = `
   ${modeVoirComme ? `
     <div class="alert" style="background:rgba(70,130,200,0.18);border:2px solid #4a90e2;margin-bottom:12px;font-size:0.95rem;">
-      🔍 <strong>Mode débug</strong> — Tu consultes l'espace personnel de
+      <strong>Mode débug</strong> — Tu consultes l'espace personnel de
       <strong>${escapeHtml(profile.prenom)} ${escapeHtml(profile.nom)}</strong>
       (${ROLE_LABELS[profile.role] || profile.role}).
       Données en temps réel. <strong>Lecture seule</strong> — aucune action n'est possible depuis cette vue.
@@ -103,25 +103,25 @@ const html = `
   ` : ''}
 
   <div class="panel framed mb-3" style="text-align:center;">
-    <h2 style="margin:0;">${modeVoirComme ? '👁 Espace de' : 'Salut'} <span style="color:var(--color-blood-light);">${escapeHtml(profile.prenom)}${modeVoirComme ? ' ' + escapeHtml(profile.nom) : ''}</span>${modeVoirComme ? '' : ' !'}</h2>
+    <h2 style="margin:0;">${modeVoirComme ? 'Espace de' : 'Salut'} <span style="color:var(--color-blood-light);">${escapeHtml(profile.prenom)}${modeVoirComme ? ' ' + escapeHtml(profile.nom) : ''}</span>${modeVoirComme ? '' : ' !'}</h2>
     <div class="muted" style="margin-top:6px;">
       ${ROLE_LABELS[profile.role]} · Semaine du ${debut.toLocaleDateString('fr-FR')} au ${fin.toLocaleDateString('fr-FR')}
-      ${!modeVoirComme ? ' · <a href="tuto.html" style="color:var(--color-sand-light);text-decoration:underline;">📚 Revoir le tutoriel</a>' : ''}
+      ${!modeVoirComme ? ' · <a href="tuto.html" style="color:var(--color-sand-light);text-decoration:underline;">Revoir le tutoriel</a>' : ''}
     </div>
     ${!modeVoirComme ? `
       <div class="row center mt-3" style="gap:10px;justify-content:center;flex-wrap:wrap;">
         ${isVendeur(profile.role)
-          ? '<button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">📝 Déclarer une vente</button>'
+          ? '<button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">Déclarer une vente</button>'
           : ''}
         ${isPompiste(profile.role)
           ? `${quotaBidonsActif
-              ? '<button class="btn btn-primary" id="btn-ravitailler" style="font-size:1.05rem;">🛢 Ravitailler une station</button>'
-              : '<button class="btn" disabled style="font-size:1.05rem;opacity:0.5;cursor:not-allowed;" title="Bidons désactivés cette semaine (quota = 0)">🛢 Ravitailler — désactivé cette semaine</button>'}
+              ? '<button class="btn btn-primary" id="btn-ravitailler" style="font-size:1.05rem;">Ravitailler une station</button>'
+              : '<button class="btn" disabled style="font-size:1.05rem;opacity:0.5;cursor:not-allowed;" title="Bidons désactivés cette semaine (quota = 0)">Ravitailler — désactivé cette semaine</button>'}
              ${quotaCaoutchoucsActif
-              ? '<a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">🪖 Déclarer des caoutchoucs</a>'
-              : '<button class="btn" disabled style="font-size:1.05rem;opacity:0.5;cursor:not-allowed;" title="Caoutchoucs non requis cette semaine (quota = 0)">🪖 Caoutchoucs — non requis cette semaine</button>'}
-             <button class="btn" id="btn-corriger-stock" style="font-size:0.9rem;" title="Corriger le stock d'une station si écart entre site et IG">📐 Corriger un stock</button>
-             <button class="btn" id="btn-note-frais" style="font-size:0.9rem;background:rgba(70,180,90,0.18);border:1px solid #5a8;" title="Déclarer une avance d'essence pour véhicule LTD">💸 Note de frais essence</button>`
+              ? '<a class="btn btn-primary" href="stations.html#caoutchoucs" style="font-size:1.05rem;">Déclarer des caoutchoucs</a>'
+              : '<button class="btn" disabled style="font-size:1.05rem;opacity:0.5;cursor:not-allowed;" title="Caoutchoucs non requis cette semaine (quota = 0)">Caoutchoucs — non requis cette semaine</button>'}
+             <button class="btn" id="btn-corriger-stock" style="font-size:0.9rem;" title="Corriger le stock d'une station si écart entre site et IG">Corriger un stock</button>
+             <button class="btn" id="btn-note-frais" style="font-size:0.9rem;background:rgba(70,180,90,0.18);border:1px solid #5a8;" title="Déclarer une avance d'essence pour véhicule LTD">Note de frais essence</button>`
           : ''}
       </div>
 
@@ -129,9 +129,8 @@ const html = `
       ${isPompiste(profile.role) ? `
         <div id="modal-ravit" class="modal-backdrop hidden">
           <div class="modal" style="max-width:540px;">
-            <h3>🛢 Ravitailler une station</h3>
+            <h3>Ravitailler une station</h3>
             <div class="alert info mb-2" style="font-size:0.82rem;">
-              <span class="icon">ℹ</span>
               <span>Choisis la station que tu viens de ravitailler et saisis le <strong>nombre de bidons ajoutés</strong>.
               La conversion en litres (1 bidon = 15 L) est automatique.</span>
             </div>
@@ -155,9 +154,8 @@ const html = `
         <!-- Modal correction stock (incoherence site/IG) -->
         <div id="modal-correc" class="modal-backdrop hidden">
           <div class="modal" style="max-width:540px;">
-            <h3>📐 Corriger le stock d'une station</h3>
+            <h3>Corriger le stock d'une station</h3>
             <div class="alert warn mb-2" style="font-size:0.82rem;">
-              <span class="icon">⚠</span>
               <span>À utiliser <strong>uniquement</strong> en cas d'écart entre le stock affiché sur le site
               et le stock réel in-game. Une <strong>alerte est envoyée à la direction</strong> à chaque
               correction (audit obligatoire).</span>
@@ -186,9 +184,8 @@ const html = `
         <!-- Modal note de frais (avance essence vehicule LTD) -->
         <div id="modal-note-frais" class="modal-backdrop hidden">
           <div class="modal" style="max-width:540px;">
-            <h3>💸 Déclarer une note de frais essence</h3>
+            <h3>Déclarer une note de frais essence</h3>
             <div class="alert info mb-2" style="font-size:0.82rem;">
-              <span class="icon">ℹ</span>
               <span>Tu as avancé de ta poche l'essence d'un véhicule LTD ?
               <strong>Procédure</strong> :<br>
               1. Mets l'essence dans le véhicule en jeu<br>
@@ -201,14 +198,13 @@ const html = `
 
             <label>Screenshot de la confirmation IG <span style="color:var(--color-blood-light);">*</span></label>
             <div id="nf-paste-zone" tabindex="0" style="border:2px dashed var(--color-bone-dark, #666);border-radius:6px;padding:24px;text-align:center;cursor:pointer;background:rgba(0,0,0,0.18);min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;outline:none;">
-              <div style="font-size:2rem;">📋</div>
               <div style="margin-top:6px;"><strong>Clique ici puis Ctrl+V</strong> pour coller le screenshot</div>
               <div class="muted" style="font-size:0.75rem;margin-top:4px;">Image redimensionnée auto (max 1600px, qualité 75%)</div>
             </div>
             <div id="nf-preview-zone" class="hidden" style="margin-top:8px;text-align:center;">
               <img id="nf-preview-img" alt="Preview" style="max-width:100%;max-height:280px;border:1px solid var(--color-bone-dark,#444);border-radius:4px;" />
               <div class="muted mt-1" id="nf-preview-meta" style="font-size:0.75rem;">—</div>
-              <button class="btn btn-sm btn-ghost mt-1" id="nf-clear-img">✕ Retirer / recoller un autre</button>
+              <button class="btn btn-sm btn-ghost mt-1" id="nf-clear-img">Retirer / recoller un autre</button>
             </div>
 
             <label>Description / contexte <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
@@ -252,7 +248,7 @@ const html = `
 
   ${isPompiste(profile.role) ? `
     <div class="panel">
-      <div class="panel-title"><span>💸 Mes notes de frais essence</span></div>
+      <div class="panel-title"><span>Mes notes de frais essence</span></div>
       <div id="notes-frais-perso">Chargement…</div>
     </div>
   ` : ''}
@@ -316,7 +312,7 @@ function renderNonDeclarees() {
   bloc.innerHTML = `
     <div class="panel framed mb-2" style="border-color:var(--color-warning, #f0a020);">
       <div class="panel-title">
-        <span>📌 ${nonDeclarees.length} vente${nonDeclarees.length > 1 ? 's' : ''} in-game à déclarer</span>
+        <span>${nonDeclarees.length} vente${nonDeclarees.length > 1 ? 's' : ''} in-game à déclarer</span>
         <span class="muted" style="font-size:0.78rem;">— moins de 24h</span>
       </div>
       <p class="muted" style="font-size:0.82rem;margin:0 0 8px;">
@@ -346,7 +342,7 @@ function renderNonDeclarees() {
                 <td class="center">
                   ${modeVoirComme
                     ? '<span class="muted" style="font-size:0.78rem;">— vue admin —</span>'
-                    : `<button class="btn btn-primary btn-sm" data-declarer-bot="${v.id}">📝 Déclarer</button>`}
+                    : `<button class="btn btn-primary btn-sm" data-declarer-bot="${v.id}">Déclarer</button>`}
                 </td>
               </tr>
             `;
@@ -464,7 +460,7 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
     <div class="kpi"><div class="label">${isCurrent ? 'Ton CA' : 'CA de la semaine'}</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes${caPro > 0 ? ` · ${money(caPro)} hors commission` : ''}</div></div>
     <div class="kpi"><div class="label">CA commissionnable</div><div class="value">${money(caParticulier)}</div><div class="delta">base du salaire CA</div></div>
     ${produitsActifs.length > 0
-      ? `<div class="kpi"><div class="label">📦 Score quota fab</div><div class="value">${pct(scoreFab*100, 0)}</div><div class="delta ${scoreFab>=1?'up':'down'}">bonus ${money(bonusFab)} / ${money(BONUS_QUOTA_VENDEUR_MAX)}</div></div>`
+      ? `<div class="kpi"><div class="label">Score quota fab</div><div class="value">${pct(scoreFab*100, 0)}</div><div class="delta ${scoreFab>=1?'up':'down'}">bonus ${money(bonusFab)} / ${money(BONUS_QUOTA_VENDEUR_MAX)}</div></div>`
       : `<div class="kpi"><div class="label">Quota CA hebdo</div><div class="value">${pct(pctQuotaCA, 0)}</div><div class="delta ${caParticulier >= quotaCA ? 'up' : 'down'}">${money(caParticulier)} / ${money(quotaCA)}</div></div>`}
     <div class="kpi"><div class="label">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">${nouveauSysteme ? `CA ${money(salaireCAPart)} + bonus ${money(bonusFab)}` : 'commission CA'} · plafond ${money(plafondSalaire)}</div></div>
   `;
@@ -472,7 +468,7 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
   // Section "Declarer fabrication" : visible UNIQUEMENT semaine en cours +
   // au moins un produit actif + pas en mode "voir comme"
   const blocDeclarerFab = (isCurrent && !modeVoirComme && produitsActifs.length > 0) ? `
-    <div class="panel-title mt-3" style="margin-bottom:6px;"><span>🛠 Déclarer une fabrication</span><span class="muted" style="font-size:0.78rem;">cumul de la semaine — saisie libre par produit</span></div>
+    <div class="panel-title mt-3" style="margin-bottom:6px;"><span>Déclarer une fabrication</span><span class="muted" style="font-size:0.78rem;">cumul de la semaine — saisie libre par produit</span></div>
     <div class="row" style="gap:10px;flex-wrap:wrap;">
       ${produitsActifs.map(id => `
         <div class="panel" style="flex:1 1 240px;min-width:220px;padding:10px;">
@@ -507,7 +503,7 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
       </div>
       ${produitsActifs.length > 0 ? `
         <div>
-          <div class="muted mono mb-1">📦 Quotas de fabrication (bonus jusqu'à ${money(BONUS_QUOTA_VENDEUR_MAX)} · score moyen des produits actifs)</div>
+          <div class="muted mono mb-1">Quotas de fabrication (bonus jusqu'à ${money(BONUS_QUOTA_VENDEUR_MAX)} · score moyen des produits actifs)</div>
           ${produitsActifs.map(id => {
             const fait = fabrications[id];
             const q = quotaFabrication[id];
@@ -534,7 +530,7 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
 
     ${blocDeclarerFab}
 
-    <div class="panel-title mt-3" style="margin-bottom:6px;"><span>📋 Mes factures de la semaine</span><span class="muted" style="font-size:0.78rem;">${myVentes.length} vente${myVentes.length>1?'s':''}</span></div>
+    <div class="panel-title mt-3" style="margin-bottom:6px;"><span>Mes factures de la semaine</span><span class="muted" style="font-size:0.78rem;">${myVentes.length} vente${myVentes.length>1?'s':''}</span></div>
     <div class="table-scroll" style="max-height:400px;">
       <table class="data" id="table-mes-ventes">
         <thead><tr>
@@ -626,10 +622,10 @@ function renderPompiste(quota, isCurrent) {
                     : 'aucun quota actif'));
 
   document.getElementById('kpis-emp').innerHTML = `
-    <div class="kpi"><div class="label">🛢 Bidons ravitaillés</div><div class="value">${num(bidons)}</div><div class="delta">${bidonsActif ? `/ ${num(qB)} (${pct(pctB,0)})` : 'quota désactivé'}</div></div>
-    <div class="kpi"><div class="label">🪖 Caoutchoucs produits</div><div class="value">${num(caoutchoucs)}</div><div class="delta">${caoutsActif ? `/ ${num(qC)} (${pct(pctC,0)})` : 'quota désactivé'}</div></div>
-    <div class="kpi"><div class="label">📊 Score global</div><div class="value">${pct(score,1)}</div><div class="delta">${scoreLabel}</div></div>
-    <div class="kpi"><div class="label">💰 ${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
+    <div class="kpi"><div class="label">Bidons ravitaillés</div><div class="value">${num(bidons)}</div><div class="delta">${bidonsActif ? `/ ${num(qB)} (${pct(pctB,0)})` : 'quota désactivé'}</div></div>
+    <div class="kpi"><div class="label">Caoutchoucs produits</div><div class="value">${num(caoutchoucs)}</div><div class="delta">${caoutsActif ? `/ ${num(qC)} (${pct(pctC,0)})` : 'quota désactivé'}</div></div>
+    <div class="kpi"><div class="label">Score global</div><div class="value">${pct(score,1)}</div><div class="delta">${scoreLabel}</div></div>
+    <div class="kpi kpi-salaire"><div class="label">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">/ ${money(plafondSalaire)} max</div></div>
   `;
 
   // Texte explicatif dynamique selon les quotas actifs
@@ -648,7 +644,7 @@ function renderPompiste(quota, isCurrent) {
     <div style="display:grid;gap:14px;">
       ${bidonsActif ? `
       <div>
-        <div class="muted mono mb-1">🛢 Bidons d'essence ravitaillés <span style="float:right;color:var(--color-cactus,#5a8);">+${moneyPrecis(valeurUnitBidon)}/bidon</span></div>
+        <div class="muted mono mb-1">Bidons d'essence ravitaillés <span style="float:right;color:var(--color-cactus,#5a8);">+${moneyPrecis(valeurUnitBidon)}/bidon</span></div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${pctB}%"></div>
           <div class="label">${num(bidons)} / ${num(qB)} bidons → ${money(partBidons)}</div>
@@ -657,7 +653,7 @@ function renderPompiste(quota, isCurrent) {
       ` : ''}
       ${caoutsActif ? `
       <div>
-        <div class="muted mono mb-1">🪖 Caoutchoucs produits <span style="float:right;color:var(--color-cactus,#5a8);">+${moneyPrecis(valeurUnitCaout)}/caoutchouc</span></div>
+        <div class="muted mono mb-1">Caoutchoucs produits <span style="float:right;color:var(--color-cactus,#5a8);">+${moneyPrecis(valeurUnitCaout)}/caoutchouc</span></div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${pctC}%"></div>
           <div class="label">${num(caoutchoucs)} / ${num(qC)} unités → ${money(partCaouts)}</div>
@@ -665,7 +661,7 @@ function renderPompiste(quota, isCurrent) {
       </div>
       ` : ''}
       <div>
-        <div class="muted mono mb-1">💰 ${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond ${ROLE_LABELS[profile.role]}</div>
+        <div class="muted mono mb-1">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond ${ROLE_LABELS[profile.role]}</div>
         <div class="progress" style="height:28px;">
           <div class="fill" style="width:${plafondSalaire ? (salaireEst/plafondSalaire)*100 : 0}%;background:linear-gradient(90deg,#ffd24a,#ffac1a);"></div>
           <div class="label" style="font-weight:bold;">${money(salaireEst)} / ${money(plafondSalaire)}</div>
@@ -673,12 +669,12 @@ function renderPompiste(quota, isCurrent) {
       </div>
       ${isCurrent ? `
       <div class="alert info" style="font-size:0.82rem;margin-top:4px;">
-        💡 <strong>Comment ton salaire est calculé</strong> : ${explicSalaire}
+        <strong>Comment ton salaire est calculé</strong> : ${explicSalaire}
       </div>
 
       <!-- État des stations en temps réel -->
       <div>
-        <div class="muted mono mb-1">⛽ État des stations en temps réel</div>
+        <div class="muted mono mb-1">État des stations en temps réel</div>
         <div id="pompiste-stations">Chargement…</div>
       </div>
 
@@ -686,7 +682,7 @@ function renderPompiste(quota, isCurrent) {
       <div id="classement-pompiste">Chargement du classement…</div>
       ` : `
       <div class="alert" style="background:rgba(70,130,200,0.10);border:1px solid #4a90e2;font-size:0.82rem;margin-top:4px;">
-        📁 Semaine clôturée — chiffres figés. Bascule sur « Semaine en cours » pour les actions du moment.
+        Semaine clôturée — chiffres figés. Bascule sur « Semaine en cours » pour les actions du moment.
       </div>
       `}
     </div>
@@ -759,7 +755,7 @@ async function renderClassementPompiste() {
     total:   { label: 'Depuis embauche', list: classer(aggregate(rAll)) }
   };
 
-  const rangBadge = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+  const rangBadge = (i) => `#${i + 1}`;
   const renderList = (list) => {
     if (list.length === 0) return '<p class="muted text-center">Aucun ravitaillement sur cette période.</p>';
     return `
@@ -781,7 +777,7 @@ async function renderClassementPompiste() {
 
   container.innerHTML = `
     <div class="panel" style="padding:12px;margin-top:6px;">
-      <div class="panel-title" style="margin-bottom:8px;"><span>🏆 Classement ravitaillement</span><span class="muted" style="font-size:0.78rem;">les ravitaillements au-delà du quota comptent aussi</span></div>
+      <div class="panel-title" style="margin-bottom:8px;"><span>Classement ravitaillement</span><span class="muted" style="font-size:0.78rem;">les ravitaillements au-delà du quota comptent aussi</span></div>
       <div class="row" style="gap:6px;margin-bottom:10px;">
         <button class="btn btn-sm btn-primary" data-cl-period="semaine">Semaine</button>
         <button class="btn btn-sm" data-cl-period="mois">Mois</button>
@@ -819,7 +815,7 @@ function renderAutre(myVentes, quota, sDebut, sFin, isCurrent) {
   document.getElementById('kpis-emp').innerHTML = `
     <div class="kpi"><div class="label">Plafond salaire</div><div class="value">${money(plafondSalaire)}</div><div class="delta">salaire fixe (TTE)</div></div>
     <div class="kpi"><div class="label">Heures cette semaine</div><div class="value">${durationHM(heuresAffichees)}</div><div class="delta">${nbServicesAffiches} sessions${isCurrent ? '' : ' (cf. cumul)'}</div></div>
-    <div class="kpi"><div class="label">${aFaitDeLaCo ? '🎁 CA bonus généré' : 'Statut'}</div><div class="value">${aFaitDeLaCo ? money(ca) : ROLE_LABELS[profile.role]}</div><div class="delta">${aFaitDeLaCo ? myVentes.length + ' ventes (info, sans impact paye)' : (profile.statut || 'actif')}</div></div>
+    <div class="kpi"><div class="label">${aFaitDeLaCo ? 'CA bonus généré' : 'Statut'}</div><div class="value">${aFaitDeLaCo ? money(ca) : ROLE_LABELS[profile.role]}</div><div class="delta">${aFaitDeLaCo ? myVentes.length + ' ventes (info, sans impact paye)' : (profile.statut || 'actif')}</div></div>
     <div class="kpi"><div class="label">Date d'entrée</div><div class="value mono" style="font-size:1.2rem;">${profile.dateEntree || '—'}</div><div class="delta">au LTD</div></div>
   `;
 
@@ -832,13 +828,13 @@ function renderAutre(myVentes, quota, sDebut, sFin, isCurrent) {
   if (aFaitDeLaCo) {
     detailHtml += `
       <div class="kpi-grid mb-2">
-        ${ca > 0 ? `<div class="kpi"><div class="label">💵 CA généré</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes</div></div>` : ''}
-        ${benefice !== 0 ? `<div class="kpi"><div class="label">📈 Bénéfice généré</div><div class="value">${money(benefice)}</div><div class="delta">pour le LTD</div></div>` : ''}
-        ${bidons > 0 ? `<div class="kpi"><div class="label">🛢 Bidons d'essence</div><div class="value">${num(bidons)}</div><div class="delta">produits</div></div>` : ''}
-        ${caoutchoucs > 0 ? `<div class="kpi"><div class="label">🪖 Caoutchoucs</div><div class="value">${num(caoutchoucs)}</div><div class="delta">produits</div></div>` : ''}
+        ${ca > 0 ? `<div class="kpi"><div class="label">CA généré</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes</div></div>` : ''}
+        ${benefice !== 0 ? `<div class="kpi"><div class="label">Bénéfice généré</div><div class="value">${money(benefice)}</div><div class="delta">pour le LTD</div></div>` : ''}
+        ${bidons > 0 ? `<div class="kpi"><div class="label">Bidons d'essence</div><div class="value">${num(bidons)}</div><div class="delta">produits</div></div>` : ''}
+        ${caoutchoucs > 0 ? `<div class="kpi"><div class="label">Caoutchoucs</div><div class="value">${num(caoutchoucs)}</div><div class="delta">produits</div></div>` : ''}
       </div>
       ${myVentes.length > 0 ? `
-        <div class="panel-title mt-2" style="margin-bottom:6px;"><span>📋 Mes factures</span><span class="muted" style="font-size:0.78rem;">${myVentes.length} vente${myVentes.length>1?'s':''}</span></div>
+        <div class="panel-title mt-2" style="margin-bottom:6px;"><span>Mes factures</span><span class="muted" style="font-size:0.78rem;">${myVentes.length} vente${myVentes.length>1?'s':''}</span></div>
         <div class="table-scroll" style="max-height:300px;">
           <table class="data">
             <thead><tr><th>Date</th><th>#Facture</th><th>Client</th><th>Paiement</th><th class="right">Montant</th><th class="right">Bénéfice</th></tr></thead>
@@ -905,7 +901,7 @@ function initPompisteActions() {
         const sousAlerte = s.stockActuel < (s.seuilAlerte || 0);
         const cls = sousAlerte ? 'alerte-fort' : (niveau < 30 ? 'gold' : '');
         const badge = sousAlerte
-          ? '<span class="badge danger">⚠ ALERTE</span>'
+          ? '<span class="badge danger">ALERTE</span>'
           : (niveau < 30 ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>');
         return `
           <div class="row" style="margin-bottom:6px;gap:10px;align-items:center;">
@@ -939,7 +935,7 @@ function initPompisteActions() {
         const sousAlerte = s.stockActuel < (s.seuilAlerte || 0);
         const cls = sousAlerte ? 'alerte-fort' : (niveau < 30 ? 'gold' : '');
         const badge = sousAlerte
-          ? '<span class="badge danger">⚠ ALERTE</span>'
+          ? '<span class="badge danger">ALERTE</span>'
           : (niveau < 30 ? '<span class="badge warn">BAS</span>' : '<span class="badge ok">OK</span>');
         return `
           <div class="row" style="margin-bottom:6px;gap:10px;align-items:center;">
@@ -997,7 +993,7 @@ if (isPompiste(profile.role) && !modeVoirComme) {
       if (max > 0 && apres > max) {
         const libre = Math.max(0, max - (s.stockActuel || 0));
         const bidonsMax = Math.floor(libre / BIDON_L);
-        html = `⚠ <strong>Dépassement</strong> : la station n'accepte que ${bidonsMax} bidons max (${num(libre)} L libres). Saisis moins.`;
+        html = `<strong>Dépassement</strong> : la station n'accepte que ${bidonsMax} bidons max (${num(libre)} L libres). Saisis moins.`;
         elPrev.style.color = 'var(--color-blood-light)';
       } else {
         html += ` · stock après : <strong>${num(apres)} L</strong>${max ? ` / ${num(max)} L` : ''}`;
@@ -1066,7 +1062,7 @@ if (isPompiste(profile.role) && !modeVoirComme) {
     const v = Number(inCorLitres.value);
     if (!s || !Number.isFinite(v) || v < 0) { elCorPrev.textContent = '—'; elCorPrev.style.color = ''; return; }
     if (s.stockMax > 0 && v > s.stockMax) {
-      elCorPrev.innerHTML = `⚠ <strong>Dépasse la capacité max</strong> (${num(s.stockMax)} L)`;
+      elCorPrev.innerHTML = `<strong>Dépasse la capacité max</strong> (${num(s.stockMax)} L)`;
       elCorPrev.style.color = 'var(--color-blood-light)';
       return;
     }
@@ -1297,18 +1293,18 @@ listenAvertissements(viewedUserId, (list) => {
 
   const banniere = n >= 3 ? `
     <div class="alert" style="background:rgba(220,40,40,0.18);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:8px;">
-      🔒 <strong>COMPTE BLOQUÉ</strong> — tu as ${n} avertissements actifs (max 3). Tu peux consulter le site mais aucune écriture ni déclaration n'est possible. Contacte la direction pour qu'elle retire un avertissement.
+      <strong>COMPTE BLOQUÉ</strong> — tu as ${n} avertissements actifs (max 3). Tu peux consulter le site mais aucune écriture ni déclaration n'est possible. Contacte la direction pour qu'elle retire un avertissement.
     </div>` : n === 2 ? `
     <div class="alert" style="background:rgba(220,140,40,0.18);border:1px solid #d88;margin-bottom:8px;">
-      ⚠ <strong>${n} avertissements actifs</strong> — au prochain, ton compte sera bloqué.
+      <strong>${n} avertissements actifs</strong> — au prochain, ton compte sera bloqué.
     </div>` : `
     <div class="alert" style="background:rgba(220,180,40,0.12);border:1px solid #c93;margin-bottom:8px;">
-      ⚠ <strong>1 avertissement actif</strong> — fais attention.
+      <strong>1 avertissement actif</strong> — fais attention.
     </div>`;
 
   const detail = `
     <div class="panel mb-3" style="margin:0 0 12px 0;">
-      <div class="panel-title"><span>⚠ Mes avertissements actifs</span><span class="muted mono">${n} actif${n > 1 ? 's' : ''}</span></div>
+      <div class="panel-title"><span>Mes avertissements actifs</span><span class="muted mono">${n} actif${n > 1 ? 's' : ''}</span></div>
       <table class="data" style="margin-top:6px;">
         <thead><tr><th>Date</th><th>Motif</th><th>Source</th></tr></thead>
         <tbody>${actifs.map(a => {
@@ -1345,9 +1341,9 @@ if (isPompiste(profile.role)) {
 
   const ravitStatsHtml = `
     <div class="kpi-grid mb-2">
-      <div class="kpi"><div class="label">⛽ Aujourd'hui</div><div class="value">${num(Math.round(litresJour))} L</div><div class="delta">${bidonsJour.toFixed(1)} bidons · depuis 00h00</div></div>
-      <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${num(Math.round(litresSemaine))} L</div><div class="delta">${bidonsSemaine.toFixed(1)} bidons · ${myRedistSemaine.length} ravitaillement${myRedistSemaine.length>1?'s':''}</div></div>
-      <div class="kpi"><div class="label">🗂 Cumul depuis embauche</div><div class="value">${num(Math.round(litresCumul))} L</div><div class="delta">${bidonsCumul.toFixed(1)} bidons · ${myRedistCumul.length} ravitaillement${myRedistCumul.length>1?'s':''} total</div></div>
+      <div class="kpi"><div class="label">Aujourd'hui</div><div class="value">${num(Math.round(litresJour))} L</div><div class="delta">${bidonsJour.toFixed(1)} bidons · depuis 00h00</div></div>
+      <div class="kpi"><div class="label">Semaine en cours</div><div class="value">${num(Math.round(litresSemaine))} L</div><div class="delta">${bidonsSemaine.toFixed(1)} bidons · ${myRedistSemaine.length} ravitaillement${myRedistSemaine.length>1?'s':''}</div></div>
+      <div class="kpi"><div class="label">Cumul depuis embauche</div><div class="value">${num(Math.round(litresCumul))} L</div><div class="delta">${bidonsCumul.toFixed(1)} bidons · ${myRedistCumul.length} ravitaillement${myRedistCumul.length>1?'s':''} total</div></div>
     </div>
   `;
   if (myRedistSemaine.length === 0) {
@@ -1385,15 +1381,15 @@ if (isPompiste(profile.role)) {
   // Vendeurs / direction / DRH / responsables : KPI heures de service classique.
   const enServiceBadge = serviceOuvert
     ? `<div class="alert" style="background:rgba(70,180,90,0.18);border:1px solid #5a8;font-size:0.85rem;margin-bottom:8px;">
-         🟢 <strong>En service</strong> depuis ${debutOuvert.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}
+         <span class="badge ok">En service</span> depuis ${debutOuvert.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}
          (${durationHM(dureeOuvertMs)} écoulées). Les compteurs ci-dessous incluent ce service en cours.
        </div>`
     : '';
   const heuresStatsHtml = enServiceBadge + `
     <div class="kpi-grid mb-2">
-      <div class="kpi"><div class="label">⏱ Aujourd'hui</div><div class="value">${durationHM(heuresJourMs)}</div><div class="delta">depuis 00h00</div></div>
-      <div class="kpi"><div class="label">📅 Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServicesCurr.length} session${myServicesCurr.length>1?'s':''} terminée${myServicesCurr.length>1?'s':''}${serviceOuvert ? ' + 1 en cours' : ''}</div></div>
-      <div class="kpi"><div class="label">🗂 Cumul depuis embauche</div><div class="value">${durationHM(cumulMs)}</div><div class="delta">${allMyServices.length} sessions total</div></div>
+      <div class="kpi"><div class="label">Aujourd'hui</div><div class="value">${durationHM(heuresJourMs)}</div><div class="delta">depuis 00h00</div></div>
+      <div class="kpi"><div class="label">Semaine en cours</div><div class="value">${durationHM(heuresMs)}</div><div class="delta">${myServicesCurr.length} session${myServicesCurr.length>1?'s':''} terminée${myServicesCurr.length>1?'s':''}${serviceOuvert ? ' + 1 en cours' : ''}</div></div>
+      <div class="kpi"><div class="label">Cumul depuis embauche</div><div class="value">${durationHM(cumulMs)}</div><div class="delta">${allMyServices.length} sessions total</div></div>
     </div>
   `;
   if (myServicesCurr.length === 0) {
@@ -1419,7 +1415,7 @@ if (isPompiste(profile.role)) {
         </table>
       </div>
       <p class="muted mono mt-2" style="font-size:0.78rem;">
-        Total semaine : ${durationHM(heuresMs)} ${heuresMs >= 7*3600*1000 ? '✓ ≥ 7h' : '— moins de 7h (info uniquement, non bloquant)'}
+        Total semaine : ${durationHM(heuresMs)} ${heuresMs >= 7*3600*1000 ? '≥ 7h' : '— moins de 7h (info uniquement, non bloquant)'}
       </p>
     `;
     makeSortable(document.getElementById('table-mes-services'));
@@ -1431,24 +1427,24 @@ if (isPompiste(profile.role)) {
 // ============================================================
 if (isPompiste(profile.role) && !modeVoirComme) {
   const STATUT = {
-    'en-attente': { label: '⏳ En attente', cls: 'warn' },
-    'approuvee':  { label: '✓ Approuvée',   cls: 'neutral' },
-    'remboursee': { label: '💰 Remboursée', cls: 'ok' },
-    'rejetee':    { label: '✕ Rejetée',     cls: 'danger' }
+    'en-attente': { label: 'En attente', cls: 'warn' },
+    'approuvee':  { label: 'Approuvée',  cls: 'neutral' },
+    'remboursee': { label: 'Remboursée', cls: 'ok' },
+    'rejetee':    { label: 'Rejetée',    cls: 'danger' }
   };
   listenMesNotesFrais(viewedUserId, (mesNotes) => {
     const div = document.getElementById('notes-frais-perso');
     if (!div) return;
     if (mesNotes.length === 0) {
-      div.innerHTML = `<p class="muted">Aucune note de frais déclarée. Clique sur "💸 Note de frais essence" en haut de la page pour en créer une.</p>`;
+      div.innerHTML = `<p class="muted">Aucune note de frais déclarée. Clique sur "Note de frais essence" en haut de la page pour en créer une.</p>`;
       return;
     }
     const totalAttente   = mesNotes.filter(n => n.statut === 'en-attente').reduce((s, n) => s + (Number(n.montant) || 0), 0);
     const totalRemb      = mesNotes.filter(n => n.statut === 'remboursee').reduce((s, n) => s + (Number(n.montant) || 0), 0);
     div.innerHTML = `
       <div class="kpi-grid mb-2">
-        <div class="kpi"><div class="label">⏳ En attente</div><div class="value">${money(totalAttente)}</div><div class="delta">${mesNotes.filter(n => n.statut === 'en-attente').length} note(s)</div></div>
-        <div class="kpi"><div class="label">💰 Déjà remboursé</div><div class="value">${money(totalRemb)}</div><div class="delta">${mesNotes.filter(n => n.statut === 'remboursee').length} note(s)</div></div>
+        <div class="kpi"><div class="label">En attente</div><div class="value">${money(totalAttente)}</div><div class="delta">${mesNotes.filter(n => n.statut === 'en-attente').length} note(s)</div></div>
+        <div class="kpi kpi-bank"><div class="label">Déjà remboursé</div><div class="value">${money(totalRemb)}</div><div class="delta">${mesNotes.filter(n => n.statut === 'remboursee').length} note(s)</div></div>
       </div>
       <div class="table-scroll" style="max-height:300px;">
         <table class="data">
@@ -1472,7 +1468,7 @@ if (isPompiste(profile.role) && !modeVoirComme) {
                   <td class="mono" style="font-size:0.78rem;">${datetime(n.timestamp)}</td>
                   <td class="right mono"><strong>${money(n.montant || 0)}</strong></td>
                   <td style="max-width:240px;">${escapeHtml(n.description || '—')}${motifLine}</td>
-                  <td><a href="${escapeHtml(n.screenshotUrl || '#')}" target="_blank" rel="noopener" class="btn btn-sm">📸 Voir</a></td>
+                  <td><a href="${escapeHtml(n.screenshotUrl || '#')}" target="_blank" rel="noopener" class="btn btn-sm">Voir</a></td>
                   <td><span class="badge ${st.cls}">${st.label}</span></td>
                   <td class="muted" style="font-size:0.78rem;">${dateTraitee ? datetime(dateTraitee) : '—'}</td>
                 </tr>

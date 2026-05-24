@@ -18,10 +18,10 @@ const { profile } = await requireAuth('notes_frais');
 const canTraiter = isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh';
 
 const STATUT_LABEL = {
-  'en-attente': '⏳ En attente',
-  'approuvee':  '✓ Approuvée',
-  'remboursee': '💰 Remboursée',
-  'rejetee':    '✕ Rejetée'
+  'en-attente': 'En attente',
+  'approuvee':  'Approuvée',
+  'remboursee': 'Remboursée',
+  'rejetee':    'Rejetée'
 };
 const STATUT_CLASS = {
   'en-attente': 'warn',
@@ -39,10 +39,10 @@ const html = `
     <span class="spacer"></span>
     <select id="filtre-statut" style="min-width:180px;">
       <option value="all">Tous statuts</option>
-      <option value="en-attente" selected>⏳ En attente</option>
-      <option value="approuvee">✓ Approuvée</option>
-      <option value="remboursee">💰 Remboursée</option>
-      <option value="rejetee">✕ Rejetée</option>
+      <option value="en-attente" selected>En attente</option>
+      <option value="approuvee">Approuvée</option>
+      <option value="remboursee">Remboursée</option>
+      <option value="rejetee">Rejetée</option>
     </select>
   </div>
 
@@ -54,7 +54,7 @@ const html = `
   <!-- Modal screenshot (visualisation) -->
   <div id="modal-screen" class="modal-backdrop hidden">
     <div class="modal" style="max-width:680px;">
-      <h3>📸 Screenshot de la note de frais</h3>
+      <h3>Screenshot de la note de frais</h3>
       <div id="modal-screen-body" style="text-align:center;">—</div>
       <div class="row mt-3">
         <button class="btn btn-ghost" id="btn-close-screen">Fermer</button>
@@ -65,7 +65,7 @@ const html = `
   <!-- Modal rejet (motif obligatoire) -->
   <div id="modal-reject" class="modal-backdrop hidden">
     <div class="modal" style="max-width:480px;">
-      <h3>✕ Rejeter la note de frais</h3>
+      <h3>Rejeter la note de frais</h3>
       <p class="muted">Le motif sera visible par le pompiste pour qu'il comprenne le refus.</p>
       <label>Motif de rejet <span style="color:var(--color-blood-light);">*</span></label>
       <textarea id="reject-motif" rows="3" maxlength="500" placeholder="Ex : screenshot illisible, montant non justifie, ..."></textarea>
@@ -102,10 +102,10 @@ function render() {
   const totalRemboursees = remboursees.reduce((s, n) => s + (Number(n.montant) || 0), 0);
 
   document.getElementById('kpis-nf').innerHTML = `
-    <div class="kpi"><div class="label">⏳ En attente</div><div class="value">${enAttente.length}</div><div class="delta">${money(totalEnAttente)} à valider</div></div>
-    <div class="kpi"><div class="label">✓ Approuvées</div><div class="value">${approuvees.length}</div><div class="delta">prêtes à rembourser</div></div>
-    <div class="kpi"><div class="label">💰 Remboursées</div><div class="value">${remboursees.length}</div><div class="delta">${money(totalRemboursees)} total</div></div>
-    <div class="kpi"><div class="label">📋 Total notes</div><div class="value">${notes.length}</div><div class="delta">toutes périodes</div></div>
+    <div class="kpi"><div class="label">En attente</div><div class="value">${enAttente.length}</div><div class="delta">${money(totalEnAttente)} à valider</div></div>
+    <div class="kpi"><div class="label">Approuvées</div><div class="value">${approuvees.length}</div><div class="delta">prêtes à rembourser</div></div>
+    <div class="kpi kpi-bank"><div class="label">Remboursées</div><div class="value">${remboursees.length}</div><div class="delta">${money(totalRemboursees)} total</div></div>
+    <div class="kpi"><div class="label">Total notes</div><div class="value">${notes.length}</div><div class="delta">toutes périodes</div></div>
   `;
 
   document.getElementById('liste-titre').textContent =
@@ -139,7 +139,7 @@ function render() {
                 <td><strong>${escapeHtml(n.employeNom || '?')}</strong><div class="muted" style="font-size:0.72rem;">${escapeHtml(n.employeRole || '')}</div></td>
                 <td class="right mono"><strong>${money(n.montant || 0)}</strong></td>
                 <td style="max-width:280px;">${escapeHtml(n.description || '—')}${motif}</td>
-                <td><button class="btn btn-sm" data-view-screen="${n.id}">📸 Voir</button></td>
+                <td><button class="btn btn-sm" data-view-screen="${n.id}">Voir</button></td>
                 <td><span class="badge ${STATUT_CLASS[n.statut] || 'neutral'}">${STATUT_LABEL[n.statut] || n.statut}</span>${n.dateRemboursement ? `<div class="muted" style="font-size:0.72rem;">${datetime(n.dateRemboursement)}</div>` : ''}</td>
                 <td class="muted" style="font-size:0.78rem;">${escapeHtml(n.traiteeParNom || '—')}</td>
                 ${canTraiter ? `<td class="center">${renderActions(n)}</td>` : ''}
@@ -163,7 +163,7 @@ function render() {
       // (pas le lien texte qui ferait des milliers de caracteres). Pour les
       // URLs externes, on affiche aussi le lien cliquable.
       const linkBlock = isDataUrl
-        ? `<p class="muted" style="font-size:0.78rem;">📋 Image collée par l'employé (stockée inline).</p>`
+        ? `<p class="muted" style="font-size:0.78rem;">Image collée par l'employé (stockée inline).</p>`
         : `<p class="muted" style="font-size:0.82rem;word-break:break-all;">
              <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
            </p>`;
@@ -189,13 +189,13 @@ function renderActions(n) {
     case 'en-attente':
       return `
         <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;">
-          <button class="btn btn-sm" data-action="approuver" data-id="${n.id}" title="Approuver">✓</button>
-          <button class="btn btn-sm" data-action="rembourser" data-id="${n.id}" title="Marquer remboursée">💰</button>
-          <button class="btn btn-sm btn-danger" data-action="rejeter" data-id="${n.id}" title="Rejeter">✕</button>
+          <button class="btn btn-sm" data-action="approuver" data-id="${n.id}" title="Approuver">Approuver</button>
+          <button class="btn btn-sm" data-action="rembourser" data-id="${n.id}" title="Marquer remboursée">Rembourser</button>
+          <button class="btn btn-sm btn-danger" data-action="rejeter" data-id="${n.id}" title="Rejeter">Rejeter</button>
         </div>
       `;
     case 'approuvee':
-      return `<button class="btn btn-sm btn-primary" data-action="rembourser" data-id="${n.id}">💰 Marquer remboursée</button>`;
+      return `<button class="btn btn-sm btn-primary" data-action="rembourser" data-id="${n.id}">Marquer remboursée</button>`;
     default:
       return '<span class="muted" style="font-size:0.78rem;">—</span>';
   }

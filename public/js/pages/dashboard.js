@@ -60,7 +60,7 @@ const html = `
       </div>
 
       <div class="panel">
-        <div class="panel-title"><span>🏆 Top 5 produits — semaine</span></div>
+        <div class="panel-title"><span>Top 5 produits — semaine</span></div>
         <div id="top-produits" class="top-produits-list">
           <p class="muted text-center" style="padding:20px 0;">Chargement…</p>
         </div>
@@ -154,16 +154,16 @@ async function chargerKpis() {
 
   // Solde banque LTD (dernière dépense connue avec champ soldeApres)
   let soldeKpi = `
-    <div class="kpi" title="Aucune donnée de solde encore enregistrée">
-      <div class="label">💰 Solde banque LTD</div>
+    <div class="kpi kpi-bank" title="Aucune donnée de solde encore enregistrée">
+      <div class="label">Solde banque LTD</div>
       <div class="value muted">—</div>
       <div class="delta muted">en attente de dépense Discord</div>
     </div>`;
   if (soldeBanque) {
     const dateSolde = datetime(soldeBanque.timestamp);
     soldeKpi = `
-      <div class="kpi" title="Solde au moment de la dernière dépense Discord (${escapeHtml(dateSolde)} — « ${escapeHtml(soldeBanque.raison)} »)">
-        <div class="label">💰 Solde banque LTD</div>
+      <div class="kpi kpi-bank" title="Solde au moment de la dernière dépense Discord (${escapeHtml(dateSolde)} — « ${escapeHtml(soldeBanque.raison)} »)">
+        <div class="label">Solde banque LTD</div>
         <div class="value">${money(soldeBanque.solde)}</div>
         <div class="delta">au ${escapeHtml(dateSolde)}</div>
       </div>`;
@@ -178,7 +178,7 @@ async function chargerKpis() {
       <div class="delta">${ventes.length} factures produits</div>
     </div>
     <div class="kpi">
-      <div class="label">⛽ CA carburant</div>
+      <div class="label">CA carburant</div>
       <div class="value">${money(caCarburant)}</div>
       <div class="delta">${redistributions.length} ventes essence</div>
     </div>
@@ -198,7 +198,7 @@ async function chargerKpis() {
       <div class="label">Masse salariale</div>
       <div class="value">${pct(masse.ratio * 100, 1)}</div>
       <div class="delta ${masse.ok ? 'up' : 'down'}">
-        ${masse.ok ? '≤ 90% (TTE OK)' : '⚠ Dépasse 90%'} · ${money(masseSalariale)} prévu / ${money(totalPaies)} versé
+        ${masse.ok ? '≤ 90% (TTE OK)' : 'Dépasse 90%'} · ${money(masseSalariale)} prévu / ${money(totalPaies)} versé
       </div>
     </div>
   `;
@@ -286,7 +286,7 @@ listenStations(stations => {
       <div class="row" style="margin-bottom:8px;gap:10px;">
         <div style="flex:1;">
           <div style="font-family:var(--font-heading);font-size:0.85rem;">
-            ${escapeHtml(s.nom)} ${sousAlerte ? '<span class="badge danger">⚠</span>' : ''}
+            ${escapeHtml(s.nom)} ${sousAlerte ? '<span class="badge danger">ALERTE</span>' : ''}
           </div>
           <div class="progress" style="height:14px;">
             <div class="fill" style="width:${Math.min(niveau, 100)}%"></div>
@@ -377,11 +377,11 @@ function renderTopProduits(top, totalCA) {
 
   const max = top[0].ca || 1;
   const RANGS = [
-    { medaille: '🥇', cls: 'rang-or' },
-    { medaille: '🥈', cls: 'rang-argent' },
-    { medaille: '🥉', cls: 'rang-bronze' },
-    { medaille: '4',  cls: 'rang-autre' },
-    { medaille: '5',  cls: 'rang-autre' }
+    { medaille: '01', cls: 'rang-or' },
+    { medaille: '02', cls: 'rang-argent' },
+    { medaille: '03', cls: 'rang-bronze' },
+    { medaille: '04', cls: 'rang-autre' },
+    { medaille: '05', cls: 'rang-autre' }
   ];
 
   div.innerHTML = top.map((t, i) => {
@@ -419,7 +419,6 @@ listenAlertesActives(alertes => {
   }
   div.innerHTML = alertes.slice(0, 8).map(a => `
     <div class="alert ${a.gravite || 'warn'}">
-      <span class="icon">⚠</span>
       <div style="flex:1;">
         <div>${escapeHtml(a.message)}</div>
         <div class="muted mono" style="font-size:0.72rem;">${datetime(a.timestamp)}</div>

@@ -31,19 +31,18 @@ function perimetreText(role) {
 
 const html = `
   <div class="alert info mb-2">
-    <span class="icon">ℹ</span>
     <span>${perimetreText(profile.role)} Les comptes hors de ton périmètre sont visibles en lecture seule (actions grisées).</span>
   </div>
 
   <div class="page-toolbar">
-    ${canCreate ? `<button class="btn btn-primary btn-compact" id="btn-nouveau" title="Créer un compte employé" data-tooltip="Créer un compte">➕</button>` : ''}
-    ${canEditCfg ? `<button class="btn btn-icon" id="btn-config-globale" title="Configuration globale" data-tooltip="Config globale">⚙</button>` : ''}
-    ${canEditCfg ? `<button class="btn btn-icon" id="btn-export-sheets" title="Export Google Sheets" data-tooltip="Export Sheets">📊</button>` : ''}
-    ${canEditCfg ? `<a href="decouverte-items.html" class="btn btn-icon" title="Découverte items FiveM" data-tooltip="Découverte items">🔍</a>` : ''}
+    ${canCreate ? `<button class="btn btn-primary btn-compact" id="btn-nouveau" title="Créer un compte employé" data-tooltip="Créer un compte">+ Créer un compte</button>` : ''}
+    ${canEditCfg ? `<button class="btn" id="btn-config-globale" title="Configuration globale" data-tooltip="Config globale">Config</button>` : ''}
+    ${canEditCfg ? `<button class="btn" id="btn-export-sheets" title="Export Google Sheets" data-tooltip="Export Sheets">Export Sheets</button>` : ''}
+    ${canEditCfg ? `<a href="decouverte-items.html" class="btn" title="Découverte items FiveM" data-tooltip="Découverte items">Items FiveM</a>` : ''}
     ${['patron', 'co-patron', 'admin-technique'].includes(profile.roleReel) ? `
       <span class="toolbar-sep"></span>
       <select id="select-view-as" title="Voir le site comme un autre rôle (test, ne change rien en base)" style="max-width:240px;">
-        <option value="">🎭 Voir comme… (${escapeHtml(ROLE_LABELS[profile.roleReel])})</option>
+        <option value="">Voir comme… (${escapeHtml(ROLE_LABELS[profile.roleReel])})</option>
         ${Object.entries(ROLE_LABELS)
           .filter(([r]) => r !== profile.roleReel)
           .map(([r, label]) => `<option value="${escapeHtml(r)}">${escapeHtml(label)}</option>`).join('')}
@@ -55,7 +54,7 @@ const html = `
   ${canCreate ? `
     <div class="panel framed" id="panel-embauches" style="border-color:var(--color-gold);display:none;">
       <div class="panel-title">
-        <span>🆕 Embauches à traiter</span>
+        <span>Embauches à traiter</span>
         <span class="muted" style="font-size:0.75rem;" id="embauches-count">—</span>
       </div>
       <p class="muted" style="font-size:0.85rem;margin:4px 0 8px;">
@@ -92,7 +91,7 @@ const html = `
             <th data-sort="perso">ID Perso</th>
             <th data-sort="entree">Entrée</th>
             <th data-sort="statut">Statut</th>
-            <th data-sort="averts" class="center">⚠ Averts</th>
+            <th data-sort="averts" class="center">Averts</th>
             <th class="center">Actions</th>
           </tr>
         </thead>
@@ -105,8 +104,8 @@ const html = `
   <!-- Mapping fournisseurs déductibilité (direction uniquement) -->
   <div class="panel framed" id="panel-fournisseurs" style="border-color:var(--color-info);">
     <div class="panel-title">
-      <span>🏷 Mapping fournisseurs (auto-classification dépenses)</span>
-      <button class="btn btn-icon btn-sm" id="btn-nouveau-fournisseur" title="Ajouter un pattern fournisseur" data-tooltip="Ajouter pattern">➕</button>
+      <span>Mapping fournisseurs (auto-classification dépenses)</span>
+      <button class="btn btn-sm" id="btn-nouveau-fournisseur" title="Ajouter un pattern fournisseur" data-tooltip="Ajouter pattern">+ Ajouter</button>
     </div>
     <p class="muted" style="font-size:0.82rem;margin:4px 0 8px;">
       Ces patterns servent à <strong>auto-classer</strong> les dépenses entrantes selon leur fournisseur destinataire. Quand une dépense match un pattern, sa catégorie + déductibilité sont suggérées automatiquement. Le patron valide ensuite chaque dépense dans la <a href="comptabilite.html">page Compta</a>.
@@ -142,7 +141,7 @@ const html = `
         <div>
           <label>Type de match</label>
           <select id="fournisseur-matchtype">
-            <option value="account-id-cible">⭐ Account ID compte cible (ex: 67978 pour HDM — recommandé)</option>
+            <option value="account-id-cible">Account ID compte cible (ex: 67978 pour HDM — recommandé)</option>
             <option value="compte-cible">Nom du compte cible (HDM, Dynasty 8…)</option>
             <option value="boutique-id">Numéro boutique (Achat boutique N°XXX)</option>
             <option value="facture-id">Numéro facture (Paiement facture N°XXXXXXX)</option>
@@ -176,11 +175,11 @@ const html = `
       <div class="row" style="gap:8px;margin-top:8px;">
         <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;">
           <input type="radio" name="fournisseur-deductible" value="true" id="fournisseur-dedu-oui" checked />
-          ✅ Déductible
+          Déductible
         </label>
         <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;">
           <input type="radio" name="fournisseur-deductible" value="false" id="fournisseur-dedu-non" />
-          ❌ Non déductible
+          Non déductible
         </label>
       </div>
 
@@ -189,7 +188,7 @@ const html = `
 
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-save-fournisseur">Enregistrer</button>
-        <button class="btn btn-danger" id="btn-delete-fournisseur" style="display:none;">🗑 Supprimer</button>
+        <button class="btn btn-danger" id="btn-delete-fournisseur" style="display:none;">Supprimer</button>
         <button class="btn btn-ghost" id="btn-cancel-fournisseur">Annuler</button>
       </div>
     </div>
@@ -198,8 +197,8 @@ const html = `
   <!-- Engagements de remboursement (subventions, dettes…) -->
   <div class="panel framed" id="panel-engagements" style="border-color:var(--color-warning);">
     <div class="panel-title">
-      <span>📋 Engagements de remboursement</span>
-      <button class="btn btn-icon btn-sm" id="btn-nouveau-engagement" title="Ajouter un engagement" data-tooltip="Ajouter engagement">➕</button>
+      <span>Engagements de remboursement</span>
+      <button class="btn btn-sm" id="btn-nouveau-engagement" title="Ajouter un engagement" data-tooltip="Ajouter engagement">+ Ajouter</button>
     </div>
     <p class="muted" style="font-size:0.82rem;margin:4px 0 8px;">
       Subventions reçues à rembourser, dettes contractées, contrats avec échéance. Le système décrémente automatiquement le restant quand une dépense de remboursement est captée (raison contenant "remboursement subvention/essence/dette"). Alerte direction 7 jours avant échéance.
@@ -271,14 +270,14 @@ const html = `
       <textarea id="engagement-notes" rows="3" placeholder="Détails du contrat, conditions, références..."></textarea>
 
       <div id="engagement-historique-zone" style="display:none;margin-top:12px;padding:8px;background:rgba(0,0,0,0.03);border-radius:4px;">
-        <strong style="font-size:0.85rem;">📜 Historique des remboursements</strong>
+        <strong style="font-size:0.85rem;">Historique des remboursements</strong>
         <div id="engagement-historique-list" style="font-size:0.78rem;margin-top:4px;"></div>
       </div>
 
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-save-engagement">Enregistrer</button>
-        <button class="btn btn-warning" id="btn-rembourser-engagement" style="display:none;">💰 Ajouter un remboursement</button>
-        <button class="btn btn-danger" id="btn-delete-engagement" style="display:none;">🗑 Supprimer</button>
+        <button class="btn btn-warning" id="btn-rembourser-engagement" style="display:none;">Ajouter un remboursement</button>
+        <button class="btn btn-danger" id="btn-delete-engagement" style="display:none;">Supprimer</button>
         <button class="btn btn-ghost" id="btn-cancel-engagement">Annuler</button>
       </div>
     </div>
@@ -287,7 +286,7 @@ const html = `
   <!-- Modal ajout remboursement -->
   <div id="modal-rembours" class="modal-backdrop hidden">
     <div class="modal" style="max-width:480px;">
-      <h3>💰 Ajouter un remboursement manuel</h3>
+      <h3>Ajouter un remboursement manuel</h3>
       <p class="muted" style="font-size:0.82rem;">
         Pour les remboursements détectés automatiquement (via dépense Discord avec raison « remboursement subvention »), pas besoin de cette modale.
         Utilise ici uniquement pour les régularisations manuelles.
@@ -325,14 +324,13 @@ const html = `
       <label>Mot de passe provisoire</label>
       <div class="row">
         <input type="text" id="new-mdp" style="flex:1;" />
-        <button class="btn btn-icon btn-sm" id="btn-gen-mdp" type="button" title="Générer un mot de passe" data-tooltip="Générer">🎲</button>
+        <button class="btn btn-sm" id="btn-gen-mdp" type="button" title="Générer un mot de passe" data-tooltip="Générer">Générer</button>
       </div>
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-creer">Créer</button>
         <button class="btn btn-ghost" id="btn-cancel-new">Annuler</button>
       </div>
       <div class="alert info mt-3 hidden" id="alert-credentials">
-        <span class="icon">ℹ</span>
         <div>
           Compte créé. <strong>Transmettre à l'employé :</strong>
           <div class="mono mt-1">Identifiant : <span id="cred-username"></span></div>
@@ -369,10 +367,9 @@ const html = `
   <!-- Modal export Google Sheets -->
   <div id="modal-sheets" class="modal-backdrop hidden">
     <div class="modal" style="max-width: 720px;">
-      <h3>📊 Export Google Sheets — Comptabilité temps réel</h3>
+      <h3>Export Google Sheets — Comptabilité temps réel</h3>
 
       <div class="alert info mb-2" style="font-size:0.85rem;">
-        <span class="icon">ℹ</span>
         <div>
           La fonction <code>comptaExport</code> sert un CSV temps réel. Tu colles une formule <code>=IMPORTDATA(URL)</code> dans Google Sheets, et le Sheet se met à jour tout seul.<br><br>
           <strong>Le Sheet est en lecture seule</strong> — la modification reste sur le site (autorité de référence).
@@ -392,9 +389,8 @@ const html = `
   <!-- Modal avertissements -->
   <div id="modal-averts" class="modal-backdrop hidden">
     <div class="modal" style="max-width:680px;">
-      <h3>⚠ Avertissements de <span id="averts-employe">—</span></h3>
+      <h3>Avertissements de <span id="averts-employe">—</span></h3>
       <div class="alert info mb-2" style="font-size:0.82rem;">
-        <span class="icon">ℹ</span>
         <span>3 avertissements actifs = compte automatiquement bloqué (peut consulter mais plus aucune écriture). Retirer un avertissement débloque immédiatement le compte.</span>
       </div>
       <div class="row mb-2">
@@ -486,7 +482,7 @@ function appliquerCompteursAverts() {
     const uid = td.dataset.avertsCell;
     const n = avertsActifsParUser.get(uid) || 0;
     const cls = n === 0 ? 'ok' : n >= 3 ? 'danger' : n === 2 ? 'warn' : 'info';
-    const label = n === 0 ? '0' : n >= 3 ? `🔒 ${n}` : `⚠ ${n}`;
+    const label = n === 0 ? '0' : `${n}`;
     td.innerHTML = `<button class="btn btn-sm" data-averts-btn="${uid}" title="Voir les avertissements"><span class="badge ${cls}">${label}</span></button>`;
   });
   // Re-binder les boutons (le innerHTML les recree)
@@ -526,7 +522,7 @@ async function chargerAvertsModal(uid) {
     const dateStr = d ? date(d) : '—';
     const source = a.auto ? '<span class="badge info">auto</span>' : '<span class="badge">manuel</span>';
     const statut = a.actif
-      ? '<span class="badge danger">⚠ ACTIF</span>'
+      ? '<span class="badge danger">ACTIF</span>'
       : `<span class="badge ok">retiré ${dRetrait ? date(dRetrait) : ''}</span>`;
     const action = a.actif
       ? `<button class="btn btn-sm" data-retirer-avert="${a.id}">Retirer</button>`
@@ -634,12 +630,12 @@ function renderUsers() {
         <span class="muted">…</span>
       </td>
       <td class="actions-cell">
-        <button class="btn btn-icon btn-sm btn-ghost" data-edit-user="${u.id}" ${canManage ? '' : 'disabled'} title="Modifier les infos" data-tooltip="Modifier">✏</button>
-        <button class="btn btn-icon btn-sm" data-regen-mdp="${u.id}" ${canManage ? '' : 'disabled'} title="Régénérer le mot de passe" data-tooltip="Nouveau MDP">🔑</button>
+        <button class="btn btn-sm btn-ghost" data-edit-user="${u.id}" ${canManage ? '' : 'disabled'} title="Modifier les infos" data-tooltip="Modifier">Modifier</button>
+        <button class="btn btn-sm" data-regen-mdp="${u.id}" ${canManage ? '' : 'disabled'} title="Régénérer le mot de passe" data-tooltip="Nouveau MDP">Nouveau MDP</button>
         ${u.statut !== 'suspendu'
-          ? `<button class="btn btn-icon btn-sm" data-suspend="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} title="${isSelf ? 'Tu ne peux pas te suspendre toi-même' : 'Suspendre (licenciement)'}" data-tooltip="Suspendre">⏸</button>`
-          : `<button class="btn btn-icon btn-sm" data-reactiver="${u.id}" ${canManage ? '' : 'disabled'} title="Réactiver" data-tooltip="Réactiver">▶</button>`}
-        <button class="btn btn-icon btn-sm btn-danger" data-delete="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} title="${isSelf ? 'Tu ne peux pas te supprimer toi-même' : 'Supprimer le compte'}" data-tooltip="Supprimer">🗑</button>
+          ? `<button class="btn btn-sm" data-suspend="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} title="${isSelf ? 'Tu ne peux pas te suspendre toi-même' : 'Suspendre (licenciement)'}" data-tooltip="Suspendre">Suspendre</button>`
+          : `<button class="btn btn-sm" data-reactiver="${u.id}" ${canManage ? '' : 'disabled'} title="Réactiver" data-tooltip="Réactiver">Réactiver</button>`}
+        <button class="btn btn-sm btn-danger" data-delete="${u.id}" ${(canManage && !isSelf) ? '' : 'disabled'} title="${isSelf ? 'Tu ne peux pas te supprimer toi-même' : 'Supprimer le compte'}" data-tooltip="Supprimer">Supprimer</button>
       </td>
     </tr>`;
   }).join('');
@@ -709,7 +705,7 @@ function renderUsers() {
     btn.addEventListener('click', async () => {
       const ok = await confirmCritique({
         titre: 'Supprimer définitivement',
-        message: 'Cette action <strong>supprime définitivement</strong> le compte de l\'utilisateur du site.<br><br>⚠ Le compte Firebase Auth (login/email) doit être supprimé <strong>séparément</strong> depuis la console Firebase pour libérer l\'email.<br><br>Les données déjà enregistrées (ventes, paies, services) ne sont PAS supprimées (audit TTE).',
+        message: 'Cette action <strong>supprime définitivement</strong> le compte de l\'utilisateur du site.<br><br>Le compte Firebase Auth (login/email) doit être supprimé <strong>séparément</strong> depuis la console Firebase pour libérer l\'email.<br><br>Les données déjà enregistrées (ventes, paies, services) ne sont PAS supprimées (audit TTE).',
         btnConfirm: 'Supprimer le compte',
         delaiSec: 3,
         requireType: 'SUPPRIMER'
@@ -971,7 +967,6 @@ function renderSheetsZone(zone, token) {
   if (!token) {
     zone.innerHTML = `
       <div class="alert warn mb-2">
-        <span class="icon">⚠</span>
         <span>Aucun token configuré. Colle ci-dessous le token généré côté serveur (donné par la direction technique).</span>
       </div>
       <label>Token <code>LTD_COMPTA_EXPORT_TOKEN</code></label>
@@ -995,15 +990,15 @@ function renderSheetsZone(zone, token) {
   // Token présent : afficher les 4 formules à coller dans Google Sheets
   const masque = token.slice(0, 6) + '…' + token.slice(-4);
   const types = [
-    { type: 'resume',   label: '📊 Résumé hebdo',     hint: '1 ligne par semaine clôturée (52 max)' },
-    { type: 'depenses', label: '💸 Dépenses',          hint: 'Toutes les dépenses (2 000 max)' },
-    { type: 'ventes',   label: '💵 Ventes',            hint: 'Toutes les ventes (2 000 max)' },
-    { type: 'paies',    label: '💰 Paies',             hint: 'Toutes les paies versées (2 000 max)' },
-    { type: 'banque',   label: '🏦 Banque LTD',        hint: 'Tous mouvements (entrées + sorties) avec solde' }
+    { type: 'resume',   label: 'Résumé hebdo',  hint: '1 ligne par semaine clôturée (52 max)' },
+    { type: 'depenses', label: 'Dépenses',      hint: 'Toutes les dépenses (2 000 max)' },
+    { type: 'ventes',   label: 'Ventes',        hint: 'Toutes les ventes (2 000 max)' },
+    { type: 'paies',    label: 'Paies',         hint: 'Toutes les paies versées (2 000 max)' },
+    { type: 'banque',   label: 'Banque LTD',    hint: 'Tous mouvements (entrées + sorties) avec solde' }
   ];
 
   zone.innerHTML = `
-    <div class="alert ok mb-2"><span class="icon">✓</span><span>Token configuré (<code>${masque}</code>)</span></div>
+    <div class="alert ok mb-2"><span>Token configuré (<code>${masque}</code>)</span></div>
 
     <h4 style="margin-top:12px;">Setup Google Sheets — pas à pas</h4>
     <ol style="font-size:0.88rem;line-height:1.55;">
@@ -1015,7 +1010,6 @@ function renderSheetsZone(zone, token) {
     </ol>
 
     <div class="alert warn mb-2" style="font-size:0.78rem;">
-      <span class="icon">⚠</span>
       <span><strong>Sécurité</strong> : ne diffuse pas le token. Le Sheet final (lecture seule) peut être partagé sans risque, mais quiconque a le token peut télécharger toutes les données compta. Garde-le confidentiel comme un mot de passe.</span>
     </div>
 
@@ -1035,9 +1029,8 @@ function renderSheetsZone(zone, token) {
     `).join('')}
 
     <details style="margin-top:14px;">
-      <summary style="cursor:pointer;font-family:var(--font-heading);font-size:0.85rem;">🔄 Régénérer le token (en cas de fuite)</summary>
+      <summary style="cursor:pointer;font-family:var(--font-heading);font-size:0.85rem;">Régénérer le token (en cas de fuite)</summary>
       <div class="alert info mt-2" style="font-size:0.78rem;">
-        <span class="icon">ℹ</span>
         <div>
           La régénération passe par Firebase CLI (côté serveur, pas depuis l'app). Procédure :
           <ol style="margin:6px 0 0 18px;padding:0;">
@@ -1112,8 +1105,8 @@ async function chargerEmbauches() {
       <td class="mono">${escapeHtml(e.idDiscord || '—')}</td>
       <td class="mono">${escapeHtml(e.idPerso || '—')}</td>
       <td class="actions-cell">
-        <button class="btn btn-icon btn-sm btn-primary" data-creer-embauche="${e.id}" title="Créer le compte (formulaire pré-rempli)" data-tooltip="Créer le compte">➕</button>
-        <button class="btn btn-icon btn-sm btn-ghost" data-marquer-traitee="${e.id}" title="Marquer comme traité (sans créer)" data-tooltip="Marquer traité">✓</button>
+        <button class="btn btn-sm btn-primary" data-creer-embauche="${e.id}" title="Créer le compte (formulaire pré-rempli)" data-tooltip="Créer le compte">Créer</button>
+        <button class="btn btn-sm btn-ghost" data-marquer-traitee="${e.id}" title="Marquer comme traité (sans créer)" data-tooltip="Marquer traité">Traité</button>
       </td>
     </tr>
   `).join('');
@@ -1217,9 +1210,9 @@ async function chargerFournisseurs() {
         <td><code style="font-size:0.78rem;">${escapeHtml(p.matchType)}</code></td>
         <td class="mono">${escapeHtml(p.matchValue)}</td>
         <td>${escapeHtml(CATEGORIES_LABELS[p.categorie] || p.categorie)}</td>
-        <td class="center">${p.deductible ? '<span class="badge ok">✓</span>' : '<span class="badge neutral">✗</span>'}</td>
+        <td class="center">${p.deductible ? '<span class="badge ok">OUI</span>' : '<span class="badge neutral">NON</span>'}</td>
         <td class="muted" style="font-size:0.78rem;">${escapeHtml(p.raisonClassification || '')}</td>
-        <td class="center"><button class="btn btn-sm" data-edit-fournisseur="${escapeHtml(p.id)}">✏</button></td>
+        <td class="center"><button class="btn btn-sm" data-edit-fournisseur="${escapeHtml(p.id)}">Modifier</button></td>
       </tr>
     `).join('');
     tbody.querySelectorAll('[data-edit-fournisseur]').forEach(btn => {
@@ -1367,12 +1360,12 @@ async function chargerEngagements() {
     tbody.innerHTML = engagements.map(e => {
       const ech = e.dateEcheance ? new Date(e.dateEcheance) : null;
       const joursRest = ech ? Math.ceil((ech.getTime() - Date.now()) / (24*3600*1000)) : null;
-      let statutBadge = '<span class="badge ok">🟢 OK</span>';
-      if (e.statut === 'rembourse') statutBadge = '<span class="badge ok">✓ Remboursé</span>';
-      else if (e.statut === 'defaillant') statutBadge = '<span class="badge alerte-fort">⚠ Défaillant</span>';
+      let statutBadge = '<span class="badge ok">OK</span>';
+      if (e.statut === 'rembourse') statutBadge = '<span class="badge ok">Remboursé</span>';
+      else if (e.statut === 'defaillant') statutBadge = '<span class="badge danger">Défaillant</span>';
       else if (e.statut === 'annule') statutBadge = '<span class="badge neutral">Annulé</span>';
-      else if (joursRest != null && joursRest < 0) statutBadge = '<span class="badge alerte-fort">🔴 EN RETARD</span>';
-      else if (joursRest != null && joursRest <= 7) statutBadge = '<span class="badge warn">🟠 ÉCHÉANCE PROCHE</span>';
+      else if (joursRest != null && joursRest < 0) statutBadge = '<span class="badge danger">EN RETARD</span>';
+      else if (joursRest != null && joursRest <= 7) statutBadge = '<span class="badge warn">ÉCHÉANCE PROCHE</span>';
       return `
         <tr>
           <td><strong>${escapeHtml(e.beneficiaire || '—')}</strong>${e.signataire ? `<br><small class="muted">${escapeHtml(e.signataire)}</small>` : ''}</td>
@@ -1383,7 +1376,7 @@ async function chargerEngagements() {
           <td>${ech ? ech.toLocaleDateString('fr-FR') : '—'}</td>
           <td class="center mono">${joursRest != null ? joursRest + ' j' : '—'}</td>
           <td class="center">${statutBadge}</td>
-          <td class="center"><button class="btn btn-sm" data-edit-engagement="${escapeHtml(e.id)}">✏</button></td>
+          <td class="center"><button class="btn btn-sm" data-edit-engagement="${escapeHtml(e.id)}">Modifier</button></td>
         </tr>
       `;
     }).join('');

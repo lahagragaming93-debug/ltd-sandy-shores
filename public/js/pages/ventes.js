@@ -28,8 +28,8 @@ const html = `
       <option value="especes">Espèces</option>
       <option value="carte">Carte</option>
     </select>
-    <input type="text" id="filtre-recherche" placeholder="🔍 Rechercher…" style="flex:1;min-width:160px;" />
-    <button class="btn btn-icon" id="btn-export" title="Exporter en CSV" data-tooltip="Exporter CSV">📤</button>
+    <input type="text" id="filtre-recherche" placeholder="Rechercher…" style="flex:1;min-width:160px;" />
+    <button class="btn" id="btn-export" title="Exporter en CSV" data-tooltip="Exporter CSV">Exporter CSV</button>
   </div>
 
   <div class="panel framed">
@@ -173,19 +173,19 @@ function renderTable() {
   tbody.innerHTML = rows.map(v => {
     const vendeur = usersById[v.vendeurId];
     const verif = v.stockVerifie === false
-      ? '<span class="badge danger" title="Vente sans sortie de stock corrélée">⚠</span>'
-      : (v.stockVerifie === true ? '<span class="badge ok" title="Stock vérifié">✓</span>' : '<span class="muted">—</span>');
+      ? '<span class="badge danger" title="Vente sans sortie de stock corrélée">Discordance</span>'
+      : (v.stockVerifie === true ? '<span class="badge ok" title="Stock vérifié">OK</span>' : '<span class="muted">—</span>');
     const sourceTag = v.source === 'manuelle'
-      ? '<span title="Vente déclarée sur le site">📝</span>'
-      : '<span title="Importée depuis #suivi-facture / #factures">🤖</span>';
+      ? '<span class="badge neutral" title="Vente déclarée sur le site">Site</span>'
+      : '<span class="badge neutral" title="Importée depuis #suivi-facture / #factures">Bot</span>';
     const modifIcon = v.modifieParNom
-      ? `<span title="Modifiée par ${escapeHtml(v.modifieParNom)} — ${escapeHtml(v.motifModification || '')}" style="margin-left:4px;">✏</span>`
+      ? `<span class="muted" title="Modifiée par ${escapeHtml(v.modifieParNom)} — ${escapeHtml(v.motifModification || '')}" style="margin-left:4px;font-size:0.72rem;">[modifiée]</span>`
       : '';
     let btnModif = '';
     if (PEUT_MODIFIER.includes(profile.role)) {
       btnModif = peutModifier
-        ? `<button class="btn btn-icon btn-sm btn-modif-vente" data-id="${escapeHtml(v.id)}" title="Modifier la vente" data-tooltip="Modifier">✏</button>`
-        : `<button class="btn btn-icon btn-sm" disabled title="Semaine clôturée — non modifiable" data-tooltip="Semaine clôturée">🔒</button>`;
+        ? `<button class="btn btn-sm btn-modif-vente" data-id="${escapeHtml(v.id)}" title="Modifier la vente" data-tooltip="Modifier">Modifier</button>`
+        : `<button class="btn btn-sm" disabled title="Semaine clôturée — non modifiable" data-tooltip="Semaine clôturée">Clôturée</button>`;
     }
     return `
       <tr>
@@ -243,7 +243,7 @@ function renderKpis() {
     div.innerHTML = `<p class="muted">Aucune discordance détectée.</p>`;
   } else {
     div.innerHTML = `
-      <div class="alert warn"><span class="icon">⚠</span>
+      <div class="alert warn">
         <div>${disc.length} vente${disc.length > 1 ? 's' : ''} sans sortie de stock correspondante détectée.</div>
       </div>
       <table class="data mt-2">

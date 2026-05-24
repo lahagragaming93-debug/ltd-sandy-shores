@@ -1,4 +1,4 @@
-# 🤖 Guide des automatismes
+# Guide des automatismes
 
 > Tu n'as quasiment **rien à saisir manuellement** : le bot Discord, les Cloud Functions et les listeners temps réel font 95 % du travail. Voici comment tout marche en coulisse.
 
@@ -6,7 +6,7 @@ Ce guide est utile pour **comprendre pourquoi quelque chose s'est passé tout se
 
 ---
 
-## 🤖 Le bot Discord — Le cœur du système
+## Le bot Discord — Le cœur du système
 
 ### Comment il fonctionne
 Le bot écoute **8 canaux** sur le Discord du LTD. Dès qu'un embed (message structuré FiveM) apparaît, il :
@@ -21,7 +21,7 @@ Le bot tourne **24/7 sur Railway** (serveur cloud gratuit). Si tu ne vois rien a
 
 ### Les 12 parsers et ce qu'ils font
 
-#### 🟢 Phase 1 — parsers initiaux (8)
+#### Phase 1 — parsers initiaux (8)
 
 | Canal Discord | Parser | Ce qui est extrait | Où ça arrive sur le site |
 |---------------|--------|---------------------|--------------------------|
@@ -34,23 +34,23 @@ Le bot tourne **24/7 sur Railway** (serveur cloud gratuit). Si tu ne vois rien a
 | `#paie` | paie | Payeur, bénéficiaire (IDs Discord + Perso), montant | **Mes paies** + RH salaires versés |
 | `#suivi-coffre` | coffre | Transactions coffre LTD | `/coffre` (audit) |
 
-#### 🟣 Phase 2 — parsers avancés (5 — ajoutés récemment)
+#### Phase 2 — parsers avancés (5 — ajoutés récemment)
 
 | Canal Discord | Parser | Ce qui est extrait | Où ça arrive |
 |---------------|--------|---------------------|--------------|
-| `#logs-ig` (en plus de inventory) | **xbankaccount** | Entrées d'argent (`addmoney` sur iban LTDSANDY) avec solde après | **Page Banque LTD** + KPI Dashboard 💰 Solde temps réel |
-| `#logs-ig` (en plus de inventory) | **factureCancel** | Suppressions de facture IG (`xbankaccount - cancel` / `logType=cancel`, `category=xbill`) : billId, qui a annulé, motif | **Marque la vente `annulee:true, cachee:true`** → disparaît du panel "à déclarer" du vendeur, badge `❌ Annulée` côté RH avec motif et date. Alerte direction si la vente avait été déclarée manuellement avant l'annulation IG (potentielle fraude). |
+| `#logs-ig` (en plus de inventory) | **xbankaccount** | Entrées d'argent (`addmoney` sur iban LTDSANDY) avec solde après | **Page Banque LTD** + KPI Dashboard Solde temps réel |
+| `#logs-ig` (en plus de inventory) | **factureCancel** | Suppressions de facture IG (`xbankaccount - cancel` / `logType=cancel`, `category=xbill`) : billId, qui a annulé, motif | **Marque la vente `annulee:true, cachee:true`** → disparaît du panel "à déclarer" du vendeur, badge `Annulée` côté RH avec motif et date. Alerte direction si la vente avait été déclarée manuellement avant l'annulation IG (potentielle fraude). |
 | `#auto-rh` | **autoRh** | 3 events : `EMBAUCHE` / `EXCLUSION` / `DÉPART` (volontaire) avec IDs Discord + perso | **Admin → Embauches à traiter** (nouveau panneau) + suspension auto sur exclusion/départ |
 | `#autorankup` | **autorankup** | Promotion (Vendeur → Resp Vente, etc.) avec ancien + nouveau rôle | **MAJ rôle automatique** côté site (plafond salaire ajusté) |
 | `#statsbank` | **statsbank** | Récap hebdo officiel FiveM (CA, sorties, déficit/bénéfice, factures, **impôt estimé** + tranche TTE, top vendeurs) | **Comptabilité → Comparaison cross-source** |
 | `#pompiste` | **rapportPompiste** | Rapport quotidien : niveau % de chaque station | **MAJ stockActuel** des 8 stations en 1 seul log |
 | `#ventes` | **venteAuto** | Ventes du distributeur LTD (Vendeur=LTD), items + total | `/ventes` avec `source='ventes-auto'` (mapping items à venir) |
 
-> 💡 Le canal `#logs-ig` a maintenant **3 parsers en cascade** : factureCancel (testé en 1er, filtre `logType=cancel`+`category=xbill`), xbankaccount (filtre IBAN LTDSANDY), puis inventory (fallback). Permet de gérer 3 types d'embeds sur le même canal.
+> Le canal `#logs-ig` a maintenant **3 parsers en cascade** : factureCancel (testé en 1er, filtre `logType=cancel`+`category=xbill`), xbankaccount (filtre IBAN LTDSANDY), puis inventory (fallback). Permet de gérer 3 types d'embeds sur le même canal.
 
-> 🔍 **Outil de découverte** : Admin → bouton « 🔍 Découverte items FiveM » liste tous les noms d'items uniques observés pour aider au mapping nom commercial ↔ nom FiveM interne.
+> **Outil de découverte** : Admin → bouton « Découverte items FiveM » liste tous les noms d'items uniques observés pour aider au mapping nom commercial ↔ nom FiveM interne.
 
-> 📋 Tous les **canaux logs bruts** (#suivi-coffre-secondaire, #alerte-coffre, #revenu, #factures, #logs-licenciement, #logs-avertissement) sont archivés sans parsing pour audit.
+> Tous les **canaux logs bruts** (#suivi-coffre-secondaire, #alerte-coffre, #revenu, #factures, #logs-licenciement, #logs-avertissement) sont archivés sans parsing pour audit.
 
 ### Ce qu'il faut absolument savoir
 
@@ -72,7 +72,7 @@ Idem que les ventes. Sans ID Discord, les heures ne sont pas comptabilisées au 
 
 ---
 
-## 📅 Clôture hebdomadaire automatique
+## Clôture hebdomadaire automatique
 
 ### Quand
 - **Tous les lundis à 00:00** heure de Paris (Europe/Paris)
@@ -88,9 +88,9 @@ Idem que les ventes. Sans ID Discord, les heures ne sont pas comptabilisées au 
 4. La nouvelle semaine démarre avec des compteurs à 0
 
 ### Conservation des données
-- ✅ **Toutes les semaines passées sont conservées** (pas de purge)
-- ✅ Tu peux consulter n'importe quelle semaine archivée dans **Comptabilité → Sélecteur de semaine**
-- 📋 C'est la conformité TTE Chap. IV qui demande min. 6 semaines — on en garde 100 % par sécurité
+- **Toutes les semaines passées sont conservées** (pas de purge)
+- Tu peux consulter n'importe quelle semaine archivée dans **Comptabilité → Sélecteur de semaine**
+- C'est la conformité TTE Chap. IV qui demande min. 6 semaines — on en garde 100 % par sécurité
 
 ### Que faire si la clôture échoue
 - Vérifie sur la console Firebase → Functions → Logs
@@ -99,7 +99,7 @@ Idem que les ventes. Sans ID Discord, les heures ne sont pas comptabilisées au 
 
 ---
 
-## 🚨 Alertes automatiques
+## Alertes automatiques
 
 Le système crée des alertes en temps réel via 3 Cloud Functions Firestore (déclenchées par changement de données).
 
@@ -108,8 +108,8 @@ Le système crée des alertes en temps réel via 3 Cloud Functions Firestore (d�
 **Déclencheur** : changement dans `/stocks/{produit}`
 
 **Conditions** :
-- Si quantité = 0 → alerte **rupture** (gravité danger 🔴)
-- Si 0 < quantité ≤ seuil → alerte **bas** (gravité warning 🟠)
+- Si quantité = 0 → alerte **rupture** (gravité danger)
+- Si 0 < quantité ≤ seuil → alerte **bas** (gravité warning)
 
 **Anti-doublon** : si une alerte non résolue identique existe déjà, n'en crée pas de nouvelle.
 
@@ -138,27 +138,27 @@ Le système crée des alertes en temps réel via 3 Cloud Functions Firestore (d�
 
 ---
 
-## 🔔 Webhook Discord pour les alertes
+## Webhook Discord pour les alertes
 
 ### Comment l'activer
-1. Sur le serveur Discord du LTD, crée un canal `#🚨-alertes-app`
+1. Sur le serveur Discord du LTD, crée un canal `#alertes-app`
 2. Modifier le canal → Intégrations → **Webhooks** → Nouveau webhook → copie l'URL
-3. Site → **Administration → ⚙ Configuration globale → URL Webhook Discord** → colle l'URL
+3. Site → **Administration → Configuration globale → URL Webhook Discord** → colle l'URL
 4. Sauvegarde
 
 ### Ce que tu vas recevoir
 À chaque nouvelle alerte créée :
-- 🔴 Rupture de stock : « ⚠ Rupture de stock : Bonbon (qte = 0) »
-- 🟠 Stock bas : « ⚠ Stock bas : Bouteille d'eau (4/5) »
-- 🟠 Station basse : « ⚠ Station Aérodrome : 800 L restants (seuil 1000) »
-- 🟠 Vente sans stock : « 🚨 Vente sans sortie de stock corrélée »
-- 🟠 Masse salariale : « ⚠ Masse > 85 % du CA »
+- Rupture de stock : « Rupture de stock : Bonbon (qte = 0) »
+- Stock bas : « Stock bas : Bouteille d'eau (4/5) »
+- Station basse : « Station Aérodrome : 800 L restants (seuil 1000) »
+- Vente sans stock : « Vente sans sortie de stock corrélée »
+- Masse salariale : « Masse > 85 % du CA »
 
 C'est utile pour ne **pas avoir à checker le site en continu** — tu sais quand quelque chose nécessite ton attention.
 
 ---
 
-## 🔍 Audit trail des prix
+## Audit trail des prix
 
 Chaque modification de **prix d'achat** ou **prix de vente** d'un produit est automatiquement enregistrée dans la collection `historiquePrix` avec :
 - Le produit concerné
@@ -172,7 +172,7 @@ Chaque modification de **prix d'achat** ou **prix de vente** d'un produit est au
 
 ---
 
-## ⚡ Le temps réel sur tous les écrans
+## Le temps réel sur tous les écrans
 
 Toutes les pages utilisent les **listeners Firebase** (`onSnapshot`). Ça veut dire que :
 - Pas besoin de **recharger la page** : les données s'actualisent toutes seules
@@ -192,7 +192,7 @@ Toutes les pages utilisent les **listeners Firebase** (`onSnapshot`). Ça veut d
 
 ---
 
-## 🔐 Sécurité — Qui peut quoi (rappel)
+## Sécurité — Qui peut quoi (rappel)
 
 | Action | Qui peut faire | Qui ne peut PAS |
 |--------|----------------|------------------|
@@ -218,7 +218,7 @@ Ces règles sont appliquées **côté serveur** (rules Firestore) — on ne peut
 
 ---
 
-## 🐛 Que faire si le système est en panne
+## Que faire si le système est en panne
 
 ### Symptôme : les logs Discord arrivent mais rien n'apparaît sur le site
 - Le bot est probablement déconnecté
@@ -242,6 +242,6 @@ Ces règles sont appliquées **côté serveur** (rules Firestore) — on ne peut
 
 ---
 
-## ➡ La suite
+## La suite
 
 - **[08-faq-depannage.md](08-faq-depannage.md)** : 20+ questions courantes avec leurs solutions

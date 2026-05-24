@@ -24,11 +24,11 @@ const editable = isDirection(profile.role) || isSuperAdmin(profile.role);
 
 // === Templates de dépenses fréquentes ===
 const TEMPLATES_DEPENSES = [
-  { label: '🏭 Matières premières', raison: 'Achat matières premières', type: 'matieres-premieres' },
-  { label: '⚖ Frais avocat',        raison: 'Honoraires avocat',         type: 'frais-avocat' },
-  { label: '🚗 Entretien véhicule', raison: 'Entretien véhicule LTD',    type: 'entretien-vehicules' },
-  { label: '💰 Loyer / Charges',    raison: 'Loyer hebdomadaire',        type: 'autre-deductible' },
-  { label: '📦 Autre',              raison: '',                          type: 'autre-deductible' }
+  { label: 'Matières premières', raison: 'Achat matières premières', type: 'matieres-premieres' },
+  { label: 'Frais avocat',       raison: 'Honoraires avocat',         type: 'frais-avocat' },
+  { label: 'Entretien véhicule', raison: 'Entretien véhicule LTD',    type: 'entretien-vehicules' },
+  { label: 'Loyer / Charges',    raison: 'Loyer hebdomadaire',        type: 'autre-deductible' },
+  { label: 'Autre',              raison: '',                          type: 'autre-deductible' }
 ];
 
 const html = `
@@ -40,23 +40,23 @@ const html = `
   <!-- Toolbar -->
   <div class="page-toolbar">
     <select id="select-semaine" title="Choisir la semaine" style="min-width:200px;">
-      <option value="courante">📅 Semaine en cours</option>
+      <option value="courante">Semaine en cours</option>
     </select>
-    <button class="btn btn-icon" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">📥</button>
-    <button class="btn btn-icon" id="btn-export-pdf" title="Imprimer / Exporter en PDF" data-tooltip="Imprimer PDF">🖨</button>
-    ${editable ? '<button class="btn btn-icon" id="btn-refresh-dashboard" title="Rafraîchir le doc comptabilité (Dashboard + Dépenses + Ventes + Paies + résumé)" data-tooltip="Rafraîchir doc comptabilité">🔄</button>' : ''}
-    ${editable ? '<button class="btn btn-icon" id="btn-cloturer-semaine" title="Clôturer la semaine précédente (dispo après dim 23h59)" data-tooltip="Clôturer la semaine précédente">🔒</button>' : ''}
+    <button class="btn" id="btn-export-csv" title="Exporter en CSV" data-tooltip="Export CSV">Exporter CSV</button>
+    <button class="btn" id="btn-export-pdf" title="Imprimer / Exporter en PDF" data-tooltip="Imprimer PDF">Imprimer</button>
+    ${editable ? '<button class="btn" id="btn-refresh-dashboard" title="Rafraîchir le doc comptabilité (Dashboard + Dépenses + Ventes + Paies + résumé)" data-tooltip="Rafraîchir doc comptabilité">Recharger</button>' : ''}
+    ${editable ? '<button class="btn" id="btn-cloturer-semaine" title="Clôturer la semaine précédente (dispo après dim 23h59)" data-tooltip="Clôturer la semaine précédente">Clôturer</button>' : ''}
     <span class="spacer"></span>
-    ${editable ? '<button class="btn btn-primary btn-icon" id="btn-add-depense" title="Ajouter une dépense" data-tooltip="Ajouter dépense">➕</button>' : ''}
+    ${editable ? '<button class="btn btn-primary" id="btn-add-depense" title="Ajouter une dépense" data-tooltip="Ajouter dépense">+ Ajouter</button>' : ''}
   </div>
 
   ${editable ? `
   <!-- Modal clôture semaine -->
   <div id="modal-cloture" class="modal-backdrop hidden">
     <div class="modal" style="max-width:580px;">
-      <h3>🔒 Clôturer la semaine précédente</h3>
+      <h3>Clôturer la semaine précédente</h3>
       <div class="alert ok" style="font-size:0.9rem;margin:8px 0;background:rgba(46,160,67,0.08);border-left:3px solid var(--color-green, #2ea043);">
-        📅 <strong>Semaine ciblée :</strong> <span id="cloture-semaine-cible" class="mono">—</span><br>
+        <strong>Semaine ciblée :</strong> <span id="cloture-semaine-cible" class="mono">—</span><br>
         <span class="muted" style="font-size:0.8rem;">Le bouton clôture toujours la <strong>dernière semaine terminée</strong> (lun → dim qui vient de finir), jamais la semaine en cours.</span>
       </div>
       <p class="muted" style="font-size:0.85rem;">
@@ -69,13 +69,13 @@ const html = `
       </details>
       <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-top:12px;">
         <input type="checkbox" id="cloture-confirmation-irs" style="margin-top:4px;" />
-        <span><strong>✅ Je confirme avoir soumis ma déclaration fiscale sur le site IRS</strong>
+        <span><strong>Je confirme avoir soumis ma déclaration fiscale sur le site IRS</strong>
         <br><span class="muted" style="font-size:0.78rem;">(Art. 4-3.3 — déclaration à soumettre avant mardi 21h)</span></span>
       </label>
       <label class="mt-2">Note de clôture <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
       <input type="text" id="cloture-note" placeholder="Ex : Semaine standard, RAS." />
       <div class="row mt-3">
-        <button class="btn btn-primary" id="btn-confirm-cloture" disabled>🔒 Clôturer définitivement</button>
+        <button class="btn btn-primary" id="btn-confirm-cloture" disabled>Clôturer définitivement</button>
         <button class="btn btn-ghost" id="btn-cancel-cloture">Annuler</button>
       </div>
     </div>
@@ -85,7 +85,7 @@ const html = `
   <!-- Templates de dépenses fréquentes (uniquement si éditable) -->
   ${editable ? `
     <div class="panel mb-2" id="templates-panel">
-      <div class="panel-title"><span>⚡ Dépenses rapides</span><span class="muted" style="font-size:0.75rem;">— pré-remplit le formulaire</span></div>
+      <div class="panel-title"><span>Dépenses rapides</span><span class="muted" style="font-size:0.75rem;">— pré-remplit le formulaire</span></div>
       <div class="row" style="flex-wrap:wrap;gap:6px;">
         ${TEMPLATES_DEPENSES.map((t, i) =>
           `<button class="btn btn-sm" data-template="${i}">${t.label}</button>`
@@ -96,21 +96,21 @@ const html = `
 
   <!-- Bandeau conformité TTE (gauge masse salariale) -->
   <div class="panel mb-2" id="conformite-panel">
-    <div class="panel-title"><span>📜 Conformité TTE — Masse salariale</span></div>
+    <div class="panel-title"><span>Conformité TTE — Masse salariale</span></div>
     <div id="masse-gauge"></div>
   </div>
 
   <!-- Recettes / Dépenses (cartes en colonnes) -->
   <div class="compta-grid">
     <div class="panel framed compta-recettes">
-      <div class="panel-title"><span>💚 Recettes</span></div>
+      <div class="panel-title"><span>Recettes</span></div>
       <table class="data">
         <tbody id="tbody-recettes"><tr><td>Chargement…</td></tr></tbody>
       </table>
     </div>
 
     <div class="panel framed compta-depenses">
-      <div class="panel-title"><span>❤ Dépenses</span></div>
+      <div class="panel-title"><span>Dépenses</span></div>
       <table class="data">
         <tbody id="tbody-depenses"><tr><td>Chargement…</td></tr></tbody>
       </table>
@@ -120,8 +120,8 @@ const html = `
   <!-- Salaires & paies (NOUVEAU) -->
   <div class="panel framed">
     <div class="panel-title">
-      <span>💰 Salaires & paies de la semaine</span>
-      <button class="btn btn-icon btn-sm" id="btn-copy-recap" title="Copier un récap formaté pour Discord" data-tooltip="Copier récap Discord">📋</button>
+      <span>Salaires & paies de la semaine</span>
+      <button class="btn btn-sm" id="btn-copy-recap" title="Copier un récap formaté pour Discord" data-tooltip="Copier récap Discord">Copier récap</button>
     </div>
     <div id="salaires-zone"><p class="muted">Chargement…</p></div>
   </div>
@@ -129,7 +129,7 @@ const html = `
   <!-- Comparaison Statsbank officiel vs nos calculs -->
   <div class="panel framed" id="panel-statsbank" style="border-color:var(--color-info);">
     <div class="panel-title">
-      <span>🔍 Comparaison cross-source — Officiel FiveM vs nos calculs</span>
+      <span>Comparaison cross-source — Officiel FiveM vs nos calculs</span>
       <span class="muted" style="font-size:0.75rem;" id="statsbank-info">—</span>
     </div>
     <p class="muted" style="font-size:0.82rem;margin:4px 0 8px;">
@@ -141,8 +141,8 @@ const html = `
   <!-- Charges détaillées -->
   <div class="panel">
     <div class="panel-title">
-      <span>📋 Charges détaillées</span>
-      <span class="muted" style="font-size:0.75rem;">— ⚠ = à classifier par le patron</span>
+      <span>Charges détaillées</span>
+      <span class="muted" style="font-size:0.75rem;">— les lignes marquées "à classifier" attendent validation patron</span>
     </div>
     <div class="table-scroll">
       <table class="data" id="table-charges">
@@ -165,7 +165,7 @@ const html = `
   <!-- Modal reclassification dépense -->
   <div id="modal-reclasser" class="modal-backdrop hidden">
     <div class="modal" style="max-width:600px;">
-      <h3>🔄 Reclassifier la dépense</h3>
+      <h3>Reclassifier la dépense</h3>
       <p class="muted" style="font-size:0.82rem;margin:0 0 12px;" id="reclasser-info">—</p>
 
       <label>Catégorie</label>
@@ -189,11 +189,11 @@ const html = `
       <div class="row" style="gap:8px;margin-top:8px;">
         <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;">
           <input type="radio" name="reclasser-deductible" value="true" id="reclasser-dedu-oui" checked />
-          ✅ Déductible
+          Déductible
         </label>
         <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;">
           <input type="radio" name="reclasser-deductible" value="false" id="reclasser-dedu-non" />
-          ❌ Non déductible
+          Non déductible
         </label>
       </div>
 
@@ -206,7 +206,7 @@ const html = `
       <div style="border-top:1px solid var(--color-border, #ccc);margin-top:12px;padding-top:12px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
           <input type="checkbox" id="reclasser-memoriser" />
-          <strong>💾 Mémoriser ce fournisseur</strong>
+          <strong>Mémoriser ce fournisseur</strong>
           <span class="muted" style="font-size:0.75rem;">— toutes les futures dépenses similaires seront auto-classées</span>
         </label>
         <div id="reclasser-memoriser-form" class="hidden" style="margin-top:8px;padding:8px;background:rgba(255,200,80,0.08);border-radius:4px;">
@@ -220,7 +220,7 @@ const html = `
             <input type="text" id="memoriser-label" placeholder="Ex : HDM (Heavy Duty Motors)" />
             <label style="font-size:0.8rem;margin-top:4px;">Type de match</label>
             <select id="memoriser-matchtype">
-              <option value="account-id-cible">⭐ Account ID compte cible (ex: 67978 pour HDM — recommandé)</option>
+              <option value="account-id-cible">Account ID compte cible (ex: 67978 pour HDM — recommandé)</option>
               <option value="compte-cible">Nom du compte cible (ex: HDM, Dynasty 8)</option>
               <option value="boutique-id">Numéro de boutique (ex: 263)</option>
               <option value="facture-id">Numéro de facture (ex: 1910769)</option>
@@ -234,7 +234,7 @@ const html = `
       </div>
 
       <div class="row mt-3">
-        <button class="btn btn-primary" id="btn-save-reclasser">✓ Valider la classification</button>
+        <button class="btn btn-primary" id="btn-save-reclasser">Valider la classification</button>
         <button class="btn btn-ghost" id="btn-cancel-reclasser">Annuler</button>
       </div>
     </div>
@@ -278,7 +278,7 @@ const sel = document.getElementById('select-semaine');
 semainesPassees.forEach(s => {
   const o = document.createElement('option');
   o.value = s.id || s.numero;
-  o.textContent = `📁 Semaine ${s.numero || s.dateDebut}`;
+  o.textContent = `Semaine ${s.numero || s.dateDebut}`;
   sel.appendChild(o);
 });
 
@@ -363,34 +363,34 @@ async function chargerTout() {
   // === KPIs colorés ===
   document.getElementById('kpis-compta').innerHTML = `
     <div class="kpi kpi-recette">
-      <div class="label">💚 CA produits</div>
+      <div class="label">CA produits</div>
       <div class="value">${money(ca)}</div>
       <div class="delta">${ventes.length} factures</div>
     </div>
     <div class="kpi kpi-recette">
-      <div class="label">⛽ CA carburant</div>
+      <div class="label">CA carburant</div>
       <div class="value">${money(caCarburant)}</div>
       <div class="delta">${redistributions.length} ventes essence</div>
     </div>
     ${totalSubventions > 0 ? `
     <div class="kpi kpi-recette" title="Subventions reçues — non imposable (TTE Art. 4-2.16). Comptée dans le bénéfice net mais hors résultat imposable.">
-      <div class="label">🏛 Subventions reçues</div>
+      <div class="label">Subventions reçues</div>
       <div class="value">${money(totalSubventions)}</div>
       <div class="delta">${subventions.length} virement(s) — non imposable</div>
     </div>
     ` : ''}
     <div class="kpi kpi-depense">
-      <div class="label">❤ Charges déductibles</div>
+      <div class="label">Charges déductibles</div>
       <div class="value">${money(deductibles)}</div>
       <div class="delta">imposable: ${money(resultatImposable)}</div>
     </div>
     <div class="kpi kpi-salaire" title="Prévisionnel = somme des salaires estimés (Direction fixe + Vendeur/Pompiste selon CA/quotas en temps réel). Versé = paies réellement déjà payées.">
-      <div class="label">💰 Masse salariale</div>
+      <div class="label">Masse salariale</div>
       <div class="value">${money(masseSalariale)}</div>
-      <div class="delta ${masse.ok ? 'up' : 'down'}">${pct(masse.ratio*100, 1)} ${masse.ok ? '✓' : '⚠ HORS TTE'} · ${money(masseVersee)} déjà versé</div>
+      <div class="delta ${masse.ok ? 'up' : 'down'}">${pct(masse.ratio*100, 1)} ${masse.ok ? '' : 'HORS TTE'} · ${money(masseVersee)} déjà versé</div>
     </div>
     <div class="kpi ${beneficeNet >= 0 ? 'kpi-benefice' : 'kpi-perte'}">
-      <div class="label">${beneficeNet >= 0 ? '📈 Bénéfice net' : '📉 Perte'}</div>
+      <div class="label">${beneficeNet >= 0 ? 'Bénéfice net' : 'Perte'}</div>
       <div class="value">${money(beneficeNet)}</div>
       <div class="delta ${beneficeNet >= 0 ? 'up' : 'down'}">après salaires</div>
     </div>
@@ -404,7 +404,7 @@ async function chargerTout() {
     <tr><td>Chiffre d'affaires (ventes carburant)</td><td class="right mono">${money(caCarburant)}</td></tr>
     <tr class="row-total"><td>Total CA imposable</td><td class="right mono">${money(caTotal)}</td></tr>
     ${totalSubventions > 0 ? `
-      <tr><td colspan="2" style="padding-top:8px;"><strong>🏛 Subventions reçues</strong> <span class="muted" style="font-size:0.78rem;">— non imposable (TTE Art. 4-2.16)</span></td></tr>
+      <tr><td colspan="2" style="padding-top:8px;"><strong>Subventions reçues</strong> <span class="muted" style="font-size:0.78rem;">— non imposable (TTE Art. 4-2.16)</span></td></tr>
       ${subventions.map(s => `
         <tr>
           <td><span class="muted">${datetime(s.timestamp)}</span> ${escapeHtml(s.raison || 'Subvention')}</td>
@@ -452,15 +452,15 @@ async function chargerTout() {
         ? `<span class="badge ok" title="${escapeHtml(d.raisonClassification || '')}">${escapeHtml(d.fournisseurLabel)}</span>`
         : '<span class="muted">—</span>';
       const typeBadge = d.deductible !== false
-        ? '<span class="badge ok">✓ Déductible</span>'
-        : '<span class="badge neutral">✗ Non déductible</span>';
+        ? '<span class="badge ok">Déductible</span>'
+        : '<span class="badge neutral">Non déductible</span>';
       const statutValid = isValide
-        ? '<span class="badge ok" title="Validé par patron">🔒</span>'
+        ? '<span class="badge ok" title="Validé par patron">Validé</span>'
         : isAClassifier
-          ? '<span class="badge warn" title="À classifier — suggestion auto en attente de validation patron">⚠</span>'
-          : '<span class="badge neutral" title="Suggestion auto, pas encore validée">💡</span>';
+          ? '<span class="badge warn" title="À classifier — suggestion auto en attente de validation patron">À classifier</span>'
+          : '<span class="badge neutral" title="Suggestion auto, pas encore validée">Suggestion</span>';
       const actionBtn = editable
-        ? `<td class="center"><button class="btn btn-sm" data-reclasser-id="${d.id}">🔄</button></td>`
+        ? `<td class="center"><button class="btn btn-sm" data-reclasser-id="${d.id}">Reclasser</button></td>`
         : '';
       return `
         <tr>
@@ -475,7 +475,7 @@ async function chargerTout() {
       `;
     }).join('');
 
-    // Branchement du bouton "🔄 Reclassifier"
+    // Branchement du bouton Reclassifier
     if (editable) {
       tbody.querySelectorAll('[data-reclasser-id]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -499,13 +499,13 @@ function ouvrirModalReclasser(dep) {
   depenseEnCoursReclasser = dep;
   const info = document.getElementById('reclasser-info');
   const compteCibleInfo = dep.compteCibleNom
-    ? `<br>🎯 Compte cible identifié : <strong>${escapeHtml(dep.compteCibleNom)}</strong>${dep.compteCibleAccountId ? ` <span class="mono muted">(ID ${escapeHtml(dep.compteCibleAccountId)})</span>` : ''}`
+    ? `<br>Compte cible identifié : <strong>${escapeHtml(dep.compteCibleNom)}</strong>${dep.compteCibleAccountId ? ` <span class="mono muted">(ID ${escapeHtml(dep.compteCibleAccountId)})</span>` : ''}`
     : '';
   info.innerHTML = `
     <strong>${escapeHtml(dep.raison || '')}</strong><br>
     <span class="muted">Montant : <strong>${money(dep.montant || 0)}</strong> · par ${escapeHtml(dep.utilisateur || '—')} · ${datetime(dep.timestamp)}</span>
     ${compteCibleInfo}
-    ${dep.fournisseurLabel ? `<br>💡 Suggestion auto : <strong>${escapeHtml(dep.fournisseurLabel)}</strong> (${escapeHtml(dep.raisonClassification || '')})` : ''}
+    ${dep.fournisseurLabel ? `<br>Suggestion auto : <strong>${escapeHtml(dep.fournisseurLabel)}</strong> (${escapeHtml(dep.raisonClassification || '')})` : ''}
   `;
   document.getElementById('reclasser-categorie').value = dep.type || 'a-classifier';
   document.getElementById(dep.deductible !== false ? 'reclasser-dedu-oui' : 'reclasser-dedu-non').checked = true;
@@ -695,7 +695,7 @@ function renderSalaires(users, paies) {
           ? `<span class="reste-a-verser">${money(reste)}</span>`
           : (reste < 0
               ? `<span class="reste-trop">+${money(-reste)} en trop</span>`
-              : '<span class="reste-ok">✓ Versé</span>'));
+              : '<span class="reste-ok">Versé</span>'));
     return `
       <tr>
         <td>
@@ -748,17 +748,16 @@ function renderSalaires(users, paies) {
 
   document.getElementById('salaires-zone').innerHTML = `
     <div class="alert info mb-2" style="font-size:0.8rem;">
-      <span class="icon">ℹ</span>
       <span>
         <strong>Direction / Responsables</strong> : salaire fixe (décidé via RH).<br>
         <strong>Vendeurs / Pompistes</strong> : calcul automatique selon CA / quotas — détail par employé dans <a href="rh.html">Ressources humaines</a>.<br>
-        Le bouton <strong>📋 Copier récap Discord</strong> en haut à droite prépare un message formaté à coller dans <code>#paie</code>.
+        Le bouton <strong>Copier récap</strong> en haut à droite prépare un message formaté à coller dans <code>#paie</code>.
       </span>
     </div>
-    ${sectionGroupe('👑 Direction', direction)}
-    ${sectionGroupe('🛒⛽ Responsables', respo)}
-    ${sectionGroupe('💵 Vendeurs', vendeurs, false)}
-    ${sectionGroupe('🚗 Pompistes', pompistes, false)}
+    ${sectionGroupe('Direction', direction)}
+    ${sectionGroupe('Responsables', respo)}
+    ${sectionGroupe('Vendeurs', vendeurs, false)}
+    ${sectionGroupe('Pompistes', pompistes, false)}
   `;
 }
 
@@ -771,10 +770,10 @@ function renderGaugeMasse(masse, masseSalariale, ca) {
   const fillPct = Math.min(100, ratio);
   const cls = !masse.ok ? 'gauge-danger' : (masse.alerte ? 'gauge-warn' : 'gauge-ok');
   const status = !masse.ok
-    ? '🔴 HORS TTE — masse salariale supérieure à 90 % du CA'
+    ? '<span class="badge danger">HORS TTE</span> masse salariale supérieure à 90 % du CA'
     : (masse.alerte
-        ? '🟠 Attention — masse salariale entre 85 % et 90 %'
-        : '🟢 OK — masse salariale dans les limites TTE');
+        ? '<span class="badge warn">ATTENTION</span> masse salariale entre 85 % et 90 %'
+        : '<span class="badge ok">OK</span> masse salariale dans les limites TTE');
   target.innerHTML = `
     <div class="gauge-row">
       <div class="gauge-bar">
@@ -791,11 +790,11 @@ function renderGaugeMasse(masse, masseSalariale, ca) {
 async function renderSemaineFigee(s) {
   // KPIs depuis le snapshot fige
   document.getElementById('kpis-compta').innerHTML = `
-    <div class="kpi kpi-recette"><div class="label">💚 CA</div><div class="value">${money(s.ca)}</div><div class="delta">${s.statut || 'figée'}</div></div>
-    <div class="kpi kpi-recette"><div class="label">⛽ CA carburant</div><div class="value">${money(s.caCarburant || 0)}</div><div class="delta">inclus dans CA</div></div>
-    <div class="kpi kpi-depense"><div class="label">❤ Dépenses (hors salaires)</div><div class="value">${money(s.depenses)}</div><div class="delta">${s.chargesDeductibles ? money(s.chargesDeductibles) + ' déductibles' : ''}</div></div>
-    <div class="kpi kpi-salaire"><div class="label">💰 Salaires</div><div class="value">${money(s.masseSalariale)}</div><div class="delta">versés post-cloture</div></div>
-    <div class="kpi ${s.benefice >= 0 ? 'kpi-benefice' : 'kpi-perte'}"><div class="label">${s.benefice >= 0 ? '📈 Bénéfice' : '📉 Perte'}</div><div class="value">${money(s.benefice)}</div><div class="delta ${s.benefice>=0?'up':'down'}">cloturé</div></div>
+    <div class="kpi kpi-recette"><div class="label">CA</div><div class="value">${money(s.ca)}</div><div class="delta">${s.statut || 'figée'}</div></div>
+    <div class="kpi kpi-recette"><div class="label">CA carburant</div><div class="value">${money(s.caCarburant || 0)}</div><div class="delta">inclus dans CA</div></div>
+    <div class="kpi kpi-depense"><div class="label">Dépenses (hors salaires)</div><div class="value">${money(s.depenses)}</div><div class="delta">${s.chargesDeductibles ? money(s.chargesDeductibles) + ' déductibles' : ''}</div></div>
+    <div class="kpi kpi-salaire"><div class="label">Salaires</div><div class="value">${money(s.masseSalariale)}</div><div class="delta">versés post-cloture</div></div>
+    <div class="kpi ${s.benefice >= 0 ? 'kpi-benefice' : 'kpi-perte'}"><div class="label">${s.benefice >= 0 ? 'Bénéfice' : 'Perte'}</div><div class="value">${money(s.benefice)}</div><div class="delta ${s.benefice>=0?'up':'down'}">cloturé</div></div>
   `;
 
   // Recettes : split produits / carburant
@@ -1092,9 +1091,9 @@ async function chargerStatsbank() {
                            Math.abs(ec) < 100 ? '' :
                            Math.abs(ec) < 1000 ? 'gold' : 'alerte-fort';
           const statut = ec === null ? '<span class="badge neutral">Pas de match</span>' :
-                         Math.abs(ec) < 100 ? '<span class="badge ok">✓ Cohérent</span>' :
-                         Math.abs(ec) < 1000 ? '<span class="badge warn">⚠ Léger écart</span>' :
-                         '<span class="badge danger">🚨 Gros écart</span>';
+                         Math.abs(ec) < 100 ? '<span class="badge ok">Cohérent</span>' :
+                         Math.abs(ec) < 1000 ? '<span class="badge warn">Léger écart</span>' :
+                         '<span class="badge danger">Gros écart</span>';
           return `
             <tr>
               <td><strong>S${String(l.off.numeroSemaine).padStart(2,'0')}-${l.off.annee}</strong>${l.off.periode ? `<br><small class="muted">${escapeHtml(l.off.periode)}</small>` : ''}</td>
@@ -1110,8 +1109,8 @@ async function chargerStatsbank() {
       </tbody>
     </table>
     <p class="muted mt-2" style="font-size:0.78rem;">
-      💡 <strong>Si « Cohérent »</strong> partout : nos calculs internes sont validés par le serveur FiveM officiel. Audit IRS bétonné.<br>
-      ⚠ <strong>Si « Gros écart »</strong> : il y a un écart significatif (> 1 000 $). Investigue : ventes manquantes, dépenses non parsées, paies non versées, etc.
+      <strong>Si « Cohérent »</strong> partout : nos calculs internes sont validés par le serveur FiveM officiel. Audit IRS bétonné.<br>
+      <strong>Si « Gros écart »</strong> : il y a un écart significatif (> 1 000 $). Investigue : ventes manquantes, dépenses non parsées, paies non versées, etc.
     </p>
   `;
   makeSortable(document.getElementById('table-statsbank'));
@@ -1126,7 +1125,7 @@ document.getElementById("btn-refresh-dashboard")?.addEventListener("click", asyn
   const btn = document.getElementById("btn-refresh-dashboard");
   btn.disabled = true;
   const ancien = btn.textContent;
-  btn.textContent = "⏳";
+  btn.textContent = "…";
   try {
     const { auth } = await import("../firebase-config.js");
     const idToken = await auth.currentUser.getIdToken();
@@ -1197,7 +1196,7 @@ document.getElementById("btn-confirm-cloture")?.addEventListener("click", async 
     return;
   }
   const btn = document.getElementById("btn-confirm-cloture");
-  btn.disabled = true; btn.textContent = "⏳ Clôture...";
+  btn.disabled = true; btn.textContent = "Clôture en cours…";
   try {
     const { auth } = await import("../firebase-config.js");
     const idToken = await auth.currentUser.getIdToken();
@@ -1213,7 +1212,7 @@ document.getElementById("btn-confirm-cloture")?.addEventListener("click", async 
     setTimeout(() => window.location.reload(), 1500);
   } catch (e) {
     toastError(e.message || "Erreur clôture");
-    btn.disabled = false; btn.textContent = "🔒 Clôturer définitivement";
+    btn.disabled = false; btn.textContent = "Clôturer définitivement";
   }
 });
 

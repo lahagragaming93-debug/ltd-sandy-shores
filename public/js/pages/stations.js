@@ -36,11 +36,11 @@ const html = `
   </div>
 
   <div class="page-toolbar">
-    ${fullEdit ? '<button class="btn btn-primary btn-icon" id="btn-ajouter-station" title="Ajouter une station essence" data-tooltip="Ajouter station">➕</button>' : ''}
-    ${fullEdit ? '<a class="btn btn-icon" href="rh.html#panel-quotas-hebdo" title="Quotas hebdomadaires (page RH)" data-tooltip="Quotas hebdo">⚙</a>' : ''}
+    ${fullEdit ? '<button class="btn btn-primary" id="btn-ajouter-station" title="Ajouter une station essence" data-tooltip="Ajouter station">+ Ajouter station</button>' : ''}
+    ${fullEdit ? '<a class="btn" href="rh.html#panel-quotas-hebdo" title="Quotas hebdomadaires (page RH)" data-tooltip="Quotas hebdo">Quotas hebdo</a>' : ''}
     ${stockOnly ? (caoutsActifPage
-      ? '<button class="btn btn-primary btn-compact" id="btn-declarer-caoutchoucs" title="Déclarer le nombre de caoutchoucs fabriqués">📦 Déclarer caoutchoucs</button>'
-      : '<button class="btn btn-compact" disabled style="opacity:0.5;cursor:not-allowed;" title="Caoutchoucs non requis cette semaine (quota = 0)">📦 Caoutchoucs — non requis</button>'
+      ? '<button class="btn btn-primary btn-compact" id="btn-declarer-caoutchoucs" title="Déclarer le nombre de caoutchoucs fabriqués">Déclarer caoutchoucs</button>'
+      : '<button class="btn btn-compact" disabled style="opacity:0.5;cursor:not-allowed;" title="Caoutchoucs non requis cette semaine (quota = 0)">Caoutchoucs — non requis</button>'
     ) : ''}
     <span class="spacer"></span>
     <span class="muted mono" id="stations-count">—</span>
@@ -50,9 +50,8 @@ const html = `
     <!-- Modal declaration caoutchoucs -->
     <div id="modal-caoutchoucs" class="modal-backdrop hidden">
       <div class="modal" style="max-width:480px;">
-        <h3>📦 Déclarer des caoutchoucs fabriqués</h3>
+        <h3>Déclarer des caoutchoucs fabriqués</h3>
         <div class="alert info mb-2" style="font-size:0.82rem;">
-          <span class="icon">ℹ</span>
           <span>Saisis le <strong>nombre de caoutchoucs</strong> que tu viens de fabriquer et de poser dans le coffre dédié. Le site met à jour ton quota immédiatement.</span>
         </div>
         <label>Nombre de caoutchoucs fabriqués</label>
@@ -74,7 +73,7 @@ const html = `
   ${(fullEdit || profile.role === 'responsable-pompiste') ? `
   <div class="panel framed">
     <div class="panel-title">
-      <span>👥 Pilotage pompistes — semaine en cours</span>
+      <span>Pilotage pompistes — semaine en cours</span>
       <span class="muted" style="font-size:0.78rem;" id="pilotage-meta">—</span>
     </div>
     <div id="pilotage-pompistes">Chargement…</div>
@@ -122,7 +121,6 @@ const html = `
       <h3 id="modal-station-title">Station</h3>
       ${stockOnly ? `
         <div class="alert info mb-2" style="font-size:0.82rem;">
-          <span class="icon">ℹ</span>
           <span>Saisis le <strong>nombre de bidons</strong> que tu viens de mettre dans la station (1 bidon = 15 L). Le site met automatiquement à jour le stock, l'historique et ton quota.</span>
         </div>
 
@@ -152,8 +150,8 @@ const html = `
         <input type="text" id="st-fivem-pompe" placeholder="ex: 16060" />
       `}
       <div class="row mt-3">
-        <button class="btn btn-primary" id="btn-save-station">${stockOnly ? '⛽ Valider le ravitaillement' : '💾 Enregistrer'}</button>
-        ${fullEdit ? '<button class="btn btn-icon btn-danger" id="btn-delete-station" style="display:none;" title="Supprimer la station" data-tooltip="Supprimer">🗑</button>' : ''}
+        <button class="btn btn-primary" id="btn-save-station">${stockOnly ? 'Valider le ravitaillement' : 'Enregistrer'}</button>
+        ${fullEdit ? '<button class="btn btn-danger" id="btn-delete-station" style="display:none;" title="Supprimer la station" data-tooltip="Supprimer">Supprimer</button>' : ''}
         <button class="btn btn-ghost" id="btn-cancel-station">Annuler</button>
       </div>
     </div>
@@ -209,7 +207,7 @@ function renderStations() {
           <div class="panel" style="margin:0;${sousAlerte ? 'border-color:var(--color-blood);' : ''}">
             <div class="row between">
               <h4 style="margin:0;color:var(--color-sand-light);">${escapeHtml(s.nom)}</h4>
-              ${sousAlerte ? '<span class="badge danger">⚠ ALERTE</span>' : '<span class="badge ok">OK</span>'}
+              ${sousAlerte ? '<span class="badge danger">ALERTE</span>' : '<span class="badge ok">OK</span>'}
             </div>
             <div class="progress mt-2" style="height:22px;">
               <div class="fill" style="width:${Math.min(niveau, 100)}%"></div>
@@ -313,7 +311,7 @@ if (stockOnly) {
       const placeRestante = Math.max(0, stockMax - (s.stockActuel || 0));
       const bidonsMax = Math.floor(placeRestante / BIDON_L);
       preview.style.color = 'var(--color-blood, #d33)';
-      preview.innerHTML = `⛔ Impossible : ${n} bidons = ${num(ajout)} L mais la station n'accepte que <strong>${bidonsMax} bidons max</strong> (${num(placeRestante)} L libres).`;
+      preview.innerHTML = `Impossible : ${n} bidons = ${num(ajout)} L mais la station n'accepte que <strong>${bidonsMax} bidons max</strong> (${num(placeRestante)} L libres).`;
     } else {
       preview.style.color = '';
       preview.textContent = `${n} bidon${n > 1 ? 's' : ''} = ${num(ajout)} L → stock final : ${num(stockFinal)} L / ${num(stockMax)} L`;
@@ -355,7 +353,7 @@ document.getElementById('btn-save-station').addEventListener('click', async () =
     }
     try {
       const json = await callFunction('pompisteRavitaillerManuel', { stationId: id, bidons });
-      const msg = `Ravitaillement enregistré : ${bidons} bidon${bidons > 1 ? 's' : ''} (+${num(json.litresAjoutes)} L). Stock à ${num(json.stockApres)} L.${json.capped ? ' ⚠ plafonné capacité max.' : ''}`;
+      const msg = `Ravitaillement enregistré : ${bidons} bidon${bidons > 1 ? 's' : ''} (+${num(json.litresAjoutes)} L). Stock à ${num(json.stockApres)} L.${json.capped ? ' plafonné capacité max.' : ''}`;
       toastSuccess(msg);
       modal.classList.add('hidden');
       chargerRedistributions();
@@ -458,7 +456,7 @@ if (stockOnly && caoutsActifPage) {
     }
     if (n > 500) {
       previewCaou.style.color = 'var(--color-blood, #d33)';
-      previewCaou.textContent = `⛔ Maximum 500 par déclaration. Saisis ${n} en plusieurs fois.`;
+      previewCaou.textContent = `Maximum 500 par déclaration. Saisis ${n} en plusieurs fois.`;
       return;
     }
     previewCaou.style.color = '';
@@ -531,12 +529,12 @@ async function chargerRedistributions() {
             : num(r.litres);
           const flag = supprimee
             ? '<span class="badge danger" style="font-size:0.7rem;">supprimée</span>'
-            : (modifie ? '<span class="badge warn" style="font-size:0.7rem;" title="Modifiée">✏</span>' : '');
+            : (modifie ? '<span class="badge warn" style="font-size:0.7rem;" title="Modifiée">modifiée</span>' : '');
           let actions = '';
           if (canModerer && manuel && !supprimee) {
             actions = `<div style="display:flex;gap:4px;justify-content:center;">
-              <button class="btn btn-sm" data-edit-ravit="${r.id}" title="Modifier le nb de bidons">✏</button>
-              <button class="btn btn-sm btn-danger" data-del-ravit="${r.id}" title="Supprimer (reverse stock + quota)">🗑</button>
+              <button class="btn btn-sm" data-edit-ravit="${r.id}" title="Modifier le nb de bidons">Modifier</button>
+              <button class="btn btn-sm btn-danger" data-del-ravit="${r.id}" title="Supprimer (reverse stock + quota)">Suppr.</button>
             </div>`;
           } else if (canModerer && supprimee) {
             actions = `<span class="muted" style="font-size:0.72rem;" title="Supprimée par ${escapeHtml(r.supprimeeParNom || '?')} — ${escapeHtml(r.raisonSuppression || '')}">supprimée</span>`;
@@ -642,11 +640,11 @@ async function chargerPilotagePompistes() {
 
   function badgeStatus(score, nbRavits, q) {
     if (nbRavits === 0 && (!q || (!q.bidons && !q.caoutchoucs))) {
-      return '<span class="badge danger" title="Aucune activité cette semaine">⚪ rien fait</span>';
+      return '<span class="badge danger" title="Aucune activité cette semaine">Inactif</span>';
     }
-    if (score >= 1) return '<span class="badge ok">✓ Quota atteint</span>';
-    if (score >= 0.5) return '<span class="badge neutral">🟢 En cours</span>';
-    return '<span class="badge warn">⚠ En retard</span>';
+    if (score >= 1) return '<span class="badge ok">Quota atteint</span>';
+    if (score >= 0.5) return '<span class="badge neutral">En cours</span>';
+    return '<span class="badge warn">En retard</span>';
   }
 
   div.innerHTML = `
@@ -693,7 +691,7 @@ async function chargerPilotagePompistes() {
                 <td class="right mono">${v.nb}</td>
                 <td class="mono" style="font-size:0.78rem;" data-sort-value="${v.dernier || 0}">${dernierStr}</td>
                 <td data-sort-value="${score}">${badgeStatus(score, v.nb, q)}</td>
-                <td class="center"><a class="btn btn-sm" href="employee.html?asUser=${escapeHtml(p.id)}" title="Voir l'espace de ce pompiste">👁</a></td>
+                <td class="center"><a class="btn btn-sm" href="employee.html?asUser=${escapeHtml(p.id)}" title="Voir l'espace de ce pompiste">Voir</a></td>
               </tr>
             `;
           }).join('')}
@@ -736,12 +734,12 @@ async function chargerCaoutchoucs() {
           const modifie = d.modifiePar != null;
           const flag = supprimee
             ? '<span class="badge danger" style="font-size:0.7rem;">supprimée</span>'
-            : (modifie ? '<span class="badge warn" style="font-size:0.7rem;" title="Modifiée">✏</span>' : '');
+            : (modifie ? '<span class="badge warn" style="font-size:0.7rem;" title="Modifiée">modifiée</span>' : '');
           let actions = '';
           if (!supprimee) {
             actions = `<div style="display:flex;gap:4px;justify-content:center;">
-              <button class="btn btn-sm" data-edit-caou="${d.id}" title="Modifier">✏</button>
-              <button class="btn btn-sm btn-danger" data-del-caou="${d.id}" title="Supprimer">🗑</button>
+              <button class="btn btn-sm" data-edit-caou="${d.id}" title="Modifier">Modifier</button>
+              <button class="btn btn-sm btn-danger" data-del-caou="${d.id}" title="Supprimer">Suppr.</button>
             </div>`;
           } else {
             actions = `<span class="muted" style="font-size:0.72rem;" title="Supprimée par ${escapeHtml(d.supprimeeParNom || '?')} — ${escapeHtml(d.raisonSuppression || '')}">supprimée</span>`;
@@ -777,7 +775,7 @@ function ouvrirEditRavit(id, list) {
   const r = list.find(x => x.id === id);
   if (!r) return;
   editCtx = { type: 'ravit', id, original: r };
-  document.getElementById('edit-decl-title').textContent = `✏ Modifier ravitaillement`;
+  document.getElementById('edit-decl-title').textContent = `Modifier ravitaillement`;
   document.getElementById('edit-decl-info').innerHTML =
     `<strong>${escapeHtml(r.pompisteNom || '?')}</strong> · ${escapeHtml(r.station || r.stationId)}<br>Valeur actuelle : <strong>${r.bidons || '?'} bidon(s)</strong> = ${num(r.litres || 0)} L`;
   document.getElementById('edit-decl-label').textContent = 'Nouvelle valeur en bidons (1 bidon = 15 L)';
@@ -791,7 +789,7 @@ function ouvrirEditCaou(id, list) {
   const d = list.find(x => x.id === id);
   if (!d) return;
   editCtx = { type: 'caou', id, original: d };
-  document.getElementById('edit-decl-title').textContent = `✏ Modifier déclaration caoutchoucs`;
+  document.getElementById('edit-decl-title').textContent = `Modifier déclaration caoutchoucs`;
   document.getElementById('edit-decl-info').innerHTML =
     `<strong>${escapeHtml(d.pompisteNom || '?')}</strong><br>Valeur actuelle : <strong>${d.caoutchoucs || 0} caoutchoucs</strong>`;
   document.getElementById('edit-decl-label').textContent = 'Nouvelle valeur en caoutchoucs';

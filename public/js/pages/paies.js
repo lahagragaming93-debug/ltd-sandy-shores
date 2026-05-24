@@ -71,7 +71,7 @@ function renderKpis() {
 
   document.getElementById('kpis-paies').innerHTML = `
     <div class="kpi kpi-recette">
-      <div class="label">💰 Total reçu <span class="muted" style="font-size:0.7rem;">(${escapeHtml(getPeriodeLabel())})</span></div>
+      <div class="label">Total reçu <span class="muted" style="font-size:0.7rem;">(${escapeHtml(getPeriodeLabel())})</span></div>
       <div class="value">${money(totalPeriode)}</div>
       <div class="delta">${plafond ? `plafond ${money(plafond)} / semaine` : 'tous versements'}</div>
     </div>

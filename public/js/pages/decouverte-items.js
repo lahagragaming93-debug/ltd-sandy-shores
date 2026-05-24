@@ -15,13 +15,12 @@ import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('admin');
 if (!isDirection(profile.role) && !isSuperAdmin(profile.role) && profile.role !== 'drh') {
-  document.body.innerHTML = '<div style="padding:30px;color:#fff;background:#1a1a1a;">⛔ Accès réservé à Direction / DRH / Admin Technique.</div>';
+  document.body.innerHTML = '<div style="padding:30px;color:#fff;background:#1a1a1a;">Accès réservé à Direction / DRH / Admin Technique.</div>';
   throw new Error('Forbidden');
 }
 
 const html = `
   <div class="alert info mb-2">
-    <span class="icon">🔍</span>
     <span>
       <strong>Outil de découverte des items FiveM.</strong> Liste agrégée de tous
       les noms d'items vus passer dans <code>#logs-ig</code> (collection
@@ -33,14 +32,14 @@ const html = `
   </div>
 
   <div class="row mb-2" style="flex-wrap:wrap;gap:8px;">
-    <button class="btn btn-primary" id="btn-recharger">🔄 Recharger</button>
+    <button class="btn btn-primary" id="btn-recharger">Recharger</button>
     <input type="text" id="filtre-recherche" placeholder="Filtrer par nom…" style="flex:1;min-width:200px;" />
     <select id="filtre-mapping">
       <option value="">Tous</option>
-      <option value="non-mappe">⚠ Non mappés (parasites / nouveaux)</option>
-      <option value="mappe">✓ Déjà dans le catalogue</option>
+      <option value="non-mappe">Non mappés (parasites / nouveaux)</option>
+      <option value="mappe">Déjà dans le catalogue</option>
     </select>
-    <button class="btn" id="btn-export-csv">📥 Export CSV</button>
+    <button class="btn" id="btn-export-csv">Export CSV</button>
     <span class="spacer"></span>
     <span class="muted mono" id="stats-items">—</span>
   </div>
@@ -150,7 +149,7 @@ function rendre() {
     const s = suggererCatalogue(i.nomFivem);
     return s && (s.type === 'exact' || s.type === 'exact-nom');
   }).length;
-  stats.textContent = `${visibles.length} affichés / ${items.length} uniques (${totalMappes} mappés ✓)`;
+  stats.textContent = `${visibles.length} affichés / ${items.length} uniques (${totalMappes} mappés)`;
 
   const tbody = document.getElementById('tbody-items');
   if (visibles.length === 0) {
@@ -159,10 +158,10 @@ function rendre() {
   }
   tbody.innerHTML = visibles.map(i => {
     const sug = suggererCatalogue(i.nomFivem);
-    let mapping = '<span class="badge warn">⚠ Non mappé</span>';
-    if (sug?.type === 'exact')      mapping = `<span class="badge ok">✓ ${escapeHtml(sug.produit.nom)}</span>`;
-    else if (sug?.type === 'exact-nom') mapping = `<span class="badge ok">✓ ${escapeHtml(sug.produit.nom)} <small>(par nom)</small></span>`;
-    else if (sug?.type === 'approx')    mapping = `<span class="badge" style="background:#fff8d4;color:#7a6800;border:1px solid #c9a961;">≈ ${escapeHtml(sug.produit.nom)} <small>(approx)</small></span>`;
+    let mapping = '<span class="badge warn">Non mappé</span>';
+    if (sug?.type === 'exact')      mapping = `<span class="badge ok">${escapeHtml(sug.produit.nom)}</span>`;
+    else if (sug?.type === 'exact-nom') mapping = `<span class="badge ok">${escapeHtml(sug.produit.nom)} <small>(par nom)</small></span>`;
+    else if (sug?.type === 'approx')    mapping = `<span class="badge" style="background:#fff8d4;color:#7a6800;border:1px solid #c9a961;">${escapeHtml(sug.produit.nom)} <small>(approx)</small></span>`;
 
     return `
       <tr>

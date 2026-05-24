@@ -15,17 +15,17 @@ const { profile } = await requireAuth('guide');
 // vendeur/pompiste lambda ne voie le workflow cloture, les regles TTE, etc.
 const ROLES_DIR_DRH = ['patron', 'co-patron', 'drh', 'admin-technique'];
 const GUIDES = [
-  { id: '00-index',                file: 'guide/00-index.md',                titre: '📋 Sommaire',                  pourQui: 'Tout le monde' },
-  { id: '01-direction',            file: 'guide/01-direction.md',            titre: '👑 Direction',                  pourQui: 'Patron, Co-Patron' },
-  { id: '02-drh',                  file: 'guide/02-drh.md',                  titre: '📋 DRH',                        pourQui: 'DRH (et direction)' },
-  { id: '03-responsable-vente',    file: 'guide/03-responsable-vente.md',    titre: '🛒 Responsable Vente',          pourQui: 'Responsable Vente' },
-  { id: '04-responsable-pompiste', file: 'guide/04-responsable-pompiste.md', titre: '⛽ Responsable Pompiste',       pourQui: 'Responsable Pompiste' },
-  { id: '05-vendeur',              file: 'guide/05-vendeur.md',              titre: '💵 Vendeur',                    pourQui: 'Vendeurs (Novice, Inter, Exp)' },
-  { id: '06-pompiste',             file: 'guide/06-pompiste.md',             titre: '🚗 Pompiste',                   pourQui: 'Pompistes (Novice, Inter, Exp)' },
-  { id: '07-automatismes',         file: 'guide/07-automatismes.md',         titre: '🤖 Automatismes',                pourQui: 'Tout le monde (technique)' },
-  { id: '08-faq-depannage',        file: 'guide/08-faq-depannage.md',        titre: '❓ FAQ + Dépannage',             pourQui: 'Tout le monde' },
-  { id: '09-comptabilite',         file: 'guide/09-comptabilite.md',         titre: '📋 Comptabilité',                pourQui: 'Direction, DRH, Admin Tech', acces: ROLES_DIR_DRH },
-  { id: '10-tte-reference',        file: 'guide/10-tte-reference.md',        titre: '📜 Référence T.T.E.',            pourQui: 'Direction, DRH, Admin Tech',  acces: ROLES_DIR_DRH }
+  { id: '00-index',                file: 'guide/00-index.md',                titre: 'Sommaire',                  pourQui: 'Tout le monde' },
+  { id: '01-direction',            file: 'guide/01-direction.md',            titre: 'Direction',                  pourQui: 'Patron, Co-Patron' },
+  { id: '02-drh',                  file: 'guide/02-drh.md',                  titre: 'DRH',                        pourQui: 'DRH (et direction)' },
+  { id: '03-responsable-vente',    file: 'guide/03-responsable-vente.md',    titre: 'Responsable Vente',          pourQui: 'Responsable Vente' },
+  { id: '04-responsable-pompiste', file: 'guide/04-responsable-pompiste.md', titre: 'Responsable Pompiste',       pourQui: 'Responsable Pompiste' },
+  { id: '05-vendeur',              file: 'guide/05-vendeur.md',              titre: 'Vendeur',                    pourQui: 'Vendeurs (Novice, Inter, Exp)' },
+  { id: '06-pompiste',             file: 'guide/06-pompiste.md',             titre: 'Pompiste',                   pourQui: 'Pompistes (Novice, Inter, Exp)' },
+  { id: '07-automatismes',         file: 'guide/07-automatismes.md',         titre: 'Automatismes',                pourQui: 'Tout le monde (technique)' },
+  { id: '08-faq-depannage',        file: 'guide/08-faq-depannage.md',        titre: 'FAQ + Dépannage',             pourQui: 'Tout le monde' },
+  { id: '09-comptabilite',         file: 'guide/09-comptabilite.md',         titre: 'Comptabilité',                pourQui: 'Direction, DRH, Admin Tech', acces: ROLES_DIR_DRH },
+  { id: '10-tte-reference',        file: 'guide/10-tte-reference.md',        titre: 'Référence T.T.E.',            pourQui: 'Direction, DRH, Admin Tech',  acces: ROLES_DIR_DRH }
 ];
 
 function peutVoirGuide(guide, role) {
@@ -53,7 +53,7 @@ const html = `
   <div class="guide-layout">
     <!-- Liste des guides (sidebar interne) -->
     <aside class="guide-toc panel">
-      <div class="panel-title"><span>📚 Tous les guides</span></div>
+      <div class="panel-title"><span>Tous les guides</span></div>
       <ul class="guide-list">
         ${GUIDES_VISIBLES.map(g => `
           <li>
@@ -69,7 +69,7 @@ const html = `
     <!-- Contenu rendu markdown -->
     <article class="guide-content panel">
       <div id="guide-toolbar" class="row mb-2" style="gap:8px; flex-wrap:wrap;">
-        <button class="btn btn-sm btn-ghost" id="btn-print">🖨 Imprimer / PDF</button>
+        <button class="btn btn-sm btn-ghost" id="btn-print">Imprimer / PDF</button>
         <span class="spacer"></span>
         <span class="muted" id="guide-lecture-info" style="font-size:0.8rem;"></span>
       </div>

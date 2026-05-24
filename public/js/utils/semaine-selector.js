@@ -22,9 +22,9 @@ import {
 } from './formatters.js';
 
 const STATUT_LABEL = {
-  'cloturee':           '✓ Clôturée',
-  'cloturee-manuelle':  '✓ Clôturée (manuelle)',
-  'cloturee-partielle': '⏳ Clôture partielle'
+  'cloturee':           'Clôturée',
+  'cloturee-manuelle':  'Clôturée (manuelle)',
+  'cloturee-partielle': 'Clôture partielle'
 };
 
 function fmtDateShort(d) {
@@ -55,7 +55,7 @@ function buildPayload(weekKey, semaine) {
     weekKey,
     debut, fin,
     statut: semaine?.statut || 'cloturee',
-    statutLabel: STATUT_LABEL[semaine?.statut] || '✓ Clôturée',
+    statutLabel: STATUT_LABEL[semaine?.statut] || 'Clôturée',
     isCurrent: false,
     semaine: semaine || null
   };
@@ -98,7 +98,7 @@ export async function initSemaineSelector(targetSelector, {
     const d = startOfWeekRP();
     const f = endOfWeekRP();
     const numIso = weekIsoNumber(d);
-    opts.push(`<option value="current">📅 Semaine ${numIso} (en cours) — du ${fmtDateShort(d)} au ${fmtDateLong(f)}</option>`);
+    opts.push(`<option value="current">Semaine ${numIso} (en cours) — du ${fmtDateShort(d)} au ${fmtDateLong(f)}</option>`);
   }
   for (const s of semaines) {
     const wk = s.id || s.numero;

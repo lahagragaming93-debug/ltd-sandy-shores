@@ -1,24 +1,24 @@
-# 💵 Guide Vendeur
+# Guide Vendeur
 
 > Tu es **vendeur** au LTD (Novice, Intermédiaire ou Expérimenté). Le site te montre **ton CA, ton bénéfice, ta progression et ta paie**. Tu n'as rien à saisir manuellement — tout est automatique depuis les logs Discord.
 
 ---
 
-## 🎯 Tes 2 pages
+## Tes 2 pages
 
 | Page | Contenu |
 |------|---------|
-| 👤 **Mon espace** | Tes performances de la semaine (CA, bénéfice, progression, salaire estimé) |
-| 💰 **Mes paies** | L'historique des paies que tu as reçues |
+| **Mon espace** | Tes performances de la semaine (CA, bénéfice, progression, salaire estimé) |
+| **Mes paies** | L'historique des paies que tu as reçues |
 
 C'est tout ! En tant que vendeur, tu as un accès très restreint et c'est normal — tu te concentres sur ton boulot.
 
 ---
 
-## 👤 Mon espace
+## Mon espace
 
 ### Ce que tu vois en haut
-- 👋 Message de bienvenue avec ton prénom
+- Message de bienvenue avec ton prénom
 - **Ton rôle** (Vendeur Novice / Inter / Exp)
 
 ### KPI vendeur
@@ -39,36 +39,36 @@ C'est tout ! En tant que vendeur, tu as un accès très restreint et c'est norma
 
 ### Heures de service
 Toutes tes prises et fins de service de la semaine, avec durée totale.
-- ✅ Si total ≥ 7h : marqueur OK
-- ⚠ Si < 7h : à compléter (sinon ta paie sera ridicule)
+- Si total ≥ 7h : marqueur OK
+- Si < 7h : à compléter (sinon ta paie sera ridicule)
 
 ### Ce que tu peux faire
-- **📝 Déclarer une vente** — bouton en haut de Mon espace (voir section dédiée ci-dessous)
+- **Déclarer une vente** — bouton en haut de Mon espace (voir section dédiée ci-dessous)
 - Tout le reste est en **lecture seule** (les chiffres viennent des logs Discord + tes déclarations)
 
-### 🗂 Consulter l'historique de tes semaines
+### Consulter l'historique de tes semaines
 Au-dessus du panel **« Détail de ta semaine »**, un **sélecteur de semaine** te permet de naviguer dans les semaines clôturées :
-- Par défaut : « 📅 Semaine en cours ».
+- Par défaut : « Semaine en cours ».
 - Tu peux choisir une semaine passée pour voir ton **CA, ton CA commissionnable, ton salaire calculé** et la **liste détaillée de tes factures** de cette semaine-là.
-- Les KPIs et progress bars du panel Détail se rechargent automatiquement, le badge `✓ Clôturée` apparaît à côté du titre.
+- Les KPIs et progress bars du panel Détail se rechargent automatiquement, le badge `Clôturée` apparaît à côté du titre.
 - Le tableau **« Mes factures de la semaine »** liste tes ventes avec date / #facture / client / paiement / montant / bénéfice.
 - Les blocs **Heures de service** et **Avertissements** restent toujours sur la semaine en cours.
 - Le choix est mémorisé dans la session — pas perdu au refresh.
 
 ---
 
-## 📝 Déclarer une vente (workflow obligatoire)
+## Déclarer une vente (workflow obligatoire)
 
 Pour qu'une vente compte dans ta commission, **tu dois la déclarer toi-même** sur le site. Le bot Discord remonte automatiquement la facture in-game, mais sans détail des produits — c'est toi qui les renseignes pour figer le bénéfice.
 
 ### Étapes
 1. **Fais la facture in-game** normalement
-2. Dans les secondes qui suivent, le bot Discord la remonte → elle apparaît dans **Mon espace → "📌 Vente in-game à déclarer"** (après 5 min, pour te laisser le temps de déclarer spontanément)
-3. Clique **"📝 Déclarer"** sur la ligne de la facture
+2. Dans les secondes qui suivent, le bot Discord la remonte → elle apparaît dans **Mon espace → "Vente in-game à déclarer"** (après 5 min, pour te laisser le temps de déclarer spontanément)
+3. Clique **"Déclarer"** sur la ligne de la facture
 4. La modal s'ouvre **avec la facture présélectionnée** + le **montant cible affiché**
 5. Saisis les produits que tu as vendus (autocomplete par texte)
 6. Le bouton **"Valider"** est désactivé tant que ton total ne matche pas exactement le montant in-game
-7. Quand ça matche : ✅ Valider → ta vente est enregistrée et compte pour la commission
+7. Quand ça matche : Valider → ta vente est enregistrée et compte pour la commission
 
 ### Pourquoi c'est obligatoire
 - **Anti-fraude** : impossible de déclarer une fausse vente (sans facture in-game associée)
@@ -88,14 +88,14 @@ Cas typique : tu factures un client, il n'a pas l'argent, tu supprimes la factur
 
 **Tu n'as rien d'autre à faire sur le site.** Le bot Discord détecte automatiquement la suppression IG (canal `#logs-ig`, embed `xbankaccount - cancel`) et :
 - Marque ta vente comme **annulée**
-- Elle disparaît automatiquement de ton bloc "📌 Vente in-game à déclarer"
-- Elle apparaît avec un badge `❌ Annulée` dans la vue RH (audit direction) avec le motif et la date
+- Elle disparaît automatiquement de ton bloc "Vente in-game à déclarer"
+- Elle apparaît avec un badge `Annulée` dans la vue RH (audit direction) avec le motif et la date
 
-⚠ **Important** : si tu déclares d'abord la vente sur le site **puis** tu supprimes la facture IG, la direction reçoit une alerte automatique (cas suspect : tu aurais encaissé sans rendre l'argent au client). Si tu te trompes, préviens ton responsable tout de suite.
+**Important** : si tu déclares d'abord la vente sur le site **puis** tu supprimes la facture IG, la direction reçoit une alerte automatique (cas suspect : tu aurais encaissé sans rendre l'argent au client). Si tu te trompes, préviens ton responsable tout de suite.
 
 ---
 
-## 💰 Mes paies
+## Mes paies
 
 ### Ce que tu vois
 - **Ce que tu as reçu cette semaine** + plafond TTE de ton grade
@@ -110,7 +110,7 @@ Cas typique : tu factures un client, il n'a pas l'argent, tu supprimes la factur
 
 ---
 
-## 💡 Comprendre ta paie
+## Comprendre ta paie
 
 Depuis le **23 mai 2026**, ton salaire a deux composantes : la **part CA** (jusqu'à 10/11/12k selon ton grade) + le **bonus quota fabrication** (jusqu'à 3 000 $). Le total est plafonné à 13/14/15k.
 
@@ -127,14 +127,14 @@ plafond_CA    = 10 000 $ (Novice) / 11 000 $ (Inter) / 12 000 $ (Exp)
 plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 ```
 
-> ⚠ **Important** : la part CA se calcule uniquement sur les ventes de produits **particulier** (bonbons, tickets à gratter, ballons, outils, etc.). Les produits **professionnels** (whey, huile, matières premières…) sont vendus uniquement par la direction aux autres entreprises.
+> **Important** : la part CA se calcule uniquement sur les ventes de produits **particulier** (bonbons, tickets à gratter, ballons, outils, etc.). Les produits **professionnels** (whey, huile, matières premières…) sont vendus uniquement par la direction aux autres entreprises.
 >
-> En revanche le **quota fabrication** est complètement indépendant des ventes : tu craftes les unités demandées et tu les déclares dans **Mon espace → "🛠 Déclarer une fabrication"**, peu importe ce que tu en fais ensuite.
+> En revanche le **quota fabrication** est complètement indépendant des ventes : tu craftes les unités demandées et tu les déclares dans **Mon espace → "Déclarer une fabrication"**, peu importe ce que tu en fais ensuite.
 
 ### Le quota fabrication
 
 - Chaque semaine, le patron définit un quota par produit parmi : **Pioche / Eau purifiée / Mastic carrosserie / Visseries** (un produit avec quota = 0 est désactivé pour la semaine).
-- Tu déclares tes fabrications via la section **🛠 Déclarer une fabrication** : saisis la quantité, clique **Valider**.
+- Tu déclares tes fabrications via la section **Déclarer une fabrication** : saisis la quantité, clique **Valider**.
 - Ton score = **moyenne des ratios** (`fait / quota`) sur les produits actifs, chacun plafonné à 100 %.
 - Le bonus est versé **au prorata** du score (50 % du score = 1 500 $ de bonus).
 
@@ -164,7 +164,7 @@ plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 
 ---
 
-## 📈 Comment maximiser ta paie
+## Comment maximiser ta paie
 
 ### 1. Maximise ton CA
 - Vise les **30 000 $** de CA commissionnable pour atteindre ton plafond CA (10/11/12k selon grade)
@@ -174,7 +174,7 @@ plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 ### 1bis. Atteins ton quota de fabrication
 - Si la semaine a un quota actif (pioche / eau / mastic / visseries), chaque produit fabriqué t'avance vers le bonus 3 000 $
 - Le bonus est versé **au prorata** : 50 % du score = 1 500 $
-- Déclare régulièrement tes craftings dans **Mon espace → 🛠 Déclarer une fabrication**
+- Déclare régulièrement tes craftings dans **Mon espace → Déclarer une fabrication**
 
 ### 2. Optimise tes heures de service
 - Pas d'heures = pas de présence = pas de ventes attribuées (et la direction ne te paiera pas)
@@ -192,20 +192,20 @@ Une « discordance » = une facture que tu fais sans qu'une sortie de stock soit
 
 ---
 
-## ⚠ Ce que tu ne peux PAS voir / faire
+## Ce que tu ne peux PAS voir / faire
 
-- ❌ Le Dashboard global (CA total LTD)
-- ❌ La liste des autres employés
-- ❌ Les comptes / rôles d'autres personnes
-- ❌ Modifier les prix
-- ❌ Voir les ventes des autres vendeurs
-- ❌ Décider ton propre salaire (c'est calculé, pas négocié)
+- Le Dashboard global (CA total LTD)
+- La liste des autres employés
+- Les comptes / rôles d'autres personnes
+- Modifier les prix
+- Voir les ventes des autres vendeurs
+- Décider ton propre salaire (c'est calculé, pas négocié)
 
 C'est normal et c'est par sécurité — chacun ne voit que ses propres infos.
 
 ---
 
-## 📅 Ta semaine type
+## Ta semaine type
 
 ### Tous les jours
 - En arrivant en service → vérifie ton **Mon espace** :
@@ -224,7 +224,7 @@ C'est normal et c'est par sécurité — chacun ne voit que ses propres infos.
 
 ---
 
-## ❓ Questions fréquentes
+## Questions fréquentes
 
 **« Pourquoi mon CA ne monte pas après ma vente ? »**
 Le bot Discord n'a peut-être pas remonté ta facture (canal `#suivi-facture`). Attends 30 secondes, sinon préviens ton responsable.

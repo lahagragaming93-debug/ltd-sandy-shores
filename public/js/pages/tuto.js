@@ -35,49 +35,49 @@ const TUTOS = {
 
   // ============ POMPISTE ============
   pompiste: {
-    label: '⛽ Pompiste',
+    label: 'Pompiste',
     color: '#5a8',
     slides: [
       {
-        emoji: '🤠',
+        emoji: '01',
         title: 'Bienvenue chez LTD Sandy Shores',
         body: `
           <p>Salut <strong>${profile.prenom || 'collègue'}</strong> ! Tu rejoins l'équipe <strong>pompiste</strong> de Sandy Shores.</p>
           <p>Ton boulot : faire tourner les <strong>8 stations essence</strong> du LTD + fabriquer les <strong>caoutchoucs</strong> pour la production de pneus.</p>
           <div class="tuto-callout">
-            💡 Ce tuto t'explique <strong>toute la procédure</strong> : ce que tu fais en RP (in-game) ET sur la tablette du site.<br>
-            Garde-le sous la main, tu peux le revoir n'importe quand depuis le bouton 📚 sur ton espace.
+            Ce tuto t'explique <strong>toute la procédure</strong> : ce que tu fais en RP (in-game) ET sur la tablette du site.<br>
+            Garde-le sous la main, tu peux le revoir n'importe quand depuis le bouton Tutoriel sur ton espace.
           </div>
         `
       },
       {
-        emoji: '🎯',
+        emoji: '02',
         title: 'Ton rôle en 30 secondes',
         body: `
           <p>Tu as <strong>2 missions principales</strong> :</p>
           <ul>
-            <li>🛢 <strong>Ravitailler les 8 stations</strong> quand leur stock baisse — c'est ce qui permet aux clients d'acheter du carburant</li>
-            <li>🪖 <strong>Fabriquer les caoutchoucs</strong> à l'atelier — le LTD les revend ensuite à des acheteurs pro</li>
+            <li><strong>Ravitailler les 8 stations</strong> quand leur stock baisse — c'est ce qui permet aux clients d'acheter du carburant</li>
+            <li><strong>Fabriquer les caoutchoucs</strong> à l'atelier — le LTD les revend ensuite à des acheteurs pro</li>
           </ul>
           <p>Tu travailles en <strong>autonomie</strong>. Ton salaire dépend directement de ce que tu produis dans la semaine.</p>
           <div class="tuto-callout warn">
-            ⚠ Une semaine sans rien produire = avertissement automatique en fin de semaine. 3 averts = compte bloqué.
+            <strong>Attention :</strong> une semaine sans rien produire = avertissement automatique en fin de semaine. 3 averts = compte bloqué.
           </div>
         `
       },
       {
-        emoji: '📦',
+        emoji: '03',
         title: 'Étape 1 — Récupérer les bidons',
         body: `
           <p><span class="ig">EN JEU</span> Rends-toi aux <strong>stocks de bidons d'essence</strong> du LTD.</p>
           <p>Prends le nombre de bidons que tu prévois de redistribuer dans les stations. Chaque bidon = <strong>15 litres</strong>.</p>
           <div class="tuto-callout info">
-            💡 Astuce : avant de partir, jette un œil sur la tablette → "⛽ Stations essence" pour repérer les stations <strong>sous seuil</strong> (en alerte rouge) — ce sont elles à prioriser.
+            <strong>Astuce :</strong> avant de partir, jette un œil sur la tablette → "Stations essence" pour repérer les stations <strong>sous seuil</strong> (en alerte rouge) — ce sont elles à prioriser.
           </div>
         `
       },
       {
-        emoji: '⛽',
+        emoji: '04',
         title: 'Étape 2 — Ravitailler la station',
         body: `
           <p><span class="ig">EN JEU</span> Va à la station essence à ravitailler.</p>
@@ -88,30 +88,30 @@ const TUTOS = {
           </ol>
           <p>Retiens bien combien de bidons tu as mis : tu vas devoir le déclarer juste après sur la tablette.</p>
           <div class="tuto-callout">
-            💡 Tu peux ravitailler plusieurs stations à la suite avant de déclarer — pense juste à noter combien à chaque arrêt.
+            <strong>Astuce :</strong> tu peux ravitailler plusieurs stations à la suite avant de déclarer — pense juste à noter combien à chaque arrêt.
           </div>
         `
       },
       {
-        emoji: '📱',
+        emoji: '05',
         title: 'Étape 3 — Déclarer sur la tablette',
         body: `
           <p><span class="site">SUR LE SITE</span> Une fois la station ravitaillée, déclare immédiatement :</p>
           <ol>
             <li>Ouvre la tablette LTD</li>
             <li>Va sur <strong>"Mon espace"</strong></li>
-            <li>Clique sur le bouton <strong>"🛢 Ravitailler une station"</strong></li>
+            <li>Clique sur le bouton <strong>"Ravitailler une station"</strong></li>
             <li>Sélectionne la station que tu viens de remplir</li>
             <li>Saisis le <strong>nombre de bidons</strong> ajoutés (<em>pas en litres</em> — le site convertit tout seul)</li>
             <li>Valide → le stock de la station se met à jour et ton quota augmente</li>
           </ol>
           <div class="tuto-callout">
-            ✓ <strong>Pourquoi déclarer ?</strong> C'est la seule façon que ton quota grimpe et que ta paie soit calculée correctement. Pas de déclaration = pas de salaire.
+            <strong>Pourquoi déclarer ?</strong> C'est la seule façon que ton quota grimpe et que ta paie soit calculée correctement. Pas de déclaration = pas de salaire.
           </div>
         `
       },
       {
-        emoji: '🪖',
+        emoji: '06',
         title: 'Caoutchoucs — production',
         body: `
           <p><span class="ig">EN JEU</span> À l'<strong>atelier LTD</strong>, fabrique des caoutchoucs :</p>
@@ -120,20 +120,20 @@ const TUTOS = {
             <li>Lance la production à l'établi</li>
             <li>Dépose les caoutchoucs finis dans le <strong>coffre dédié</strong> (NE LES GARDE PAS SUR TOI)</li>
           </ol>
-          <p><span class="site">SUR LE SITE</span> Ouvre <strong>"Mon espace"</strong> → bouton <strong>"🪖 Déclarer des caoutchoucs"</strong> → saisis le nombre produit.</p>
+          <p><span class="site">SUR LE SITE</span> Ouvre <strong>"Mon espace"</strong> → bouton <strong>"Déclarer des caoutchoucs"</strong> → saisis le nombre produit.</p>
           <div class="tuto-callout warn">
-            ⚠ Si le patron a désactivé les caoutchoucs cette semaine (quota = 0), le bouton sera grisé. Concentre-toi sur les bidons dans ce cas.
+            <strong>Attention :</strong> si le patron a désactivé les caoutchoucs cette semaine (quota = 0), le bouton sera grisé. Concentre-toi sur les bidons dans ce cas.
           </div>
         `
       },
       {
-        emoji: '💰',
+        emoji: '07',
         title: 'Comment ton salaire est calculé',
         body: `
           <p>Quota hebdomadaire (du <strong>lundi 00h00</strong> au <strong>dimanche 23h59</strong>) :</p>
           <ul>
-            <li>🛢 <strong>1700 bidons</strong> (modifiable par la direction selon la semaine)</li>
-            <li>🪖 <strong>800 caoutchoucs</strong> (idem)</li>
+            <li><strong>1700 bidons</strong> (modifiable par la direction selon la semaine)</li>
+            <li><strong>800 caoutchoucs</strong> (idem)</li>
           </ul>
           <p>Formule : <strong>moyenne des 2 quotas × plafond ton rôle</strong></p>
           <ul>
@@ -142,12 +142,12 @@ const TUTOS = {
             <li>Pompiste expérimenté : <strong>15 000 $</strong></li>
           </ul>
           <div class="tuto-callout">
-            💡 Atteindre les <strong>2 quotas à 100%</strong> = plafond max. Si tu en fais qu'un, tu touches déjà la moitié. Si un quota est désactivé (= 0), l'autre porte le plafond entier.
+            <strong>Astuce :</strong> atteindre les <strong>2 quotas à 100%</strong> = plafond max. Si tu en fais qu'un, tu touches déjà la moitié. Si un quota est désactivé (= 0), l'autre porte le plafond entier.
           </div>
         `
       },
       {
-        emoji: '💸',
+        emoji: '08',
         title: 'Note de frais — essence véhicule LTD',
         body: `
           <p>Il arrive que tu doives <strong>avancer de ta poche</strong> l'essence d'un véhicule LTD (camion, voiture de service…). Tu te fais rembourser via le site.</p>
@@ -155,33 +155,33 @@ const TUTOS = {
           <ol>
             <li><span class="ig">EN JEU</span> Mets l'essence dans le véhicule</li>
             <li><span class="ig">EN JEU</span> <strong>Prends un screenshot</strong> de la confirmation IG (touche écran de ta config)</li>
-            <li><span class="site">SUR LE SITE</span> "Mon espace" → bouton <strong>"💸 Note de frais essence"</strong></li>
+            <li><span class="site">SUR LE SITE</span> "Mon espace" → bouton <strong>"Note de frais essence"</strong></li>
             <li>Saisis le montant avancé + <strong>colle le screenshot (Ctrl+V)</strong> dans la zone prévue</li>
             <li>Envoie la note → le patron valide et te rembourse en fin de semaine</li>
           </ol>
           <div class="tuto-callout">
-            💡 Tu peux suivre l'état de tes notes dans la section <strong>"Mes notes de frais essence"</strong> en bas de ton espace : en attente / approuvée / remboursée / rejetée.
+            <strong>Astuce :</strong> tu peux suivre l'état de tes notes dans la section <strong>"Mes notes de frais essence"</strong> en bas de ton espace : en attente / approuvée / remboursée / rejetée.
           </div>
         `
       },
       {
-        emoji: '📐',
+        emoji: '09',
         title: 'Cas spécial — corriger un stock',
         body: `
           <p>Il peut arriver qu'il y ait un <strong>écart</strong> entre le stock affiché sur le site et la valeur réelle in-game (déconnexion au mauvais moment, bug, etc.).</p>
-          <p>Sur "Mon espace" → bouton <strong>"📐 Corriger un stock"</strong> :</p>
+          <p>Sur "Mon espace" → bouton <strong>"Corriger un stock"</strong> :</p>
           <ul>
             <li>Sélectionne la station concernée</li>
             <li>Saisis la <strong>valeur réelle IG</strong> en litres</li>
             <li>Donne une <strong>raison détaillée</strong> (5 caractères min, sera lue par la direction)</li>
           </ul>
           <div class="tuto-callout warn">
-            ⚠ Une <strong>alerte est envoyée à la direction</strong> à chaque correction. C'est pour l'audit. N'abuse pas — utilise uniquement en cas d'écart vérifié.
+            <strong>Attention :</strong> une <strong>alerte est envoyée à la direction</strong> à chaque correction. C'est pour l'audit. N'abuse pas — utilise uniquement en cas d'écart vérifié.
           </div>
         `
       },
       {
-        emoji: '⚠',
+        emoji: '10',
         title: 'Avertissements & blocage',
         body: `
           <p>Le système de sanctions est <strong>automatique</strong> :</p>
@@ -191,21 +191,21 @@ const TUTOS = {
             <li>Seul le patron peut <strong>retirer un avert</strong> manuellement</li>
           </ul>
           <div class="tuto-callout danger">
-            🚫 Compte bloqué = plus de paie estimée tant que ce n'est pas débloqué. Préviens la direction.
+            <strong>Important :</strong> compte bloqué = plus de paie estimée tant que ce n'est pas débloqué. Préviens la direction.
           </div>
           <p>Tes avertissements actifs s'affichent en haut de ton espace.</p>
         `
       },
       {
-        emoji: '🚀',
+        emoji: '11',
         title: 'C\'est parti !',
         body: `
           <p>Tu as toutes les cartes en main. Récap des boutons que tu trouveras sur <strong>"Mon espace"</strong> :</p>
           <ul>
-            <li>🛢 <strong>Ravitailler une station</strong> — déclare chaque ravitaillement</li>
-            <li>🪖 <strong>Déclarer des caoutchoucs</strong> — déclare la production</li>
-            <li>📐 <strong>Corriger un stock</strong> — uniquement en cas d'écart</li>
-            <li>💸 <strong>Note de frais essence</strong> — avance perso à rembourser</li>
+            <li><strong>Ravitailler une station</strong> — déclare chaque ravitaillement</li>
+            <li><strong>Déclarer des caoutchoucs</strong> — déclare la production</li>
+            <li><strong>Corriger un stock</strong> — uniquement en cas d'écart</li>
+            <li><strong>Note de frais essence</strong> — avance perso à rembourser</li>
           </ul>
           <p>Et plus bas tu suivras en temps réel :</p>
           <ul>
@@ -215,7 +215,7 @@ const TUTOS = {
             <li>Tes <strong>notes de frais</strong> en cours</li>
           </ul>
           <div class="tuto-callout">
-            🏁 Bonne route, et n'hésite pas à demander à ton responsable pompiste ou à la direction si tu as un doute !
+            Bonne route, et n'hésite pas à demander à ton responsable pompiste ou à la direction si tu as un doute !
           </div>
         `
       }
@@ -224,38 +224,38 @@ const TUTOS = {
 
   // ============ VENDEUR ============
   vendeur: {
-    label: '🛒 Vendeur',
+    label: 'Vendeur',
     color: '#e6c388',
     slides: [
       {
-        emoji: '🤠',
+        emoji: '12',
         title: 'Bienvenue chez LTD Sandy Shores',
         body: `
           <p>Salut <strong>${profile.prenom || 'collègue'}</strong> ! Tu rejoins l'équipe <strong>vente</strong> du LTD.</p>
           <p>Tu vas vendre les produits de l'épicerie LTD aux clients qui se présentent en magasin.</p>
           <div class="tuto-callout">
-            💡 Ce tuto t'explique <strong>toute la procédure</strong> de vente : RP en jeu + déclaration sur la tablette pour que ta commission soit bien calculée.
+            Ce tuto t'explique <strong>toute la procédure</strong> de vente : RP en jeu + déclaration sur la tablette pour que ta commission soit bien calculée.
           </div>
         `
       },
       {
-        emoji: '🎯',
+        emoji: '13',
         title: 'Ton rôle en 30 secondes',
         body: `
           <p>Ta mission :</p>
           <ul>
-            <li>🛒 <strong>Accueillir les clients</strong> dans le magasin LTD</li>
-            <li>💵 <strong>Vendre les produits</strong> de l'inventaire (épicerie + autres)</li>
-            <li>📝 <strong>Déclarer chaque vente</strong> sur la tablette (pour que ta commission soit calculée)</li>
+            <li><strong>Accueillir les clients</strong> dans le magasin LTD</li>
+            <li><strong>Vendre les produits</strong> de l'inventaire (épicerie + autres)</li>
+            <li><strong>Déclarer chaque vente</strong> sur la tablette (pour que ta commission soit calculée)</li>
           </ul>
           <p>Ton salaire est <strong>une commission</strong> sur le CA que tu génères.</p>
           <div class="tuto-callout warn">
-            ⚠ Ce qui n'est pas déclaré n'est <strong>pas commissionné</strong>. Si tu zappes la déclaration, tu travailles gratos.
+            <strong>Attention :</strong> ce qui n'est pas déclaré n'est <strong>pas commissionné</strong>. Si tu zappes la déclaration, tu travailles gratos.
           </div>
         `
       },
       {
-        emoji: '🤝',
+        emoji: '14',
         title: 'Étape 1 — Accueillir le client',
         body: `
           <p><span class="ig">EN JEU</span> Quand un client entre dans le magasin :</p>
@@ -266,12 +266,12 @@ const TUTOS = {
             <li>Note dans ta tête le total à encaisser</li>
           </ol>
           <div class="tuto-callout">
-            💡 Les <strong>clients pro / entreprises</strong> prennent rendez-vous via Discord avec la direction — ils ne passent jamais directement par toi. Tu n'as donc affaire qu'à des <strong>particuliers</strong>.
+            <strong>Astuce :</strong> les <strong>clients pro / entreprises</strong> prennent rendez-vous via Discord avec la direction — ils ne passent jamais directement par toi. Tu n'as donc affaire qu'à des <strong>particuliers</strong>.
           </div>
         `
       },
       {
-        emoji: '💵',
+        emoji: '15',
         title: 'Étape 2 — Encaisser puis remettre',
         body: `
           <p>Ordre <strong>obligatoire</strong> pour chaque vente :</p>
@@ -282,36 +282,36 @@ const TUTOS = {
             <li><span class="ig">EN JEU</span> <strong>Maintenant seulement</strong>, remets les produits au client</li>
           </ol>
           <div class="tuto-callout danger">
-            💰 <strong>Règle d'or : pas de paiement, pas de produit.</strong><br>
+            <strong>Règle d'or : pas de paiement, pas de produit.</strong><br>
             Tu encaisses TOUJOURS avant de donner la marchandise. Pas d'exception, pas de "je te paie après". Si le client refuse, il sort sans rien.
           </div>
           <div class="tuto-callout info">
-            ⚡ Le bot Discord remonte automatiquement la facture sur le site dans la minute → tu n'as plus qu'à cliquer "📝 Déclarer" pour détailler les produits.
+            <strong>Important :</strong> le bot Discord remonte automatiquement la facture sur le site dans la minute → tu n'as plus qu'à cliquer "Déclarer" pour détailler les produits.
           </div>
         `
       },
       {
-        emoji: '📱',
+        emoji: '16',
         title: 'Étape 3 — Déclarer le détail sur la tablette',
         body: `
-          <p><span class="site">SUR LE SITE</span> Sur <strong>"Mon espace"</strong>, tu verras un bloc orange <strong>"📌 Ventes à déclarer"</strong> avec toutes tes factures non encore détaillées.</p>
+          <p><span class="site">SUR LE SITE</span> Sur <strong>"Mon espace"</strong>, tu verras un bloc orange <strong>"Ventes à déclarer"</strong> avec toutes tes factures non encore détaillées.</p>
           <ol>
-            <li>Clique sur <strong>"📝 Déclarer"</strong> à droite de la facture</li>
+            <li>Clique sur <strong>"Déclarer"</strong> à droite de la facture</li>
             <li>Sélectionne les <strong>produits vendus</strong> (le stock se décrémente automatiquement)</li>
             <li>Vérifie le moyen de paiement (espèces, virement, banque)</li>
             <li>Valide</li>
           </ol>
           <div class="tuto-callout">
-            ✓ Une fois déclaré : ta commission est calculée, le stock à jour, la vente verrouillée. <strong>Ensuite</strong> seulement tu remets le produit au client.
+            Une fois déclaré : ta commission est calculée, le stock à jour, la vente verrouillée. <strong>Ensuite</strong> seulement tu remets le produit au client.
           </div>
         `
       },
       {
-        emoji: '✍',
+        emoji: '17',
         title: 'Cas particulier — déclarer une vente à la main',
         body: `
-          <p>Dans 99 % des cas, la facture remonte toute seule via le bot Discord et tu cliques juste "📝 Déclarer". Mais parfois (bug, oubli, vente RP en livraison), tu dois saisir la vente <strong>entièrement à la main</strong>.</p>
-          <p><span class="site">SUR LE SITE</span> Bouton <strong>"📝 Déclarer une vente"</strong> en haut de "Mon espace" :</p>
+          <p>Dans 99 % des cas, la facture remonte toute seule via le bot Discord et tu cliques juste "Déclarer". Mais parfois (bug, oubli, vente RP en livraison), tu dois saisir la vente <strong>entièrement à la main</strong>.</p>
+          <p><span class="site">SUR LE SITE</span> Bouton <strong>"Déclarer une vente"</strong> en haut de "Mon espace" :</p>
           <ol>
             <li>Choisis les produits dans le menu</li>
             <li>Renseigne le client (nom RP)</li>
@@ -319,12 +319,12 @@ const TUTOS = {
             <li>Valide</li>
           </ol>
           <div class="tuto-callout info">
-            💡 N'utilise cette méthode que <strong>si tu n'as pas pu faire la facture in-game</strong>. Le flow normal (facture IG + déclaration sur la tablette) reste toujours à privilégier.
+            <strong>Astuce :</strong> n'utilise cette méthode que <strong>si tu n'as pas pu faire la facture in-game</strong>. Le flow normal (facture IG + déclaration sur la tablette) reste toujours à privilégier.
           </div>
         `
       },
       {
-        emoji: '💰',
+        emoji: '18',
         title: 'Ta paie — 2 composantes',
         body: `
           <p>Depuis le <strong>23 mai 2026</strong>, ton salaire hebdomadaire a <strong>2 parts</strong> :</p>
@@ -334,12 +334,12 @@ const TUTOS = {
           </ul>
           <p>Plafond CA par grade : 10 000 $ (Novice) / 11 000 $ (Inter) / 12 000 $ (Exp). Plafond total = plafond CA + 3 000 $.</p>
           <div class="tuto-callout info">
-            💡 Toute vente non déclarée sur la tablette = pas de part CA. Toute fabrication non déclarée = pas de bonus. <strong>Déclare systématiquement.</strong>
+            <strong>Important :</strong> toute vente non déclarée sur la tablette = pas de part CA. Toute fabrication non déclarée = pas de bonus. <strong>Déclare systématiquement.</strong>
           </div>
         `
       },
       {
-        emoji: '🎯',
+        emoji: '19',
         title: 'Quota CA hebdomadaire',
         body: `
           <p>Tu dois atteindre un <strong>CA commissionnable minimum chaque semaine</strong> :</p>
@@ -350,46 +350,46 @@ const TUTOS = {
           </ul>
           <p>Sur ton espace, une barre de progression t'indique en temps réel où tu en es par rapport au quota.</p>
           <div class="tuto-callout">
-            💡 Suivi temps-réel sur "Mon espace" — pas de mauvaise surprise dimanche soir si tu regardes ton avancement régulièrement.
+            <strong>Astuce :</strong> suivi temps-réel sur "Mon espace" — pas de mauvaise surprise dimanche soir si tu regardes ton avancement régulièrement.
           </div>
         `
       },
       {
-        emoji: '🛠',
+        emoji: '20',
         title: 'Quota de fabrication — bonus 3 000 $',
         body: `
           <p>En plus du CA, chaque semaine peut avoir un <strong>quota de fabrication</strong> (décidé par le patron à la clôture précédente) sur 4 produits possibles :</p>
           <ul>
-            <li>🔨 <strong>Pioche</strong></li>
-            <li>💧 <strong>Bouteille d'eau purifiée</strong></li>
-            <li>🛠 <strong>Mastic carrosserie</strong></li>
-            <li>🔩 <strong>Visseries</strong></li>
+            <li><strong>Pioche</strong></li>
+            <li><strong>Bouteille d'eau purifiée</strong></li>
+            <li><strong>Mastic carrosserie</strong></li>
+            <li><strong>Visseries</strong></li>
           </ul>
-          <p>Pour chaque produit avec un quota &gt; 0, tu déclares tes unités craftées dans <strong>Mon espace → 🛠 Déclarer une fabrication</strong> (saisie libre).</p>
+          <p>Pour chaque produit avec un quota &gt; 0, tu déclares tes unités craftées dans <strong>Mon espace → Déclarer une fabrication</strong> (saisie libre).</p>
           <p>Le bonus est versé <strong>au prorata du score moyen</strong> : chaque produit compte pour une part égale, plafonné à 100 %. 50 % de score = 1 500 $ de bonus, 100 % = 3 000 $.</p>
           <div class="tuto-callout">
-            💡 Un produit avec quota = 0 est désactivé pour la semaine (n'entre pas dans le calcul). Si tous sont à 0 : seule la part CA compte.
+            <strong>Astuce :</strong> un produit avec quota = 0 est désactivé pour la semaine (n'entre pas dans le calcul). Si tous sont à 0 : seule la part CA compte.
           </div>
         `
       },
       {
-        emoji: '📈',
+        emoji: '21',
         title: 'Plafond total — atteindre 13/14/15 000 $',
         body: `
           <p>Ton salaire total est plafonné selon ton grade (TTE Chap. IV Art. 4-1.5) :</p>
           <ul>
-            <li>🌱 Vendeur novice : <strong>13 000 $</strong> (10k CA + 3k bonus)</li>
-            <li>💼 Vendeur intermédiaire : <strong>14 000 $</strong> (11k CA + 3k bonus)</li>
-            <li>⭐ Vendeur expérimenté : <strong>15 000 $</strong> (12k CA + 3k bonus)</li>
+            <li>Vendeur novice : <strong>13 000 $</strong> (10k CA + 3k bonus)</li>
+            <li>Vendeur intermédiaire : <strong>14 000 $</strong> (11k CA + 3k bonus)</li>
+            <li>Vendeur expérimenté : <strong>15 000 $</strong> (12k CA + 3k bonus)</li>
           </ul>
           <p>Pour toucher ton plafond complet : <strong>30 000 $ de CA</strong> ET <strong>100 % du quota fabrication</strong>.</p>
           <div class="tuto-callout">
-            💡 Sans quota fabrication actif (= tous quotas à 0), le bonus = 0 et tu plafonnes à 10/11/12k selon ton grade.
+            <strong>Astuce :</strong> sans quota fabrication actif (= tous quotas à 0), le bonus = 0 et tu plafonnes à 10/11/12k selon ton grade.
           </div>
         `
       },
       {
-        emoji: '⚠',
+        emoji: '22',
         title: 'Avertissements & blocage',
         body: `
           <p>Même système que les autres rôles :</p>
@@ -399,18 +399,18 @@ const TUTOS = {
             <li>3 averts actifs = <strong>compte bloqué</strong> (lecture seule, plus de vente possible)</li>
           </ul>
           <div class="tuto-callout danger">
-            🚫 La fraude (montant déclaré ≠ encaissé, vente fictive) entraîne un avert direct + sanction RP.
+            <strong>Important :</strong> la fraude (montant déclaré ≠ encaissé, vente fictive) entraîne un avert direct + sanction RP.
           </div>
         `
       },
       {
-        emoji: '🚀',
+        emoji: '23',
         title: 'C\'est parti !',
         body: `
           <p>Récap des boutons sur <strong>"Mon espace"</strong> :</p>
           <ul>
-            <li>📝 <strong>Déclarer une vente</strong> — vente directe sans facture bot</li>
-            <li>📌 <strong>Ventes à déclarer</strong> (auto) — factures remontées par le bot, à détailler</li>
+            <li><strong>Déclarer une vente</strong> — vente directe sans facture bot</li>
+            <li><strong>Ventes à déclarer</strong> (auto) — factures remontées par le bot, à détailler</li>
           </ul>
           <p>Et plus bas en temps réel :</p>
           <ul>
@@ -420,7 +420,7 @@ const TUTOS = {
             <li>Tes <strong>heures de service</strong> cumulées</li>
           </ul>
           <div class="tuto-callout">
-            🏁 Bonne vente ! Pour toute question, ton responsable vente ou la direction sont là.
+            Bonne vente ! Pour toute question, ton responsable vente ou la direction sont là.
           </div>
         `
       }
@@ -429,75 +429,75 @@ const TUTOS = {
 
   // ============ RESPONSABLE POMPISTE ============
   'resp-pompiste': {
-    label: '⛽ Responsable Pompiste',
+    label: 'Responsable Pompiste',
     color: '#c93',
     slides: [
       {
-        emoji: '👔',
+        emoji: '24',
         title: 'Bienvenue Responsable Pompiste',
         body: `
           <p>Salut <strong>${profile.prenom || 'collègue'}</strong> ! Tu es <strong>Responsable Pompiste</strong> chez LTD Sandy Shores.</p>
           <p>Tu pilotes l'équipe pompiste : tu valides leur travail, modères leurs déclarations, traites les notes de frais, et tu produits aussi (comme un pompiste classique).</p>
           <div class="tuto-callout">
-            💡 Ce tuto te liste <strong>toutes les fonctions auxquelles tu as accès</strong> et la procédure complète d'un manager d'équipe pompiste.
+            Ce tuto te liste <strong>toutes les fonctions auxquelles tu as accès</strong> et la procédure complète d'un manager d'équipe pompiste.
           </div>
         `
       },
       {
-        emoji: '🎯',
+        emoji: '25',
         title: 'Tes responsabilités',
         body: `
           <ul>
-            <li>📊 <strong>Piloter l'équipe</strong> : suivre l'avancement de chaque pompiste sur la semaine</li>
-            <li>✏ <strong>Modérer les déclarations</strong> : corriger ou supprimer les ravitaillements / caoutchoucs en cas d'erreur</li>
-            <li>💸 <strong>Suivre les notes de frais</strong> essence (lecture, la direction valide)</li>
-            <li>⛽ <strong>Configurer les stations</strong> : ajouter/modifier prix, capacités, seuils d'alerte</li>
-            <li>🚛 <strong>Produire toi-même</strong> bidons + caoutchoucs (tu as un quota et un salaire comme un pompiste)</li>
+            <li><strong>Piloter l'équipe</strong> : suivre l'avancement de chaque pompiste sur la semaine</li>
+            <li><strong>Modérer les déclarations</strong> : corriger ou supprimer les ravitaillements / caoutchoucs en cas d'erreur</li>
+            <li><strong>Suivre les notes de frais</strong> essence (lecture, la direction valide)</li>
+            <li><strong>Configurer les stations</strong> : ajouter/modifier prix, capacités, seuils d'alerte</li>
+            <li><strong>Produire toi-même</strong> bidons + caoutchoucs (tu as un quota et un salaire comme un pompiste)</li>
           </ul>
           <p>Ton salaire est <strong>fixé par le patron</strong>, plafond <strong>17 000 $</strong>.</p>
         `
       },
       {
-        emoji: '👥',
+        emoji: '26',
         title: 'Page principale — /stations',
         body: `
-          <p>Va sur <strong>"⛽ Stations essence"</strong> dans la sidebar. C'est ton tableau de bord opérationnel.</p>
+          <p>Va sur <strong>"Stations essence"</strong> dans la sidebar. C'est ton tableau de bord opérationnel.</p>
           <p>Tu y trouves dans cet ordre :</p>
           <ol>
             <li><strong>KPI globaux</strong> : nb stations, stock total, stations en alerte, quota bidon/sem</li>
             <li><strong>Grille des 8 stations</strong> : niveau de chaque cuve, alerte si sous seuil, prix au litre</li>
-            <li><strong>👥 Pilotage pompistes</strong> : tableau récap avec bidons/quota, caoutchoucs/quota, dernière activité, statut, lien vers leur espace</li>
-            <li><strong>Redistributions de la semaine</strong> : toutes les déclarations de ravitaillement avec actions ✏ / 🗑</li>
+            <li><strong>Pilotage pompistes</strong> : tableau récap avec bidons/quota, caoutchoucs/quota, dernière activité, statut, lien vers leur espace</li>
+            <li><strong>Redistributions de la semaine</strong> : toutes les déclarations de ravitaillement avec actions Modifier / Supprimer</li>
             <li><strong>Déclarations caoutchoucs</strong> : idem pour la production caoutchoucs</li>
           </ol>
         `
       },
       {
-        emoji: '👁',
+        emoji: '27',
         title: 'Suivre tes pompistes',
         body: `
-          <p>Dans le panel <strong>"👥 Pilotage pompistes"</strong> :</p>
+          <p>Dans le panel <strong>"Pilotage pompistes"</strong> :</p>
           <ul>
             <li>Tableau trié par <strong>score décroissant</strong> (les en retard en bas)</li>
             <li>Barres de progression bidons + caoutchoucs : <span style="color:#5a8;">vert si atteint</span>, <span style="color:#d33;">rouge si &lt; 30%</span></li>
             <li>Total <strong>litres redistribués</strong> + nombre de ravitaillements</li>
             <li>Timestamp de la <strong>dernière activité</strong> — repère les inactifs</li>
-            <li>Statut : ✓ Atteint / 🟢 En cours / ⚠ En retard / ⚪ Rien fait</li>
-            <li>Bouton <strong>👁</strong> ouvre l'espace personnel du pompiste (lecture seule) pour voir exactement ce qu'il voit</li>
+            <li>Statut : Atteint / En cours / En retard / Rien fait</li>
+            <li>Bouton <strong>Voir</strong> ouvre l'espace personnel du pompiste (lecture seule) pour voir exactement ce qu'il voit</li>
           </ul>
           <div class="tuto-callout">
-            💡 En milieu de semaine, relance les ⚪ et les ⚠ pour qu'ils mettent un coup d'accélérateur.
+            <strong>Astuce :</strong> en milieu de semaine, relance les inactifs et les en retard pour qu'ils mettent un coup d'accélérateur.
           </div>
         `
       },
       {
-        emoji: '✏',
+        emoji: '28',
         title: 'Modifier une déclaration',
         body: `
           <p>Si un pompiste a saisi une mauvaise valeur (ex : 50 bidons au lieu de 5), tu peux corriger :</p>
           <ol>
             <li>Sur la table <strong>"Redistributions"</strong> ou <strong>"Déclarations caoutchoucs"</strong></li>
-            <li>Clique sur <strong>✏</strong> à droite de la ligne</li>
+            <li>Clique sur <strong>Modifier</strong> à droite de la ligne</li>
             <li>Saisis la <strong>bonne valeur</strong> (preview du delta affiché)</li>
             <li>Valide</li>
           </ol>
@@ -507,17 +507,17 @@ const TUTOS = {
             <li>Le <strong>quota du pompiste</strong> de la semaine concernée</li>
           </ul>
           <div class="tuto-callout">
-            🔒 La modification est <strong>auditée</strong> : ton nom + ancienne valeur conservés sur la déclaration.
+            <strong>Important :</strong> la modification est <strong>auditée</strong> : ton nom + ancienne valeur conservés sur la déclaration.
           </div>
         `
       },
       {
-        emoji: '🗑',
+        emoji: '29',
         title: 'Supprimer une déclaration',
         body: `
           <p>Pour les cas de <strong>fraude</strong>, <strong>doublon</strong> ou <strong>annulation</strong> :</p>
           <ol>
-            <li>Bouton <strong>🗑</strong> sur la ligne concernée</li>
+            <li>Bouton <strong>Supprimer</strong> sur la ligne concernée</li>
             <li>Confirmation critique (timer 2s)</li>
             <li>Saisis une <strong>raison</strong> obligatoire (min 3 caractères)</li>
           </ol>
@@ -528,12 +528,12 @@ const TUTOS = {
             <li>Le <strong>quota pompiste</strong> est décrémenté</li>
           </ul>
           <div class="tuto-callout warn">
-            ⚠ La suppression est <strong>irréversible côté quota / stock</strong>. Vérifie deux fois avant. Pas de hard delete : la trace reste pour l'audit IRS.
+            <strong>Attention :</strong> la suppression est <strong>irréversible côté quota / stock</strong>. Vérifie deux fois avant. Pas de hard delete : la trace reste pour l'audit IRS.
           </div>
         `
       },
       {
-        emoji: '⚙',
+        emoji: '30',
         title: 'Configurer les stations',
         body: `
           <p>Tu peux <strong>modifier les stations</strong> (prix au litre, capacité, seuil d'alerte, N° pompe FiveM) :</p>
@@ -542,29 +542,29 @@ const TUTOS = {
             <li>Modifie les champs</li>
             <li>Enregistre</li>
           </ol>
-          <p>Tu peux aussi <strong>ajouter</strong> une nouvelle station (bouton ➕) ou la <strong>supprimer</strong> (icône 🗑 dans le modal édition).</p>
+          <p>Tu peux aussi <strong>ajouter</strong> une nouvelle station (bouton Ajouter) ou la <strong>supprimer</strong> (icône Supprimer dans le modal édition).</p>
           <div class="tuto-callout warn">
-            ⚠ Tu ne peux <strong>pas modifier les quotas</strong> (bidons/caoutchoucs/CA vendeur) — ça reste réservé à la direction. Si un quota doit changer, demande au patron.
+            <strong>Attention :</strong> tu ne peux <strong>pas modifier les quotas</strong> (bidons/caoutchoucs/CA vendeur) — ça reste réservé à la direction. Si un quota doit changer, demande au patron.
           </div>
         `
       },
       {
-        emoji: '💸',
+        emoji: '31',
         title: 'Notes de frais — lecture seule',
         body: `
-          <p>Sur la page <strong>"💸 Notes de frais"</strong> dans la sidebar, tu vois <strong>toutes les notes</strong> de ton équipe :</p>
+          <p>Sur la page <strong>"Notes de frais"</strong> dans la sidebar, tu vois <strong>toutes les notes</strong> de ton équipe :</p>
           <ul>
             <li>KPI : nb en attente, approuvées, remboursées, total</li>
             <li>Filtre par statut</li>
-            <li>Visualisation des screenshots (clic sur 📸 Voir)</li>
+            <li>Visualisation des screenshots (clic sur Voir)</li>
           </ul>
           <div class="tuto-callout warn">
-            ⚠ Tu peux <strong>consulter</strong> mais pas approuver/rejeter/rembourser — ça reste réservé à direction + DRH. Si une note traîne, relance la direction.
+            <strong>Attention :</strong> tu peux <strong>consulter</strong> mais pas approuver/rejeter/rembourser — ça reste réservé à direction + DRH. Si une note traîne, relance la direction.
           </div>
         `
       },
       {
-        emoji: '🛢',
+        emoji: '32',
         title: 'Tu produis aussi',
         body: `
           <p>En plus du management, tu es un <strong>pompiste opérationnel</strong> :</p>
@@ -576,38 +576,38 @@ const TUTOS = {
           </ul>
           <p>Tes déclarations passent par <strong>"Mon espace"</strong> comme tous les autres.</p>
           <div class="tuto-callout">
-            💡 Exemplarité : si tu remplis tes propres quotas, ton équipe suivra plus facilement.
+            <strong>Astuce :</strong> exemplarité — si tu remplis tes propres quotas, ton équipe suivra plus facilement.
           </div>
         `
       },
       {
-        emoji: '🚫',
+        emoji: '33',
         title: 'Ce que tu NE peux PAS faire',
         body: `
           <p>Pour clarifier le périmètre :</p>
           <ul>
-            <li>❌ Modifier les <strong>quotas</strong> hebdomadaires (direction)</li>
-            <li>❌ Approuver / rembourser les <strong>notes de frais</strong> (direction + DRH)</li>
-            <li>❌ Voir les <strong>alertes</strong> dans la cloche 🔔 (direction + DRH uniquement)</li>
-            <li>❌ Embaucher / licencier — sauf si la direction t'a donné le droit explicite via les RH</li>
-            <li>❌ Toucher la <strong>banque LTD</strong> ou la <strong>compta</strong></li>
+            <li>Modifier les <strong>quotas</strong> hebdomadaires (direction)</li>
+            <li>Approuver / rembourser les <strong>notes de frais</strong> (direction + DRH)</li>
+            <li>Voir les <strong>alertes</strong> dans la cloche (direction + DRH uniquement)</li>
+            <li>Embaucher / licencier — sauf si la direction t'a donné le droit explicite via les RH</li>
+            <li>Toucher la <strong>banque LTD</strong> ou la <strong>compta</strong></li>
           </ul>
           <p>Si tu as besoin de l'un de ces accès ponctuellement, contacte la direction.</p>
         `
       },
       {
-        emoji: '🚀',
+        emoji: '34',
         title: 'Tu es prêt !',
         body: `
           <p>Tu pilotes maintenant ton équipe. Workflow type d'une semaine :</p>
           <ol>
             <li><strong>Lundi</strong> : check du Pilotage — voir qui est en route, qui a démarré fort</li>
-            <li><strong>Mercredi/Jeudi</strong> : relance les ⚠ en retard ; vérifie qu'aucune déclaration n'est aberrante (à modérer ?)</li>
+            <li><strong>Mercredi/Jeudi</strong> : relance les en retard ; vérifie qu'aucune déclaration n'est aberrante (à modérer ?)</li>
             <li><strong>Dimanche soir</strong> : récap final, valide que tous tes pompistes ont assez produit avant la clôture (lundi 00h00)</li>
             <li><strong>Tout le temps</strong> : déclarer ta propre production + tes notes de frais</li>
           </ol>
           <div class="tuto-callout">
-            🏁 Bonne semaine — l'équipe est entre tes mains !
+            Bonne semaine — l'équipe est entre tes mains !
           </div>
         `
       }
@@ -616,86 +616,86 @@ const TUTOS = {
 
   // ============ RESPONSABLE VENTE ============
   'resp-vente': {
-    label: '🛒 Responsable Vente',
+    label: 'Responsable Vente',
     color: '#c93',
     slides: [
       {
-        emoji: '👔',
+        emoji: '35',
         title: 'Bienvenue Responsable Vente',
         body: `
           <p>Salut <strong>${profile.prenom || 'collègue'}</strong> ! Tu es <strong>Responsable Vente</strong> chez LTD Sandy Shores.</p>
           <p>Tu pilotes l'équipe de vendeurs, supervise les stocks épicerie, vérifies les ventes et tu vends toi-même (avec un salaire au prorata du CA que tu génères).</p>
           <div class="tuto-callout">
-            💡 Ce tuto t'explique <strong>toutes tes prérogatives</strong> et la procédure type d'un manager d'équipe vente.
+            Ce tuto t'explique <strong>toutes tes prérogatives</strong> et la procédure type d'un manager d'équipe vente.
           </div>
         `
       },
       {
-        emoji: '🎯',
+        emoji: '36',
         title: 'Tes responsabilités',
         body: `
           <ul>
-            <li>📦 <strong>Gérer les stocks épicerie</strong> : commander auprès des fournisseurs, ajuster les seuils d'alerte</li>
-            <li>📊 <strong>Suivre l'équipe vendeurs</strong> via les RH (CA, ventes du jour, quotas)</li>
-            <li>✏ <strong>Modifier/contester des ventes</strong> en cas d'erreur (formation, fraude détectée)</li>
-            <li>📈 <strong>Optimiser le CA</strong> : prix des produits, marges, promotions ponctuelles</li>
-            <li>💵 <strong>Vendre toi-même</strong> — tes ventes ne sont PAS commissionnées (ton salaire est fixe)</li>
+            <li><strong>Gérer les stocks épicerie</strong> : commander auprès des fournisseurs, ajuster les seuils d'alerte</li>
+            <li><strong>Suivre l'équipe vendeurs</strong> via les RH (CA, ventes du jour, quotas)</li>
+            <li><strong>Modifier/contester des ventes</strong> en cas d'erreur (formation, fraude détectée)</li>
+            <li><strong>Optimiser le CA</strong> : prix des produits, marges, promotions ponctuelles</li>
+            <li><strong>Vendre toi-même</strong> — tes ventes ne sont PAS commissionnées (ton salaire est fixe)</li>
           </ul>
           <p>Salaire : <strong>17 000 $ fixe</strong> (plafond TTE), ou montant inférieur décidé par le patron. Identique au Responsable Pompiste.</p>
         `
       },
       {
-        emoji: '🛒',
+        emoji: '37',
         title: 'Page principale — /ventes',
         body: `
-          <p>Va sur <strong>"$ Ventes"</strong> dans la sidebar. C'est ton tableau de bord opérationnel.</p>
+          <p>Va sur <strong>"Ventes"</strong> dans la sidebar. C'est ton tableau de bord opérationnel.</p>
           <p>Tu y trouves :</p>
           <ol>
             <li><strong>KPI</strong> de la semaine : CA total, nb ventes, bénéfice, % particulier</li>
             <li><strong>Liste complète des ventes</strong> de la semaine</li>
             <li><strong>Filtres</strong> : par vendeur, par client, par paiement, par produit</li>
             <li><strong>Export CSV</strong> pour analyse externe</li>
-            <li><strong>Bouton ✏</strong> à droite de chaque vente — tu peux la modifier (montant, produit, type client) en cas d'erreur</li>
+            <li><strong>Bouton Modifier</strong> à droite de chaque vente — tu peux la modifier (montant, produit, type client) en cas d'erreur</li>
           </ol>
         `
       },
       {
-        emoji: '📦',
+        emoji: '38',
         title: 'Gérer les stocks épicerie',
         body: `
-          <p>Sur <strong>"◾ Stocks épicerie"</strong> :</p>
+          <p>Sur <strong>"Stocks épicerie"</strong> :</p>
           <ul>
             <li>Vue temps réel de tous les <strong>produits en stock</strong></li>
             <li>Modification des <strong>prix de vente</strong>, <strong>seuils d'alerte</strong> bas/rupture</li>
             <li>Ajout/suppression de produits du catalogue</li>
-            <li>Bouton <strong>"📦 Commander"</strong> pour passer commande chez les fournisseurs (le bot suit la livraison)</li>
+            <li>Bouton <strong>"Commander"</strong> pour passer commande chez les fournisseurs (le bot suit la livraison)</li>
           </ul>
           <div class="tuto-callout">
-            💡 Surveille le panel "Alertes stock" — un produit en rupture = ventes perdues + clients déçus.
+            <strong>Astuce :</strong> surveille le panel "Alertes stock" — un produit en rupture = ventes perdues + clients déçus.
           </div>
         `
       },
       {
-        emoji: '👥',
+        emoji: '39',
         title: 'Suivre tes vendeurs',
         body: `
-          <p>Sur <strong>"☆ Ressources humaines"</strong> :</p>
+          <p>Sur <strong>"Ressources humaines"</strong> :</p>
           <ul>
             <li>Tableau de tous les employés actifs</li>
             <li>Pour chaque vendeur : <strong>CA réalisé</strong>, % du quota, salaire estimé</li>
-            <li>Bouton <strong>👁</strong> pour voir son espace en lecture seule (mode debug)</li>
+            <li>Bouton <strong>Voir</strong> pour voir son espace en lecture seule (mode debug)</li>
             <li>Détail des ventes par vendeur, par client, par produit</li>
           </ul>
           <div class="tuto-callout">
-            💡 Si un vendeur stagne, ouvre son espace pour comprendre ce qu'il fait (ou pas). Tu peux ensuite le coacher.
+            <strong>Astuce :</strong> si un vendeur stagne, ouvre son espace pour comprendre ce qu'il fait (ou pas). Tu peux ensuite le coacher.
           </div>
         `
       },
       {
-        emoji: '✏',
+        emoji: '40',
         title: 'Modifier / contester une vente',
         body: `
-          <p>Sur <strong>/ventes</strong> bouton <strong>✏</strong> à droite d'une vente :</p>
+          <p>Sur <strong>/ventes</strong> bouton <strong>Modifier</strong> à droite d'une vente :</p>
           <ul>
             <li>Modifier le <strong>montant</strong> (en cas d'erreur de saisie)</li>
             <li>Changer le <strong>type client</strong> (particulier ↔ entreprise) — impacte la commission</li>
@@ -703,18 +703,18 @@ const TUTOS = {
             <li>Marquer la vente <strong>cachée</strong> (en cas de doublon avec une facture bot)</li>
           </ul>
           <div class="tuto-callout warn">
-            ⚠ Toute modification est <strong>auditée</strong> (ton nom + date + ancienne valeur). N'abuse pas, et préviens le vendeur concerné si l'impact est sur sa commission.
+            <strong>Attention :</strong> toute modification est <strong>auditée</strong> (ton nom + date + ancienne valeur). N'abuse pas, et préviens le vendeur concerné si l'impact est sur sa commission.
           </div>
         `
       },
       {
-        emoji: '💵',
+        emoji: '41',
         title: 'Tu peux vendre — mais salaire fixe',
         body: `
           <p>En plus du management, tu peux <strong>vendre toi-même</strong> via "Mon espace" :</p>
           <ul>
-            <li>Bouton <strong>"📝 Déclarer une vente"</strong> — vente directe</li>
-            <li>Section <strong>"📌 Ventes à déclarer"</strong> — factures bot remontées à détailler</li>
+            <li>Bouton <strong>"Déclarer une vente"</strong> — vente directe</li>
+            <li>Section <strong>"Ventes à déclarer"</strong> — factures bot remontées à détailler</li>
           </ul>
           <p><strong>Important</strong> (décision patron 2026-05-24) : tes ventes et crafts personnels ne sont <strong>pas</strong> pris en compte dans ton salaire estimé. Ton rôle est de piloter l'équipe, pas de faire de la commission.</p>
           <ul>
@@ -725,39 +725,39 @@ const TUTOS = {
         `
       },
       {
-        emoji: '📊',
+        emoji: '42',
         title: 'Comptabilité — accès lecture',
         body: `
-          <p>Tu as accès à la <strong>"☰ Comptabilité"</strong> en consultation :</p>
+          <p>Tu as accès à la <strong>"Comptabilité"</strong> en consultation :</p>
           <ul>
             <li>CA cumulé, dépenses, bénéfice brut/net de la semaine</li>
             <li>Détail par catégorie</li>
             <li>Historique des semaines clôturées</li>
           </ul>
-          <p>Et aux <strong>"⛽ Revenus carburant"</strong> pour voir l'autre branche du LTD.</p>
+          <p>Et aux <strong>"Revenus carburant"</strong> pour voir l'autre branche du LTD.</p>
           <div class="tuto-callout warn">
-            ⚠ <strong>Lecture seule</strong> — tu ne peux pas modifier les dépenses ni les paies, c'est direction + DRH.
+            <strong>Attention :</strong> <strong>lecture seule</strong> — tu ne peux pas modifier les dépenses ni les paies, c'est direction + DRH.
           </div>
         `
       },
       {
-        emoji: '🚫',
+        emoji: '43',
         title: 'Ce que tu NE peux PAS faire',
         body: `
           <p>Pour clarifier ton périmètre :</p>
           <ul>
-            <li>❌ Modifier les <strong>quotas</strong> hebdomadaires (direction)</li>
-            <li>❌ Toucher aux <strong>commissions</strong> et grilles de salaire (TTE, direction)</li>
-            <li>❌ Voir les <strong>alertes</strong> dans la cloche 🔔 (direction + DRH)</li>
-            <li>❌ Approuver des <strong>notes de frais</strong> (direction + DRH)</li>
-            <li>❌ Modifier la <strong>banque LTD</strong> ou les paies</li>
-            <li>❌ Embaucher / licencier — sauf si la direction t'a délégué via les RH</li>
+            <li>Modifier les <strong>quotas</strong> hebdomadaires (direction)</li>
+            <li>Toucher aux <strong>commissions</strong> et grilles de salaire (TTE, direction)</li>
+            <li>Voir les <strong>alertes</strong> dans la cloche (direction + DRH)</li>
+            <li>Approuver des <strong>notes de frais</strong> (direction + DRH)</li>
+            <li>Modifier la <strong>banque LTD</strong> ou les paies</li>
+            <li>Embaucher / licencier — sauf si la direction t'a délégué via les RH</li>
           </ul>
           <p>Pour tout dépassement de périmètre, escalade à la direction.</p>
         `
       },
       {
-        emoji: '⚠',
+        emoji: '44',
         title: 'Gérer les fraudes / écarts',
         body: `
           <p>Si tu détectes une <strong>vente déclarée avec un montant incohérent</strong> ou un <strong>tag client erroné</strong> :</p>
@@ -768,12 +768,12 @@ const TUTOS = {
             <li>La direction peut donner un <strong>avertissement manuel</strong>au vendeur</li>
           </ol>
           <div class="tuto-callout warn">
-            ⚠ 3 averts actifs → compte bloqué. Préviens le vendeur AVANT que ça arrive, donne-lui une chance de corriger.
+            <strong>Attention :</strong> 3 averts actifs → compte bloqué. Préviens le vendeur AVANT que ça arrive, donne-lui une chance de corriger.
           </div>
         `
       },
       {
-        emoji: '🚀',
+        emoji: '45',
         title: 'Tu es prêt !',
         body: `
           <p>Workflow type d'une semaine :</p>
@@ -785,7 +785,7 @@ const TUTOS = {
             <li><strong>Tout le temps</strong> : tu vends, tu déclares, tu gères les stocks en temps réel</li>
           </ol>
           <div class="tuto-callout">
-            🏁 Bonne semaine — fais cartonner ton équipe !
+            Bonne semaine — fais cartonner ton équipe !
           </div>
         `
       }
@@ -805,13 +805,13 @@ const html = `
   <div class="tuto-shell">
     ${canSeeAll ? `
       <div class="tuto-toolbar">
-        <strong>📚 Tutoriel :</strong>
+        <strong>Tutoriel :</strong>
         <select id="tuto-select">${tutoOptions}</select>
         <span class="muted" style="font-size:0.82rem;">— vue direction, tu peux feuilleter chaque tuto pour former un nouvel employé</span>
       </div>
     ` : `
       <div class="tuto-toolbar">
-        <strong>📚 Tutoriel</strong>
+        <strong>Tutoriel</strong>
         <span class="muted" style="font-size:0.82rem;">— garde ce guide sous la main, tu peux le revoir n'importe quand</span>
       </div>
     `}
@@ -863,7 +863,7 @@ function render() {
   document.getElementById('btn-prev').disabled = currentIndex === 0;
   document.getElementById('btn-next').disabled = currentIndex === tuto.slides.length - 1;
   document.getElementById('btn-next').textContent = currentIndex === tuto.slides.length - 1
-    ? '✓ Terminé'
+    ? 'Terminé'
     : 'Suivant →';
 }
 
