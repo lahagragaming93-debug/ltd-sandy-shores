@@ -2249,17 +2249,14 @@ input:focus, select:focus, textarea:focus {
   .markdown-body table { display: block; overflow-x: auto; white-space: nowrap; }
 }
 
-/* === Animation d'apparition douce sur la grille principale (subtil) === */
-.main > .kpi-grid,
-.main > .panel,
-.main > .compta-grid {
-  animation: enter 480ms var(--ease-out) both;
-}
-.main > .kpi-grid { animation-delay: 40ms; }
-.main > .panel:nth-of-type(1) { animation-delay: 100ms; }
-.main > .panel:nth-of-type(2) { animation-delay: 160ms; }
-.main > .panel:nth-of-type(3) { animation-delay: 220ms; }
-.main > .compta-grid { animation-delay: 140ms; }
+/* === Animation d'apparition retiree (v1.11.2) ===
+   L'ancienne animation "enter" (opacity 0 -> 1 + translateY) provoquait un
+   bug sur CEF in-game et sur certains rendus : les KPI sont injectes par
+   JS via innerHTML APRES le render initial, donc le keyframe initial
+   (opacity:0) restait applique et l'utilisateur devait scroll pour forcer
+   un repaint qui revelait les blocs. Suppression de l'animation : les
+   panels/KPI apparaissent immediatement et restent stables.
+   Le @keyframes "enter" est conserve au cas ou un autre code l'utilise. */
 @keyframes enter {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -2270,6 +2267,19 @@ input:focus, select:focus, textarea:focus {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* === CEF / tablette tactile : background-attachment scroll ===
+   `background-attachment: fixed` declenche un repaint plein-ecran a chaque
+   scroll, tres couteux sur CEF (vieux Chromium FiveM). Sur input tactile
+   (tablette in-game), on passe en `scroll` pour ne plus payer ce cout et
+   eviter les "blocs invisibles au load tant qu'on ne scroll pas".
+   Sur desktop avec souris (hover:hover), on garde le fixed pour
+   l'effet parallax cinematique. */
+@media (hover: none), (pointer: coarse) {
+  html, body {
+    background-attachment: scroll, scroll, scroll, scroll;
   }
 }
 

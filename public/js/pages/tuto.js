@@ -228,7 +228,7 @@ const TUTOS = {
     color: '#e6c388',
     slides: [
       {
-        emoji: '12',
+        emoji: '01',
         title: 'Bienvenue chez LTD Sandy Shores',
         body: `
           <p>Salut <strong>${profile.prenom || 'collègue'}</strong> ! Tu rejoins l'équipe <strong>vente</strong> du LTD.</p>
@@ -239,7 +239,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '13',
+        emoji: '02',
         title: 'Ton rôle en 30 secondes',
         body: `
           <p>Ta mission :</p>
@@ -255,7 +255,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '14',
+        emoji: '03',
         title: 'Étape 1 — Accueillir le client',
         body: `
           <p><span class="ig">EN JEU</span> Quand un client entre dans le magasin :</p>
@@ -271,7 +271,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '15',
+        emoji: '04',
         title: 'Étape 2 — Encaisser puis remettre',
         body: `
           <p>Ordre <strong>obligatoire</strong> pour chaque vente :</p>
@@ -291,7 +291,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '16',
+        emoji: '05',
         title: 'Étape 3 — Déclarer le détail sur la tablette',
         body: `
           <p><span class="site">SUR LE SITE</span> Sur <strong>"Mon espace"</strong>, tu verras un bloc orange <strong>"Ventes à déclarer"</strong> avec toutes tes factures non encore détaillées.</p>
@@ -307,7 +307,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '17',
+        emoji: '06',
         title: 'Cas particulier — déclarer une vente à la main',
         body: `
           <p>Dans 99 % des cas, la facture remonte toute seule via le bot Discord et tu cliques juste "Déclarer". Mais parfois (bug, oubli, vente RP en livraison), tu dois saisir la vente <strong>entièrement à la main</strong>.</p>
@@ -324,7 +324,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '18',
+        emoji: '07',
         title: 'Ta paie — 2 composantes',
         body: `
           <p>Depuis le <strong>23 mai 2026</strong>, ton salaire hebdomadaire a <strong>2 parts</strong> :</p>
@@ -339,7 +339,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '19',
+        emoji: '08',
         title: 'Quota CA hebdomadaire',
         body: `
           <p>Tu dois atteindre un <strong>CA commissionnable minimum chaque semaine</strong> :</p>
@@ -355,7 +355,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '20',
+        emoji: '09',
         title: 'Quota de fabrication — bonus 3 000 $',
         body: `
           <p>En plus du CA, chaque semaine peut avoir un <strong>quota de fabrication</strong> (décidé par le patron à la clôture précédente) sur 4 produits possibles :</p>
@@ -373,7 +373,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '21',
+        emoji: '10',
         title: 'Plafond total — atteindre 13/14/15 000 $',
         body: `
           <p>Ton salaire total est plafonné selon ton grade (TTE Chap. IV Art. 4-1.5) :</p>
@@ -389,7 +389,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '22',
+        emoji: '11',
         title: 'Avertissements & blocage',
         body: `
           <p>Même système que les autres rôles :</p>
@@ -404,7 +404,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '23',
+        emoji: '12',
         title: 'C\'est parti !',
         body: `
           <p>Récap des boutons sur <strong>"Mon espace"</strong> :</p>
@@ -433,7 +433,7 @@ const TUTOS = {
     color: '#c93',
     slides: [
       {
-        emoji: '24',
+        emoji: '01',
         title: 'Bienvenue Responsable Pompiste',
         body: `
           <p>Salut <strong>${profile.prenom || 'collègue'}</strong> ! Tu es <strong>Responsable Pompiste</strong> chez LTD Sandy Shores.</p>
@@ -444,7 +444,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '25',
+        emoji: '02',
         title: 'Tes responsabilités',
         body: `
           <ul>
@@ -458,7 +458,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '26',
+        emoji: '03',
         title: 'Page principale — /stations',
         body: `
           <p>Va sur <strong>"Stations essence"</strong> dans la sidebar. C'est ton tableau de bord opérationnel.</p>
@@ -473,7 +473,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '27',
+        emoji: '04',
         title: 'Suivre tes pompistes',
         body: `
           <p>Dans le panel <strong>"Pilotage pompistes"</strong> :</p>
@@ -491,7 +491,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '28',
+        emoji: '05',
         title: 'Modifier une déclaration',
         body: `
           <p>Si un pompiste a saisi une mauvaise valeur (ex : 50 bidons au lieu de 5), tu peux corriger :</p>
@@ -512,7 +512,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '29',
+        emoji: '06',
         title: 'Supprimer une déclaration',
         body: `
           <p>Pour les cas de <strong>fraude</strong>, <strong>doublon</strong> ou <strong>annulation</strong> :</p>
@@ -533,7 +533,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '30',
+        emoji: '07',
         title: 'Configurer les stations',
         body: `
           <p>Tu peux <strong>modifier les stations</strong> (prix au litre, capacité, seuil d'alerte, N° pompe FiveM) :</p>
@@ -549,7 +549,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '31',
+        emoji: '08',
         title: 'Notes de frais — lecture seule',
         body: `
           <p>Sur la page <strong>"Notes de frais"</strong> dans la sidebar, tu vois <strong>toutes les notes</strong> de ton équipe :</p>
@@ -564,7 +564,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '32',
+        emoji: '09',
         title: 'Tu produis aussi',
         body: `
           <p>En plus du management, tu es un <strong>pompiste opérationnel</strong> :</p>
@@ -581,7 +581,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '33',
+        emoji: '10',
         title: 'Ce que tu NE peux PAS faire',
         body: `
           <p>Pour clarifier le périmètre :</p>
@@ -596,7 +596,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '34',
+        emoji: '11',
         title: 'Tu es prêt !',
         body: `
           <p>Tu pilotes maintenant ton équipe. Workflow type d'une semaine :</p>
@@ -620,7 +620,7 @@ const TUTOS = {
     color: '#c93',
     slides: [
       {
-        emoji: '35',
+        emoji: '01',
         title: 'Bienvenue Responsable Vente',
         body: `
           <p>Salut <strong>${profile.prenom || 'collègue'}</strong> ! Tu es <strong>Responsable Vente</strong> chez LTD Sandy Shores.</p>
@@ -631,7 +631,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '36',
+        emoji: '02',
         title: 'Tes responsabilités',
         body: `
           <ul>
@@ -645,7 +645,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '37',
+        emoji: '03',
         title: 'Page principale — /ventes',
         body: `
           <p>Va sur <strong>"Ventes"</strong> dans la sidebar. C'est ton tableau de bord opérationnel.</p>
@@ -660,7 +660,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '38',
+        emoji: '04',
         title: 'Gérer les stocks épicerie',
         body: `
           <p>Sur <strong>"Stocks épicerie"</strong> :</p>
@@ -676,7 +676,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '39',
+        emoji: '05',
         title: 'Suivre tes vendeurs',
         body: `
           <p>Sur <strong>"Ressources humaines"</strong> :</p>
@@ -692,7 +692,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '40',
+        emoji: '06',
         title: 'Modifier / contester une vente',
         body: `
           <p>Sur <strong>/ventes</strong> bouton <strong>Modifier</strong> à droite d'une vente :</p>
@@ -708,7 +708,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '41',
+        emoji: '07',
         title: 'Tu peux vendre — mais salaire fixe',
         body: `
           <p>En plus du management, tu peux <strong>vendre toi-même</strong> via "Mon espace" :</p>
@@ -725,7 +725,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '42',
+        emoji: '08',
         title: 'Comptabilité — accès lecture',
         body: `
           <p>Tu as accès à la <strong>"Comptabilité"</strong> en consultation :</p>
@@ -741,7 +741,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '43',
+        emoji: '09',
         title: 'Ce que tu NE peux PAS faire',
         body: `
           <p>Pour clarifier ton périmètre :</p>
@@ -757,7 +757,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '44',
+        emoji: '10',
         title: 'Gérer les fraudes / écarts',
         body: `
           <p>Si tu détectes une <strong>vente déclarée avec un montant incohérent</strong> ou un <strong>tag client erroné</strong> :</p>
@@ -773,7 +773,7 @@ const TUTOS = {
         `
       },
       {
-        emoji: '45',
+        emoji: '11',
         title: 'Tu es prêt !',
         body: `
           <p>Workflow type d'une semaine :</p>
