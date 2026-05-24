@@ -71,23 +71,39 @@ async function chargerTout() {
   try {
     const { debut, fin } = getPeriode();
 
-    // 0. Solde courant = dernier mouvement /banqueLtd quelle que soit la période
-    //    (sinon "Solde actuel" deviendrait incohérent quand on filtre une période passée)
-    const liveSnap = await getDocs(query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(1)));
-    if (!liveSnap.empty) {
-      const x = liveSnap.docs[0].data();
-      soldeLive = { montant: Number(x.soldeApres) || 0, date: x.timestamp };
-    }
-
-    // 1. Lire /banqueLtd filtré par période (ou tout si "Depuis ouverture")
+    // v1.11.1 (perf CEF) : on parallelise les 3 queries banque (solde live +
+    // banqueLtd periode + depenses periode) au lieu de les enchainer
+    // sequentiellement, ce qui faisait ~600-900 ms cumules sur tablette
+    // in-game. + reduction des limits de 5000 a 500/2000 selon contexte
+    // (1 semaine = ~100-300 ops max, 1 mois = ~500, depuis ouverture = 2000).
+    const lim = (debut && fin) ? 500 : 2000;
+    const liveQ = query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(1));
     const banqueQ = (debut && fin)
       ? query(collection(db, 'banqueLtd'),
           where('timestamp', '>=', Timestamp.fromDate(debut)),
           where('timestamp', '<=', Timestamp.fromDate(fin)),
           orderBy('timestamp', 'desc'),
-          limit(5000))
-      : query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(5000));
-    const banqueSnap = await getDocs(banqueQ);
+          limit(lim))
+      : query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(lim));
+    const depQ = (debut && fin)
+      ? query(collection(db, 'depenses'),
+          where('timestamp', '>=', Timestamp.fromDate(debut)),
+          where('timestamp', '<=', Timestamp.fromDate(fin)),
+          orderBy('timestamp', 'desc'),
+          limit(lim))
+      : query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(lim));
+
+    const [liveSnap, banqueSnap, depSnap] = await Promise.all([
+      getDocs(liveQ),
+      getDocs(banqueQ),
+      getDocs(depQ)
+    ]);
+
+    if (!liveSnap.empty) {
+      const x = liveSnap.docs[0].data();
+      soldeLive = { montant: Number(x.soldeApres) || 0, date: x.timestamp };
+    }
+
     const banqueOps = banqueSnap.docs.map(d => {
       const x = d.data();
       return {
@@ -103,15 +119,7 @@ async function chargerTout() {
       };
     });
 
-    // 2. Lire /depenses filtré par période (ou tout si "Depuis ouverture")
-    const depQ = (debut && fin)
-      ? query(collection(db, 'depenses'),
-          where('timestamp', '>=', Timestamp.fromDate(debut)),
-          where('timestamp', '<=', Timestamp.fromDate(fin)),
-          orderBy('timestamp', 'desc'),
-          limit(5000))
-      : query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(5000));
-    const depSnap = await getDocs(depQ);
+    // /depenses : deja recupere via Promise.all ci-dessus (depSnap)
     const depOps = depSnap.docs.map(d => {
       const x = d.data();
       return {

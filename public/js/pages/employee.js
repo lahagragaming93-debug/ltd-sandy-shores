@@ -11,7 +11,8 @@ import {
   listRedistributionsRangeManuel, listAllRedistributionsManuel,
   listenMesNotesFrais, callFunction
 } from '../api.js';
-import { ROLE_LABELS, isVendeur, isPompiste, isDirection, isSuperAdmin, PLAFOND_SALAIRE,
+import { ROLE_LABELS, isVendeur, isPompiste, isPompisteRavitailleur, isVendeurDeclarateur,
+         isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          CA_PLAFOND_VENDEUR_LEGACY, PLAFOND_CA_VENDEUR,
          BONUS_QUOTA_VENDEUR_MAX, PRODUITS_QUOTA_FAB,
          isNouveauSystemeVendeur } from '../utils/permissions.js';
@@ -110,10 +111,10 @@ const html = `
     </div>
     ${!modeVoirComme ? `
       <div class="row center mt-3" style="gap:10px;justify-content:center;flex-wrap:wrap;">
-        ${isVendeur(profile.role)
+        ${isVendeurDeclarateur(profile.role)
           ? '<button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">Déclarer une vente</button>'
           : ''}
-        ${isPompiste(profile.role)
+        ${isPompisteRavitailleur(profile.role)
           ? `${quotaBidonsActif
               ? '<button class="btn btn-primary" id="btn-ravitailler" style="font-size:1.05rem;">Ravitailler une station</button>'
               : '<button class="btn" disabled style="font-size:1.05rem;opacity:0.5;cursor:not-allowed;" title="Bidons désactivés cette semaine (quota = 0)">Ravitailler — désactivé cette semaine</button>'}
@@ -125,8 +126,8 @@ const html = `
           : ''}
       </div>
 
-      <!-- Modal ravitaillement (pompiste) — saisie en bidons (1 bidon = 15 L) -->
-      ${isPompiste(profile.role) ? `
+      <!-- Modal ravitaillement (pompiste + responsable-pompiste) — saisie en bidons (1 bidon = 15 L) -->
+      ${isPompisteRavitailleur(profile.role) ? `
         <div id="modal-ravit" class="modal-backdrop hidden">
           <div class="modal" style="max-width:540px;">
             <h3>Ravitailler une station</h3>
@@ -242,11 +243,11 @@ const html = `
   </div>
 
   <div class="panel">
-    <div class="panel-title"><span>${isPompiste(profile.role) ? 'Ravitaillements' : 'Heures de service'}</span></div>
+    <div class="panel-title"><span>${isPompisteRavitailleur(profile.role) ? 'Ravitaillements' : 'Heures de service'}</span></div>
     <div id="services">—</div>
   </div>
 
-  ${isPompiste(profile.role) ? `
+  ${isPompisteRavitailleur(profile.role) ? `
     <div class="panel">
       <div class="panel-title"><span>Mes notes de frais essence</span></div>
       <div id="notes-frais-perso">Chargement…</div>
@@ -273,8 +274,8 @@ const [ventesAvecCacheesCurr, allServicesCurr, allMyServices, serviceOuvert,
   listServicesSemaine(debut, fin).catch(() => []),
   listAllServicesEmploye(viewedUserId).catch(e => { console.error('[employee] listAllServicesEmploye', e); return []; }),
   getServiceOuvert(viewedUserId).catch(() => null),
-  isPompiste(profile.role) ? listRedistributionsSemaine(debut, fin).catch(() => []) : Promise.resolve([]),
-  isPompiste(profile.role) ? listAllRedistributionsPompiste(viewedUserId).catch(() => []) : Promise.resolve([])
+  isPompisteRavitailleur(profile.role) ? listRedistributionsSemaine(debut, fin).catch(() => []) : Promise.resolve([]),
+  isPompisteRavitailleur(profile.role) ? listAllRedistributionsPompiste(viewedUserId).catch(() => []) : Promise.resolve([])
 ]);
 
 // Filtre ravitaillements pompiste : source manuelle + matchant l'employe vise.
@@ -801,6 +802,11 @@ function renderAutre(myVentes, quota, sDebut, sFin, isCurrent) {
   // Direction / Resp / DRH / Admin Tech : salaire FIXE, mais peuvent aussi
   // vendre / ravitailler. On affiche leurs stats personnelles a titre INFO
   // (sans impact sur leur paye fixe).
+  // Cas responsable-pompiste (Liam MARS et successeurs) : peut ravitailler
+  // les stations comme les pompistes classiques. On lui affiche l'etat des
+  // stations en temps reel pour qu'il sache ou intervenir (listener
+  // pompiste-stations branche par initPompisteActions).
+  const estRespPompiste = profile.role === 'responsable-pompiste';
   const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
   const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
   const bidons = quota?.bidons ?? 0;
@@ -855,6 +861,19 @@ function renderAutre(myVentes, quota, sDebut, sFin, isCurrent) {
       ` : ''}
     `;
   }
+  // Pour le responsable-pompiste : on injecte la div #pompiste-stations
+  // (remplie en live par initPompisteActions/listenStations). Indispensable
+  // pour qu'il voie l'etat des stations et sache laquelle ravitailler en
+  // priorite. Affiche uniquement sur semaine courante (les anciennes semaines
+  // n'ont plus de sens pour un suivi live des stations).
+  if (estRespPompiste && isCurrent) {
+    detailHtml += `
+      <div class="mt-3">
+        <div class="muted mono mb-1">État des stations en temps réel</div>
+        <div id="pompiste-stations">Chargement…</div>
+      </div>
+    `;
+  }
   document.getElementById('detail').innerHTML = detailHtml;
 }
 
@@ -879,7 +898,7 @@ let stationsCacheLocale = [];
 let _pompisteActionsInit = false;
 
 function initPompisteActions() {
-  if (!isPompiste(profile.role) || modeVoirComme) return;
+  if (!isPompisteRavitailleur(profile.role) || modeVoirComme) return;
 
   // Listener stations en temps reel (toujours initialise une fois)
   if (!_pompisteActionsInit) {
@@ -956,9 +975,9 @@ function initPompisteActions() {
   }
 }
 
-// === Bindings modaux pompiste (uniquement si pompiste, semaine en cours) ===
+// === Bindings modaux pompiste (pompistes + responsable-pompiste, semaine en cours) ===
 // Bindings une seule fois au chargement, pas lies au selecteur.
-if (isPompiste(profile.role) && !modeVoirComme) {
+if (isPompisteRavitailleur(profile.role) && !modeVoirComme) {
   const BIDON_L = 15;
   const btnRavit  = document.getElementById('btn-ravitailler');
   const modalRav  = document.getElementById('modal-ravit');
@@ -1323,10 +1342,10 @@ listenAvertissements(viewedUserId, (list) => {
   div.innerHTML = banniere + detail;
 });
 
-// === Bloc bas : Heures de service (vendeurs/direction) OU Ravitaillements (pompistes) ===
+// === Bloc bas : Heures de service (vendeurs/direction) OU Ravitaillements (pompistes + responsable-pompiste) ===
 const sDiv = document.getElementById('services');
 
-if (isPompiste(profile.role)) {
+if (isPompisteRavitailleur(profile.role)) {
   // Pompistes : pas de service (logique RP). On affiche les litres
   // ravitailles : jour / semaine / cumul depuis embauche.
   const startOfDayMs = startOfDay.getTime();
@@ -1423,9 +1442,9 @@ if (isPompiste(profile.role)) {
 }
 
 // ============================================================
-// Bloc Mes notes de frais (pompiste uniquement, mode live)
+// Bloc Mes notes de frais (pompistes + responsable-pompiste, mode live)
 // ============================================================
-if (isPompiste(profile.role) && !modeVoirComme) {
+if (isPompisteRavitailleur(profile.role) && !modeVoirComme) {
   const STATUT = {
     'en-attente': { label: 'En attente', cls: 'warn' },
     'approuvee':  { label: 'Approuvée',  cls: 'neutral' },

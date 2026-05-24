@@ -84,6 +84,22 @@ export function isEmployeeView(role) {
   return isVendeur(role) || isPompiste(role);
 }
 
+// Peut effectuer des actions pompiste (ravitailler une station, corriger
+// un stock, déclarer caoutchoucs, note de frais essence) ?
+// → pompistes classiques + responsable-pompiste (qui pilote l'équipe MAIS
+//   peut aussi rouler en station si besoin). NB : son salaire reste fixe
+//   (cf. salaireResponsablePompiste dans utils/paie.js) — ses ravits sont
+//   tracés (collection /redistributionsPompiste, agrégats /quotasPompiste)
+//   mais n'impactent PAS son propre salaire estimé.
+export function isPompisteRavitailleur(role) {
+  return isPompiste(role) || role === 'responsable-pompiste';
+}
+// Idem pour les ventes : vendeur-* + responsable-vente peut déclarer une
+// vente (utile si le RV dépanne un client), mais sans CA personnel.
+export function isVendeurDeclarateur(role) {
+  return isVendeur(role) || role === 'responsable-vente';
+}
+
 // Le rôle est-il pris en compte dans les calculs financiers
 // (masse salariale, salaires affichés en compta, effectif RH facturable) ?
 // Les admin-technique sont EXCLUS — c'est leur raison d'être.

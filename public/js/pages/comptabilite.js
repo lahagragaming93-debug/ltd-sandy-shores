@@ -273,14 +273,13 @@ makeSortable(document.getElementById('table-charges'));
 const debut = startOfWeekRP();
 const fin   = endOfWeekRP();
 
-const semainesPassees = await listSemaines(6).catch(() => []);
+// v1.11.1 (perf CEF) : on lance listSemaines en parallele des 10 autres
+// queries de chargerTout() via Promise.all (au lieu d'awaiter en sequence
+// ce qui ajoutait ~150 ms sur tablette in-game). Le select se peuple a
+// la fin du premier chargerTout().
+const semainesPromise = listSemaines(6).catch(() => []);
+let semainesPassees = [];
 const sel = document.getElementById('select-semaine');
-semainesPassees.forEach(s => {
-  const o = document.createElement('option');
-  o.value = s.id || s.numero;
-  o.textContent = `Semaine ${s.numero || s.dateDebut}`;
-  sel.appendChild(o);
-});
 
 let users = [];
 let dataCache = null; // pour le bouton "Copier récap"
@@ -293,7 +292,8 @@ async function chargerTout() {
     return;
   }
 
-  const [ventes, depenses, paies, u, redistributions, services, quotas, quotasV, cfg, subventions] = await Promise.all([
+  const [smList, ventes, depenses, paies, u, redistributions, services, quotas, quotasV, cfg, subventions] = await Promise.all([
+    semainesPromise,
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
@@ -305,6 +305,17 @@ async function chargerTout() {
     getConfig().catch(() => ({})),
     listSubventionsSemaine(debut, fin).catch(() => [])
   ]);
+  // Peuple le select des semaines passees au premier passage (idempotent
+  // grace au check children.length : on ne re-injecte pas les options).
+  if (sel.children.length <= 1 && smList.length > 0) {
+    semainesPassees = smList;
+    smList.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.id || s.numero;
+      o.textContent = `Semaine ${s.numero || s.dateDebut}`;
+      sel.appendChild(o);
+    });
+  }
   users = u;
   // Cache les patterns fournisseurs pour la modale Reclasser
   window._cfgFournisseurs = cfg.fournisseurs || [];

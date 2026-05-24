@@ -530,17 +530,34 @@ export async function marquerToutesAlertesLues() {
 }
 
 // ----- Configuration -----
+// === Cache memoire 30s pour getConfig() (v1.11.1 perf CEF) ===
+// Plusieurs pages appellent getConfig() 2-3 fois au chargement (KPI + render
+// + sub-components). Sur tablette CEF avec reseau RP-limit, chaque getDoc
+// fait ~80-150 ms. On cache 30s + on invalide via listenConfig (set ci-dessous
+// a chaque snapshot live). Resultat : 1 seul aller-retour reseau par page,
+// les appels suivants servent le cache memoire.
+let _configCache = null;
+let _configCacheTs = 0;
+const CONFIG_TTL_MS = 30_000;
 export async function getConfig() {
+  const now = Date.now();
+  if (_configCache && (now - _configCacheTs) < CONFIG_TTL_MS) {
+    return _configCache;
+  }
   const snap = await getDoc(doc(db, 'config', 'global'));
-  return snap.exists() ? snap.data() : {
+  _configCache = snap.exists() ? snap.data() : {
     quotaBidons: 1700,
     quotaCaoutchoucs: 800,
     prixEssence: 5,
     seuilAlerteEssence: 1000
   };
+  _configCacheTs = now;
+  return _configCache;
 }
 export async function setConfig(patch) {
   await setDoc(doc(db, 'config', 'global'), patch, { merge: true });
+  _configCache = null; // invalidate apres ecriture
+  _configCacheTs = 0;
 }
 // Listener temps reel sur /config/global. Indispensable pour les tablettes
 // in-game (FiveM) qui n'ont pas de F5 : quand la direction modifie les
@@ -548,7 +565,11 @@ export async function setConfig(patch) {
 // Renvoie une fonction unsubscribe.
 export function listenConfig(cb) {
   return onSnapshot(doc(db, 'config', 'global'), s => {
-    cb(s.exists() ? s.data() : {});
+    const data = s.exists() ? s.data() : {};
+    // Synchroniser le cache memoire avec le snapshot live (perf CEF).
+    _configCache = data;
+    _configCacheTs = Date.now();
+    cb(data);
   });
 }
 

@@ -109,7 +109,9 @@ async function chargerKpis() {
   document.getElementById('periode-semaine').textContent =
     `${debut.toLocaleDateString('fr-FR')} → ${fin.toLocaleDateString('fr-FR')} · ${getPeriodeLabel()}`;
 
-  const [ventes, depenses, paies, config, soldeBanque, redistributions, allUsers, services, quotas, quotasV] = await Promise.all([
+  // v1.11.1 (perf CEF) : inclure listSemaines(6) dans le Promise.all initial
+  // au lieu de l'awaiter sequentiellement plus bas (gain ~150 ms sur tablette).
+  const [ventes, depenses, paies, config, soldeBanque, redistributions, allUsers, services, quotas, quotasV, semaines] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
@@ -119,7 +121,8 @@ async function chargerKpis() {
     listUsers().catch(() => []),
     listServicesSemaine(debut, fin).catch(() => []),
     listQuotasSemaine(weekId()).catch(() => []),
-    listQuotasVendeurSemaine(weekId()).catch(() => [])
+    listQuotasVendeurSemaine(weekId()).catch(() => []),
+    listSemaines(6).catch(() => [])
   ]);
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
@@ -235,8 +238,7 @@ async function chargerKpis() {
   const top = topAll.sort((a, b) => b.ca - a.ca).slice(0, 5);
   renderTopProduits(top, totalCAItems);
 
-  // === Historique 6 semaines ===
-  const semaines = await listSemaines(6).catch(() => []);
+  // === Historique 6 semaines === (semaines deja recupere via Promise.all)
   const histDiv = document.getElementById('historique');
   if (semaines.length === 0) {
     histDiv.innerHTML = `<p class="muted">Première semaine — pas d'historique.</p>`;
