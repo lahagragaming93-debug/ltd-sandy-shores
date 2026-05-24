@@ -5,7 +5,7 @@
 
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listMouvementsBanqueRecents, listDepensesSemaine, listVentesSemaine } from '../api.js';
+import { listMouvementsBanqueRecents, listDepensesSemaine, listVentesSemaine, listRedistributionsSemaine } from '../api.js';
 import { db } from '../firebase-config.js';
 import { collection, query, orderBy, limit, getDocs, where, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
@@ -65,6 +65,7 @@ makeSortable(document.getElementById('table-mvts'));
 let mouvements = []; // [{ timestamp, type, montant, soldeAvant, soldeApres, raison, source, utilisateur }, …]
 let soldeLive = { montant: 0, date: null }; // toujours le solde courant, indépendant du filtre période
 let ventesPeriode = []; // ventes /ventes sur la periode (toutes methodes de paiement)
+let redistribPeriode = []; // ventes essence /redistributions sur la periode (carte NPC + cash manuel)
 
 async function chargerTout() {
   const tbody = document.getElementById('tbody-mvts');
@@ -102,21 +103,32 @@ async function chargerTout() {
           limit(limDepenses))
       : query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(limDepenses));
 
-    // Ventes epicerie (toutes methodes de paiement) sur la periode : permet
-    // au KPI "Recettes totales" d'inclure les ventes en espece/carte/autre
-    // qui ne transitent pas (ou pas toutes) par xbankaccount. Sans periode
-    // (Depuis ouverture), on saute ce fetch pour eviter un payload massif.
+    // Recettes commerciales sur la periode (pour le KPI "Recettes totales") :
+    //   - /ventes : ventes epicerie validees par les logs (toutes methodes)
+    //   - /redistributions : ventes essence (NPC carte + cash/manuel pompiste)
+    // On ne se base PAS sur /banqueLtd type=add car ca inclurait subventions,
+    // virements entre comptes, et autres entrees non-commerciales qui ne sont
+    // pas du CA. Le tableau ci-dessous reste exhaustif (audit complet).
+    // Sans periode (Depuis ouverture), on saute ces fetchs pour eviter un
+    // payload massif.
     const ventesPromise = (debut && fin)
       ? listVentesSemaine(debut, fin).catch(() => [])
       : Promise.resolve([]);
+    const redistribPromise = (debut && fin)
+      ? listRedistributionsSemaine(debut, fin).catch(() => [])
+      : Promise.resolve([]);
 
-    const [liveSnap, banqueSnap, depSnap, ventesSnap] = await Promise.all([
+    const [liveSnap, banqueSnap, depSnap, ventesSnap, redistribSnap] = await Promise.all([
       getDocs(liveQ),
       getDocs(banqueQ),
       getDocs(depQ),
-      ventesPromise
+      ventesPromise,
+      redistribPromise
     ]);
     ventesPeriode = ventesSnap;
+    // Filtre les redistributions supprimees (corrections admin) pour eviter
+    // de gonfler artificiellement le CA essence.
+    redistribPeriode = redistribSnap.filter(r => !r.supprimee);
 
     if (!liveSnap.empty) {
       const x = liveSnap.docs[0].data();
@@ -226,17 +238,19 @@ function rendre() {
   if (filtreRech) visibles = visibles.filter(m => (m.raison || '').toLowerCase().includes(filtreRech));
 
   // KPIs : "Solde actuel" = live (indépendant du filtre)
-  //        "Recettes totales" = mouvements bancaires (add) + ventes epicerie
-  //                             (toutes methodes de paiement) sur la periode
+  //        "Recettes totales" = ventes epicerie /ventes + ventes essence
+  //                             /redistributions (toutes sources). N'inclut
+  //                             PAS les subventions / virements / autres
+  //                             entrees xbankaccount non-commerciales.
   //        "Sorties" + "Net" = sur la période sélectionnée
-  const nbAdd       = mouvements.filter(m => m.type === 'add').length;
-  const nbRemove    = mouvements.filter(m => m.type === 'remove').length;
-  const totalBanque = mouvements.filter(m => m.type === 'add').reduce((s, m) => s + m.montant, 0);
-  const totalSorties= mouvements.filter(m => m.type === 'remove').reduce((s, m) => s + m.montant, 0);
-  const totalVentes = ventesPeriode.reduce((s, v) => s + (Number(v.montant) || 0), 0);
-  const nbVentes    = ventesPeriode.length;
-  const totalRecettes = totalBanque + totalVentes;
-  const periodeLabel = getPeriodeLabel();
+  const nbRemove      = mouvements.filter(m => m.type === 'remove').length;
+  const totalSorties  = mouvements.filter(m => m.type === 'remove').reduce((s, m) => s + m.montant, 0);
+  const totalVentes   = ventesPeriode.reduce((s, v) => s + (Number(v.montant) || 0), 0);
+  const nbVentes      = ventesPeriode.length;
+  const totalEssence  = redistribPeriode.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const nbEssence     = redistribPeriode.length;
+  const totalRecettes = totalEssence + totalVentes;
+  const periodeLabel  = getPeriodeLabel();
 
   document.getElementById('kpis-banque').innerHTML = `
     <div class="kpi kpi-bank">
@@ -244,10 +258,10 @@ function rendre() {
       <div class="value">${money(soldeLive.montant)}</div>
       <div class="delta">au ${escapeHtml(datetime(soldeLive.date) || '—')} · live, indépendant du filtre</div>
     </div>
-    <div class="kpi kpi-recette" title="Mouvements bancaires entrants (xbankaccount : redistributions essence, subventions, virements) + ventes epicerie toutes methodes de paiement.">
+    <div class="kpi kpi-recette" title="Ventes essence (redistributions NPC carte + cash/manuel pompiste) + ventes epicerie /ventes toutes methodes de paiement. Exclut subventions/virements/autres entrees banque non-commerciales.">
       <div class="label">Recettes totales <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalRecettes)}</div>
-      <div class="delta">${money(totalBanque)} banque (${nbAdd}) · ${money(totalVentes)} ventes (${nbVentes})</div>
+      <div class="delta">${money(totalEssence)} essence (${nbEssence}) · ${money(totalVentes)} épicerie (${nbVentes})</div>
     </div>
     <div class="kpi kpi-depense">
       <div class="label">Sorties <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
