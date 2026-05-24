@@ -22,15 +22,6 @@ import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 const { profile } = await requireAuth('comptabilite');
 const editable = isDirection(profile.role) || isSuperAdmin(profile.role);
 
-// === Templates de dépenses fréquentes ===
-const TEMPLATES_DEPENSES = [
-  { label: 'Matières premières', raison: 'Achat matières premières', type: 'matieres-premieres' },
-  { label: 'Frais avocat',       raison: 'Honoraires avocat',         type: 'frais-avocat' },
-  { label: 'Entretien véhicule', raison: 'Entretien véhicule LTD',    type: 'entretien-vehicules' },
-  { label: 'Loyer / Charges',    raison: 'Loyer hebdomadaire',        type: 'autre-deductible' },
-  { label: 'Autre',              raison: '',                          type: 'autre-deductible' }
-];
-
 const html = `
   <!-- KPIs colorés -->
   <div class="kpi-grid compta-kpis" id="kpis-compta">
@@ -80,18 +71,6 @@ const html = `
       </div>
     </div>
   </div>
-  ` : ''}
-
-  <!-- Templates de dépenses fréquentes (uniquement si éditable) -->
-  ${editable ? `
-    <div class="panel mb-2" id="templates-panel">
-      <div class="panel-title"><span>Dépenses rapides</span><span class="muted" style="font-size:0.75rem;">— pré-remplit le formulaire</span></div>
-      <div class="row" style="flex-wrap:wrap;gap:6px;">
-        ${TEMPLATES_DEPENSES.map((t, i) =>
-          `<button class="btn btn-sm" data-template="${i}">${t.label}</button>`
-        ).join('')}
-      </div>
-    </div>
   ` : ''}
 
   <!-- Bandeau conformité TTE (gauge masse salariale) -->
@@ -322,17 +301,30 @@ async function chargerTout() {
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  // CA carburant POMPISTE (sert au denominateur du ratio TTE) : exclut les
+  // ventes NPC automatiques (source banqueLtd-redistribution) qui ne sont
+  // liees a aucun employe. Avant le fix, ces ventes gonflaient le denominateur
+  // et le ratio TTE paraissait artificiellement bas (= faux optimisme).
+  const caCarburantPompiste = redistributions
+    .filter(r => r.source === 'manuel-pompiste')
+    .reduce((s, r) => s + (Number(r.montant) || 0), 0);
   // Subventions : recette NON IMPOSABLE (TTE Art. 4-2.16). Comptee dans le
   // benefice net (tresorerie reelle) mais PAS dans le resultat imposable.
   const totalSubventions = subventions.reduce((s, b) => s + (Number(b.montant) || 0), 0);
   const caTotal = ca + caCarburant;
+  const caTotalTTE = ca + caCarburantPompiste;
   // Exclure les depenses type='paie' (doublon avec /paies attribuees a la
   // semaine precedente via fenetre post-cloture).
   const depensesHorsPaie = depenses.filter(d => d.type !== 'paie');
   const totalDepenses = depensesHorsPaie.reduce((s, d) => s + (d.montant || 0), 0);
-  const deductibles = depensesHorsPaie.filter(d => d.deductible !== false)
+  // Strict : on ne compte deductible QUE si le champ vaut explicitement true.
+  // Anciennement : `!== false` qui traitait undefined/null comme deductible
+  // (= optimiste vis-a-vis du fisc, risque d'audit IRS). Une depense sans
+  // classification doit etre reclassifiee via la modale "Reclasser" avant
+  // d'etre comptee comme deductible.
+  const deductiblesDepenses = depensesHorsPaie.filter(d => d.deductible === true)
     .reduce((s, d) => s + (d.montant || 0), 0);
-  const nonDeductibles = totalDepenses - deductibles;
+  const nonDeductibles = totalDepenses - deductiblesDepenses;
 
   // === Masse salariale PRÉVISIONNELLE ===
   // Au lieu de juste les paies versées, on calcule en continu le salaire
@@ -360,16 +352,21 @@ async function chargerTout() {
   // en sous-payant). En pratique masseEstimee >= masseVersee tant que la
   // semaine n'est pas finie.
   const masseSalariale = Math.max(masseEstimee, masseVersee);
+  // Charges deductibles TOTALES = depenses deductibles + masse salariale
+  // (les salaires sont fiscalement deductibles, donc on les integre dans
+  // la base de calcul du resultat imposable pour rester coherent).
+  const deductibles = deductiblesDepenses + masseSalariale;
   const resultatImposable = caTotal - deductibles;
   // Benefice net inclut les subventions recues (tresorerie reelle).
   // Le resultat imposable, lui, ne les inclut pas (Art. 4-2.16 non imposable).
   const beneficeNet = caTotal + totalSubventions - totalDepenses - masseSalariale;
-  const masse = checkMasseSalariale(masseSalariale, caTotal);
+  // Ratio TTE base sur le CA OPERATIONNEL POMPISTE (exclut NPC auto).
+  const masse = checkMasseSalariale(masseSalariale, caTotalTTE);
 
   const pHebdo = primeHebdo(caTotal);
   const pMensuel = primeMensuelle(beneficeNet);
 
-  dataCache = { ca, caCarburant, caTotal, deductibles, nonDeductibles, masseSalariale, beneficeNet, paies, debut, fin, totalSubventions, subventions };
+  dataCache = { ca, caCarburant, caTotal, deductibles, deductiblesDepenses, nonDeductibles, masseSalariale, beneficeNet, paies, debut, fin, totalSubventions, subventions };
 
   // === KPIs colorés ===
   document.getElementById('kpis-compta').innerHTML = `
@@ -390,10 +387,10 @@ async function chargerTout() {
       <div class="delta">${subventions.length} virement(s) — non imposable</div>
     </div>
     ` : ''}
-    <div class="kpi kpi-depense">
+    <div class="kpi kpi-depense" title="Charges deductibles totales = depenses deductibles (${money(deductiblesDepenses)}) + masse salariale estimee (${money(masseSalariale)}). Les salaires sont fiscalement deductibles.">
       <div class="label">Charges déductibles</div>
       <div class="value">${money(deductibles)}</div>
-      <div class="delta">imposable: ${money(resultatImposable)}</div>
+      <div class="delta">dont ${money(masseSalariale)} salaires · imposable: ${money(resultatImposable)}</div>
     </div>
     <div class="kpi kpi-salaire" title="Prévisionnel = somme des salaires estimés (Direction fixe + Vendeur/Pompiste selon CA/quotas en temps réel). Versé = paies réellement déjà payées.">
       <div class="label">Masse salariale</div>
@@ -427,10 +424,14 @@ async function chargerTout() {
   `;
 
   // === Dépenses ===
+  // NB : "Charges deductibles (hors salaires)" = uniquement les /depenses
+  // marquees deductible. La ligne "Salaires versés" est detaillee a part pour
+  // visibilite, mais entre dans le calcul du resultat imposable (cf. KPI
+  // "Charges deductibles" qui agrege les deux).
   document.getElementById('tbody-depenses').innerHTML = `
-    <tr><td>Charges déductibles</td><td class="right mono">${money(deductibles)}</td></tr>
+    <tr><td>Charges déductibles (hors salaires)</td><td class="right mono">${money(deductiblesDepenses)}</td></tr>
     <tr><td>Charges non déductibles</td><td class="right mono">${money(nonDeductibles)}</td></tr>
-    <tr><td>Salaires versés</td><td class="right mono">${money(masseSalariale)}</td></tr>
+    <tr><td>Salaires versés (déductibles)</td><td class="right mono">${money(masseSalariale)}</td></tr>
     <tr><td>Prime hebdo (Art. 4-1.10)</td><td class="right mono ${pHebdo > 0 ? 'gold' : 'muted'}">${money(pHebdo)}</td></tr>
     <tr><td>Prime mensuelle (Art. 4-1.11)</td><td class="right mono ${pMensuel > 0 ? 'gold' : 'muted'}">${money(pMensuel)}</td></tr>
     <tr class="row-total">
@@ -499,7 +500,8 @@ async function chargerTout() {
   }
 
   // === Conformité (gauge) ===
-  renderGaugeMasse(masse, masseSalariale, caTotal);
+  // Gauge : on passe caTotalTTE pour rester coherent avec le ratio affiche.
+  renderGaugeMasse(masse, masseSalariale, caTotalTTE);
 }
 
 // ============================================================
@@ -885,21 +887,6 @@ async function renderSemaineFigee(s) {
 
 sel.addEventListener('change', chargerTout);
 chargerTout();
-
-// ============================================================
-// Templates de dépenses fréquentes
-// ============================================================
-document.querySelectorAll('[data-template]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const t = TEMPLATES_DEPENSES[Number(btn.dataset.template)];
-    document.getElementById('modal-depense-title').textContent = `Ajouter une dépense — ${t.label}`;
-    document.getElementById('dep-raison').value = t.raison;
-    document.getElementById('dep-montant').value = '';
-    document.getElementById('dep-type').value = t.type;
-    document.getElementById('modal-depense').classList.remove('hidden');
-    setTimeout(() => document.getElementById('dep-montant').focus(), 50);
-  });
-});
 
 // === Ajout dépense (bouton classique) ===
 const btnAddDep = document.getElementById('btn-add-depense');

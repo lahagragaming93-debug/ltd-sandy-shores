@@ -693,6 +693,9 @@ a.alert-item:hover .alert-arrow {
   grid-template-columns: 1fr 1fr;
   gap: 22px;
   margin-bottom: 22px;
+  /* Chaque colonne prend sa hauteur naturelle : si Recettes est deplie et
+     Depenses replie, Depenses ne se "stretch" pas pour matcher Recettes. */
+  align-items: start;
 }
 @media (max-width: 900px) {
   .compta-grid { grid-template-columns: 1fr; }
@@ -788,16 +791,6 @@ a.alert-item:hover .alert-arrow {
   color: var(--color-bone);
 }
 
-/* === Templates dépenses (boutons) === */
-#templates-panel .btn-sm {
-  border-color: var(--color-leather);
-}
-#templates-panel .btn-sm:hover {
-  background: linear-gradient(180deg, var(--color-leather) 0%, #4a2a10 100%);
-  border-color: var(--color-gold);
-  color: var(--color-bone);
-  box-shadow: 0 4px 14px rgba(107,68,35,0.45);
-}
 
 /* === Tableau Salaires === */
 .salaires-group-title {
@@ -1024,6 +1017,40 @@ a.alert-item:hover .alert-arrow {
   width: 64px; height: 2px;
   background: linear-gradient(90deg, var(--color-blood-light) 0%, transparent 100%);
   border-radius: var(--radius-pill);
+}
+
+/* === Panneaux repliables (.panel.framed + bouton chevron) === */
+.panel-collapse-btn {
+  background: transparent;
+  border: 1px solid rgba(210,180,140,0.18);
+  color: var(--color-sand);
+  cursor: pointer;
+  padding: 2px 10px;
+  font-size: 0.95rem;
+  line-height: 1;
+  border-radius: var(--radius-pill);
+  transition: background var(--t-base), border-color var(--t-base), color var(--t-base);
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+.panel-collapse-btn:hover {
+  background: rgba(139,0,0,0.18);
+  border-color: var(--color-blood-light);
+  color: var(--color-sand-light);
+}
+.panel.collapsed > *:not(.panel-title),
+.panel.framed.collapsed > *:not(.panel-title) {
+  display: none !important;
+}
+.panel.collapsed > .panel-title,
+.panel.framed.collapsed > .panel-title {
+  margin-bottom: 0;
+  padding-bottom: 6px;
+  border-bottom: none;
+}
+.panel.collapsed > .panel-title::after,
+.panel.framed.collapsed > .panel-title::after {
+  opacity: 0;
 }
 
 /* === KPI tiles === */

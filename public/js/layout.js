@@ -7,6 +7,7 @@ import { ROLE_LABELS, canAccess, isEmployeeView, isDirection, isSuperAdmin } fro
 import { deconnecter, clearViewAsRole } from './auth.js';
 import { listenAlertesActives, marquerAlerteLue, marquerToutesAlertesLues } from './api.js';
 import { VERSION, AUTHOR, SIGNATURE_COURTE } from './version.js';
+import { initCollapsiblePanels, observeMain } from './utils/collapsible-panel.js';
 
 const NAV_ITEMS = [
   { key: 'dashboard',       href: 'dashboard.html',     icon: '★', label: 'Dashboard',          group: 'Direction' },
@@ -221,6 +222,13 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
       });
     }, 50);
   }
+
+  // === Panneaux repliables (.panel.framed) ===
+  // Attache le bouton ▾/▸ sur les panneaux deja presents, puis observe le
+  // <main> pour capter ceux ajoutes dynamiquement par les pages (rendus
+  // apres fetch Firestore, modales, etc.).
+  initCollapsiblePanels(document);
+  observeMain();
 
   // === Quitter le mode apercu (admin reel) ===
   const btnQuitter = document.getElementById('btn-quitter-apercu');

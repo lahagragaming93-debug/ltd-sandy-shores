@@ -74,24 +74,30 @@ async function chargerTout() {
     // v1.11.1 (perf CEF) : on parallelise les 3 queries banque (solde live +
     // banqueLtd periode + depenses periode) au lieu de les enchainer
     // sequentiellement, ce qui faisait ~600-900 ms cumules sur tablette
-    // in-game. + reduction des limits de 5000 a 500/2000 selon contexte
-    // (1 semaine = ~100-300 ops max, 1 mois = ~500, depuis ouverture = 2000).
-    const lim = (debut && fin) ? 500 : 2000;
+    // in-game.
+    // Limites separees /banqueLtd vs /depenses :
+    //   - /banqueLtd contient TOUTES les operations xbankaccount (add+remove,
+    //     dont les "Redistribution N°XXXX" essence => tres volumineux : on
+    //     observe deja ~480 entrees/semaine, montant en croissance) : 2000
+    //   - /depenses ne contient QUE des sorties categorisees (paiements,
+    //     achats), volume bien plus faible (~50-100/sem) : 800
+    const limBanque   = (debut && fin) ? 2000 : 2000;
+    const limDepenses = (debut && fin) ? 800  : 2000;
     const liveQ = query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(1));
     const banqueQ = (debut && fin)
       ? query(collection(db, 'banqueLtd'),
           where('timestamp', '>=', Timestamp.fromDate(debut)),
           where('timestamp', '<=', Timestamp.fromDate(fin)),
           orderBy('timestamp', 'desc'),
-          limit(lim))
-      : query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(lim));
+          limit(limBanque))
+      : query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(limBanque));
     const depQ = (debut && fin)
       ? query(collection(db, 'depenses'),
           where('timestamp', '>=', Timestamp.fromDate(debut)),
           where('timestamp', '<=', Timestamp.fromDate(fin)),
           orderBy('timestamp', 'desc'),
-          limit(lim))
-      : query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(lim));
+          limit(limDepenses))
+      : query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(limDepenses));
 
     const [liveSnap, banqueSnap, depSnap] = await Promise.all([
       getDocs(liveQ),

@@ -101,11 +101,20 @@ function render() {
   const totalEnAttente = enAttente.reduce((s, n) => s + (Number(n.montant) || 0), 0);
   const totalRemboursees = remboursees.reduce((s, n) => s + (Number(n.montant) || 0), 0);
 
+  // Si on a atteint le plafond (200), l'historique est tronque : on affiche
+  // "200+" et le delta indique la limite pour ne pas mentir.
+  const LIMITE_NOTES = 200;
+  const totalTrouve = notes.length >= LIMITE_NOTES;
+  const labelTotal  = totalTrouve ? `${LIMITE_NOTES}+` : String(notes.length);
+  const deltaTotal  = totalTrouve
+    ? `limite affichage ${LIMITE_NOTES} dernieres`
+    : 'toutes périodes';
+
   document.getElementById('kpis-nf').innerHTML = `
     <div class="kpi"><div class="label">En attente</div><div class="value">${enAttente.length}</div><div class="delta">${money(totalEnAttente)} à valider</div></div>
     <div class="kpi"><div class="label">Approuvées</div><div class="value">${approuvees.length}</div><div class="delta">prêtes à rembourser</div></div>
     <div class="kpi kpi-bank"><div class="label">Remboursées</div><div class="value">${remboursees.length}</div><div class="delta">${money(totalRemboursees)} total</div></div>
-    <div class="kpi"><div class="label">Total notes</div><div class="value">${notes.length}</div><div class="delta">toutes périodes</div></div>
+    <div class="kpi"><div class="label">Total notes</div><div class="value">${labelTotal}</div><div class="delta">${deltaTotal}</div></div>
   `;
 
   document.getElementById('liste-titre').textContent =

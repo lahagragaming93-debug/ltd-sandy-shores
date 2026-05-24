@@ -304,16 +304,28 @@ export async function ajouterDepense(data) {
   });
 }
 
-// Solde temps réel du compte bancaire LTD.
+// Solde du compte bancaire LTD.
 // 2 sources combinées :
 //   1. /banqueLtd : transactions xbankaccount (entrées + sorties FiveM)
 //   2. /depenses  : sorties via #depenses (peut contenir aussi un soldeApres)
 // On retourne la plus récente des 2, car la vérité c'est "le dernier mouvement
 // quel qu'il soit". Avec banqueLtd actif, on aura la précision la plus fine.
-export async function getDernierSoldeBanque() {
+//
+// Params optionnels (dateDebut, dateFin) : si fournis, on recupere le solde
+// le plus recent A LA FIN DE LA PERIODE (utile pour la page dashboard quand
+// l'utilisateur choisit "Semaine -1" -> on veut le solde au dim 23h59 de N-1,
+// pas le solde live d'aujourd'hui). Sans params : solde live actuel.
+export async function getDernierSoldeBanque(dateDebut = null, dateFin = null) {
+  const borneActive = dateDebut && dateFin;
   // Helper : extrait le doc le plus récent avec soldeApres valide
   async function lireDerniereSource(coll) {
-    const q = query(collection(db, coll), orderBy('timestamp', 'desc'), limit(10));
+    const q = borneActive
+      ? query(collection(db, coll),
+          where('timestamp', '>=', Timestamp.fromDate(dateDebut)),
+          where('timestamp', '<=', Timestamp.fromDate(dateFin)),
+          orderBy('timestamp', 'desc'),
+          limit(10))
+      : query(collection(db, coll), orderBy('timestamp', 'desc'), limit(10));
     const snap = await getDocs(q);
     for (const d of snap.docs) {
       const data = d.data();
@@ -451,8 +463,12 @@ export async function listPaiesSemaine(dateDebut, dateFin, weekKey = null) {
     .filter(p => !p.weekKeyAttribuee || p.weekKeyAttribuee === wKeyCible);
 }
 
-// Paies reçues par UN employé (utilisé par /paies.html)
-export async function listMesPaies(uid, n = 100) {
+// Paies reçues par UN employé (utilisé par /paies.html).
+// Defaut n=300 : couvre ~5 ans d'historique pour un employe paye hebdo.
+// Si un employe depasse cette limite, le KPI "Total reçu depuis ouverture"
+// sera tronque silencieusement — surveiller et migrer en agregation pre-calculee
+// (collection /paiesAggregatesByUid) si besoin.
+export async function listMesPaies(uid, n = 300) {
   const q = query(collection(db, 'paies'),
     where('beneficiaireId', '==', uid),
     orderBy('timestamp', 'desc'),
@@ -575,22 +591,24 @@ export function listenConfig(cb) {
 
 // ----- Notes de frais (pompiste avance des frais d'essence vehicule LTD) -----
 // Listener temps-reel : MES notes (filtre client par employeId).
+// Limite 200 : au-dela, le KPI "Total notes" cote /notes-frais affiche
+// "200+" pour indiquer la troncature.
 export function listenMesNotesFrais(employeId, cb) {
   const q = query(collection(db, 'notesFrais'),
     where('employeId', '==', employeId),
     orderBy('timestamp', 'desc'),
-    limit(50));
+    limit(200));
   return onSnapshot(q, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 }
-// Listener direction/DRH/resp-pompiste : 50 dernieres notes de frais.
-// NB : chaque doc embarque un screenshot base64 jusqu'a ~950 KB. A 50 docs
-// on charge potentiellement 47 MB en RAM cote tablette FiveM — limite a
-// surveiller. Si besoin d'historique plus large, migrer les screenshots
-// vers Firebase Storage et stocker uniquement l'URL dans le doc.
+// Listener direction/DRH/resp-pompiste : 200 dernieres notes de frais.
+// NB : chaque doc embarque un screenshot base64 jusqu'a ~950 KB. A 200 docs
+// on charge potentiellement ~190 MB en RAM cote tablette FiveM — limite
+// haute. Si besoin d'historique plus large, migrer les screenshots vers
+// Firebase Storage et stocker uniquement l'URL dans le doc.
 export function listenAllNotesFrais(cb) {
   const q = query(collection(db, 'notesFrais'),
     orderBy('timestamp', 'desc'),
-    limit(50));
+    limit(200));
   return onSnapshot(q, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 }
 

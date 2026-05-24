@@ -307,9 +307,17 @@ function renderKpis() {
   // On exclut les rôles techniques (admin-technique) des calculs financiers / masse salariale
   const usersFinance = users.filter(u => compteEnFinance(u.role));
   const caProduits   = ventes.reduce((s, v) => s + (v.montant || 0), 0);
-  const caCarburant  = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
-  // TTE : ratio masse salariale sur CA TOTAL (produits + carburant), pour refleter
-  // la realite economique et eviter de declarer hors-TTE artificiellement.
+  // CA carburant POMPISTE seulement (source 'manuel-pompiste') : exclut les
+  // ventes NPC automatiques (source 'banqueLtd-redistribution') qui ne sont
+  // liees a aucun employe. Avant le fix, ces ventes gonflaient le denominateur
+  // et faisaient apparaitre le ratio TTE artificiellement bas.
+  const caCarburant  = redistributions
+    .filter(r => r.source === 'manuel-pompiste')
+    .reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  // TTE : ratio masse salariale sur CA OPERATIONNEL POMPISTE (produits +
+  // carburant manuel), denominateur coherent avec les salaires variables des
+  // employes. Reflete la vraie pression masse salariale / CA generable par
+  // l'equipe.
   const totalCA = caProduits + caCarburant;
 
   // En mode 'precedente', on lit les estimations FIGEES dans /paiesEstimees

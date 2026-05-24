@@ -147,17 +147,10 @@ function rendre() {
 
   // === KPIs globaux ===
   const ca = rows.reduce((s, r) => s + (Number(r.montant) || 0), 0);
-  // Pour les litres et le prix moyen, on EXCLUT les transactions sans
-  // detail (litres=0, typiquement issues du rattrapage #revenu) sinon
-  // le prix moyen serait fausse vers le bas.
+  // Pour les litres, on EXCLUT les transactions sans detail (litres=0,
+  // typiquement issues du rattrapage #revenu).
   const rowsAvecDetail = rows.filter(r => (Number(r.litres) || 0) > 0);
   const litres = rowsAvecDetail.reduce((s, r) => s + (Number(r.litres) || 0), 0);
-  const caAvecDetail = rowsAvecDetail.reduce((s, r) => s + (Number(r.montant) || 0), 0);
-  const prixMoyen = litres > 0 ? caAvecDetail / litres : 0;
-
-  // Stations actives : ne compte QUE les vraies stations (avec litres > 0),
-  // exclut le placeholder "Station inconnue (rattrapage revenu)".
-  const vraiesStations = new Set(rowsAvecDetail.map(r => r.station || r.stationId).filter(Boolean));
 
   document.getElementById('kpis-carb').innerHTML = `
     <div class="kpi kpi-recette">
@@ -169,16 +162,6 @@ function rendre() {
       <div class="label">Litres vendus</div>
       <div class="value">${litres > 0 ? num(litres) + ' L' : '<span class="muted">—</span>'}</div>
       <div class="delta">${litres > 0 ? 'total période' : 'pas de détail'}</div>
-    </div>
-    <div class="kpi">
-      <div class="label">Prix moyen / L</div>
-      <div class="value">${litres > 0 ? moneyPrecis(prixMoyen) : '<span class="muted">—</span>'}</div>
-      <div class="delta">${litres > 0 ? 'pondéré' : 'pas de détail'}</div>
-    </div>
-    <div class="kpi">
-      <div class="label">Stations actives</div>
-      <div class="value">${vraiesStations.size > 0 ? vraiesStations.size : '<span class="muted">—</span>'}</div>
-      <div class="delta">${vraiesStations.size > 0 ? 'avec détail' : 'pas de détail'}</div>
     </div>
   `;
 

@@ -224,8 +224,26 @@ function renderTable() {
 function renderKpis() {
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const benefice = ventes.reduce((s, v) => s + (v.benefice || 0), 0);
-  const especes = ventes.filter(v => (v.paiement || '').toLowerCase() === 'especes').length;
-  const carte = ventes.filter(v => (v.paiement || '').toLowerCase() === 'carte').length;
+
+  // Comptage generique de toutes les valeurs de `paiement` rencontrees
+  // (especes, carte, autre, virement, ...). Avant : seules "especes" et "carte"
+  // etaient comptees -> ventes "autre" invisibles dans le KPI mais presentes
+  // dans le CA total = ecart inexpliquable. On affiche maintenant especes/carte
+  // dans la valeur principale + "+N autre(s)" en delta si applicable.
+  const counts = {};
+  for (const v of ventes) {
+    const p = (v.paiement || 'especes').toLowerCase().trim();
+    counts[p] = (counts[p] || 0) + 1;
+  }
+  const especes = counts['especes'] || 0;
+  const carte   = counts['carte']   || 0;
+  const autres  = Object.keys(counts)
+    .filter(k => k !== 'especes' && k !== 'carte')
+    .reduce((s, k) => s + counts[k], 0);
+  const deltaPaiements = autres > 0
+    ? `espèces / carte (+${autres} autre${autres > 1 ? 's' : ''})`
+    : 'espèces / carte';
+
   const moyenne = ventes.length ? ca / ventes.length : 0;
   const periodeLabel = currentIsCurrent ? 'CA semaine' : 'CA semaine clôturée';
 
@@ -233,7 +251,7 @@ function renderKpis() {
     <div class="kpi"><div class="label">${periodeLabel}</div><div class="value">${money(ca)}</div><div class="delta">${ventes.length} factures</div></div>
     <div class="kpi"><div class="label">Bénéfice brut</div><div class="value">${money(benefice)}</div><div class="delta">marge produits</div></div>
     <div class="kpi"><div class="label">Panier moyen</div><div class="value">${money(moyenne)}</div><div class="delta">par facture</div></div>
-    <div class="kpi"><div class="label">Paiements</div><div class="value mono">${especes}/${carte}</div><div class="delta">espèces / carte</div></div>
+    <div class="kpi"><div class="label">Paiements</div><div class="value mono">${especes}/${carte}</div><div class="delta">${deltaPaiements}</div></div>
   `;
 
   // Discordances
