@@ -3611,17 +3611,21 @@ export const comptaExport = onRequest({
 
     let csv;
     switch (type) {
-      // 'resume' et 'paies' retires en v1.7.0 : les semaines closes ont leur
-      // onglet snapshot dedie (recap + section paies avec ID Discord). On
-      // garde les endpoints commentes au cas ou besoin de re-export ad-hoc.
+      // 'resume' retire en v1.7.0 : les semaines closes ont leur onglet
+      // snapshot dedie (recap + section paies avec ID Discord). On garde
+      // l'endpoint commente au cas ou besoin de re-export ad-hoc.
       // case 'resume':   csv = await csvResume();   break;
-      // case 'paies':    csv = await csvPaies(usersByDiscord);    break;
-      case 'depenses': csv = await csvDepenses(usersByDiscord); break;
-      case 'ventes':   csv = await csvVentes(usersByDiscord);   break;
-      case 'banque':   csv = await csvBanque();   break;
+      case 'depenses':  csv = await csvDepenses(usersByDiscord); break;
+      case 'ventes':    csv = await csvVentes(usersByDiscord);   break;
+      case 'banque':    csv = await csvBanque();   break;
+      case 'carburant': csv = await csvCarburant(); break;
+      // 'paies' reintroduit en v1.7.2 : BLA Corporate a besoin de la masse
+      // salariale reelle pour le JSON IRS (les paies ne sont PAS dupliquees
+      // dans /depenses : clotureHebdo filtre type='paie' explicitement).
+      case 'paies':     csv = await csvPaies(usersByDiscord); break;
       default:
         return res.status(400).type('text/plain').send(
-          'Type inconnu. Utilise ?type=depenses | ventes | banque (resume/paies retires en v1.7.0)');
+          'Type inconnu. Utilise ?type=depenses | ventes | banque | carburant | paies (resume retire en v1.7.0)');
     }
     // BOM UTF-8 pour qu'Excel/Sheets gèrent les accents
     res.send('﻿' + csv);
@@ -3897,13 +3901,20 @@ async function csvBanque() {
   ]);
 
   // Combine en un tableau unifié
-  const ops = [];
+  // Note : FiveM log CHAQUE paiement sur 2 canaux (xbankaccount removemoney
+  // → /banqueLtd ET #depenses → /depenses). Sans dédup, chaque sortie est
+  // comptée 2 fois. On dédoublonne par (montant, type=remove, timestamp ±120s)
+  // — même clé que crossRefBanqueDepense() — et on privilégie /depenses car
+  // plus riche en métadonnées.
+  const banqueOps = [];
   for (const d of banqueSnap.docs) {
     const x = d.data();
     if (!x.timestamp) continue;
-    ops.push({
+    banqueOps.push({
+      _id: d.id,
       timestamp: x.timestamp,
       type: x.type === 'remove' ? 'Sortie' : 'Entrée',
+      _rawType: x.type === 'remove' ? 'remove' : 'add',
       montant: Number(x.montant) || 0,
       soldeAvant: Number(x.soldeAvant) || 0,
       soldeApres: Number(x.soldeApres) || 0,
@@ -3912,12 +3923,15 @@ async function csvBanque() {
       source: 'xbankaccount'
     });
   }
+  const depOps = [];
   for (const d of depensesSnap.docs) {
     const x = d.data();
     if (!x.timestamp) continue;
-    ops.push({
+    depOps.push({
+      _id: d.id,
       timestamp: x.timestamp,
       type: 'Sortie',
+      _rawType: 'remove',
       montant: Number(x.montant) || 0,
       soldeAvant: Number(x.soldeAvant) || 0,
       soldeApres: Number(x.soldeApres) || 0,
@@ -3926,6 +3940,44 @@ async function csvBanque() {
       source: 'depense'
     });
   }
+
+  // Déduplication banque ↔ dépenses
+  const DEDUP_WINDOW_MS = 120 * 1000;
+  const banqueRemovesByMontant = new Map();
+  for (const op of banqueOps) {
+    if (op._rawType !== 'remove') continue;
+    const ms = op.timestamp.toMillis ? op.timestamp.toMillis() : 0;
+    if (!ms) continue;
+    if (!banqueRemovesByMontant.has(op.montant)) banqueRemovesByMontant.set(op.montant, []);
+    banqueRemovesByMontant.get(op.montant).push({ ms, op, used: false });
+  }
+  const idsBanqueDoublons = new Set();
+  let nbDoublons = 0;
+  for (const dep of depOps) {
+    const ms = dep.timestamp.toMillis ? dep.timestamp.toMillis() : 0;
+    if (!ms) continue;
+    const candidats = banqueRemovesByMontant.get(dep.montant) || [];
+    let best = null;
+    let bestDelta = Infinity;
+    for (const c of candidats) {
+      if (c.used) continue;
+      const delta = Math.abs(c.ms - ms);
+      if (delta <= DEDUP_WINDOW_MS && delta < bestDelta) {
+        best = c;
+        bestDelta = delta;
+      }
+    }
+    if (best) {
+      best.used = true;
+      idsBanqueDoublons.add(best.op._id);
+      nbDoublons++;
+    }
+  }
+  const banqueOpsDedupes = banqueOps.filter(op => !idsBanqueDoublons.has(op._id));
+  if (nbDoublons > 0) {
+    console.log(`[csvBanque] dédup : ${nbDoublons} doublon(s) banqueLtd↔depenses supprimé(s)`);
+  }
+  const ops = [...banqueOpsDedupes, ...depOps];
 
   // Tri chronologique décroissant
   ops.sort((a, b) => {
@@ -3950,6 +4002,50 @@ async function csvBanque() {
   return lines.join('\n');
 }
 
+// === CA carburant — collection /redistributions COMPLETE ===
+// Pourquoi : le CSV banque n'expose que les redistributions qui transitent
+// par xbankaccount (`source=banqueLtd-redistribution`). Les autres ecritures
+// /redistributions (ravitaillement manuel pompiste, correction stock) ont
+// montant=0 mais font partie de l'audit. Surtout, certaines ventes carburant
+// reelles peuvent etre dans /redistributions sans correspondance banque
+// (selon source). Ce CSV expose donc TOUTE la collection pour permettre aux
+// portails clients (BLA Corporate) de sommer le vrai CA carburant.
+// 2026-05-24 (v1.7.1) : nouvel endpoint demande par BLA Corporate pour
+// corriger un ecart de ~46% sur le CA carburant affiche.
+async function csvCarburant() {
+  // Filtre semaine RP courante (coherent avec ventes/depenses).
+  const { debut, fin } = weekRangeRPParis();
+  const snap = await db.collection('redistributions')
+    .where('timestamp', '>=', Timestamp.fromDate(debut))
+    .where('timestamp', '<=', Timestamp.fromDate(fin))
+    .orderBy('timestamp', 'desc')
+    .get();
+  const lines = [csvRow(
+    'Date', 'N°', 'Station', 'StationId', 'Montant', 'Litres', 'Prix/L',
+    'Stock avant', 'Stock après', 'Source', 'Pompiste', 'Raison'
+  )];
+  for (const d of snap.docs) {
+    const r = d.data();
+    // N° = redistributionId (N° pompe FiveM) si present, sinon fivemPompeId
+    const numero = r.redistributionId || r.fivemPompeId || '';
+    lines.push(csvRow(
+      dateIso(r.timestamp),
+      numero,
+      r.station || '',
+      r.stationId || '',
+      Number(r.montant) || 0,
+      Number(r.litres) || 0,
+      Number(r.prixLitre) || 0,
+      Number(r.stockAvant) || 0,
+      Number(r.stockApres) || 0,
+      r.source || '',
+      r.pompisteNom || '',
+      r.raison || ''
+    ));
+  }
+  return lines.join('\n');
+}
+
 // Nettoie un nom qui peut venir pollué du bot Discord (ex: "Blake Mars\n<@999...>")
 // Garde la première occurrence "Prénom NOM" si trouvable, sinon retourne la chaîne trim.
 function cleanNomBot(raw) {
@@ -3960,6 +4056,10 @@ function cleanNomBot(raw) {
 }
 
 async function csvPaies(usersByDiscord) {
+  // 2026-05-24 (v1.7.2) : reintroduit a la demande de BLA Corporate pour
+  // permettre au portail client de calculer la masse salariale reelle dans
+  // le JSON IRS (les paies sont volontairement exclues de /depenses par
+  // clotureHebdo, sinon doublon avec /paies attribuees).
   // 2026-05-18 (v1.7.0) : filtre semaine RP courante + fenetre paie post-dim
   // de la semaine precedente (lun N+1 → mar N+1 21h). Capture les paies
   // versees lundi matin pour S-1 tant qu'elles restent pertinentes.
@@ -3971,20 +4071,52 @@ async function csvPaies(usersByDiscord) {
     .where('timestamp', '>=', Timestamp.fromDate(debutAvecFenetre))
     .orderBy('timestamp', 'desc')
     .get();
-  const lines = [csvRow('Date', 'Payeur', 'Bénéficiaire', 'Montant', 'Période')];
+  // Charge le map users complet pour enrichir poste/role (le map
+  // usersByDiscord ne donne que le nom). Necessaire pour la colonne Poste.
+  const usersFullSnap = await db.collection('users').limit(500).get();
+  const usersByUid = {};
+  const usersByDiscordFull = {};
+  for (const d of usersFullSnap.docs) {
+    const u = d.data();
+    const profile = { role: u.role || '', prenom: u.prenom || '', nom: u.nom || '' };
+    usersByUid[d.id] = profile;
+    if (u.idDiscord) usersByDiscordFull[String(u.idDiscord)] = profile;
+  }
+  const lines = [csvRow(
+    'Date', 'Employé', 'Discord', 'Poste', 'Type', 'Montant',
+    'Mode', 'Source', 'Période', 'Payé par', 'Validé par'
+  )];
   for (const d of snap.docs) {
     const p = d.data();
-    // Priorité : mapping users via Discord (nom propre), puis nettoyage du nom brut.
     const payeur       = (p.payeurDiscord       && usersByDiscord[String(p.payeurDiscord)])       || cleanNomBot(p.payeurNom)       || resolveUserLabel(p.payeurDiscord,       usersByDiscord);
     const beneficiaire = (p.beneficiaireDiscord && usersByDiscord[String(p.beneficiaireDiscord)]) || cleanNomBot(p.beneficiaireNom) || resolveUserLabel(p.beneficiaireDiscord, usersByDiscord);
-    // Période : p.periode (manuelle) sinon weekIsoLabel(p.weekKeyAttribuee) ("S20 2026").
+    // Poste : on regarde le profil du beneficiaire (par uid, puis discord).
+    const profilBen = (p.beneficiaireId && usersByUid[p.beneficiaireId])
+      || (p.beneficiaireDiscord && usersByDiscordFull[String(p.beneficiaireDiscord)])
+      || null;
+    const poste = profilBen ? (profilBen.role || '') : '';
+    // Type : salaire par defaut (le bot ne distingue pas prime/salaire au
+    // niveau de /paies, c'est gere en aval par le snapshot).
+    const typePaie = p.type || 'salaire';
+    // Mode : espece / virement (le bot Discord ne le passe pas, mais on
+    // expose le champ s'il existe — sinon "non-renseigne").
+    const mode = p.mode || p.modePaiement || '';
+    // Source : log Discord => espece IG. Permet de croiser avec banqueLtd.
+    const source = p.source || 'discord-bot';
     const periode = p.periode || weekIsoLabel(p.weekKeyAttribuee);
+    const valideePar = p.valideeParNom || p.snapshotMatchePar || '';
     lines.push(csvRow(
       dateIso(p.timestamp),
-      payeur,
       beneficiaire,
+      p.beneficiaireDiscord || '',
+      poste,
+      typePaie,
       p.montant || 0,
-      periode
+      mode,
+      source,
+      periode,
+      payeur,
+      valideePar
     ));
   }
   return lines.join('\n');

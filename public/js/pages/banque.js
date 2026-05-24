@@ -127,8 +127,57 @@ async function chargerTout() {
       };
     });
 
-    // 3. Combine + tri chronologique
-    mouvements = [...banqueOps, ...depOps].sort((a, b) => {
+    // 3. Déduplication banque ↔ dépenses
+    //    FiveM log CHAQUE paiement sur 2 canaux : xbankaccount (#logs-ig →
+    //    /banqueLtd) ET #depenses (→ /depenses). Une seule sortie d'argent
+    //    réelle = 2 docs Firestore. Sans dédup, totaux × 2.
+    //
+    //    Stratégie : pour chaque dépense (source=depense), on cherche un
+    //    mouvement banqueLtd correspondant (même montant + type=remove +
+    //    timestamp à ±120s) et on le retire. On garde la dépense car elle
+    //    porte des métadonnées plus riches (raison textuelle, utilisateur,
+    //    fournisseur classifié, etc.).
+    //
+    //    Clé de matching identique à crossRefBanqueDepense() côté Cloud Fn.
+    const DEDUP_WINDOW_MS = 120 * 1000;
+    const banqueRemovesByMontant = new Map(); // montant → [{ms, op, used}]
+    for (const op of banqueOps) {
+      if (op.type !== 'remove') continue;
+      const ms = op.timestamp?.toMillis ? op.timestamp.toMillis() : 0;
+      if (!ms) continue;
+      if (!banqueRemovesByMontant.has(op.montant)) banqueRemovesByMontant.set(op.montant, []);
+      banqueRemovesByMontant.get(op.montant).push({ ms, op, used: false });
+    }
+    const idsBanqueADedupliquer = new Set();
+    let nbDoublons = 0;
+    for (const dep of depOps) {
+      const ms = dep.timestamp?.toMillis ? dep.timestamp.toMillis() : 0;
+      if (!ms) continue;
+      const candidats = banqueRemovesByMontant.get(dep.montant) || [];
+      // On prend le candidat libre le plus proche temporellement (< 120s)
+      let best = null;
+      let bestDelta = Infinity;
+      for (const c of candidats) {
+        if (c.used) continue;
+        const delta = Math.abs(c.ms - ms);
+        if (delta <= DEDUP_WINDOW_MS && delta < bestDelta) {
+          best = c;
+          bestDelta = delta;
+        }
+      }
+      if (best) {
+        best.used = true;
+        idsBanqueADedupliquer.add(best.op.id);
+        nbDoublons++;
+      }
+    }
+    const banqueOpsDedupes = banqueOps.filter(op => !idsBanqueADedupliquer.has(op.id));
+    if (nbDoublons > 0) {
+      console.log(`[banque] dédup : ${nbDoublons} doublon(s) banqueLtd↔depenses supprimé(s) (${banqueOps.length} banque + ${depOps.length} dép → ${banqueOpsDedupes.length + depOps.length} uniques)`);
+    }
+
+    // 4. Combine + tri chronologique
+    mouvements = [...banqueOpsDedupes, ...depOps].sort((a, b) => {
       const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
       const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
       return tb - ta;
