@@ -5,7 +5,7 @@
 
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listMouvementsBanqueRecents, listDepensesSemaine } from '../api.js';
+import { listMouvementsBanqueRecents, listDepensesSemaine, listVentesSemaine } from '../api.js';
 import { db } from '../firebase-config.js';
 import { collection, query, orderBy, limit, getDocs, where, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
@@ -64,6 +64,7 @@ makeSortable(document.getElementById('table-mvts'));
 
 let mouvements = []; // [{ timestamp, type, montant, soldeAvant, soldeApres, raison, source, utilisateur }, …]
 let soldeLive = { montant: 0, date: null }; // toujours le solde courant, indépendant du filtre période
+let ventesPeriode = []; // ventes /ventes sur la periode (toutes methodes de paiement)
 
 async function chargerTout() {
   const tbody = document.getElementById('tbody-mvts');
@@ -77,12 +78,14 @@ async function chargerTout() {
     // in-game.
     // Limites separees /banqueLtd vs /depenses :
     //   - /banqueLtd contient TOUTES les operations xbankaccount (add+remove,
-    //     dont les "Redistribution N°XXXX" essence => tres volumineux : on
-    //     observe deja ~480 entrees/semaine, montant en croissance) : 2000
+    //     dont les "Redistribution N°XXXX" essence => tres volumineux).
+    //     Limite 10000 (large safety ceiling). En pratique limite naturelle
+    //     par l'archivage automatique a 6 semaines (cf. Cloud Function
+    //     archiveBanqueLtdAnciens).
     //   - /depenses ne contient QUE des sorties categorisees (paiements,
     //     achats), volume bien plus faible (~50-100/sem) : 800
-    const limBanque   = (debut && fin) ? 2000 : 2000;
-    const limDepenses = (debut && fin) ? 800  : 2000;
+    const limBanque   = 10000;
+    const limDepenses = (debut && fin) ? 800 : 2000;
     const liveQ = query(collection(db, 'banqueLtd'), orderBy('timestamp', 'desc'), limit(1));
     const banqueQ = (debut && fin)
       ? query(collection(db, 'banqueLtd'),
@@ -99,11 +102,21 @@ async function chargerTout() {
           limit(limDepenses))
       : query(collection(db, 'depenses'), orderBy('timestamp', 'desc'), limit(limDepenses));
 
-    const [liveSnap, banqueSnap, depSnap] = await Promise.all([
+    // Ventes epicerie (toutes methodes de paiement) sur la periode : permet
+    // au KPI "Recettes totales" d'inclure les ventes en espece/carte/autre
+    // qui ne transitent pas (ou pas toutes) par xbankaccount. Sans periode
+    // (Depuis ouverture), on saute ce fetch pour eviter un payload massif.
+    const ventesPromise = (debut && fin)
+      ? listVentesSemaine(debut, fin).catch(() => [])
+      : Promise.resolve([]);
+
+    const [liveSnap, banqueSnap, depSnap, ventesSnap] = await Promise.all([
       getDocs(liveQ),
       getDocs(banqueQ),
-      getDocs(depQ)
+      getDocs(depQ),
+      ventesPromise
     ]);
+    ventesPeriode = ventesSnap;
 
     if (!liveSnap.empty) {
       const x = liveSnap.docs[0].data();
@@ -213,11 +226,16 @@ function rendre() {
   if (filtreRech) visibles = visibles.filter(m => (m.raison || '').toLowerCase().includes(filtreRech));
 
   // KPIs : "Solde actuel" = live (indépendant du filtre)
-  //        "Total entrées / sorties / Net" = sur la période sélectionnée
-  const nbAdd    = mouvements.filter(m => m.type === 'add').length;
-  const nbRemove = mouvements.filter(m => m.type === 'remove').length;
-  const totalEntrees = mouvements.filter(m => m.type === 'add').reduce((s, m) => s + m.montant, 0);
-  const totalSorties = mouvements.filter(m => m.type === 'remove').reduce((s, m) => s + m.montant, 0);
+  //        "Recettes totales" = mouvements bancaires (add) + ventes epicerie
+  //                             (toutes methodes de paiement) sur la periode
+  //        "Sorties" + "Net" = sur la période sélectionnée
+  const nbAdd       = mouvements.filter(m => m.type === 'add').length;
+  const nbRemove    = mouvements.filter(m => m.type === 'remove').length;
+  const totalBanque = mouvements.filter(m => m.type === 'add').reduce((s, m) => s + m.montant, 0);
+  const totalSorties= mouvements.filter(m => m.type === 'remove').reduce((s, m) => s + m.montant, 0);
+  const totalVentes = ventesPeriode.reduce((s, v) => s + (Number(v.montant) || 0), 0);
+  const nbVentes    = ventesPeriode.length;
+  const totalRecettes = totalBanque + totalVentes;
   const periodeLabel = getPeriodeLabel();
 
   document.getElementById('kpis-banque').innerHTML = `
@@ -226,20 +244,20 @@ function rendre() {
       <div class="value">${money(soldeLive.montant)}</div>
       <div class="delta">au ${escapeHtml(datetime(soldeLive.date) || '—')} · live, indépendant du filtre</div>
     </div>
-    <div class="kpi kpi-recette">
-      <div class="label">Entrées <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
-      <div class="value">${money(totalEntrees)}</div>
-      <div class="delta">${nbAdd} mouvements</div>
+    <div class="kpi kpi-recette" title="Mouvements bancaires entrants (xbankaccount : redistributions essence, subventions, virements) + ventes epicerie toutes methodes de paiement.">
+      <div class="label">Recettes totales <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
+      <div class="value">${money(totalRecettes)}</div>
+      <div class="delta">${money(totalBanque)} banque (${nbAdd}) · ${money(totalVentes)} ventes (${nbVentes})</div>
     </div>
     <div class="kpi kpi-depense">
       <div class="label">Sorties <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalSorties)}</div>
       <div class="delta">${nbRemove} mouvements</div>
     </div>
-    <div class="kpi ${(totalEntrees - totalSorties) >= 0 ? 'kpi-positive' : 'kpi-negative'}" style="border-color:var(--color-info);">
+    <div class="kpi ${(totalRecettes - totalSorties) >= 0 ? 'kpi-positive' : 'kpi-negative'}" style="border-color:var(--color-info);">
       <div class="label">Net <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
-      <div class="value">${money(totalEntrees - totalSorties)}</div>
-      <div class="delta">entrées − sorties sur la période</div>
+      <div class="value">${money(totalRecettes - totalSorties)}</div>
+      <div class="delta">recettes − sorties sur la période</div>
     </div>
   `;
 

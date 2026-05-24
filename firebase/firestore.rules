@@ -231,6 +231,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === Archives mouvements bancaires (> 6 semaines, ecrites par la
+    // Cloud Function archiveAncienMouvementsBanque pour reduire la taille
+    // des collections actives) ===
+    // Memes droits que les sources : lecture direction/DRH, ecriture client
+    // interdite (seul l'Admin SDK ecrit via Cloud Function planifiee).
+    match /banqueLtdArchive/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+    match /depensesArchive/{id} {
+      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow write: if false;
+    }
+
     // === Événements RH automatisés (embauches, exclusions, avertissements, licenciements) ===
     match /rhEvenements/{id} {
       allow read:  if isAuth() && (canAdmin() || isDRH());

@@ -3586,6 +3586,91 @@ export const verifierSortiesExpirees = onSchedule({
   console.log(`[anti-vol] ${snap.size} sortie(s) expirees -> alertes crees`);
 });
 
+// ----------------------------------------------------------------
+// archiveAncienMouvementsBanque (cron hebdo dim 03:00 Europe/Paris)
+//
+// Reduit la taille des collections actives /banqueLtd et /depenses en
+// deplacant vers /banqueLtdArchive et /depensesArchive tous les docs
+// dont le timestamp est > 6 semaines. Permet aux queries /banque.html
+// de rester legeres (et au limit(10000) cote front d'avoir une marge
+// confortable) sans perte de donnees : les archives restent queryables
+// par scripts admin pour audit IRS.
+//
+// Strategie :
+//   1. Calcul cutoff = now - 6 semaines (timestamp Firestore)
+//   2. Pour chaque collection (banqueLtd, depenses) :
+//      - Query batch de 400 docs ou timestamp < cutoff
+//      - Pour chaque batch : copie vers <coll>Archive (meme id) + delete
+//        de la collection source, le tout en un writeBatch atomique
+//      - Repete jusqu'a epuisement (la fonction est bornee a 9 min)
+//   3. Log stats
+//
+// Edge case : si une exception interrompt entre copie et delete, le doc
+// est dupplique (visible dans les 2 collections). On accepte ce risque
+// (faible) car les 2 collections ont meme schema et la prochaine
+// execution corrigera (delete idempotent).
+// ----------------------------------------------------------------
+export const archiveAncienMouvementsBanque = onSchedule({
+  schedule: '0 3 * * 0',         // dimanche 03:00 Europe/Paris
+  timeZone: 'Europe/Paris',
+  region: 'europe-west1',
+  timeoutSeconds: 540,           // 9 min, max pour scheduled functions
+  memory: '512MiB'
+}, async () => {
+  const SEMAINES_RETENTION = 6;
+  const cutoffMs = Date.now() - SEMAINES_RETENTION * 7 * 24 * 60 * 60 * 1000;
+  const cutoff = Timestamp.fromMillis(cutoffMs);
+  const BATCH_SIZE = 400;        // marge sous la limite Firestore (500 ops)
+
+  async function archiverCollection(source, dest) {
+    let totalArchive = 0;
+    let totalScanne = 0;
+    // Boucle jusqu'a ne plus trouver de doc < cutoff
+    while (true) {
+      const snap = await db.collection(source)
+        .where('timestamp', '<', cutoff)
+        .orderBy('timestamp', 'asc')
+        .limit(BATCH_SIZE)
+        .get();
+      if (snap.empty) break;
+      totalScanne += snap.size;
+
+      const batch = db.batch();
+      for (const d of snap.docs) {
+        const data = d.data();
+        // Copie vers archive avec metadata d'archivage (audit)
+        batch.set(db.collection(dest).doc(d.id), {
+          ...data,
+          archivedAt: FieldValue.serverTimestamp(),
+          archivedFromCollection: source
+        });
+        batch.delete(d.ref);
+      }
+      await batch.commit();
+      totalArchive += snap.size;
+
+      // Si le batch n'etait pas plein, on a tout traite
+      if (snap.size < BATCH_SIZE) break;
+    }
+    return { totalArchive, totalScanne };
+  }
+
+  try {
+    const t0 = Date.now();
+    const [bq, dp] = await Promise.all([
+      archiverCollection('banqueLtd', 'banqueLtdArchive'),
+      archiverCollection('depenses', 'depensesArchive')
+    ]);
+    const dureeS = Math.round((Date.now() - t0) / 1000);
+    console.log(`[archive] cutoff=${cutoff.toDate().toISOString()} (${SEMAINES_RETENTION} sem) — ` +
+      `banqueLtd : ${bq.totalArchive} archives — ` +
+      `depenses : ${dp.totalArchive} archives — duree ${dureeS}s`);
+  } catch (e) {
+    console.error('[archive] error', e);
+    throw e; // re-throw pour que Cloud Scheduler retente
+  }
+});
+
 export const comptaExport = onRequest({
   region: 'europe-west1',
   cors: true,                  // Sheets fait des requêtes cross-origin
