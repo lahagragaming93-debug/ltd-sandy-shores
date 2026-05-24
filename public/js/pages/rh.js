@@ -723,20 +723,14 @@ function ouvrirDetail(uid) {
 
   // === Bloc salaire ===
   // DRH : montant FIXE 18 000 $ (decision patron) — pas de saisie
-  // Responsable Vente : pro-rata CA perso (calcule auto) — pas de saisie
-  // Responsable Pompiste : decide manuellement par patron
+  // Responsable Vente / Responsable Pompiste : decide manuellement par patron
+  //   (depuis 2026-05-24, traitement identique : ses ventes/crafts ne sont
+  //    PAS commissionnes — salaire fixe au plafond 17 000 $ ou montant decide).
   // Patron / Co-Patron : decide manuellement
   if (u.role === 'drh') {
     html += `
       <div class="alert info" style="font-size:0.85rem;">
         💼 <strong>Salaire DRH fixe : 18 000 $/semaine</strong> — imposé par le patron, non modifiable.
-      </div>
-    `;
-  } else if (u.role === 'responsable-vente') {
-    html += `
-      <div class="alert info" style="font-size:0.85rem;">
-        🛒 <strong>Salaire calculé automatiquement</strong> selon le CA personnel généré par le Responsable Vente.<br>
-        Formule : <code>(CA / 40 000) × 17 000</code>, plafonné à 17 000 $.
       </div>
     `;
   } else if (isResponsable(u.role) || isDirection(u.role)) {

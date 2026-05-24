@@ -124,10 +124,14 @@ function salairePompiste(role, bidons, caoutchoucs, quotaBidons = 1700, quotaCao
   return Math.round(moyenne * plafond);
 }
 
-function salaireResponsableVente(caGenere) {
+// Decision patron Blake 2026-05-24 : responsable-vente est traite exactement
+// comme responsable-pompiste (salaire fixe au plafond 17000 ou montant decide
+// patron). Ses ventes/crafts personnels ne sont PAS commissionnes — il pilote
+// l'equipe vendeurs. Annule l'ancienne formule pro-rata du 2026-05-14.
+function salaireResponsableVente(salaireDecide) {
   const plafond = PLAFOND_SALAIRE['responsable-vente'] ?? 17000;
-  const ratio = Math.min(1, (caGenere || 0) / CA_PLAFOND_RESP_VENTE);
-  return Math.min(Math.round(ratio * plafond), plafond);
+  const v = (salaireDecide != null && salaireDecide > 0) ? salaireDecide : plafond;
+  return Math.min(Math.round(v), plafond);
 }
 
 function salaireResponsablePompiste(salaireDecide) {
@@ -212,8 +216,8 @@ export function calculerPaieEstimee({ user, ventes = [], redistributions = [], q
     montantEstime = salairePompiste(role, bidons, caoutchoucs, quotaBidons, quotaCaoutchoucs);
     formule = `pompiste (moyenne quota bidons/caoutchoucs)`;
   } else if (role === 'responsable-vente') {
-    montantEstime = salaireResponsableVente(caParticulier);
-    formule = `responsable-vente ((CA / 40000) × 17000)`;
+    montantEstime = salaireResponsableVente(user.salaireDecide);
+    formule = `responsable-vente (salaire decide ou plafond, identique resp-pompiste depuis 2026-05-24)`;
   } else if (role === 'responsable-pompiste') {
     montantEstime = salaireResponsablePompiste(user.salaireDecide);
     formule = `responsable-pompiste (salaire decide ou plafond)`;

@@ -14,7 +14,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
-import { snapshotPaiesEstimees, PRODUITS_QUOTA_FAB } from './lib/paie-calc.mjs';
+import { snapshotPaiesEstimees, PRODUITS_QUOTA_FAB, calculerPaieEstimee } from './lib/paie-calc.mjs';
 import { snapshotSheetSemaine } from './lib/snapshot-sheet-semaine.mjs';
 import { snapshotSheetTitle } from './lib/week-iso.mjs';
 
@@ -3623,9 +3623,20 @@ export const comptaExport = onRequest({
       // salariale reelle pour le JSON IRS (les paies ne sont PAS dupliquees
       // dans /depenses : clotureHebdo filtre type='paie' explicitement).
       case 'paies':     csv = await csvPaies(usersByDiscord); break;
+      // v1.7.5 (2026-05-24) : nouveau endpoint demande par BLA Corporate.
+      // Expose la MASSE SALARIALE ESTIMEE pour la semaine RP en cours, par
+      // employe, en repliquant `calculerPaieEstimee` cote backend. Utile pour
+      // le portail client AVANT que le patron fasse les paies lundi 00h-02h :
+      // permet de calculer le JSON IRS et le bilan avec la masse salariale
+      // PREVISIONNELLE (et non pas "0" parce que aucune ligne /paies n'existe
+      // encore). Alias accepte : 'paies-estimees'.
+      case 'masse-salariale-estimee':
+      case 'paies-estimees':
+        csv = await csvMasseSalarialeEstimee(usersByDiscord);
+        break;
       default:
         return res.status(400).type('text/plain').send(
-          'Type inconnu. Utilise ?type=depenses | ventes | banque | carburant | paies (resume retire en v1.7.0)');
+          'Type inconnu. Utilise ?type=depenses | ventes | banque | carburant | paies | masse-salariale-estimee (resume retire en v1.7.0)');
     }
     // BOM UTF-8 pour qu'Excel/Sheets gèrent les accents
     res.send('﻿' + csv);
@@ -4119,6 +4130,190 @@ async function csvPaies(usersByDiscord) {
       valideePar
     ));
   }
+  return lines.join('\n');
+}
+
+// === Masse salariale ESTIMEE — replique calculerPaieEstimee cote backend ===
+// 2026-05-24 (v1.7.5) : nouvel endpoint demande par BLA Corporate.
+//
+// Probleme : l'endpoint /paies ne lit que les paies REELLEMENT VERSEES via
+// le bot Discord. Avant lundi 00h-02h (creneau ou le patron Blake MARS fait
+// les paies), aucune ligne /paies n'existe pour la semaine S en cours, donc
+// le portail BLA voyait masseSalariale=0 et le bilan client etait fantaisiste.
+//
+// Solution : repliquer la logique frontend salaireEstime / calculerPaieEstimee
+// (cf. /lib/paie-calc.mjs miroir de /public/js/utils/paie.js) sur les donnees
+// reelles de la semaine RP courante (ventes, quotas pompiste, quotas vendeur,
+// config quotas/CA). Resultat = ce que LE LTD AFFICHE actuellement sur /rh
+// (KPI "Salaires estimes"), ligne par ligne.
+//
+// Resolution "Statut versé / non versé" : on tente un match par
+// beneficiaireId ET (a defaut) idDiscord avec la collection /paies sur la
+// meme fenetre que csvPaies (lun N+1 00h -> mar N+1 21h, capture des paies
+// versees apres-coup), tolerance 5% du montant cible (mini 500$).
+//
+// IMPORTANT : on EXCLUT les admin-technique (compteEnFinance=false) pour
+// matcher exactement la KPI cote LTD ("Salaires estimes" sur /rh).
+async function csvMasseSalarialeEstimee(usersByDiscord) {
+  const { debut, fin } = weekRangeRPParis();
+  const weekKey = debut.toISOString().slice(0, 10);
+
+  // Charger en parallele tout ce dont calculerPaieEstimee a besoin + paies
+  // pour la resolution "versé / non versé".
+  const debutAvecFenetre = new Date(debut.getTime() - 1000);
+  const [usersSnap, ventesSnap, quotasSnap, quotasVSnap, cfgSnap, paiesSnap] = await Promise.all([
+    db.collection('users').get(),
+    db.collection('ventes')
+      .where('timestamp', '>=', Timestamp.fromDate(debut))
+      .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
+    db.collection('quotasPompiste').where('semaine', '==', weekKey).get(),
+    db.collection('quotasVendeur').where('semaine', '==', weekKey).get(),
+    db.collection('config').doc('global').get(),
+    db.collection('paies')
+      .where('timestamp', '>=', Timestamp.fromDate(debutAvecFenetre))
+      .orderBy('timestamp', 'desc').get()
+  ]);
+
+  // Filtre ventes cachees (doublons bot/manuelle) — cohérent rh.js + snapshotPaiesEstimees.
+  const ventes = ventesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(v => !v.cachee);
+
+  const quotaByUser = {};
+  quotasSnap.docs.forEach(d => {
+    const q = d.data();
+    if (q.employeId) quotaByUser[q.employeId] = q;
+  });
+  const quotaVByUser = {};
+  quotasVSnap.docs.forEach(d => {
+    const q = d.data();
+    if (q.employeId) quotaVByUser[q.employeId] = q;
+  });
+  const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+
+  // Index paies pour la resolution "verse / non verse". On indexe par
+  // beneficiaireId + (fallback) beneficiaireDiscord.
+  const paiesByUid = {};
+  const paiesByDiscord = {};
+  paiesSnap.docs.forEach(d => {
+    const p = d.data();
+    const m = Number(p.montant) || 0;
+    if (p.beneficiaireId) {
+      if (!paiesByUid[p.beneficiaireId]) paiesByUid[p.beneficiaireId] = [];
+      paiesByUid[p.beneficiaireId].push({ montant: m, ref: d.id });
+    }
+    if (p.beneficiaireDiscord) {
+      const did = String(p.beneficiaireDiscord);
+      if (!paiesByDiscord[did]) paiesByDiscord[did] = [];
+      paiesByDiscord[did].push({ montant: m, ref: d.id });
+    }
+  });
+
+  // On inclut TOUS les users (actifs ou non) qui ont compteEnFinance=true,
+  // pour eviter d'oublier quelqu'un dont le statut a été manipule. Le client
+  // pourra filtrer par statut s'il le souhaite.
+  const isAdminTech = (r) => r === 'admin-technique';
+  const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(u => !isAdminTech(u.role || ''));
+
+  const lines = [csvRow(
+    'Employé', 'Discord', 'Rôle', 'Statut compte',
+    'Salaire décidé', 'Salaire estimé', 'Plafond',
+    'Détail (CA / Quota / Fixe)', 'Formule',
+    'Statut paie', 'Montant versé'
+  )];
+
+  // Tri : direction d'abord, puis responsables, puis vendeurs, puis pompistes,
+  // puis DRH/autres. (Heuristique pour lisibilite humaine du CSV.)
+  const ROLE_ORDER = {
+    'patron': 0, 'co-patron': 1, 'drh': 2,
+    'responsable-vente': 3, 'responsable-pompiste': 4,
+    'vendeur-experimente': 5, 'vendeur-intermediaire': 6, 'vendeur-novice': 7,
+    'pompiste-experimente': 8, 'pompiste-intermediaire': 9, 'pompiste-novice': 10
+  };
+  users.sort((a, b) => {
+    const oa = ROLE_ORDER[a.role] ?? 99;
+    const ob = ROLE_ORDER[b.role] ?? 99;
+    if (oa !== ob) return oa - ob;
+    const na = `${a.nom || ''} ${a.prenom || ''}`.trim().toLowerCase();
+    const nb = `${b.nom || ''} ${b.prenom || ''}`.trim().toLowerCase();
+    return na.localeCompare(nb);
+  });
+
+  // Plafonds (recopies de paie-calc.mjs — mineure repete car non exporte
+  // sous forme utilisable directement ici)
+  const PLAFONDS = {
+    'patron': 20000, 'co-patron': 20000, 'drh': 18000,
+    'responsable-vente': 17000, 'responsable-pompiste': 17000,
+    'vendeur-novice': 13000, 'vendeur-intermediaire': 14000, 'vendeur-experimente': 15000,
+    'pompiste-novice': 13000, 'pompiste-intermediaire': 14000, 'pompiste-experimente': 15000
+  };
+
+  for (const user of users) {
+    const calc = calculerPaieEstimee({
+      user,
+      ventes,
+      quota: quotaByUser[user.id] || null,
+      quotaV: quotaVByUser[user.id] || null,
+      cfg
+    });
+
+    const role = user.role || '';
+    const plafond = PLAFONDS[role] || 0;
+    const salaireDecide = Number(user.salaireDecide) || 0;
+
+    // Detail lisible humain
+    let detail = '';
+    if (role === 'patron' || role === 'co-patron' || role === 'drh'
+        || role === 'responsable-pompiste' || role === 'responsable-vente') {
+      detail = `Fixe : ${salaireDecide > 0 ? salaireDecide : plafond} $`;
+    } else if (role.startsWith('vendeur')) {
+      detail = `CA particulier : ${Math.round(calc.caParticulier)} $`;
+    } else if (role.startsWith('pompiste')) {
+      detail = `Bidons : ${calc.bidons} / ${cfg.quotaBidons ?? 1700} · Caoutchoucs : ${calc.caoutchoucs} / ${cfg.quotaCaoutchoucs ?? 800}`;
+    } else {
+      detail = '-';
+    }
+
+    // Match versé / non versé
+    let statutPaie = 'non versé';
+    let montantVerse = 0;
+    if (calc.montantEstime > 0) {
+      const tol = Math.max(500, calc.montantEstime * 0.05);
+      const cand = (paiesByUid[user.id] || []).concat(
+        user.idDiscord ? (paiesByDiscord[String(user.idDiscord)] || []) : []
+      );
+      // Le meilleur match = montant le plus proche dans la fenetre de tolerance
+      let best = null;
+      let bestDelta = Infinity;
+      for (const p of cand) {
+        const delta = Math.abs(p.montant - calc.montantEstime);
+        if (delta <= tol && delta < bestDelta) { best = p; bestDelta = delta; }
+      }
+      if (best) {
+        statutPaie = 'versé';
+        montantVerse = best.montant;
+      }
+    } else {
+      // Salaire estime = 0 (admin-tech filtre, role inconnu, ou pas d'activite)
+      statutPaie = 'estimation nulle';
+    }
+
+    const nom = `${user.prenom || ''} ${user.nom || ''}`.trim()
+      || user.email || user.id;
+    lines.push(csvRow(
+      nom,
+      user.idDiscord || '',
+      role,
+      user.statut || 'actif',
+      salaireDecide,
+      calc.montantEstime,
+      plafond,
+      detail,
+      calc.formule || '',
+      statutPaie,
+      montantVerse
+    ));
+  }
+
   return lines.join('\n');
 }
 

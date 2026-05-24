@@ -639,9 +639,9 @@ const TUTOS = {
             <li>📊 <strong>Suivre l'équipe vendeurs</strong> via les RH (CA, ventes du jour, quotas)</li>
             <li>✏ <strong>Modifier/contester des ventes</strong> en cas d'erreur (formation, fraude détectée)</li>
             <li>📈 <strong>Optimiser le CA</strong> : prix des produits, marges, promotions ponctuelles</li>
-            <li>💵 <strong>Vendre toi-même</strong> — ton salaire dépend du CA particulier que tu génères</li>
+            <li>💵 <strong>Vendre toi-même</strong> — tes ventes ne sont PAS commissionnées (ton salaire est fixe)</li>
           </ul>
-          <p>Salaire : <strong>(CA perso / 40 000) × 17 000</strong>, plafond <strong>17 000 $</strong>.</p>
+          <p>Salaire : <strong>17 000 $ fixe</strong> (plafond TTE), ou montant inférieur décidé par le patron. Identique au Responsable Pompiste.</p>
         `
       },
       {
@@ -709,22 +709,19 @@ const TUTOS = {
       },
       {
         emoji: '💵',
-        title: 'Tu vends aussi — salaire au prorata',
+        title: 'Tu peux vendre — mais salaire fixe',
         body: `
           <p>En plus du management, tu peux <strong>vendre toi-même</strong> via "Mon espace" :</p>
           <ul>
             <li>Bouton <strong>"📝 Déclarer une vente"</strong> — vente directe</li>
             <li>Section <strong>"📌 Ventes à déclarer"</strong> — factures bot remontées à détailler</li>
           </ul>
-          <p>Ta formule de salaire :</p>
+          <p><strong>Important</strong> (décision patron 2026-05-24) : tes ventes et crafts personnels ne sont <strong>pas</strong> pris en compte dans ton salaire estimé. Ton rôle est de piloter l'équipe, pas de faire de la commission.</p>
           <ul>
-            <li>Plafond CA : <strong>40 000 $</strong></li>
-            <li>Plafond salaire : <strong>17 000 $</strong></li>
-            <li>Salaire = <strong>(CA particulier / 40 000) × 17 000</strong></li>
+            <li>Salaire fixe : <strong>17 000 $/semaine</strong> (plafond TTE)</li>
+            <li>Le patron peut décider un montant inférieur depuis l'interface RH</li>
+            <li>Régime identique au Responsable Pompiste</li>
           </ul>
-          <div class="tuto-callout">
-            💡 À 20 000 $ de CA particulier tu touches 8 500 $. À 40 000 $+ tu plafonnes à 17 000 $.
-          </div>
         `
       },
       {

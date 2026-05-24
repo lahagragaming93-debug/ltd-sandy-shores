@@ -6,7 +6,7 @@
 import { PLAFOND_SALAIRE, PLAFOND_CA_VENDEUR, BONUS_QUOTA_VENDEUR_MAX,
          CA_PLAFOND_VENDEUR_LEGACY, COMMISSION_VENDEUR,
          PRODUITS_QUOTA_FAB, isNouveauSystemeVendeur,
-         CA_PLAFOND_RESP_VENTE, DRH_SALAIRE_FIXE,
+         DRH_SALAIRE_FIXE,
          isVendeur, isPompiste, isResponsable, isDirection } from './permissions.js';
 
 /**
@@ -96,14 +96,18 @@ export function salairePompiste(role, bidonsRealises, caoutchoucsRealises,
 }
 
 /**
- * Salaire responsable VENTE — pro-rata sur CA personnel
- * Formule (decision patron 2026-05-14) : (CA / 40 000) × 17 000, plafonne a 17 000.
- * Memes regles d'attribution du CA qu'un vendeur (caParticulier).
+ * Salaire responsable VENTE — fixe (saisi manuellement par patron, plafond 17 000)
+ * Decision patron Blake 2026-05-24 : meme regime que le responsable POMPISTE.
+ * Ses ventes/crafts personnels ne sont PAS commissionnes (il pilote son equipe).
+ * Si non decide (null) ou setté à 0 par erreur → fallback sur plafond.
+ * (Ancienne formule pro-rata `(CA / 40000) × 17000` abandonnee : annule l'idee
+ * du 2026-05-14 — Blake clarifie que les deux responsables doivent etre traites
+ * de maniere identique sur le calcul de paie.)
  */
-export function salaireResponsableVente(caGenere) {
+export function salaireResponsableVente(salaireDecide) {
   const plafond = PLAFOND_SALAIRE['responsable-vente'] ?? 17000;
-  const ratio = Math.min(1, (caGenere || 0) / CA_PLAFOND_RESP_VENTE);
-  return Math.min(Math.round(ratio * plafond), plafond);
+  const v = (salaireDecide != null && salaireDecide > 0) ? salaireDecide : plafond;
+  return Math.min(Math.round(v), plafond);
 }
 
 /**
@@ -151,8 +155,9 @@ export function salaireEstime(e, cfg = {}) {
                            quotaBidons, quotaCaoutchoucs);
   }
   if (e.role === 'responsable-vente') {
-    // Pro-rata sur CA personnel (depuis 2026-05-14)
-    return salaireResponsableVente(e.caGenere ?? 0);
+    // Fixe au plafond ou salaire decide patron (decision 2026-05-24, alignement
+    // avec responsable-pompiste — ses ventes ne sont PAS commissionnees).
+    return salaireResponsableVente(e.salaireDecide ?? 0);
   }
   if (e.role === 'responsable-pompiste') {
     return salaireResponsablePompiste(e.salaireDecide ?? 0);

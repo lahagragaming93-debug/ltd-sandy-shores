@@ -165,8 +165,11 @@ export const PLAFOND_SALAIRE = {
 // Salaire DRH : montant FIXE (pas decide). Decision patron 2026-05-14.
 export const DRH_SALAIRE_FIXE = 18000;
 
-// Plafond CA pour Responsable Vente : a 40 000 $ de CA perso il atteint
-// son plafond salaire (17 000 $). Formule pro-rata = (CA / 40 000) × 17 000.
+// LEGACY (non utilisee depuis 2026-05-24) : le responsable vente est desormais
+// traite EXACTEMENT comme le responsable pompiste — salaire fixe au plafond
+// (17 000 $) ou montant decide par le patron. Ses ventes/crafts ne sont PAS
+// commissionnes. Constante conservee pour ne pas casser d'eventuels imports
+// historiques mais plus utilisee dans le calcul de paie.
 export const CA_PLAFOND_RESP_VENTE = 40000;
 
 // === Vendeurs : bascule entre ancien et nouveau systeme ===

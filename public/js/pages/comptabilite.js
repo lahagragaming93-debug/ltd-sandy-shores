@@ -675,11 +675,7 @@ function renderSalaires(users, paies) {
       // DRH : salaire FIXE 18 000 \$ (decision patron 2026-05-14)
       estime = DRH_SALAIRE_FIXE;
       source = '<span class="badge ok">fixe imposé</span>';
-    } else if (u.role === 'responsable-vente') {
-      // RV : pro-rata sur CA personnel — calcul detaille en RH
-      estime = null;
-      source = '<span class="badge neutral">auto (RH — CA)</span>';
-    } else if (isDirection(u.role) || u.role === 'responsable-pompiste') {
+    } else if (isDirection(u.role) || u.role === 'responsable-pompiste' || u.role === 'responsable-vente') {
       // Patron / Co-Patron / Resp Pompiste : salaire decide
       // Si salaireDecide est 0 (saisi par erreur) on bascule au plafond pour ne pas
       // afficher 0 \$ en compta — l'utilisateur peut toujours l'editer en RH.
@@ -718,8 +714,7 @@ function renderSalaires(users, paies) {
     if (list.length === 0) return '';
     const totEst = list.reduce((s, u) => {
       if (u.role === 'drh') return s + DRH_SALAIRE_FIXE;
-      if (u.role === 'responsable-vente') return s; // calcule en RH (CA dependant)
-      if (isDirection(u.role) || u.role === 'responsable-pompiste') {
+      if (isDirection(u.role) || u.role === 'responsable-pompiste' || u.role === 'responsable-vente') {
         const decide = u.salaireDecide;
         return s + ((decide != null && decide > 0) ? decide : PLAFOND_SALAIRE[u.role] || 0);
       }
@@ -950,7 +945,6 @@ document.getElementById('btn-copy-recap').addEventListener('click', async () => 
     const verse = verseParUser[u.id] || 0;
     let estime;
     if (u.role === 'drh') estime = DRH_SALAIRE_FIXE;
-    else if (u.role === 'responsable-vente') return `• ${u.prenom} ${u.nom} — calculé auto en RH (CA personnel)`;
     else {
       const decide = u.salaireDecide;
       estime = (decide != null && decide > 0) ? decide : (PLAFOND_SALAIRE[u.role] ?? 0);
@@ -962,7 +956,6 @@ document.getElementById('btn-copy-recap').addEventListener('click', async () => 
 
   let total = 0;
   const restant = (u) => {
-    if (u.role === 'responsable-vente') return 0; // calcule en RH, hors recap rapide
     const estime = u.role === 'drh'
       ? DRH_SALAIRE_FIXE
       : ((u.salaireDecide != null && u.salaireDecide > 0) ? u.salaireDecide : (PLAFOND_SALAIRE[u.role] ?? 0));

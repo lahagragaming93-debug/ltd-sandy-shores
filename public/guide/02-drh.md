@@ -220,10 +220,10 @@ Salaire = score moyen × plafond
 - Salaire = 87,5 % × 14 000 = **12 250 $**
 
 ### Responsable Vente
-- **Calculé automatiquement** depuis son CA personnel (depuis 2026-05-14)
-- Formule : `(CA / 40 000) × 17 000`, plafonné à **17 000 $/semaine**
-- Mêmes règles d'attribution du CA qu'un vendeur (caParticulier — exclut les ventes pro)
-- **Pas de saisie manuelle** dans la modale
+- Salaire fixe **décidé** par le patron (ou toi) — régime identique au Responsable Pompiste depuis 2026-05-24
+- Plafond : **17 000 $/semaine**
+- Ses ventes/crafts personnels **ne sont pas** commissionnés — il pilote l'équipe vendeurs
+- Saisie via la modale "Détail employé" comme pour les autres responsables
 
 ### Responsable Pompiste
 - Salaire fixe **décidé** par le patron (ou toi)
