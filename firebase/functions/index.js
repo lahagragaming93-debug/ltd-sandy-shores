@@ -3600,6 +3600,18 @@ export const comptaExport = onRequest({
 
   const type = (req.query.type || 'resume').toString();
 
+  // v1.7.8 (2026-05-24) — Param optionnel `?semaine=YYYY-Wnn` (alias `?week=`).
+  // Si fourni, les endpoints filtrent sur cette semaine ISO (lun→dim Paris)
+  // au lieu de la semaine RP courante. Necessaire pour les snapshots BLA
+  // d'audit historique (sinon les sections ventes/dep/paies du PDF S20
+  // generent vides car le filtre weekRangeRPParis pointe sur S21).
+  const semaineArg = req.query.semaine || req.query.week || null;
+  const bounds = semaineArg ? weekRangeFromIso(semaineArg) : null;
+  if (semaineArg && !bounds) {
+    return res.status(400).type('text/plain').send(
+      'Param semaine invalide. Format attendu : YYYY-Wnn (ex: 2026-W20).');
+  }
+
   // Headers utiles pour Sheets
   res.set('Cache-Control', 'no-cache, max-age=0');
   res.type('text/csv; charset=utf-8');
@@ -3615,14 +3627,14 @@ export const comptaExport = onRequest({
       // snapshot dedie (recap + section paies avec ID Discord). On garde
       // l'endpoint commente au cas ou besoin de re-export ad-hoc.
       // case 'resume':   csv = await csvResume();   break;
-      case 'depenses':  csv = await csvDepenses(usersByDiscord); break;
-      case 'ventes':    csv = await csvVentes(usersByDiscord);   break;
-      case 'banque':    csv = await csvBanque();   break;
-      case 'carburant': csv = await csvCarburant(); break;
+      case 'depenses':  csv = await csvDepenses(usersByDiscord, bounds); break;
+      case 'ventes':    csv = await csvVentes(usersByDiscord, bounds);   break;
+      case 'banque':    csv = await csvBanque(bounds);   break;
+      case 'carburant': csv = await csvCarburant(bounds); break;
       // 'paies' reintroduit en v1.7.2 : BLA Corporate a besoin de la masse
       // salariale reelle pour le JSON IRS (les paies ne sont PAS dupliquees
       // dans /depenses : clotureHebdo filtre type='paie' explicitement).
-      case 'paies':     csv = await csvPaies(usersByDiscord); break;
+      case 'paies':     csv = await csvPaies(usersByDiscord, bounds); break;
       // v1.7.5 (2026-05-24) : nouveau endpoint demande par BLA Corporate.
       // Expose la MASSE SALARIALE ESTIMEE pour la semaine RP en cours, par
       // employe, en repliquant `calculerPaieEstimee` cote backend. Utile pour
@@ -3632,11 +3644,22 @@ export const comptaExport = onRequest({
       // encore). Alias accepte : 'paies-estimees'.
       case 'masse-salariale-estimee':
       case 'paies-estimees':
-        csv = await csvMasseSalarialeEstimee(usersByDiscord);
+        csv = await csvMasseSalarialeEstimee(usersByDiscord, bounds);
+        break;
+      // v1.7.7 (2026-05-24) : endpoint demande par BLA Corporate pour la
+      // section "Archives" du portail client. Liste les 20 dernieres semaines
+      // cloturees (docs /semaines), avec leurs KPI resumes : CA produits +
+      // carburant, depenses, masse salariale, benefice net, statut. Permet
+      // au patron d'auditer les semaines passees en 1 click + telecharger un
+      // snapshot PDF par semaine via la Cloud Function generateSnapshotPdf
+      // (qui accepte deja ?semaine=YYYY-Wnn). Tri par dateDebut desc.
+      case 'semaines-fermees':
+      case 'semaines':
+        csv = await csvSemainesFermees();
         break;
       default:
         return res.status(400).type('text/plain').send(
-          'Type inconnu. Utilise ?type=depenses | ventes | banque | carburant | paies | masse-salariale-estimee (resume retire en v1.7.0)');
+          'Type inconnu. Utilise ?type=depenses | ventes | banque | carburant | paies | masse-salariale-estimee | semaines-fermees (resume retire en v1.7.0)');
     }
     // BOM UTF-8 pour qu'Excel/Sheets gèrent les accents
     res.send('﻿' + csv);
@@ -3716,6 +3739,48 @@ function weekRangeRPParis() {
   dimancheWall.setUTCDate(dimancheWall.getUTCDate() + 6);
   dimancheWall.setUTCHours(23, 59, 59, 999);
   return { debut: parisWallToUtcGlobal(lundiWall), fin: parisWallToUtcGlobal(dimancheWall) };
+}
+
+// v1.7.8 (2026-05-24) — Helper "ISO week → bornes UTC en Europe/Paris".
+// Accepte `YYYY-Wnn` (ex: '2026-W20'). Retourne { debut, fin } UTC equivalents
+// au lundi 00h00 Paris et dimanche 23h59:59.999 Paris.
+//
+// Utilise par comptaExport pour permettre aux portails clients (BLA Corporate)
+// de demander un snapshot d'une semaine RP passee. Sans ce param, les endpoints
+// csv* filtrent sur la semaine RP COURANTE (weekRangeRPParis) ce qui rend les
+// snapshots historiques (S20, S19...) vides.
+function weekRangeFromIso(yearWeek) {
+  if (!yearWeek) return null;
+  const match = /^(\d{4})-W(\d{1,2})$/i.exec(String(yearWeek).trim());
+  if (!match) return null;
+  const year = +match[1];
+  const week = +match[2];
+  if (!year || !week || week < 1 || week > 53) return null;
+
+  // ISO 8601 : la semaine 1 est celle qui contient le 4 janvier.
+  // On calcule le lundi de la semaine 1, puis on ajoute (week - 1) * 7 jours.
+  // IMPORTANT : on raisonne en horloge Paris (toParisWall) pour que le lundi
+  // 00h00 soit le bon, peu importe le DST. Symetrique a weekRangeRPParis.
+  const jan4Utc = new Date(Date.UTC(year, 0, 4, 12, 0, 0)); // midi UTC pour eviter pb DST
+  const jan4Paris = toParisWall(jan4Utc);
+  const jan4Day = jan4Paris.getUTCDay() || 7; // 1=lun..7=dim
+  const week1MondayParis = new Date(jan4Paris);
+  week1MondayParis.setUTCDate(week1MondayParis.getUTCDate() - (jan4Day - 1));
+  week1MondayParis.setUTCHours(0, 0, 0, 0);
+
+  const lundiWall = new Date(week1MondayParis);
+  lundiWall.setUTCDate(lundiWall.getUTCDate() + (week - 1) * 7);
+  lundiWall.setUTCHours(0, 0, 0, 0);
+
+  const dimancheWall = new Date(lundiWall);
+  dimancheWall.setUTCDate(dimancheWall.getUTCDate() + 6);
+  dimancheWall.setUTCHours(23, 59, 59, 999);
+
+  return {
+    debut: parisWallToUtcGlobal(lundiWall),
+    fin: parisWallToUtcGlobal(dimancheWall),
+    weekKey: `${lundiWall.getUTCFullYear()}-${pad(lundiWall.getUTCMonth() + 1)}-${pad(lundiWall.getUTCDate())}`
+  };
 }
 
 // Numéro ISO 8601 de semaine (1-53) + label "S20 2026". weekKey = YYYY-MM-DD du lundi.
@@ -3819,11 +3884,13 @@ async function csvResume() {
   return lines.join('\n');
 }
 
-async function csvDepenses(usersByDiscord) {
+async function csvDepenses(usersByDiscord, bounds = null) {
   // 2026-05-18 (v1.7.0) : filtre semaine RP courante uniquement.
   // Les semaines clôturées ont leur propre onglet snapshot fige (cf
   // snapshot-sheet-semaine.mjs). Plus besoin de scroll infini ici.
-  const { debut, fin } = weekRangeRPParis();
+  // v1.7.8 (2026-05-24) : `bounds` optionnel pour cibler une semaine ISO
+  // passee (snapshot historique BLA via ?semaine=YYYY-Wnn).
+  const { debut, fin } = bounds || weekRangeRPParis();
   const snap = await db.collection('depenses')
     .where('timestamp', '>=', Timestamp.fromDate(debut))
     .where('timestamp', '<=', Timestamp.fromDate(fin))
@@ -3850,10 +3917,11 @@ async function csvDepenses(usersByDiscord) {
   return lines.join('\n');
 }
 
-async function csvVentes(usersByDiscord) {
+async function csvVentes(usersByDiscord, bounds = null) {
   // 2026-05-18 (v1.7.0) : filtre semaine RP courante uniquement.
   // Les semaines clôturées ont leur propre onglet snapshot fige.
-  const { debut, fin } = weekRangeRPParis();
+  // v1.7.8 (2026-05-24) : `bounds` optionnel pour snapshot historique.
+  const { debut, fin } = bounds || weekRangeRPParis();
   const snap = await db.collection('ventes')
     .where('timestamp', '>=', Timestamp.fromDate(debut))
     .where('timestamp', '<=', Timestamp.fromDate(fin))
@@ -3900,16 +3968,29 @@ async function csvVentes(usersByDiscord) {
 // Combine /banqueLtd (entrées xbankaccount) + /depenses (sorties #depenses)
 // Triées par timestamp décroissant. Permet à l'audit IRS de voir TOUS les
 // mouvements du compte LTD chronologiquement avec le solde après chaque op.
-async function csvBanque() {
+async function csvBanque(bounds = null) {
   const lines = [csvRow(
     'Date', 'Type', 'Montant', 'Solde avant', 'Solde après', 'Raison', 'Utilisateur', 'Source'
   )];
 
-  // Lire les 2 sources en parallèle
-  const [banqueSnap, depensesSnap] = await Promise.all([
-    db.collection('banqueLtd').orderBy('timestamp', 'desc').limit(1500).get(),
-    db.collection('depenses').orderBy('timestamp', 'desc').limit(500).get()
-  ]);
+  // v1.7.8 (2026-05-24) : si bounds fourni, filtre sur la semaine ISO ciblee
+  // (snapshot BLA). Sinon, comportement actuel : 1500 derniers mvts + 500
+  // depenses, audit IRS sur historique complet.
+  let banquePromise, depensesPromise;
+  if (bounds) {
+    banquePromise = db.collection('banqueLtd')
+      .where('timestamp', '>=', Timestamp.fromDate(bounds.debut))
+      .where('timestamp', '<=', Timestamp.fromDate(bounds.fin))
+      .orderBy('timestamp', 'desc').get();
+    depensesPromise = db.collection('depenses')
+      .where('timestamp', '>=', Timestamp.fromDate(bounds.debut))
+      .where('timestamp', '<=', Timestamp.fromDate(bounds.fin))
+      .orderBy('timestamp', 'desc').get();
+  } else {
+    banquePromise = db.collection('banqueLtd').orderBy('timestamp', 'desc').limit(1500).get();
+    depensesPromise = db.collection('depenses').orderBy('timestamp', 'desc').limit(500).get();
+  }
+  const [banqueSnap, depensesSnap] = await Promise.all([banquePromise, depensesPromise]);
 
   // Combine en un tableau unifié
   // Note : FiveM log CHAQUE paiement sur 2 canaux (xbankaccount removemoney
@@ -4023,9 +4104,10 @@ async function csvBanque() {
 // portails clients (BLA Corporate) de sommer le vrai CA carburant.
 // 2026-05-24 (v1.7.1) : nouvel endpoint demande par BLA Corporate pour
 // corriger un ecart de ~46% sur le CA carburant affiche.
-async function csvCarburant() {
+async function csvCarburant(bounds = null) {
   // Filtre semaine RP courante (coherent avec ventes/depenses).
-  const { debut, fin } = weekRangeRPParis();
+  // v1.7.8 (2026-05-24) : `bounds` optionnel pour snapshot historique.
+  const { debut, fin } = bounds || weekRangeRPParis();
   const snap = await db.collection('redistributions')
     .where('timestamp', '>=', Timestamp.fromDate(debut))
     .where('timestamp', '<=', Timestamp.fromDate(fin))
@@ -4066,7 +4148,7 @@ function cleanNomBot(raw) {
   return m ? m[1] : s;
 }
 
-async function csvPaies(usersByDiscord) {
+async function csvPaies(usersByDiscord, bounds = null) {
   // 2026-05-24 (v1.7.2) : reintroduit a la demande de BLA Corporate pour
   // permettre au portail client de calculer la masse salariale reelle dans
   // le JSON IRS (les paies sont volontairement exclues de /depenses par
@@ -4075,13 +4157,23 @@ async function csvPaies(usersByDiscord) {
   // de la semaine precedente (lun N+1 → mar N+1 21h). Capture les paies
   // versees lundi matin pour S-1 tant qu'elles restent pertinentes.
   // Les semaines plus anciennes sont figees dans leurs onglets snapshot.
-  const { debut } = weekRangeRPParis();
+  // v1.7.8 (2026-05-24) : `bounds` optionnel pour snapshot historique.
+  // On etend la fenetre cote droit de +2 jours (jusqu'a mardi 23h59) pour
+  // capturer les paies versees lundi/mardi N+1 attribuees a la semaine N.
+  const range = bounds || weekRangeRPParis();
+  const debut = range.debut;
+  const fin = range.fin;
   // Recule au dimanche 23h59 S-1 pour englober la fenetre paie post-dim courante.
   const debutAvecFenetre = new Date(debut.getTime() - 1000);
-  const snap = await db.collection('paies')
-    .where('timestamp', '>=', Timestamp.fromDate(debutAvecFenetre))
-    .orderBy('timestamp', 'desc')
-    .get();
+  let snapQuery = db.collection('paies')
+    .where('timestamp', '>=', Timestamp.fromDate(debutAvecFenetre));
+  if (bounds) {
+    // Fenetre paie post-dim : etend jusqu'a mardi 23h59 N+1 pour capturer
+    // les versements faits lundi/mardi pour la semaine N.
+    const finAvecFenetrePaie = new Date(fin.getTime() + 2 * 24 * 3600 * 1000);
+    snapQuery = snapQuery.where('timestamp', '<=', Timestamp.fromDate(finAvecFenetrePaie));
+  }
+  const snap = await snapQuery.orderBy('timestamp', 'desc').get();
   // Charge le map users complet pour enrichir poste/role (le map
   // usersByDiscord ne donne que le nom). Necessaire pour la colonne Poste.
   const usersFullSnap = await db.collection('users').limit(500).get();
@@ -4154,9 +4246,23 @@ async function csvPaies(usersByDiscord) {
 //
 // IMPORTANT : on EXCLUT les admin-technique (compteEnFinance=false) pour
 // matcher exactement la KPI cote LTD ("Salaires estimes" sur /rh).
-async function csvMasseSalarialeEstimee(usersByDiscord) {
-  const { debut, fin } = weekRangeRPParis();
-  const weekKey = debut.toISOString().slice(0, 10);
+async function csvMasseSalarialeEstimee(usersByDiscord, bounds = null) {
+  // v1.7.8 (2026-05-24) : `bounds` optionnel pour snapshot historique.
+  // Si bounds fourni, on derive weekKey depuis bounds.weekKey (lundi de la
+  // semaine ciblee). Sinon comportement actuel (semaine RP courante).
+  const range = bounds || weekRangeRPParis();
+  const debut = range.debut;
+  const fin = range.fin;
+  // BUG FIX (2026-05-24) : `debut` est un Date UTC (parisWallToUtcGlobal),
+  // donc `toISOString().slice(0, 10)` renvoie la veille (dim 22h UTC = lun 00h
+  // Paris CEST). On utilisait alors weekKey='2026-05-17' alors que les docs
+  // /quotasPompiste/{semaine}_{uid} sont ecrits par majQuotaPompiste avec
+  // semaine='2026-05-18' via currentWeekId() (= lundi Paris). Resultat : les
+  // quotas etaient introuvables et tous les pompistes apparaissaient a 0$.
+  // Symetrie /rh : le frontend utilise weekId() (heure locale) -> '2026-05-18'.
+  // Fix : on utilise currentWeekId() qui calcule le lundi en heure Paris, idem
+  // au pattern qui ecrit les docs (cf majQuotaPompiste ligne 2033).
+  const weekKey = bounds ? bounds.weekKey : currentWeekId();
 
   // Charger en parallele tout ce dont calculerPaieEstimee a besoin + paies
   // pour la resolution "versé / non versé".
@@ -4314,6 +4420,76 @@ async function csvMasseSalarialeEstimee(usersByDiscord) {
     ));
   }
 
+  return lines.join('\n');
+}
+
+// v1.7.7 (2026-05-24) : liste les semaines cloturees pour la section
+// "Archives" du portail BLA Corporate. Lit /semaines orderBy dateDebut desc
+// limit 20. Format CSV stable consomme par portal.js (la cle de chaque ligne
+// est "Semaine ISO" au format YYYY-Wnn, utilisable directement comme arg
+// `?semaine=` de la Cloud Function generateSnapshotPdf cote BLA).
+async function csvSemainesFermees() {
+  const snap = await db.collection('semaines')
+    .orderBy('dateDebut', 'desc')
+    .limit(20)
+    .get();
+  const lines = [csvRow(
+    'Semaine ISO', 'Numero', 'Date debut', 'Date fin',
+    'CA produits', 'CA carburant', 'CA total',
+    'Depenses', 'Masse salariale',
+    'Benefice', 'Impot', 'Net',
+    'Nb ventes', 'Nb depenses', 'Statut'
+  )];
+  for (const d of snap.docs) {
+    const s = d.data();
+    const debutDate = tsToDate(s.dateDebut);
+    // Convertir en horloge Paris pour calculer le numero ISO : sinon, un
+    // dateDebut "lundi 2026-05-11 00:00 Paris" stocke en UTC = "2026-05-10
+    // 22:00 UTC" (DST). En UTC weekIsoNumber retourne 19 (semaine -1),
+    // alors qu'on attend 20. toParisWall reconstruit un Date dont les
+    // composantes UTC representent l'horloge Paris.
+    const debutParis = debutDate ? toParisWall(debutDate) : null;
+    const isoNum = debutParis ? weekIsoNumber(debutParis) : 0;
+    const isoYear = debutParis ? debutParis.getUTCFullYear() : '';
+    // Cle ISO standardisee pour la Cloud Function snapshot : YYYY-Wnn (zero-pad).
+    const semaineIso = isoNum && isoYear
+      ? `${isoYear}-W${String(isoNum).padStart(2, '0')}`
+      : '';
+    const caTotal = Number(s.ca || 0);
+    const caCarburant = Number(s.caCarburant || 0);
+    const caProduits = Number(s.caProduits || (caTotal - caCarburant));
+    const depenses = Number(s.depenses || 0);
+    const masse = Number(s.masseSalariale || 0);
+    const benefice = Number(s.benefice != null ? s.benefice : (caTotal - depenses - masse));
+    // Impot estime (tranches TTE Art. 4-3.2) — informationnel seul, le doc
+    // /semaines n'archive pas l'impot reellement paye.
+    let impot = 0;
+    if (benefice > 10000) {
+      if (benefice <= 50000) impot = benefice * 0.10;
+      else if (benefice <= 100000) impot = benefice * 0.19;
+      else if (benefice <= 250000) impot = benefice * 0.28;
+      else if (benefice <= 500000) impot = benefice * 0.36;
+      else impot = benefice * 0.46;
+    }
+    const net = benefice - impot;
+    lines.push(csvRow(
+      semaineIso,
+      s.numero || d.id || '',
+      dateOnly(s.dateDebut),
+      dateOnly(s.dateFin),
+      Math.round(caProduits),
+      Math.round(caCarburant),
+      Math.round(caTotal),
+      Math.round(depenses),
+      Math.round(masse),
+      Math.round(benefice),
+      Math.round(impot),
+      Math.round(net),
+      Number(s.nbVentes || 0),
+      Number(s.nbDepenses || 0),
+      s.statut || ''
+    ));
+  }
   return lines.join('\n');
 }
 
