@@ -8,7 +8,7 @@
 //   - MAJOR : refonte / breaking change
 // ============================================================
 
-export const VERSION = '1.13.0';
+export const VERSION = '1.13.1';
 export const AUTHOR  = 'BLATV';
 
 // Texte prêt à afficher dans la sidebar ou le footer.

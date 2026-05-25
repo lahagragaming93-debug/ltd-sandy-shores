@@ -11,7 +11,7 @@ import {
 import { getUserDoc, setUserDoc, listUsers } from './api.js';
 import { canAccess, defaultLandingPage, ROLES } from './utils/permissions.js';
 import { infoModal } from './utils/confirmation.js';
-import { normalizePrenom, normalizeNom } from './utils/formatters.js';
+import { normalizePrenom, normalizeNom, dateKeyLocal } from './utils/formatters.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -93,7 +93,7 @@ export async function creerCompteEmploye({ username, prenom, nom, idDiscord, idP
       idPerso: (idPerso || '').trim(),
       role,
       statut: 'actif',
-      dateEntree: new Date().toISOString().slice(0, 10),
+      dateEntree: dateKeyLocal(new Date()),
       creePar: creePar || '',
       motDePasseProvisoire: true
     });

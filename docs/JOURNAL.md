@@ -1,7 +1,37 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-25 (v1.13.0 — refonte paie vendeur 50k + catalogue trim + stock auto fab)**
+> Dernière mise à jour : **2026-05-26 (v1.13.1 — hotfix TZ chart revenus carburant)**
+
+---
+
+## ✅ Session 2026-05-26 — v1.13.1 hotfix TZ chart revenus carburant
+
+### Bug remonté par le patron
+Page Revenus Carburant, filtre "Cette semaine" : barre datée 24/05 (dimanche) avec 8 647 $ alors que la semaine en cours démarre lundi 25/05 00:00. Patron craignait que le KPI CA carburant (54 119 $) soit faussé.
+
+### Diagnostic
+Le KPI était correct : les 54 119 $ ne contenaient bien que des transactions de la semaine en cours (filtre `getPeriode()` utilise `setHours(0,0,0,0)` en heure locale Paris — OK).
+
+Le bug était purement dans le **groupement du chart** (`revenus-carburant.js:248`) :
+```js
+const key = d.toISOString().slice(0, 10); // YYYY-MM-DD ← UTC, pas Paris
+```
+En heure d'été (CEST = UTC+2), une transaction du lundi 00h-02h Paris a un timestamp UTC du dimanche 22h-00h → `toISOString().slice(0,10)` retourne "2026-05-24" au lieu de "2026-05-25". Conséquence : les transactions de début de semaine étaient bucketées sur le dimanche précédent (24/05) au lieu du lundi (25/05).
+
+Même classe de bug que v1.7.1 (weekId server vs client). Doc de `weekId()` documentait déjà le piège ; le call site `revenus-carburant.js` ne l'avait pas appliqué.
+
+### Fix
+- **[`public/js/utils/formatters.js`](public/js/utils/formatters.js)** : extraction d'un helper exporté `dateKeyLocal(d)` (YYYY-MM-DD en heure locale Paris). `weekId()` refactor pour s'en servir.
+- **[`public/js/pages/revenus-carburant.js:249`](public/js/pages/revenus-carburant.js#L249)** : `toISOString().slice(0,10)` → `dateKeyLocal(d)` dans `renderChart()`. Commentaire mis à jour.
+- **[`public/js/auth.js:96`](public/js/auth.js#L96)** : `dateEntree` lors de la création d'un user — passe aussi par `dateKeyLocal()` (persistance Firestore : un user créé à 01h Paris ne sera plus enregistré avec la date de la veille).
+
+### Autres call sites de `toISOString().slice(0,10)`
+Audités, **laissés tels quels** car cosmétiques (noms de fichiers CSV, pré-fill d'inputs `<input type="date">`) :
+- `ventes.js:313`, `comptabilite.js:1043`, `banque.js:330`, `decouverte-items.js:202` : nom de fichier d'export CSV.
+- `period-filter.js:131-132`, `admin.js:1406-1407` : valeur initiale d'inputs date HTML.
+
+Impact négligeable (1 jour de décalage pendant 2h max chaque jour, sur de l'UX non-persistante).
 
 ---
 

@@ -65,18 +65,20 @@ export function endOfWeekRP(d = new Date()) {
   end.setHours(23, 59, 59, 999);
   return end;
 }
-export function weekId(d = new Date()) {
-  const start = startOfWeekRP(d);
-  // PARIS-LOCAL : on prend Y-M-D du `start` en heure locale, pas via
-  // toISOString() qui convertit en UTC et projette le lundi 00:00 Paris (CEST)
-  // au dimanche 22:00 UTC → la slice rend "dimanche d'avant", mismatch avec
-  // le serveur qui ecrit le weekKey calcule en heure Paris (cf. currentWeekId
-  // dans firebase/functions/index.js). Symptome : /quotasPompiste lu sur le
-  // mauvais doc → bidons affiches a 0 sur /employee.
-  const y = start.getFullYear();
-  const m = String(start.getMonth() + 1).padStart(2, '0');
-  const day = String(start.getDate()).padStart(2, '0');
+// Cle YYYY-MM-DD en heure LOCALE (Paris cote navigateur user). A utiliser
+// pour grouper des timestamps par jour ou stocker une date sans heure.
+// Ne PAS utiliser toISOString().slice(0,10) qui convertit en UTC et projette
+// les minuits/petites heures Paris (CEST = UTC+2) au jour d'avant en UTC.
+// Bug observe v1.7.1 (weekId mismatchait serveur Paris vs client UTC) et
+// v1.13.1 (chart revenus-carburant montrait barre dimanche au lieu de lundi).
+export function dateKeyLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+export function weekId(d = new Date()) {
+  return dateKeyLocal(startOfWeekRP(d));
 }
 
 // Reconstruit la fenetre [lun 00:00 -> dim 23:59:59.999] d'une semaine arbitraire

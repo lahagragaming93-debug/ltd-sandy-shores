@@ -15,7 +15,7 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listRedistributionsSemaine } from '../api.js';
-import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
+import { money, moneyPrecis, num, datetime, escapeHtml, dateKeyLocal } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm';
 import { renderPeriodFilter, getPeriode, getPeriodeLabel, attachPeriodFilter } from '../utils/period-filter.js';
@@ -240,12 +240,13 @@ function renderChart(rows) {
   const ctx = document.getElementById('chart-carb')?.getContext('2d');
   if (!ctx) return;
 
-  // Groupe par jour (date locale FR)
+  // Groupe par jour en heure locale Paris (cf. dateKeyLocal). toISOString()
+  // bucketait les transactions de lundi 00h-02h Paris dans dimanche UTC.
   const parJour = new Map();
   for (const r of rows) {
     const d = r.timestamp?.toDate?.();
     if (!d) continue;
-    const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    const key = dateKeyLocal(d);
     parJour.set(key, (parJour.get(key) || 0) + (Number(r.montant) || 0));
   }
   const labels = [...parJour.keys()].sort();
