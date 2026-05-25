@@ -1,7 +1,20 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-23 (v1.10.1 — classement ravitaillement pompiste)**
+> Dernière mise à jour : **2026-05-25 (Resp Vente : édition stocks épicerie ré-autorisée)**
+
+---
+
+## ✅ Session 2026-05-25 — Resp Vente : édition stocks épicerie
+
+### Demande patron
+Redonner au Responsable Vente l'accès en modification des stocks épicerie (prix, seuils, quantités, ajustements). La création de nouveaux produits reste réservée à Direction / DRH / Resp Pompiste (cf. `canCreateProduit`).
+
+### Changements code
+- **[`public/js/pages/stocks.js`](public/js/pages/stocks.js)** : flag `editable` étendu à `responsable-vente`. Commentaire historique mis à jour (la ligne "Resp Vente reste exclu" du 2026-05-13 supprimée — annulée par la nouvelle décision).
+
+### Backend
+- Aucun changement côté `firestore.rules` : `responsable-vente` était déjà autorisé en écriture sur `/stocks`, `/produits` (update), `/mouvementsStock` (create), `/historiquePrix` (create). Seul le garde UI bloquait.
 
 ---
 
