@@ -123,11 +123,6 @@ export const CATALOGUE = [
   { id: 'fertilisant',             nom: 'Fertilisant',             categorie: 'jardinage',        prixVente: 10,   pourPro: false },
   { id: 'tas-terre',               nom: 'Tas de terre',            categorie: 'jardinage',        prixVente: 14,   pourPro: false },
   { id: 'bac-jardinage',           nom: 'Bac de jardinage',        categorie: 'jardinage',        prixVente: 20,   pourPro: true },
-  { id: 'fillet',                  nom: 'Fillet',                  categorie: 'jardinage',        prixVente: 12.50, pourPro: false, enFabrication: true,
-    note: 'Crafté : 2×Corde → 2×Filets' },
-  { id: 'sac-jute',                nom: 'Sac en Jute',             categorie: 'jardinage',        prixVente: 0,    pourPro: false, enFabrication: true,
-    note: 'Crafté : 1×Corde + 1×Tissu → 2×Sacs — bloqué tant que prix tissu inconnu' },
-
   // MOBILIER
   { id: 'table',                   nom: 'Table de travail',        categorie: 'mobilier',         prixVente: 10,   pourPro: false },
 
@@ -170,7 +165,7 @@ export const CATALOGUE = [
   { id: 'colle',                   nom: 'Colle',                   categorie: 'divers',           prixVente: 2,    pourPro: false },
   { id: 'encre',                   nom: 'Encre',                   categorie: 'divers',           prixVente: 4,    pourPro: true },
   { id: 'corde',                   nom: 'Corde',                   categorie: 'divers',           prixVente: 10,   pourPro: true, intrant: true,
-    note: 'Intrant craft Filet / Jerrican / Sac jute' },
+    note: 'Intrant craft Jerrican' },
   { id: 'lumiere-violette',        nom: 'Lumière Violette',        categorie: 'divers',           prixVente: 20,   pourPro: false, enFabrication: true,
     note: 'Crafté : 1×Plomberie + 1×Acier + 4×Câble + 2×Visserie → 16×Lumières (coût ~47.36$ TEMP)' },
   { id: 'solvant',                 nom: 'Solvant',                 categorie: 'divers',           prixVente: 25,   pourPro: true },
@@ -191,8 +186,6 @@ export const CATALOGUE = [
   // === QUINCAILLERIE — Produits craftés par les vendeurs (enFabrication=true) ===
   { id: 'visseries',               nom: 'Visseries',               categorie: 'outillage',        prixVente: 65,   pourPro: false, enFabrication: true,
     note: 'Crafté : 1×Charbon + 3×Acier → 5×Visseries (coût 26$, TEMP 38$ si acier 60$)' },
-  { id: 'pioche',                  nom: 'Pioche',                  categorie: 'outillage',        prixVente: 29.55, pourPro: false, enFabrication: true,
-    note: 'Crafté : 1×Charbon + 3×Acier → 11×Pioches (coût 11.82$, TEMP 17.27$)' },
   { id: 'mastic-carrosserie',      nom: 'Mastic carrosserie',      categorie: 'auto',             prixVente: 0,    pourPro: false, enFabrication: true,
     note: 'Prix de vente et recette de craft à compléter par le patron.' },
   { id: 'plomberie',               nom: 'Plomberie',               categorie: 'divers',           prixVente: 0,    pourPro: false, enFabrication: true, intrant: true,

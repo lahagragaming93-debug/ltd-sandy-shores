@@ -190,11 +190,11 @@ Salaire   = MIN( Part CA + Bonus fab, plafond total )
 >
 > Tu peux basculer un produit entre les 2 régimes à tout moment depuis **Stocks → Modifier produit → checkbox "Vendu aux professionnels uniquement"**.
 
-> **Quota fabrication** : les 4 produits éligibles sont définis dans `permissions.js` → `PRODUITS_QUOTA_FAB` (pioche, eau purifiée, mastic carrosserie, visseries). Le patron règle les quantités hebdo sur la page RH → bloc "Quotas hebdomadaires". Un quota = 0 désactive le produit pour la semaine.
+> **Quota fabrication** : les 3 produits éligibles sont définis dans `permissions.js` → `PRODUITS_QUOTA_FAB` (eau purifiée, mastic carrosserie, visseries). Le patron règle les quantités hebdo sur la page RH → bloc "Quotas hebdomadaires". Un quota = 0 désactive le produit pour la semaine.
 
-**Exemple concret** (Vendeur Intermédiaire — quota 50 pioches + 200 eaux actif) :
+**Exemple concret** (Vendeur Intermédiaire — quota 200 eaux + 100 visseries actif) :
 - CA commissionnable : 25 000 $ → Part CA = (25000/50000) × 9000 = **4 500 $**
-- Fabrications : 50 pioches + 100 eaux → score = (1 + 0,5) / 2 = 75 % → Bonus = **3 750 $**
+- Fabrications : 100 eaux + 100 visseries → score = (0,5 + 1) / 2 = 75 % → Bonus = **3 750 $**
 - Salaire = MIN(4 500 + 3 750, 14 000) = **8 250 $**
 
 **Exemple plafonné** (Vendeur Expérimenté — quotas atteints) :

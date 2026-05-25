@@ -271,7 +271,7 @@ export async function listQuotasSemaine(weekId) {
 
 // ----- Quotas vendeurs (fabrication hebdo) -----
 // Doc symetrique a quotasPompiste : /quotasVendeur/{weekId}_{uid}
-// Champs : { semaine, employeId, pioche, 'bouteille-eau-purifiee',
+// Champs : { semaine, employeId, 'bouteille-eau-purifiee',
 //            'mastic-carrosserie', visseries } — incrementes par CF.
 export async function getQuotaVendeur(employeId, weekId) {
   const snap = await getDoc(doc(db, 'quotasVendeur', `${weekId}_${employeId}`));

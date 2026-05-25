@@ -56,10 +56,9 @@ const html = `
           <input type="number" id="q-ca-vendeur" min="0" step="100" />
         </div>
         <div class="panel" style="flex:2 1 360px;min-width:280px;padding:10px;">
-          <div class="mono mb-1" style="font-size:0.92rem;">Vendeurs — Quota fabrication (bonus max 3 000 $)</div>
+          <div class="mono mb-1" style="font-size:0.92rem;">Vendeurs — Quota fabrication (bonus max 5 000 $)</div>
           <div class="muted" style="font-size:0.75rem;margin-bottom:6px;">0 = produit désactivé cette semaine. Le bonus est versé au prorata du score moyen des produits actifs.</div>
           <div class="row" style="gap:8px;flex-wrap:wrap;">
-            <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Pioche</label><input type="number" id="q-fab-pioche" min="0" step="1" /></div>
             <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Eau purifiée</label><input type="number" id="q-fab-eau" min="0" step="1" /></div>
             <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Mastic carrosserie</label><input type="number" id="q-fab-mastic" min="0" step="1" /></div>
             <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Visseries</label><input type="number" id="q-fab-visseries" min="0" step="1" /></div>
@@ -530,7 +529,6 @@ if (editable) {
     document.getElementById('q-caoutchoucs').value = c.quotaCaoutchoucs ?? 800;
     document.getElementById('q-ca-vendeur').value  = c.quotaCAVendeur   ?? 50000;
     const qf = c.quotaFabrication || {};
-    document.getElementById('q-fab-pioche').value    = qf['pioche']                ?? 0;
     document.getElementById('q-fab-eau').value       = qf['bouteille-eau-purifiee']?? 0;
     document.getElementById('q-fab-mastic').value    = qf['mastic-carrosserie']    ?? 0;
     document.getElementById('q-fab-visseries').value = qf['visseries']             ?? 0;
@@ -557,7 +555,6 @@ if (editable) {
       quotaCaoutchoucs: parseQ('q-caoutchoucs',  800),
       quotaCAVendeur:   parseQ('q-ca-vendeur', 50000),
       quotaFabrication: {
-        'pioche':                 parseQ('q-fab-pioche',    0),
         'bouteille-eau-purifiee': parseQ('q-fab-eau',       0),
         'mastic-carrosserie':     parseQ('q-fab-mastic',    0),
         'visseries':              parseQ('q-fab-visseries', 0)

@@ -2550,11 +2550,17 @@ export const pompisteDeclarerCaoutchoucs = onRequest({
 // d'un produit du quota fabrication hebdo.
 // ----------------------------------------------------------------
 // Symetrique de pompisteDeclarerCaoutchoucs : modal cote vendeur.
+// 4 ecritures dans 1 batch atomique :
 //   1. Audit /fabrications (qui, quoi, combien, quand)
 //   2. Incremente /quotasVendeur/{semaine}_{uid}.{produitId} de N
+//   3. Incremente /stocks/{produitId}.quantite de N (ajout 2026-05-25)
+//   4. Audit /mouvementsStock (type=fabrication-vendeur)
 // Si quota du produit = 0 cette semaine : declaration acceptee mais
 // le bonus quota n'est pas impacte (utile pour le futur classement
 // hebdo craft).
+// NB : seul l'OUTPUT du craft est incremente. Les intrants (acier,
+// charbon, corde, etc.) ne sont pas decrementes automatiquement —
+// le patron suit son stock intrant manuellement.
 // ----------------------------------------------------------------
 export const vendeurDeclarerFabrication = onRequest({
   region: 'europe-west1',
@@ -2593,9 +2599,14 @@ export const vendeurDeclarerFabrication = onRequest({
     }
 
     const vendeurNom = `${caller.prenom || ''} ${caller.nom || ''}`.trim();
+    const wId = currentWeekId();
+    const quotaDocId = `${wId}_${decoded.uid}`;
 
-    // 1. Audit /fabrications
-    await db.collection('fabrications').add({
+    // Batch atomique : audit fab + quota vendeur + stock + audit mouvement.
+    const batch = db.batch();
+
+    const fabRef = db.collection('fabrications').doc();
+    batch.set(fabRef, {
       produitId: pid,
       quantite: nb,
       vendeurId: decoded.uid,
@@ -2604,14 +2615,31 @@ export const vendeurDeclarerFabrication = onRequest({
       timestamp: FieldValue.serverTimestamp()
     });
 
-    // 2. Incremente quota vendeur (le champ porte le nom du produit)
-    const wId = currentWeekId();
-    const docId = `${wId}_${decoded.uid}`;
-    await db.collection('quotasVendeur').doc(docId).set({
+    const quotaRef = db.collection('quotasVendeur').doc(quotaDocId);
+    batch.set(quotaRef, {
       semaine: wId,
       employeId: decoded.uid,
       [pid]: FieldValue.increment(nb)
     }, { merge: true });
+
+    const stockRef = db.collection('stocks').doc(pid);
+    batch.set(stockRef, {
+      quantite: FieldValue.increment(nb),
+      derniereMaj: FieldValue.serverTimestamp(),
+      par: decoded.uid
+    }, { merge: true });
+
+    const movRef = db.collection('mouvementsStock').doc();
+    batch.set(movRef, {
+      type: 'fabrication-vendeur',
+      item: pid,
+      quantite: nb,
+      par: decoded.uid,
+      raison: `Fabrication declaree par ${vendeurNom}`,
+      timestamp: FieldValue.serverTimestamp()
+    });
+
+    await batch.commit();
 
     return res.status(200).json({ ok: true, produitId: pid, quantite: nb });
   } catch (err) {

@@ -27,7 +27,7 @@ C'est tout ! En tant que vendeur, tu as un accès très restreint et c'est norma
 |-----|---------------|
 | **Mon CA** | Total des montants des factures que tu as faites cette semaine |
 | **CA commissionnable** | Sous-total des ventes "particulier" (base du salaire CA) |
-| **Score quota fab** *(si quota actif)* | % moyen de tes fabrications hebdo (pioche / eau purifiée / mastic / visseries) |
+| **Score quota fab** *(si quota actif)* | % moyen de tes fabrications hebdo (eau purifiée / mastic / visseries) |
 | **Salaire estimé** | Part CA + bonus quota fabrication, plafonné selon ton grade |
 
 ### Tableau de tes ventes
@@ -77,7 +77,7 @@ Pour qu'une vente compte dans ta commission, **tu dois la déclarer toi-même** 
 ### Ce que tu vois dans la modal
 - Les produits **"PRO"** (eau purifiée, huile, matières premières, etc.) sont **invisibles** — tu ne peux pas les vendre, c'est réservé direction
 - Les **matières premières** (acier, cuivre, corde…) aussi invisibles — elles servent uniquement aux crafts, jamais à la vente
-- Tu vois : produits **épicerie particuliers** + **Quincaillerie** (Visseries, Pioche, Mastic carrosserie, Filet, Lumière violette…)
+- Tu vois : produits **épicerie particuliers** + **Quincaillerie** (Visseries, Mastic carrosserie, Lumière violette…)
 
 ### Si la facture in-game n'apparaît pas après 30 secondes
 - Vérifie dans Discord que le canal `#suivi-facture` a bien remonté ta vente
@@ -133,7 +133,7 @@ plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 
 ### Le quota fabrication
 
-- Chaque semaine, le patron définit un quota par produit parmi : **Pioche / Eau purifiée / Mastic carrosserie / Visseries** (un produit avec quota = 0 est désactivé pour la semaine).
+- Chaque semaine, le patron définit un quota par produit parmi : **Eau purifiée / Mastic carrosserie / Visseries** (un produit avec quota = 0 est désactivé pour la semaine).
 - Tu déclares tes fabrications via la section **Déclarer une fabrication** : saisis la quantité, clique **Valider**.
 - Ton score = **moyenne des ratios** (`fait / quota`) sur les produits actifs, chacun plafonné à 100 %.
 - Le bonus est versé **au prorata** du score (50 % du score = 2 500 $ de bonus, 100 % = 5 000 $).
@@ -143,7 +143,7 @@ plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 #### Vendeur Inter (plafond CA 9 000, bonus max 5 000)
 
 - CA commissionnable : **25 000 $** → Part CA = (25000/50000) × 9000 = **4 500 $**
-- Quota fab : 50 pioches + 200 eaux. Tu fais 50 pioches + 100 eaux. Score = (1 + 0,5) / 2 = **75 %** → Bonus = **3 750 $**
+- Quota fab : 200 eaux + 100 visseries. Tu fais 100 eaux + 100 visseries. Score = (0,5 + 1) / 2 = **75 %** → Bonus = **3 750 $**
 - Salaire total : 4 500 + 3 750 = **8 250 $**
 
 #### Vendeur Exp qui fait tout (plafond total 15 000)
@@ -172,7 +172,7 @@ plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 - Le bénéfice généré (CA − coût d'achat) sert au LTD pour la compta — pas à ta paie
 
 ### 1bis. Atteins ton quota de fabrication
-- Si la semaine a un quota actif (pioche / eau / mastic / visseries), chaque produit fabriqué t'avance vers le bonus 5 000 $
+- Si la semaine a un quota actif (eau / mastic / visseries), chaque produit fabriqué t'avance vers le bonus 5 000 $
 - Le bonus est versé **au prorata** : 50 % du score = 2 500 $
 - Déclare régulièrement tes craftings dans **Mon espace → Déclarer une fabrication**
 

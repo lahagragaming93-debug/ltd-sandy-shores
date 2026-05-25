@@ -1,7 +1,34 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-25 (refonte paie vendeur — prorata 50k + bonus 5k)**
+> Dernière mise à jour : **2026-05-25 (catalogue : pioche/sac-jute/fillet supprimés + stock auto sur déclaration fab)**
+
+---
+
+## ✅ Session 2026-05-25 — Catalogue trim + stock auto sur déclaration fabrication
+
+### Décisions patron
+1. **Supprimer 3 produits** qui ne seront jamais fabriqués : `pioche`, `sac-jute`, `fillet` (du catalogue, des stocks, et du quota fabrication hebdo). Quota fabrication passe de 4 à **3 produits actifs** : eau purifiée / mastic carrosserie / visseries.
+2. **Déclaration de fabrication = incrément stock automatique**. Avant : la CF `vendeurDeclarerFabrication` n'écrivait que `/fabrications` (audit) + `/quotasVendeur` (compteur). Le stock `/stocks/{produitId}` n'était pas touché. Maintenant : 1 batch atomique = 4 écritures (fab + quota + stock + audit mouvement).
+
+### Changements code
+- **[`public/js/data/produits.js`](public/js/data/produits.js)** : retrait des entrées `fillet`, `sac-jute`, `pioche`. Note de `corde` mise à jour (intrant craft Jerrican uniquement).
+- **[`public/js/utils/permissions.js`](public/js/utils/permissions.js)** + **[`firebase/functions/lib/paie-calc.mjs`](firebase/functions/lib/paie-calc.mjs)** : `PRODUITS_QUOTA_FAB` passe de 4 à 3 entrées (pioche retirée).
+- **[`public/js/pages/rh.js`](public/js/pages/rh.js)** : panel Quotas hebdo — input `Pioche` retiré (UI + lecture + écriture). Libellé bloc maj "bonus max 5 000 $".
+- **[`public/js/api.js`](public/js/api.js)** : commentaire `getQuotaVendeur` aligné.
+- **[`firebase/functions/index.js`](firebase/functions/index.js)** : `vendeurDeclarerFabrication` refondue en batch atomique. Désormais : audit `/fabrications` + increment `/quotasVendeur` + **increment `/stocks/{produitId}.quantite`** + audit `/mouvementsStock` (type `fabrication-vendeur`). Documenté : les intrants ne sont PAS décrémentés automatiquement (patron suit son stock intrant manuellement).
+- **[`public/js/pages/tuto.js`](public/js/pages/tuto.js)** : steps 7 et 9 du tuto vendeur mis à jour (3 produits au lieu de 4).
+- **[`public/guide/01-direction.md`](public/guide/01-direction.md)**, **[`02-drh.md`](public/guide/02-drh.md)**, **[`05-vendeur.md`](public/guide/05-vendeur.md)** : références "pioche/filet" retirées, exemples chiffrés réécrits avec produits restants.
+- **[`firebase/functions/scripts/cleanup-produits-supprimes.mjs`](firebase/functions/scripts/cleanup-produits-supprimes.mjs)** : one-shot dry-run/--apply (3 produits + 3 stocks + retrait champ `quotaFabrication.pioche` de config).
+
+### Firestore (déjà appliqué)
+- 3 docs `/produits/{pioche,sac-jute,fillet}` supprimés.
+- `/stocks/pioche` supprimé (stock=0, donc aucune perte). `sac-jute` et `fillet` n'avaient pas de doc stock.
+- `/config/global.quotaFabrication.pioche` retiré (était déjà à 0 cette semaine).
+
+### À vérifier
+- Première déclaration de fabrication post-déploiement : que le `/stocks/{produitId}.quantite` s'incrémente bien (mouvement visible dans Stocks → Mouvements avec type=fabrication-vendeur).
+- Les vendeurs qui avaient des compteurs `pioche` dans leur `/quotasVendeur/{weekId}_{uid}` ne plantent rien (le champ reste mais n'est plus lu par `PRODUITS_QUOTA_FAB`).
 
 ---
 

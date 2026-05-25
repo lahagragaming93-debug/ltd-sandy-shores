@@ -330,7 +330,7 @@ const TUTOS = {
           <p>Depuis le <strong>25 mai 2026</strong>, ton salaire hebdomadaire a <strong>2 parts</strong> :</p>
           <ul>
             <li><strong>Part CA</strong> : (CA commissionnable / 50 000) × plafond CA selon ton grade</li>
-            <li><strong>Bonus quota fabrication</strong> : jusqu'à <strong>5 000 $</strong> versés au prorata des unités fabriquées (pioche / eau purifiée / mastic carrosserie / visseries)</li>
+            <li><strong>Bonus quota fabrication</strong> : jusqu'à <strong>5 000 $</strong> versés au prorata des unités fabriquées (eau purifiée / mastic carrosserie / visseries)</li>
           </ul>
           <p>Plafond CA par grade : 8 000 $ (Novice) / 9 000 $ (Inter) / 10 000 $ (Exp). Plafond total = plafond CA + 5 000 $.</p>
           <div class="tuto-callout info">
@@ -358,9 +358,8 @@ const TUTOS = {
         emoji: '09',
         title: 'Quota de fabrication — bonus 5 000 $',
         body: `
-          <p>En plus du CA, chaque semaine peut avoir un <strong>quota de fabrication</strong> (décidé par le patron à la clôture précédente) sur 4 produits possibles :</p>
+          <p>En plus du CA, chaque semaine peut avoir un <strong>quota de fabrication</strong> (décidé par le patron à la clôture précédente) sur 3 produits possibles :</p>
           <ul>
-            <li><strong>Pioche</strong></li>
             <li><strong>Bouteille d'eau purifiée</strong></li>
             <li><strong>Mastic carrosserie</strong></li>
             <li><strong>Visseries</strong></li>

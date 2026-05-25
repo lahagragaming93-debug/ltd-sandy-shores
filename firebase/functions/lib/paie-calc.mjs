@@ -63,7 +63,6 @@ export const PLAFOND_CA_VENDEUR = {
 };
 export const BONUS_QUOTA_VENDEUR_MAX = 5000;
 export const PRODUITS_QUOTA_FAB = [
-  'pioche',
   'bouteille-eau-purifiee',
   'mastic-carrosserie',
   'visseries'
