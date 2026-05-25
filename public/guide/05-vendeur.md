@@ -112,18 +112,18 @@ Cas typique : tu factures un client, il n'a pas l'argent, tu supprimes la factur
 
 ## Comprendre ta paie
 
-Depuis le **23 mai 2026**, ton salaire a deux composantes : la **part CA** (jusqu'à 10/11/12k selon ton grade) + le **bonus quota fabrication** (jusqu'à 3 000 $). Le total est plafonné à 13/14/15k.
+Depuis le **25 mai 2026**, ton salaire a deux composantes : la **part CA** (jusqu'à 8/9/10k selon ton grade) + le **bonus quota fabrication** (jusqu'à 5 000 $). Le total est plafonné à 13/14/15k.
 
 ### Formule
 ```
-Part CA   = (CA commissionnable / 30 000) × plafond_CA[grade]
-            (plafonné à plafond_CA, atteint à 30 000 $ de CA)
-Bonus fab = score_quota × 3 000 $
+Part CA   = (CA commissionnable / 50 000) × plafond_CA[grade]
+            (plafonné à plafond_CA, atteint à 50 000 $ de CA)
+Bonus fab = score_quota × 5 000 $
             (score_quota = moyenne des ratios fabriqué/quota sur les produits actifs)
 
 Salaire   = MIN( Part CA + Bonus fab, plafond_total[grade] )
 
-plafond_CA    = 10 000 $ (Novice) / 11 000 $ (Inter) / 12 000 $ (Exp)
+plafond_CA    = 8 000 $ (Novice) / 9 000 $ (Inter) / 10 000 $ (Exp)
 plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 ```
 
@@ -136,44 +136,44 @@ plafond_total = 13 000 $ (Novice) / 14 000 $ (Inter) / 15 000 $ (Exp)
 - Chaque semaine, le patron définit un quota par produit parmi : **Pioche / Eau purifiée / Mastic carrosserie / Visseries** (un produit avec quota = 0 est désactivé pour la semaine).
 - Tu déclares tes fabrications via la section **Déclarer une fabrication** : saisis la quantité, clique **Valider**.
 - Ton score = **moyenne des ratios** (`fait / quota`) sur les produits actifs, chacun plafonné à 100 %.
-- Le bonus est versé **au prorata** du score (50 % du score = 1 500 $ de bonus).
+- Le bonus est versé **au prorata** du score (50 % du score = 2 500 $ de bonus, 100 % = 5 000 $).
 
 ### Exemples
 
-#### Vendeur Inter (plafond CA 11 000, bonus max 3 000)
+#### Vendeur Inter (plafond CA 9 000, bonus max 5 000)
 
-- CA commissionnable : **18 000 $** → Part CA = (18000/30000) × 11000 = **6 600 $**
-- Quota fab : 50 pioches + 200 eaux. Tu fais 50 pioches + 100 eaux. Score = (1 + 0,5) / 2 = **75 %** → Bonus = **2 250 $**
-- Salaire total : 6 600 + 2 250 = **8 850 $**
+- CA commissionnable : **25 000 $** → Part CA = (25000/50000) × 9000 = **4 500 $**
+- Quota fab : 50 pioches + 200 eaux. Tu fais 50 pioches + 100 eaux. Score = (1 + 0,5) / 2 = **75 %** → Bonus = **3 750 $**
+- Salaire total : 4 500 + 3 750 = **8 250 $**
 
 #### Vendeur Exp qui fait tout (plafond total 15 000)
 
-- CA = 30 000 $ → Part CA = **12 000 $** (plafond CA atteint)
-- Quota fab 100 % → Bonus = **3 000 $**
-- Salaire total : 12 000 + 3 000 = **15 000 $** (= plafond)
+- CA = 50 000 $ → Part CA = **10 000 $** (plafond CA atteint)
+- Quota fab 100 % → Bonus = **5 000 $**
+- Salaire total : 10 000 + 5 000 = **15 000 $** (= plafond)
 
 #### Semaine sans quota fabrication (tous quotas à 0)
 
-- Bonus = 0 $. Seule la part CA compte (max 10/11/12k selon ton grade).
+- Bonus = 0 $. Seule la part CA compte (max 8/9/10k selon ton grade).
 
-| Grade  | Plafond CA (à 30k) | Bonus max | Plafond total |
+| Grade  | Plafond CA (à 50k) | Bonus max | Plafond total |
 |--------|--------------------|-----------|---------------|
-| Novice | 10 000 $           | 3 000 $   | 13 000 $      |
-| Inter  | 11 000 $           | 3 000 $   | 14 000 $      |
-| Exp    | 12 000 $           | 3 000 $   | 15 000 $      |
+| Novice | 8 000 $            | 5 000 $   | 13 000 $      |
+| Inter  | 9 000 $            | 5 000 $   | 14 000 $      |
+| Exp    | 10 000 $           | 5 000 $   | 15 000 $      |
 
 ---
 
 ## Comment maximiser ta paie
 
 ### 1. Maximise ton CA
-- Vise les **30 000 $** de CA commissionnable pour atteindre ton plafond CA (10/11/12k selon grade)
-- Au-delà de 30 000 $, la part CA est plafonnée — mais ça reste utile pour le LTD et les primes hebdo collectives
+- Vise les **50 000 $** de CA commissionnable pour atteindre ton plafond CA (8/9/10k selon grade)
+- Au-delà de 50 000 $, la part CA est plafonnée — mais ça reste utile pour le LTD et les primes hebdo collectives
 - Le bénéfice généré (CA − coût d'achat) sert au LTD pour la compta — pas à ta paie
 
 ### 1bis. Atteins ton quota de fabrication
-- Si la semaine a un quota actif (pioche / eau / mastic / visseries), chaque produit fabriqué t'avance vers le bonus 3 000 $
-- Le bonus est versé **au prorata** : 50 % du score = 1 500 $
+- Si la semaine a un quota actif (pioche / eau / mastic / visseries), chaque produit fabriqué t'avance vers le bonus 5 000 $
+- Le bonus est versé **au prorata** : 50 % du score = 2 500 $
 - Déclare régulièrement tes craftings dans **Mon espace → Déclarer une fabrication**
 
 ### 2. Optimise tes heures de service
@@ -210,7 +210,7 @@ C'est normal et c'est par sécurité — chacun ne voit que ses propres infos.
 ### Tous les jours
 - En arrivant en service → vérifie ton **Mon espace** :
   - Combien j'ai déjà fait en CA ?
-  - Combien me reste-t-il pour atteindre les **30 000 $** (plafond CA) ?
+  - Combien me reste-t-il pour atteindre les **50 000 $** (plafond CA) ?
   - Si quota fab actif : où j'en suis sur le score (% moyen) ?
   - Mon salaire estimé évolue-t-il bien ?
 
@@ -230,7 +230,7 @@ C'est normal et c'est par sécurité — chacun ne voit que ses propres infos.
 Le bot Discord n'a peut-être pas remonté ta facture (canal `#suivi-facture`). Attends 30 secondes, sinon préviens ton responsable.
 
 **« Pourquoi mon salaire estimé est nul alors que j'ai vendu ? »**
-Si ton CA s'affiche bien mais que le salaire reste à 0 $, c'est probablement un bug — préviens la direction (le calcul est : `(CA / 30 000) × plafond_CA` pour la part CA, plus `score_quota × 3 000` pour le bonus fab).
+Si ton CA s'affiche bien mais que le salaire reste à 0 $, c'est probablement un bug — préviens la direction (le calcul est : `(CA / 50 000) × plafond_CA` pour la part CA, plus `score_quota × 5 000` pour le bonus fab).
 
 **« Est-ce que je peux dépasser le plafond ? »**
 Non, c'est un plafond légal TTE. Pour gagner plus, il faut **monter en grade** (Novice → Inter → Exp).

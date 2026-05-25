@@ -13,9 +13,8 @@ import {
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isPompisteRavitailleur, isVendeurDeclarateur,
          isDirection, isSuperAdmin, PLAFOND_SALAIRE,
-         CA_PLAFOND_VENDEUR_LEGACY, PLAFOND_CA_VENDEUR,
-         BONUS_QUOTA_VENDEUR_MAX, PRODUITS_QUOTA_FAB,
-         isNouveauSystemeVendeur } from '../utils/permissions.js';
+         QUOTA_CA_VENDEUR_DEFAULT, PLAFOND_CA_VENDEUR,
+         BONUS_QUOTA_VENDEUR_MAX, PRODUITS_QUOTA_FAB } from '../utils/permissions.js';
 import { salaireVendeur, salairePompiste, scorePompiste, scoreQuotaFabrication,
          fabricationsFromQuotaDoc } from '../utils/paie.js';
 import { nomProduit } from '../data/produits.js';
@@ -436,26 +435,22 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
   const fabrications = fabricationsFromQuotaDoc(quotaV);
   const scoreFab = scoreQuotaFabrication(fabrications, quotaFabrication);
   const bonusFab = Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX);
-  // Le declencheur du nouveau systeme = quotaCAVendeur < 40 000 (panel RH)
-  const quotaCA = Number(config.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
+  // Cible CA hebdo (panel RH > Quotas hebdo). Fallback sur le defaut courant.
+  const quotaCA = Number(config.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
   const salaireEst = salaireVendeur(profile.role, caParticulier, fabrications, quotaFabrication, quotaCA);
-  const nouveauSysteme = isNouveauSystemeVendeur(quotaCA);
 
   // Part CA pure (pour afficher la decomposition au vendeur)
   const plafondCAVendeur = PLAFOND_CA_VENDEUR[profile.role] || 0;
-  const salaireCAPart = nouveauSysteme
-    ? Math.round((quotaCA > 0 ? Math.min(1, caParticulier / quotaCA) : 0) * plafondCAVendeur)
-    : salaireEst;  // ancien systeme : la totalite vient du CA
+  const salaireCAPart = Math.round(
+    (quotaCA > 0 ? Math.min(1, caParticulier / quotaCA) : 0) * plafondCAVendeur
+  );
 
-  // Plafond CA et barres dependent du systeme actif
-  const plafondCAAffiche = nouveauSysteme ? quotaCA : CA_PLAFOND_VENDEUR_LEGACY;
+  // Plafond CA et barres = quotaCAVendeur courant
+  const plafondCAAffiche = quotaCA;
   const progressionCA = plafondCAAffiche > 0 ? Math.min(100, (caParticulier / plafondCAAffiche) * 100) : 0;
   const pctQuotaCA = quotaCA > 0 ? Math.min(100, (caParticulier / quotaCA) * 100) : 0;
 
-  // Produits actifs cette semaine. Visible uniquement avec le nouveau systeme.
-  const produitsActifs = nouveauSysteme
-    ? PRODUITS_QUOTA_FAB.filter(id => Number(quotaFabrication[id] || 0) > 0)
-    : [];
+  const produitsActifs = PRODUITS_QUOTA_FAB.filter(id => Number(quotaFabrication[id] || 0) > 0);
 
   document.getElementById('kpis-emp').innerHTML = `
     <div class="kpi"><div class="label">${isCurrent ? 'Ton CA' : 'CA de la semaine'}</div><div class="value">${money(ca)}</div><div class="delta">${myVentes.length} ventes${caPro > 0 ? ` · ${money(caPro)} hors commission` : ''}</div></div>
@@ -463,7 +458,7 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
     ${produitsActifs.length > 0
       ? `<div class="kpi"><div class="label">Score quota fab</div><div class="value">${pct(scoreFab*100, 0)}</div><div class="delta ${scoreFab>=1?'up':'down'}">bonus ${money(bonusFab)} / ${money(BONUS_QUOTA_VENDEUR_MAX)}</div></div>`
       : `<div class="kpi"><div class="label">Quota CA hebdo</div><div class="value">${pct(pctQuotaCA, 0)}</div><div class="delta ${caParticulier >= quotaCA ? 'up' : 'down'}">${money(caParticulier)} / ${money(quotaCA)}</div></div>`}
-    <div class="kpi"><div class="label">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">${nouveauSysteme ? `CA ${money(salaireCAPart)} + bonus ${money(bonusFab)}` : 'commission CA'} · plafond ${money(plafondSalaire)}</div></div>
+    <div class="kpi"><div class="label">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">CA ${money(salaireCAPart)} + bonus ${money(bonusFab)} · plafond ${money(plafondSalaire)}</div></div>
   `;
 
   // Section "Declarer fabrication" : visible UNIQUEMENT semaine en cours +
@@ -494,9 +489,7 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
         </div>
       </div>
       <div>
-        <div class="muted mono mb-1">${nouveauSysteme
-          ? `Progression vers plafond part CA (${money(quotaCA)} = plafond part CA ${money(plafondCAVendeur)})`
-          : `Progression vers plafond CA (${money(CA_PLAFOND_VENDEUR_LEGACY)} — au-delà, plus de commission)`}</div>
+        <div class="muted mono mb-1">Progression vers plafond part CA (${money(quotaCA)} = plafond part CA ${money(plafondCAVendeur)})</div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${progressionCA}%"></div>
           <div class="label">${money(caParticulier)} / ${money(plafondCAAffiche)}</div>
@@ -521,7 +514,7 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
         </div>
       ` : ''}
       <div>
-        <div class="muted mono mb-1">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond${nouveauSysteme ? ` — part CA ${money(salaireCAPart)} + bonus quota ${money(bonusFab)}` : ''}</div>
+        <div class="muted mono mb-1">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond — part CA ${money(salaireCAPart)} + bonus quota ${money(bonusFab)}</div>
         <div class="progress" style="height:24px;">
           <div class="fill" style="width:${plafondSalaire ? (salaireEst/plafondSalaire)*100 : 0}%"></div>
           <div class="label">${money(salaireEst)} / ${money(plafondSalaire)}</div>

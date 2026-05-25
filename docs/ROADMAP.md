@@ -1,7 +1,13 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-23 (v1.10.1 — classement ravitaillement pompiste)**
+> Dernière MAJ : **2026-05-25 (refonte paie vendeur — prorata 50k + bonus 5k)**
+
+## ✅ Résolus session 2026-05-25
+
+- **Refonte paie vendeur (v2)** : passage de `quotaCAVendeur=30 000` + plafondCA 10/11/12k + bonus 3k à **`quotaCAVendeur=50 000` + plafondCA 8/9/10k + bonus 5k**. Plafond total inchangé (13/14/15k). Calcul reste en prorata pur. Bascule legacy commission % retirée du code actif (constantes conservées comme référence historique pour les snapshots /paiesEstimees antérieurs).
+- Front + miroir backend `paie-calc.mjs` alignés. UI panel RH + espace vendeur + tuto + guides (05-vendeur, 02-drh, 08-faq) mis à jour.
+- Script one-shot `firebase/functions/scripts/update-quota-ca-vendeur.mjs` pour basculer Firestore `config/global.quotaCAVendeur` à 50 000.
 
 ## ✅ Résolus session 2026-05-23 — v1.10.1
 
@@ -19,7 +25,7 @@
 
 ## 🟡 À surveiller / valider après usage v1.10.0
 
-- **Date d'activation** : décidée par le patron en baissant `quotaCAVendeur` à 30 000 sur le panel RH. Tant que c'est 40 000 = ancien système actif (rétrocompat totale).
+- ~~**Date d'activation**~~ : ✅ activé 2026-05-23 (quotaCAVendeur baissé à 30 000), puis re-paramétré 2026-05-25 à 50 000 (refonte v2 ci-dessus).
 - **Prix vente + recette de craft `mastic-carrosserie`** : placeholder à compléter via Stocks → Modifier produit → Prix achat / Prix vente / Recette.
 - **Avertissements auto fabrication** : motifs ajoutés à la clôture lundi 00h si quota fab actif (> 0) ET non atteint individuellement. Surveiller le volume après la première clôture v1.10.0.
 

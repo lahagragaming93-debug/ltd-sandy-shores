@@ -11,7 +11,7 @@ import {
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isResponsable, isDirection,
          isSuperAdmin, compteEnFinance, PLAFOND_SALAIRE, PLAFOND_CA_VENDEUR,
-         BONUS_QUOTA_VENDEUR_MAX, CA_PLAFOND_VENDEUR_LEGACY,
+         BONUS_QUOTA_VENDEUR_MAX, QUOTA_CA_VENDEUR_DEFAULT,
          PRODUITS_QUOTA_FAB, isNouveauSystemeVendeur } from '../utils/permissions.js';
 import { salaireEstime, scorePompiste, scoreQuotaFabrication, checkMasseSalariale,
          fabricationsFromQuotaDoc } from '../utils/paie.js';
@@ -400,11 +400,11 @@ function renderTable() {
       const part = caTotal > 0 && caShow < caTotal
         ? ` <span class="muted" style="font-size:0.72rem;">(sur ${money(caTotal)} total)</span>`
         : '';
-      // Choisit plafond CA selon le declencheur quotaCAVendeur (panel Quotas hebdo)
+      // Plafond CA = quotaCAVendeur courant (panel Quotas hebdo). Si la config
+      // n'a pas encore de quotaCAVendeur, on retombe sur le defaut courant.
       const nouveauVendeur = isNouveauSystemeVendeur(config);
-      const quotaCAShow = Number(config.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
-      const plafondCAShow = nouveauVendeur ? quotaCAShow : CA_PLAFOND_VENDEUR_LEGACY;
-      // Score quota fabrication uniquement avec le nouveau systeme
+      const quotaCAShow = Number(config.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
+      const plafondCAShow = quotaCAShow;
       let fabLabel = '';
       if (nouveauVendeur) {
         const fabSnap = snap?.fabrications || m.fabrications || {};
@@ -528,7 +528,7 @@ if (editable) {
     const c = config || {};
     document.getElementById('q-bidons').value      = c.quotaBidons      ?? 1700;
     document.getElementById('q-caoutchoucs').value = c.quotaCaoutchoucs ?? 800;
-    document.getElementById('q-ca-vendeur').value  = c.quotaCAVendeur   ?? 30000;
+    document.getElementById('q-ca-vendeur').value  = c.quotaCAVendeur   ?? 50000;
     const qf = c.quotaFabrication || {};
     document.getElementById('q-fab-pioche').value    = qf['pioche']                ?? 0;
     document.getElementById('q-fab-eau').value       = qf['bouteille-eau-purifiee']?? 0;
@@ -555,7 +555,7 @@ if (editable) {
     const patch = {
       quotaBidons:      parseQ('q-bidons',      1700),
       quotaCaoutchoucs: parseQ('q-caoutchoucs',  800),
-      quotaCAVendeur:   parseQ('q-ca-vendeur', 30000),
+      quotaCAVendeur:   parseQ('q-ca-vendeur', 50000),
       quotaFabrication: {
         'pioche':                 parseQ('q-fab-pioche',    0),
         'bouteille-eau-purifiee': parseQ('q-fab-eau',       0),
@@ -620,7 +620,7 @@ function ouvrirDetail(uid) {
     // Decomposition CA + bonus uniquement avec le nouveau systeme
     if (isNouveauSystemeVendeur(config)) {
       const plafondCA = PLAFOND_CA_VENDEUR[u.role] || 0;
-      const quotaCAConfig = Number(config.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
+      const quotaCAConfig = Number(config.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
       const salaireCAPart = Math.round((quotaCAConfig > 0 ? Math.min(1, cp / quotaCAConfig) : 0) * plafondCA);
       const fab = m.fabrications || {};
       const qFab = config.quotaFabrication || {};

@@ -1,7 +1,41 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-25 (Resp Vente : édition stocks épicerie ré-autorisée)**
+> Dernière mise à jour : **2026-05-25 (refonte paie vendeur — prorata 50k + bonus 5k)**
+
+---
+
+## ✅ Session 2026-05-25 — Paie vendeur : prorata 50k + bonus fab 5k
+
+### Décision patron
+Revoir le barème vendeur. Pompistes 13/14/15k inchangés, direction/DRH/responsables inchangés. Vendeurs Novice/Inter/Exp passent de :
+- **Avant** : `quotaCAVendeur=30 000`, plafond part CA = 10/11/12k, bonus quota fab max = 3 000$
+- **Après** : `quotaCAVendeur=50 000`, plafond part CA = **8/9/10k**, bonus quota fab max = **5 000$**
+
+Plafond total inchangé : **13/14/15k** (= plafondCA + bonusMax). Calcul reste en prorata pur (`MIN(CA/quotaCAVendeur, 1) × plafondCA + score × bonusMax`).
+
+### Changements code
+- **[`public/js/utils/permissions.js`](public/js/utils/permissions.js)** : `PLAFOND_CA_VENDEUR` 10/11/12 → **8/9/10**, `BONUS_QUOTA_VENDEUR_MAX` 3000 → **5000**, `QUOTA_CA_VENDEUR_DEFAULT` 40000 → **50000**. `isNouveauSystemeVendeur` retourne `true` dès que `quotaCAVendeur > 0` (la bascule legacy 40k+ → ancien système n'est plus déclenchable). `COMMISSION_VENDEUR` et `CA_PLAFOND_VENDEUR_LEGACY` conservés comme référence historique (snapshots /paiesEstimees antérieurs).
+- **[`public/js/utils/paie.js`](public/js/utils/paie.js)** : `salaireVendeur()` simplifié — branche legacy retirée (retourne 0 si quotaCA invalide), default param = `QUOTA_CA_VENDEUR_DEFAULT`. Doc maj.
+- **[`firebase/functions/lib/paie-calc.mjs`](firebase/functions/lib/paie-calc.mjs)** : miroir backend aligné (mêmes constantes + même simplification de `salaireVendeur`). Libellé `formule` utilise `BONUS_QUOTA_VENDEUR_MAX` au lieu de "3k" en dur.
+- **[`firebase/functions/index.js`](firebase/functions/index.js)** : fallback `quotaCAVendeur` 40000 → 50000 dans `genererAvertissementsAuto`.
+- **[`public/js/pages/rh.js`](public/js/pages/rh.js)** : panel Quotas hebdo — défaut UI 30000 → **50000** (saisie + fallback parseQ). Fallback `quotaCAVendeur` aligné sur `QUOTA_CA_VENDEUR_DEFAULT`.
+- **[`public/js/pages/employee.js`](public/js/pages/employee.js)** : espace vendeur — libellés simplifiés (plus de branche "ancien système"). Fallback `quotaCAVendeur` aligné.
+- **[`public/js/pages/tuto.js`](public/js/pages/tuto.js)** : steps 7-8-9-10 du tuto vendeur réécrits avec les nouvelles valeurs (50k / 8-9-10k / 5k).
+- **[`firebase/functions/scripts/update-quota-ca-vendeur.mjs`](firebase/functions/scripts/update-quota-ca-vendeur.mjs)** : one-shot pour écrire `config/global.quotaCAVendeur = 50000` (dry-run par défaut, `--apply` pour pousser).
+
+### Doc & guides
+- **[`public/guide/05-vendeur.md`](public/guide/05-vendeur.md)** : formule, exemples chiffrés (Inter 25k → 4500 part CA / 75% fab → 3750 bonus / total 8250), tableau plafond, FAQ.
+- **[`public/guide/02-drh.md`](public/guide/02-drh.md)** : section "Comprendre les calculs de paie / Vendeur", exemples plafonnés.
+- **[`public/guide/08-faq-depannage.md`](public/guide/08-faq-depannage.md)** : 2 réponses (formule + plafond CA).
+
+### Méthode & cohérence
+- Calcul de bout en bout (front + miroir backend) cohérent : un seul nouveau système prorata, plus de bascule active. Les paies déjà snapshottées (/paiesEstimees) ne sont pas recalculées (idempotence).
+- Plafond total 13/14/15k volontairement inchangé : le patron a gardé les mêmes paliers TTE, seule la *répartition* CA/bonus change (le bonus fab prend plus d'importance).
+
+### À faire avant fonctionnement complet
+- Pousser `config/global.quotaCAVendeur = 50000` en Firestore : `cd firebase/functions && node scripts/update-quota-ca-vendeur.mjs --apply` (script prêt, en attente go patron).
+- `git push` (en attente go patron — modif sensible, salaire courant impacté dès déploiement).
 
 ---
 

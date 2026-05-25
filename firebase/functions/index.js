@@ -264,7 +264,7 @@ async function genererAvertissementsAuto(weekKey, debutSem, finSem) {
   const cfg = (await db.collection('config').doc('global').get()).data() || {};
   const quotaBidons       = Number(cfg.quotaBidons       ?? 1700);
   const quotaCaoutchoucs  = Number(cfg.quotaCaoutchoucs  ??  800);
-  const quotaCAVendeur    = Number(cfg.quotaCAVendeur    ?? 40000);
+  const quotaCAVendeur    = Number(cfg.quotaCAVendeur    ?? 50000);
   const quotaFab          = cfg.quotaFabrication || {};
 
   // Pre-fetch en parallele : users, ventes semaine, quotasPompiste, quotasVendeur.

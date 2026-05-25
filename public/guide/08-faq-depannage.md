@@ -118,7 +118,7 @@ Possibilités :
 - Tu n'as pas atteint ton quota (pompiste) ou ton CA n'est pas haut (vendeur)
 - Tu débutes la semaine, le compteur va monter au fur et à mesure
 - Tu es plafonné par ton grade (Novice = 13k max, etc.)
-- Vendeur : salaire = `(CA / 30 000) × plafond_CA` + `score_fab × 3 000 $`, plafonné au plafond total du grade. Si le quota fabrication n'est pas atteint, le bonus est plus faible.
+- Vendeur : salaire = `(CA / 50 000) × plafond_CA` + `score_fab × 5 000 $`, plafonné au plafond total du grade. Si le quota fabrication n'est pas atteint, le bonus est plus faible.
 
 ### « J'ai reçu une paie mais elle n'apparaît pas dans Mes paies »
 Probablement **ton ID Perso** qui n'est pas renseigné. Le bot matche les paies via l'ID Perso (in-game). Demande au Patron de vérifier ton profil.
@@ -127,7 +127,7 @@ Probablement **ton ID Perso** qui n'est pas renseigné. Le bot matche les paies 
 La paie n'est **pas versée automatiquement** par le site — c'est le Patron / DRH qui doit te la verser via Discord (`#paie`) selon ce que le système estime. Si tu vois ton estimation correcte mais rien dans Mes paies → relance la direction RP.
 
 ### « Pourquoi ma part CA ne monte plus alors que mon CA grimpe ? »
-Au-delà de **30 000 $** de CA commissionnable, la part CA du salaire est **plafonnée** à 10/11/12k selon ton grade. Ce qui se vend au-dessus profite au LTD (et aux primes hebdo collectives) mais pas à ta part CA. Pour aller au-delà de ton plafond CA, atteins ton quota de fabrication (bonus +3 000 $). C'est volontaire (équité TTE).
+Au-delà de **50 000 $** de CA commissionnable, la part CA du salaire est **plafonnée** à 8/9/10k selon ton grade. Ce qui se vend au-dessus profite au LTD (et aux primes hebdo collectives) mais pas à ta part CA. Pour aller au-delà de ton plafond CA, atteins ton quota de fabrication (bonus +5 000 $). C'est volontaire (équité TTE).
 
 ---
 

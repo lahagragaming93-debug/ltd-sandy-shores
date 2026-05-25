@@ -327,12 +327,12 @@ const TUTOS = {
         emoji: '07',
         title: 'Ta paie — 2 composantes',
         body: `
-          <p>Depuis le <strong>23 mai 2026</strong>, ton salaire hebdomadaire a <strong>2 parts</strong> :</p>
+          <p>Depuis le <strong>25 mai 2026</strong>, ton salaire hebdomadaire a <strong>2 parts</strong> :</p>
           <ul>
-            <li><strong>Part CA</strong> : (CA commissionnable / 30 000) × plafond CA selon ton grade</li>
-            <li><strong>Bonus quota fabrication</strong> : jusqu'à <strong>3 000 $</strong> versés au prorata des unités fabriquées (pioche / eau purifiée / mastic carrosserie / visseries)</li>
+            <li><strong>Part CA</strong> : (CA commissionnable / 50 000) × plafond CA selon ton grade</li>
+            <li><strong>Bonus quota fabrication</strong> : jusqu'à <strong>5 000 $</strong> versés au prorata des unités fabriquées (pioche / eau purifiée / mastic carrosserie / visseries)</li>
           </ul>
-          <p>Plafond CA par grade : 10 000 $ (Novice) / 11 000 $ (Inter) / 12 000 $ (Exp). Plafond total = plafond CA + 3 000 $.</p>
+          <p>Plafond CA par grade : 8 000 $ (Novice) / 9 000 $ (Inter) / 10 000 $ (Exp). Plafond total = plafond CA + 5 000 $.</p>
           <div class="tuto-callout info">
             <strong>Important :</strong> toute vente non déclarée sur la tablette = pas de part CA. Toute fabrication non déclarée = pas de bonus. <strong>Déclare systématiquement.</strong>
           </div>
@@ -344,9 +344,9 @@ const TUTOS = {
         body: `
           <p>Tu dois atteindre un <strong>CA commissionnable minimum chaque semaine</strong> :</p>
           <ul>
-            <li>Par défaut : <strong>30 000 $</strong> (modifiable par la direction selon la semaine)</li>
+            <li>Par défaut : <strong>50 000 $</strong> (modifiable par la direction selon la semaine)</li>
             <li>Si non atteint à la clôture (lundi 00h00) → <strong>1 avertissement automatique</strong></li>
-            <li>À 30 000 $ : tu touches ton <strong>plafond CA</strong> (10/11/12k selon grade)</li>
+            <li>À 50 000 $ : tu touches ton <strong>plafond CA</strong> (8/9/10k selon grade)</li>
           </ul>
           <p>Sur ton espace, une barre de progression t'indique en temps réel où tu en es par rapport au quota.</p>
           <div class="tuto-callout">
@@ -356,7 +356,7 @@ const TUTOS = {
       },
       {
         emoji: '09',
-        title: 'Quota de fabrication — bonus 3 000 $',
+        title: 'Quota de fabrication — bonus 5 000 $',
         body: `
           <p>En plus du CA, chaque semaine peut avoir un <strong>quota de fabrication</strong> (décidé par le patron à la clôture précédente) sur 4 produits possibles :</p>
           <ul>
@@ -366,7 +366,7 @@ const TUTOS = {
             <li><strong>Visseries</strong></li>
           </ul>
           <p>Pour chaque produit avec un quota &gt; 0, tu déclares tes unités craftées dans <strong>Mon espace → Déclarer une fabrication</strong> (saisie libre).</p>
-          <p>Le bonus est versé <strong>au prorata du score moyen</strong> : chaque produit compte pour une part égale, plafonné à 100 %. 50 % de score = 1 500 $ de bonus, 100 % = 3 000 $.</p>
+          <p>Le bonus est versé <strong>au prorata du score moyen</strong> : chaque produit compte pour une part égale, plafonné à 100 %. 50 % de score = 2 500 $ de bonus, 100 % = 5 000 $.</p>
           <div class="tuto-callout">
             <strong>Astuce :</strong> un produit avec quota = 0 est désactivé pour la semaine (n'entre pas dans le calcul). Si tous sont à 0 : seule la part CA compte.
           </div>
@@ -378,13 +378,13 @@ const TUTOS = {
         body: `
           <p>Ton salaire total est plafonné selon ton grade (TTE Chap. IV Art. 4-1.5) :</p>
           <ul>
-            <li>Vendeur novice : <strong>13 000 $</strong> (10k CA + 3k bonus)</li>
-            <li>Vendeur intermédiaire : <strong>14 000 $</strong> (11k CA + 3k bonus)</li>
-            <li>Vendeur expérimenté : <strong>15 000 $</strong> (12k CA + 3k bonus)</li>
+            <li>Vendeur novice : <strong>13 000 $</strong> (8k CA + 5k bonus)</li>
+            <li>Vendeur intermédiaire : <strong>14 000 $</strong> (9k CA + 5k bonus)</li>
+            <li>Vendeur expérimenté : <strong>15 000 $</strong> (10k CA + 5k bonus)</li>
           </ul>
-          <p>Pour toucher ton plafond complet : <strong>30 000 $ de CA</strong> ET <strong>100 % du quota fabrication</strong>.</p>
+          <p>Pour toucher ton plafond complet : <strong>50 000 $ de CA</strong> ET <strong>100 % du quota fabrication</strong>.</p>
           <div class="tuto-callout">
-            <strong>Astuce :</strong> sans quota fabrication actif (= tous quotas à 0), le bonus = 0 et tu plafonnes à 10/11/12k selon ton grade.
+            <strong>Astuce :</strong> sans quota fabrication actif (= tous quotas à 0), le bonus = 0 et tu plafonnes à 8/9/10k selon ton grade.
           </div>
         `
       },

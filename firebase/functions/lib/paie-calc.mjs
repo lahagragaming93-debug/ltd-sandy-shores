@@ -33,32 +33,35 @@ export const PLAFOND_SALAIRE = {
 export const DRH_SALAIRE_FIXE = 18000;
 export const CA_PLAFOND_RESP_VENTE = 40000;
 
-// === Vendeurs : bascule pilotee par config.quotaCAVendeur ===
+// === Vendeurs : prorata CA + bonus quota fabrication ===
 // Voir public/js/utils/permissions.js pour la doc complete.
+// Decision patron 2026-05-25 : quotaCAVendeur=50 000, plafondCA=8/9/10k,
+// bonus max=5 000$, plafond total inchange 13/14/15k.
+export const QUOTA_CA_VENDEUR_DEFAULT = 50000;
+
+// LEGACY (avant 2026-05-25) : conservees pour reference historique.
+// Snapshots /paiesEstimees anterieurs au 2026-05-25 calcules avec ces valeurs.
 export const CA_PLAFOND_VENDEUR_LEGACY = 40000;
-
-export function isNouveauSystemeVendeur(cfgOrQuotaCA) {
-  const q = (cfgOrQuotaCA && typeof cfgOrQuotaCA === 'object')
-    ? Number(cfgOrQuotaCA.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY)
-    : Number(cfgOrQuotaCA);
-  if (!Number.isFinite(q) || q <= 0) return false;
-  return q < CA_PLAFOND_VENDEUR_LEGACY;
-}
-
-// Ancien systeme (quotaCAVendeur = 40 000)
 export const COMMISSION_VENDEUR = {
   'vendeur-novice':         0.325,
   'vendeur-intermediaire':  0.350,
   'vendeur-experimente':    0.375
 };
 
-// Nouveau systeme (quotaCAVendeur < 40 000)
+export function isNouveauSystemeVendeur(cfgOrQuotaCA) {
+  const q = (cfgOrQuotaCA && typeof cfgOrQuotaCA === 'object')
+    ? Number(cfgOrQuotaCA.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT)
+    : Number(cfgOrQuotaCA);
+  if (!Number.isFinite(q) || q <= 0) return false;
+  return true;
+}
+
 export const PLAFOND_CA_VENDEUR = {
-  'vendeur-novice':         10000,
-  'vendeur-intermediaire':  11000,
-  'vendeur-experimente':    12000
+  'vendeur-novice':         8000,
+  'vendeur-intermediaire':  9000,
+  'vendeur-experimente':    10000
 };
-export const BONUS_QUOTA_VENDEUR_MAX = 3000;
+export const BONUS_QUOTA_VENDEUR_MAX = 5000;
 export const PRODUITS_QUOTA_FAB = [
   'pioche',
   'bouteille-eau-purifiee',
@@ -93,16 +96,11 @@ function scoreQuotaFabrication(fabrications = {}, quotaFab = {}) {
   return ratios.reduce((s, x) => s + x, 0) / ratios.length;
 }
 
-function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {}, quotaCAVendeur = CA_PLAFOND_VENDEUR_LEGACY) {
+function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {}, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
   if (!isVendeur(role)) return 0;
   const plafondSalaire = PLAFOND_SALAIRE[role] ?? 0;
   const qCA = Number(quotaCAVendeur);
-
-  if (!isNouveauSystemeVendeur(qCA)) {
-    const commission = COMMISSION_VENDEUR[role] ?? 0;
-    const caRetenu = Math.min(caGenere || 0, CA_PLAFOND_VENDEUR_LEGACY);
-    return Math.min(Math.round(caRetenu * commission), plafondSalaire);
-  }
+  if (!isNouveauSystemeVendeur(qCA)) return 0;
 
   const plafondCA = PLAFOND_CA_VENDEUR[role] ?? 0;
   const ratioCA = qCA > 0 ? Math.min(1, (caGenere || 0) / qCA) : 0;
@@ -187,7 +185,7 @@ export function calculerPaieEstimee({ user, ventes = [], redistributions = [], q
   const quotaBidons = cfg.quotaBidons ?? 1700;
   const quotaCaoutchoucs = cfg.quotaCaoutchoucs ?? 800;
   const quotaFab = cfg.quotaFabrication || {};
-  const quotaCAVendeur = Number(cfg.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
+  const quotaCAVendeur = Number(cfg.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
 
   // CA personnel = ventes attribuees a cet utilisateur
   const myVentes = ventes.filter(v => v.vendeurId === user.id);
@@ -209,9 +207,7 @@ export function calculerPaieEstimee({ user, ventes = [], redistributions = [], q
 
   if (isVendeur(role)) {
     montantEstime = salaireVendeur(role, caParticulier, fabrications, quotaFab, quotaCAVendeur);
-    formule = isNouveauSystemeVendeur(quotaCAVendeur)
-      ? `vendeur (CA prorata ${quotaCAVendeur} + bonus quota fab max 3k)`
-      : `vendeur (CA × commission, plafond 40k)`;
+    formule = `vendeur (CA prorata ${quotaCAVendeur} + bonus quota fab max ${BONUS_QUOTA_VENDEUR_MAX})`;
   } else if (isPompiste(role)) {
     montantEstime = salairePompiste(role, bidons, caoutchoucs, quotaBidons, quotaCaoutchoucs);
     formule = `pompiste (moyenne quota bidons/caoutchoucs)`;

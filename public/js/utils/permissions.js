@@ -188,45 +188,57 @@ export const DRH_SALAIRE_FIXE = 18000;
 // historiques mais plus utilisee dans le calcul de paie.
 export const CA_PLAFOND_RESP_VENTE = 40000;
 
-// === Vendeurs : bascule entre ancien et nouveau systeme ===
-// Le DECLENCHEUR est la valeur de config.quotaCAVendeur (panel RH > Quotas hebdo) :
+// === Vendeurs : systeme prorata CA + bonus quota fabrication ===
 //
-//  - quotaCAVendeur >= 40 000 (= CA_PLAFOND_VENDEUR_LEGACY) :
-//      ANCIEN SYSTEME : salaire = MIN(MIN(CA, 40 000) × commission[role],
-//      plafond[role]). Plafond salaire 13/14/15k atteignable uniquement
-//      via le CA. Pas de bonus quota fabrication.
+// Decision patron 2026-05-25 :
+//   quotaCAVendeur = 50 000        (cible CA hebdo commissionnable)
+//   plafond part CA = 8 / 9 / 10k  (novice / inter / exp)
+//   bonus quota fab max = 5 000$   (score moyen × 5 000)
+//   plafond total inchange = 13 / 14 / 15k (= plafondCA + bonusMax)
 //
-//  - quotaCAVendeur <  40 000 (typiquement 30 000) :
-//      NOUVEAU SYSTEME : partCA = MIN(CA / quotaCAVendeur, 1) × plafondCA[role]
-//      + bonusFab = score_quota_fab × 3 000. Plafond total inchange 13/14/15k.
-//      Le patron decide du moment du changement en baissant quotaCAVendeur
-//      (40 000 → 30 000) sur le panel RH apres cloture.
+// Formule :
+//   partCA   = MIN(CA / quotaCAVendeur, 1) × PLAFOND_CA_VENDEUR[role]
+//   bonusFab = scoreQuotaFabrication(fab, quotaFab) × BONUS_QUOTA_VENDEUR_MAX
+//   salaire  = MIN(partCA + bonusFab, PLAFOND_SALAIRE[role])
 //
-// Cf. /02-drh.md (section "Comprendre les calculs de paie") pour la doc.
+// Pour atteindre le plafond plein (13/14/15k) : 50 000 $ de CA commissionnable
+// ET 100 % du quota fabrication.
+//
+// Le patron pilote la cible CA via config.quotaCAVendeur (panel RH > Quotas
+// hebdo). Tant que quotaCAVendeur > 0, le systeme nouveau s'applique.
+//
+// Cf. /02-drh.md et /05-vendeur.md pour la doc.
+
+// LEGACY (avant 2026-05-25) : COMMISSION_VENDEUR et CA_PLAFOND_VENDEUR_LEGACY
+// etaient utilises par un ancien systeme "CA × commission, plafond 40 000".
+// Constantes conservees pour reference historique (snapshots /paiesEstimees
+// anterieurs au 2026-05-25 ont ete calcules avec ces valeurs), mais plus
+// utilisees par le calcul actif depuis le passage en prorata pur.
 export const CA_PLAFOND_VENDEUR_LEGACY = 40000;
-
-export function isNouveauSystemeVendeur(cfgOrQuotaCA) {
-  const q = (cfgOrQuotaCA && typeof cfgOrQuotaCA === 'object')
-    ? Number(cfgOrQuotaCA.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY)
-    : Number(cfgOrQuotaCA);
-  if (!Number.isFinite(q) || q <= 0) return false;
-  return q < CA_PLAFOND_VENDEUR_LEGACY;
-}
-
-// --- Ancien systeme ---
 export const COMMISSION_VENDEUR = {
   'vendeur-novice':         0.325,
   'vendeur-intermediaire':  0.350,
   'vendeur-experimente':    0.375
 };
 
-// --- Nouveau systeme ---
+// Le calcul actif (depuis 2026-05-25) utilise toujours la formule prorata des
+// que quotaCAVendeur > 0. Cette fonction reste exposee pour les call sites qui
+// branchent un libelle "nouveau systeme" mais retourne desormais true par
+// defaut. Conserve la signature object|number pour compat.
+export function isNouveauSystemeVendeur(cfgOrQuotaCA) {
+  const q = (cfgOrQuotaCA && typeof cfgOrQuotaCA === 'object')
+    ? Number(cfgOrQuotaCA.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT)
+    : Number(cfgOrQuotaCA);
+  if (!Number.isFinite(q) || q <= 0) return false;
+  return true;
+}
+
 export const PLAFOND_CA_VENDEUR = {
-  'vendeur-novice':         10000,
-  'vendeur-intermediaire':  11000,
-  'vendeur-experimente':    12000
+  'vendeur-novice':         8000,
+  'vendeur-intermediaire':  9000,
+  'vendeur-experimente':    10000
 };
-export const BONUS_QUOTA_VENDEUR_MAX = 3000;
+export const BONUS_QUOTA_VENDEUR_MAX = 5000;
 export const PRODUITS_QUOTA_FAB = [
   'pioche',
   'bouteille-eau-purifiee',
@@ -235,6 +247,5 @@ export const PRODUITS_QUOTA_FAB = [
 ];
 
 // Valeur par defaut quand config.quotaCAVendeur est absent en Firestore.
-// = ancien plafond (= ancien systeme reste actif tant que le patron n'a pas
-// baisse le quota cote panel RH).
-export const QUOTA_CA_VENDEUR_DEFAULT = CA_PLAFOND_VENDEUR_LEGACY;
+// = nouvelle cible CA depuis 2026-05-25.
+export const QUOTA_CA_VENDEUR_DEFAULT = 50000;

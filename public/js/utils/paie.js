@@ -4,7 +4,7 @@
 // ============================================================
 
 import { PLAFOND_SALAIRE, PLAFOND_CA_VENDEUR, BONUS_QUOTA_VENDEUR_MAX,
-         CA_PLAFOND_VENDEUR_LEGACY, COMMISSION_VENDEUR,
+         QUOTA_CA_VENDEUR_DEFAULT,
          PRODUITS_QUOTA_FAB, isNouveauSystemeVendeur,
          DRH_SALAIRE_FIXE,
          isVendeur, isPompiste, isResponsable, isDirection } from './permissions.js';
@@ -39,38 +39,32 @@ export function scoreQuotaFabrication(fabrications = {}, quotaFab = {}) {
 }
 
 /**
- * Salaire vendeur. Aiguillage selon la valeur de quotaCAVendeur :
+ * Salaire vendeur — prorata CA sur quotaCAVendeur + bonus quota fabrication.
  *
- * - ANCIEN systeme (quotaCAVendeur >= 40 000) :
- *     salaire = MIN(MIN(CA, 40 000) × commission[role], plafond[role])
+ * Decision patron 2026-05-25 :
+ *   quotaCAVendeur = 50 000, plafond part CA = 8/9/10k, bonus max = 5 000$.
+ *   Plafond total inchange : 13/14/15k.
  *
- * - NOUVEAU systeme (quotaCAVendeur < 40 000) :
- *     partCA   = MIN(CA / quotaCAVendeur, 1) × PLAFOND_CA_VENDEUR[role]
- *     bonusFab = score_quota_fabrication × 3 000             (plafonne 3 000)
- *     total    = MIN(partCA + bonusFab, plafond[role])
+ * Formule :
+ *   partCA   = MIN(CA / quotaCAVendeur, 1) × PLAFOND_CA_VENDEUR[role]
+ *   bonusFab = score_quota_fabrication × BONUS_QUOTA_VENDEUR_MAX
+ *   total    = MIN(partCA + bonusFab, plafond[role])
  *
- * Le declenchement est manuel : le patron modifie quotaCAVendeur sur le
- * panel RH > Quotas hebdo pour faire basculer tous les vendeurs.
+ * Si quotaCAVendeur <= 0 ou non finite : salaire = 0 (defensif).
  *
  * @param {string} role
  * @param {number} caGenere
  * @param {object} fabrications     { produitId: quantite, ... }  cumul semaine
  * @param {object} quotaFab         { produitId: quota, ... }     config hebdo
- * @param {number} quotaCAVendeur   cible CA hebdo (40 000 = ancien, sinon nouveau)
+ * @param {number} quotaCAVendeur   cible CA hebdo (config.quotaCAVendeur)
  */
-export function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {}, quotaCAVendeur = CA_PLAFOND_VENDEUR_LEGACY) {
+export function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {}, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
   if (!isVendeur(role)) return 0;
   const plafondSalaire = PLAFOND_SALAIRE[role] ?? 0;
   const qCA = Number(quotaCAVendeur);
 
-  if (!isNouveauSystemeVendeur(qCA)) {
-    // ANCIEN systeme : CA × commission, plafond CA 40 000
-    const commission = COMMISSION_VENDEUR[role] ?? 0;
-    const caRetenu = Math.min(caGenere || 0, CA_PLAFOND_VENDEUR_LEGACY);
-    return Math.min(Math.round(caRetenu * commission), plafondSalaire);
-  }
+  if (!isNouveauSystemeVendeur(qCA)) return 0;
 
-  // NOUVEAU systeme : prorata CA sur quotaCAVendeur + bonus quota fabrication
   const plafondCA = PLAFOND_CA_VENDEUR[role] ?? 0;
   const ratioCA = qCA > 0 ? Math.min(1, (caGenere || 0) / qCA) : 0;
   const salaireCA = ratioCA * plafondCA;
@@ -144,7 +138,7 @@ export function salaireEstime(e, cfg = {}) {
   const quotaBidons = cfg.quotaBidons ?? 1700;
   const quotaCaoutchoucs = cfg.quotaCaoutchoucs ?? 800;
   const quotaFab = cfg.quotaFabrication ?? {};
-  const quotaCA = Number(cfg.quotaCAVendeur ?? CA_PLAFOND_VENDEUR_LEGACY);
+  const quotaCA = Number(cfg.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
 
   if (isVendeur(e.role)) {
     return salaireVendeur(e.role, e.caGenere ?? 0, e.fabrications ?? {}, quotaFab, quotaCA);

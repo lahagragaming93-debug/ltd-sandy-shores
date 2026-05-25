@@ -60,7 +60,7 @@ Une ligne par employé avec :
 - **ID Discord** (utile pour matcher avec les logs)
 - **Heures de service** de la semaine — si < 7h, marqueur d'alerte
 - **CA / Quota** (varie selon le rôle) :
-  - Vendeur : `CA généré / 30 000` (plafond CA) + score quota fabrication si actif
+  - Vendeur : `CA généré / 50 000` (plafond CA) + score quota fabrication si actif
   - Pompiste : `% score` (moyenne bidons + caoutchoucs)
   - Responsable / Direction / DRH : « Décidé »
 - **Salaire estimé / plafond**
@@ -168,14 +168,14 @@ Bouton **« + Créer un compte »**. Remplis :
 
 ## Comprendre les calculs de paie
 
-### Vendeur (modèle 2026-05-23 : CA prorata + bonus quota fabrication)
+### Vendeur (modèle 2026-05-25 : CA prorata 50k + bonus quota fabrication 5k)
 ```
-plafond CA    = 10 000 / 11 000 / 12 000 $ (Novice / Inter / Exp)
-bonus max     = 3 000 $ (quota fabrication, atteint si score 100 %)
+plafond CA    = 8 000 / 9 000 / 10 000 $ (Novice / Inter / Exp)
+bonus max     = 5 000 $ (quota fabrication, atteint si score 100 %)
 plafond total = 13 000 / 14 000 / 15 000 $ (Novice / Inter / Exp)
 
-Part CA   = (CA commissionnable / 30 000) × plafond CA, plafonné à plafond CA
-Bonus fab = score_quota_fabrication × 3 000 $
+Part CA   = (CA commissionnable / 50 000) × plafond CA, plafonné à plafond CA
+Bonus fab = score_quota_fabrication × 5 000 $
             (score = moyenne des ratios fait/quota sur produits actifs,
              chaque ratio plafonné à 100 %)
 
@@ -193,16 +193,16 @@ Salaire   = MIN( Part CA + Bonus fab, plafond total )
 > **Quota fabrication** : les 4 produits éligibles sont définis dans `permissions.js` → `PRODUITS_QUOTA_FAB` (pioche, eau purifiée, mastic carrosserie, visseries). Le patron règle les quantités hebdo sur la page RH → bloc "Quotas hebdomadaires". Un quota = 0 désactive le produit pour la semaine.
 
 **Exemple concret** (Vendeur Intermédiaire — quota 50 pioches + 200 eaux actif) :
-- CA commissionnable : 18 000 $ → Part CA = (18000/30000) × 11000 = **6 600 $**
-- Fabrications : 50 pioches + 100 eaux → score = (1 + 0,5) / 2 = 75 % → Bonus = **2 250 $**
-- Salaire = MIN(6 600 + 2 250, 14 000) = **8 850 $**
+- CA commissionnable : 25 000 $ → Part CA = (25000/50000) × 9000 = **4 500 $**
+- Fabrications : 50 pioches + 100 eaux → score = (1 + 0,5) / 2 = 75 % → Bonus = **3 750 $**
+- Salaire = MIN(4 500 + 3 750, 14 000) = **8 250 $**
 
 **Exemple plafonné** (Vendeur Expérimenté — quotas atteints) :
-- CA : 30 000 $ → Part CA = **12 000 $** (plafond CA atteint)
-- Score quota 100 % → Bonus = **3 000 $**
-- Salaire = MIN(12 000 + 3 000, 15 000) = **15 000 $** (= plafond total)
+- CA : 50 000 $ → Part CA = **10 000 $** (plafond CA atteint)
+- Score quota 100 % → Bonus = **5 000 $**
+- Salaire = MIN(10 000 + 5 000, 15 000) = **15 000 $** (= plafond total)
 
-> Sans quota fabrication actif (tous à 0), seule la part CA compte et le vendeur plafonne à 10/11/12k au lieu de 13/14/15k.
+> Sans quota fabrication actif (tous à 0), seule la part CA compte et le vendeur plafonne à 8/9/10k au lieu de 13/14/15k.
 
 ### Pompiste
 ```
