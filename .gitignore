@@ -37,3 +37,6 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+
+# Sauvegardes locales (manuelles, hors release)
+_backups/

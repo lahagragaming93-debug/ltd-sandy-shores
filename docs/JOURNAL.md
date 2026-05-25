@@ -1,7 +1,38 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-26 (v1.13.1 — hotfix TZ chart revenus carburant)**
+> Dernière mise à jour : **2026-05-26 (v1.13.2 — ratio TTE inclut tout carburant + simplify + cleanup)**
+
+---
+
+## ✅ Session 2026-05-26 — v1.13.2 ratio masse / CA aligne sur Art. 4-2.1 + simplify + cleanup
+
+### Bug remonte par le patron
+"108 304 $ de salaires versés sur 48 829 $ de CA" → ratio masse aberrant. Cause : le dénominateur du ratio TTE excluait les ventes carburant NPC auto (`source !== 'manuel-pompiste'`). Or TTE Art. 4-2.1 définit le CA comme "totalité des revenus" — l'IRS regarde le total, pas un subset métier.
+
+### Fix masse salariale
+- **[`public/js/pages/dashboard.js`](public/js/pages/dashboard.js)** + **[`public/js/pages/comptabilite.js`](public/js/pages/comptabilite.js)** : suppression des variables intermédiaires `caCarburantPompiste` et `caTotalTTE`. `checkMasseSalariale()` reçoit désormais `caTotal = caProduits + caCarburant (TOUT)`. Commentaire mis à jour avec référence Art. 4-1.13 + 4-2.1.
+- Backend `firebase/functions/lib/dashboard-core.mjs` déjà correct (utilisait déjà `caTotal` sans filtre). Pas de changement backend.
+
+### Routine simplify (suite v1.13.1)
+3 reviews en parallèle, findings appliqués :
+- **[`public/js/utils/formatters.js`](public/js/utils/formatters.js)** : commentaire `dateKeyLocal()` simplifié (retrait des numéros de version `v1.7.1` et `v1.13.1` qui se périment vite).
+- **[`public/js/pages/admin.js:1406-1407`](public/js/pages/admin.js#L1406)** **(critical)** : `dateReception` et `dateEcheance` des engagements pré-remplies via `toISOString().slice(0,10)` → ces valeurs étaient ensuite **persistées en Firestore**. Passage à `dateKeyLocal()` (mêmes raisons que le hotfix TZ).
+- **[`public/js/api.js:461`](public/js/api.js#L461)** : pattern `${y}-${m}-${day}` manuel remplacé par `dateKeyLocal(dateDebut)`. Le commentaire bug-doc devient redondant, retiré.
+- **5 exports CSV** unifiés sur `dateKeyLocal()` (`revenus-carburant.js`, `ventes.js`, `banque.js`, `comptabilite.js`, `decouverte-items.js`) pour cohérence — impact cosmétique (nom de fichier) mais source de vérité unique pour la date.
+- **[`public/js/pages/employee.js:332`](public/js/pages/employee.js#L332)** : double appel `.toDate()` factorisé en variable `ts`.
+
+### Cleanup projet
+- **[`.gitignore`](.gitignore)** : ajout `_backups/` (dossier untracked de sauvegardes locales qui apparaissait dans `git status`).
+- **Scripts one-shot supprimés** (exécutés, récupérables via git history) :
+  - `firebase/functions/scripts/swap-jerrican-mastic.mjs` (v1.10.0)
+  - `firebase/functions/scripts/update-quota-ca-vendeur.mjs` (v1.13.0)
+  - `firebase/functions/scripts/cleanup-produits-supprimes.mjs` (v1.13.0)
+- **Conservés** : `init-*.js`, `backfill-*.mjs`, `force-refresh-*.js`, `resync-stocks.js`, `list-*.js`, `format-sheet.js` (réutilisables pour maintenance ad-hoc).
+
+### Note pour le patron
+- `docs/07-transmission.md` : procédure de passation au vrai patron, applicable une fois. L'agent cleanup l'a flaggé comme supprimable. **Non supprimé** par prudence (peut servir si nouvelle transmission). À décider plus tard.
+- Le `_backups/` reste sur le disque local, juste retiré de `git status`. À toi de décider quoi en faire localement.
 
 ---
 

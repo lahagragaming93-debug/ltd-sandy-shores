@@ -67,10 +67,10 @@ export function endOfWeekRP(d = new Date()) {
 }
 // Cle YYYY-MM-DD en heure LOCALE (Paris cote navigateur user). A utiliser
 // pour grouper des timestamps par jour ou stocker une date sans heure.
-// Ne PAS utiliser toISOString().slice(0,10) qui convertit en UTC et projette
-// les minuits/petites heures Paris (CEST = UTC+2) au jour d'avant en UTC.
-// Bug observe v1.7.1 (weekId mismatchait serveur Paris vs client UTC) et
-// v1.13.1 (chart revenus-carburant montrait barre dimanche au lieu de lundi).
+// Ne PAS utiliser toISOString().slice(0,10) qui convertit en UTC : en heure
+// d'ete (CEST = UTC+2), les minuits/petites heures Paris tombent au jour
+// d'avant en UTC, ce qui bucke les transactions sur la mauvaise journee
+// et mismatch avec le serveur qui calcule en heure Paris.
 export function dateKeyLocal(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');

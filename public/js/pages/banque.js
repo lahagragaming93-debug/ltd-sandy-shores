@@ -8,7 +8,7 @@ import { renderShell } from '../layout.js';
 import { listMouvementsBanqueRecents, listDepensesSemaine, listVentesSemaine, listRedistributionsSemaine } from '../api.js';
 import { db } from '../firebase-config.js';
 import { collection, query, orderBy, limit, getDocs, where, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
+import { money, moneyPrecis, num, datetime, escapeHtml, dateKeyLocal } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -327,7 +327,7 @@ document.getElementById('btn-export').addEventListener('click', () => {
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `banque-ltd-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `banque-ltd-${dateKeyLocal(new Date())}.csv`;
   a.click();
 });
 

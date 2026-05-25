@@ -12,7 +12,7 @@ import {
   listServicesSemaine, listQuotasSemaine, listQuotasVendeurSemaine, getConfig, listSubventionsSemaine
 } from '../api.js';
 import { money, num, pct, datetime, escapeHtml,
-         startOfWeekRP, endOfWeekRP, weekId } from '../utils/formatters.js';
+         startOfWeekRP, endOfWeekRP, weekId, dateKeyLocal } from '../utils/formatters.js';
 import { checkMasseSalariale, primeHebdo, primeMensuelle, salaireEstime,
          fabricationsFromQuotaDoc } from '../utils/paie.js';
 import { isDirection, isVendeur, isPompiste, isResponsable, isSuperAdmin, compteEnFinance, ROLE_LABELS, PLAFOND_SALAIRE, DRH_SALAIRE_FIXE } from '../utils/permissions.js';
@@ -324,18 +324,10 @@ async function chargerTout() {
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
-  // CA carburant POMPISTE (sert au denominateur du ratio TTE) : exclut les
-  // ventes NPC automatiques (source banqueLtd-redistribution) qui ne sont
-  // liees a aucun employe. Avant le fix, ces ventes gonflaient le denominateur
-  // et le ratio TTE paraissait artificiellement bas (= faux optimisme).
-  const caCarburantPompiste = redistributions
-    .filter(r => r.source === 'manuel-pompiste')
-    .reduce((s, r) => s + (Number(r.montant) || 0), 0);
   // Subventions : recette NON IMPOSABLE (TTE Art. 4-2.16). Comptee dans le
   // benefice net (tresorerie reelle) mais PAS dans le resultat imposable.
   const totalSubventions = subventions.reduce((s, b) => s + (Number(b.montant) || 0), 0);
   const caTotal = ca + caCarburant;
-  const caTotalTTE = ca + caCarburantPompiste;
   // Exclure les depenses type='paie' (doublon avec /paies attribuees a la
   // semaine precedente via fenetre post-cloture).
   const depensesHorsPaie = depenses.filter(d => d.type !== 'paie');
@@ -383,8 +375,10 @@ async function chargerTout() {
   // Benefice net inclut les subventions recues (tresorerie reelle).
   // Le resultat imposable, lui, ne les inclut pas (Art. 4-2.16 non imposable).
   const beneficeNet = caTotal + totalSubventions - totalDepenses - masseSalariale;
-  // Ratio TTE base sur le CA OPERATIONNEL POMPISTE (exclut NPC auto).
-  const masse = checkMasseSalariale(masseSalariale, caTotalTTE);
+  // Ratio TTE (Art. 4-1.13) = masse / CA total. Le CA inclut TOUT le carburant
+  // (NPC auto + manuel pompiste) car Art. 4-2.1 definit le CA comme la totalite
+  // des revenus — l'IRS regarde le total, pas un subset metier.
+  const masse = checkMasseSalariale(masseSalariale, caTotal);
 
   const pHebdo = primeHebdo(caTotal);
   const pMensuel = primeMensuelle(beneficeNet);
@@ -523,8 +517,8 @@ async function chargerTout() {
   }
 
   // === Conformité (gauge) ===
-  // Gauge : on passe caTotalTTE pour rester coherent avec le ratio affiche.
-  renderGaugeMasse(masse, masseSalariale, caTotalTTE);
+  // Gauge : caTotal pour rester coherent avec le ratio affiche (CA inclut tout carburant).
+  renderGaugeMasse(masse, masseSalariale, caTotal);
 }
 
 // ============================================================
@@ -1040,7 +1034,7 @@ document.getElementById('btn-export-csv').addEventListener('click', async () => 
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `compta-${debut.toISOString().slice(0,10)}.csv`;
+  a.download = `compta-${dateKeyLocal(debut)}.csv`;
   a.click();
 });
 

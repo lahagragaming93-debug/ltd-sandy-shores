@@ -133,15 +133,7 @@ async function chargerKpis() {
 
   const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
-  // CA carburant pompiste (= contribue a la masse salariale variable) :
-  // exclut les ventes NPC automatiques (source banqueLtd-redistribution) qui
-  // ne sont liees a aucun employe. Sert UNIQUEMENT au denominateur du ratio
-  // TTE pour ne pas le sous-estimer artificiellement.
-  const caCarburantPompiste = redistributions
-    .filter(r => r.source === 'manuel-pompiste')
-    .reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const caTotal = ca + caCarburant;
-  const caTotalTTE = ca + caCarburantPompiste;
   const benefice = ventes.reduce((s, v) => s + (v.benefice || 0), 0);
   // Depenses : exclut type='paie' (doublon)
   const totalDepenses = depenses.filter(d => d.type !== 'paie').reduce((s, d) => s + (d.montant || 0), 0);
@@ -171,9 +163,10 @@ async function chargerKpis() {
   // (cf. /comptabilite.js — la subvention est de l'argent qui rentre, meme
   // si fiscalement non imposable).
   const beneficeNet = caTotal + totalSubventions - totalDepenses - masseSalariale;
-  // Ratio TTE : on prend le CA carburant PROPRE AUX POMPISTES seulement
-  // (exclut les ventes NPC auto qui faussent le denominateur a la baisse).
-  const masse = checkMasseSalariale(masseSalariale, caTotalTTE);
+  // Ratio TTE (Art. 4-1.13) = masse / CA total. Le CA inclut TOUT le carburant
+  // (NPC auto + manuel pompiste) car Art. 4-2.1 definit le CA comme la totalite
+  // des revenus de l'entreprise — l'IRS regarde le total, pas un subset metier.
+  const masse = checkMasseSalariale(masseSalariale, caTotal);
 
   // Solde banque LTD (dernière dépense connue avec champ soldeApres)
   let soldeKpi = `

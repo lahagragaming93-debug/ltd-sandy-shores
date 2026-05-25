@@ -320,7 +320,7 @@ document.getElementById('btn-export-csv').addEventListener('click', () => {
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `revenus-carburant-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `revenus-carburant-${dateKeyLocal(new Date())}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 });

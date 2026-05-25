@@ -5,7 +5,7 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenVentesSemaine, listVentesSemaine, listUsers, listProduits } from '../api.js';
-import { money, num, datetime, escapeHtml } from '../utils/formatters.js';
+import { money, num, datetime, escapeHtml, dateKeyLocal } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { ouvrirModalModifierVente } from '../utils/vente-modal.js';
 import { initSemaineSelector } from '../utils/semaine-selector.js';
@@ -310,7 +310,7 @@ document.getElementById('btn-export').addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const wkLabel = currentDebut ? currentDebut.toISOString().slice(0,10) : 'semaine';
+  const wkLabel = currentDebut ? dateKeyLocal(currentDebut) : 'semaine';
   a.download = `ventes-semaine-${wkLabel}.csv`;
   a.click();
   URL.revokeObjectURL(url);

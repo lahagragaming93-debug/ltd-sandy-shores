@@ -8,7 +8,7 @@ import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listItemsFiveMUniques } from '../api.js';
 import { CATALOGUE } from '../data/produits.js';
-import { datetime, escapeHtml } from '../utils/formatters.js';
+import { datetime, escapeHtml, dateKeyLocal } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -199,7 +199,7 @@ document.getElementById('btn-export-csv').addEventListener('click', () => {
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `items-fivem-decouverte-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `items-fivem-decouverte-${dateKeyLocal(new Date())}.csv`;
   a.click();
   toastSuccess('Export CSV téléchargé.');
 });

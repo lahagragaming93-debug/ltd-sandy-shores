@@ -9,7 +9,7 @@ import { renderShell } from '../layout.js';
 import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee,
          listAvertissements, listenAvertissementsActifs, creerAvertissement, retirerAvertissement } from '../api.js';
 import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection, isSuperAdmin } from '../utils/permissions.js';
-import { date, escapeHtml, normalizePrenom, normalizeNom } from '../utils/formatters.js';
+import { date, escapeHtml, normalizePrenom, normalizeNom, dateKeyLocal } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique, infoModal } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
@@ -1403,8 +1403,8 @@ function ouvrirModalEngagement(eng) {
   document.getElementById('engagement-objet').value = eng?.objet || '';
   document.getElementById('engagement-type').value = eng?.type || 'subvention-rembours';
   document.getElementById('engagement-montant').value = eng?.montantInitial ?? '';
-  document.getElementById('engagement-date-reception').value = eng?.dateReception ? new Date(eng.dateReception).toISOString().slice(0, 10) : '';
-  document.getElementById('engagement-date-echeance').value = eng?.dateEcheance ? new Date(eng.dateEcheance).toISOString().slice(0, 10) : '';
+  document.getElementById('engagement-date-reception').value = eng?.dateReception ? dateKeyLocal(new Date(eng.dateReception)) : '';
+  document.getElementById('engagement-date-echeance').value = eng?.dateEcheance ? dateKeyLocal(new Date(eng.dateEcheance)) : '';
   document.getElementById('engagement-montant-rembourse').value = eng?.montantRembourse ?? 0;
   document.getElementById('engagement-statut').value = eng?.statut || 'actif';
   document.getElementById('engagement-notes').value = eng?.notes || '';

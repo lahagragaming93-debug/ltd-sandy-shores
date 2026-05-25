@@ -8,6 +8,7 @@ import {
   query, where, orderBy, limit, onSnapshot, Timestamp, writeBatch,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { dateKeyLocal } from './utils/formatters.js';
 
 export { Timestamp, serverTimestamp };
 
@@ -455,10 +456,7 @@ export async function listPaiesSemaine(dateDebut, dateFin, weekKey = null) {
   // Filtre : si une paie a weekKeyAttribuee defini, elle appartient logiquement
   // a cette semaine-la (taggee a la cloture). Exclu celles attribuees a une
   // AUTRE semaine que celle demandee.
-  // IMPORTANT : weekKey explicite > calcul depuis dateDebut car .toISOString()
-  // shift en UTC (Paris CEST -> dateDebut lundi 00:00 = dimanche 22:00 UTC ->
-  // slice donnerait le dimanche au lieu du lundi). Le caller doit passer wId.
-  const wKeyCible = weekKey || `${dateDebut.getFullYear()}-${String(dateDebut.getMonth()+1).padStart(2,'0')}-${String(dateDebut.getDate()).padStart(2,'0')}`;
+  const wKeyCible = weekKey || dateKeyLocal(dateDebut);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .filter(p => !p.weekKeyAttribuee || p.weekKeyAttribuee === wKeyCible);
 }

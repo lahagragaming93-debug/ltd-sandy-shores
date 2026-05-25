@@ -329,9 +329,8 @@ function renderNonDeclarees() {
         </tr></thead>
         <tbody>
           ${nonDeclarees.map(v => {
-            const dt = v.timestamp?.toDate?.()
-              ? v.timestamp.toDate().toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-              : '?';
+            const ts = v.timestamp?.toDate?.();
+            const dt = ts ? ts.toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '?';
             return `
               <tr>
                 <td class="mono" style="font-size:0.78rem;">${dt}</td>
