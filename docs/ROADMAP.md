@@ -1,13 +1,19 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-25 (refonte paie vendeur — prorata 50k + bonus 5k)**
+> Dernière MAJ : **2026-05-25 (v1.13.0 — refonte paie vendeur 50k + catalogue trim + stock auto fab)**
 
-## ✅ Résolus session 2026-05-25
+## ✅ Résolus session 2026-05-25 — v1.13.0
 
-- **Refonte paie vendeur (v2)** : passage de `quotaCAVendeur=30 000` + plafondCA 10/11/12k + bonus 3k à **`quotaCAVendeur=50 000` + plafondCA 8/9/10k + bonus 5k**. Plafond total inchangé (13/14/15k). Calcul reste en prorata pur. Bascule legacy commission % retirée du code actif (constantes conservées comme référence historique pour les snapshots /paiesEstimees antérieurs).
-- Front + miroir backend `paie-calc.mjs` alignés. UI panel RH + espace vendeur + tuto + guides (05-vendeur, 02-drh, 08-faq) mis à jour.
-- Script one-shot `firebase/functions/scripts/update-quota-ca-vendeur.mjs` pour basculer Firestore `config/global.quotaCAVendeur` à 50 000.
+- **Refonte paie vendeur (v2)** : passage de `quotaCAVendeur=30 000` + plafondCA 10/11/12k + bonus 3k à **`quotaCAVendeur=50 000` + plafondCA 8/9/10k + bonus 5k**. Plafond total inchangé (13/14/15k). Calcul reste en prorata pur. Bascule legacy commission % entièrement retirée du code (constantes `COMMISSION_VENDEUR` + `CA_PLAFOND_VENDEUR_LEGACY` supprimées — les snapshots `/paiesEstimees` stockent leurs propres valeurs).
+- **Catalogue trim** : `pioche`, `sac-jute`, `fillet` supprimés (code + Firestore /produits + /stocks + config.quotaFabrication.pioche). Quota fab passe de 4 à 3 produits actifs (eau / mastic / visseries).
+- **Stock auto sur déclaration fabrication** : `vendeurDeclarerFabrication` devient un batch atomique de 4 écritures (audit fab + quota vendeur + **stock +N** + mouvement traçable type `fabrication-vendeur`). Les intrants ne sont pas décrémentés auto (suivi manuel patron).
+- **Resp Vente** : édition des stocks épicerie ré-autorisée (revert du retrait du 2026-05-13).
+- Front + miroir backend `paie-calc.mjs` alignés. UI panel RH + espace vendeur + tuto + guides (01-direction, 02-drh, 05-vendeur, 08-faq) mis à jour.
+- Routine simplify : `isNouveauSystemeVendeur` réduite à un garde defensif, hoist des invariants hors de `renderTable()` boucle map, parallélisation du dry-run de cleanup script.
+- Scripts ops :
+  - `firebase/functions/scripts/update-quota-ca-vendeur.mjs` (one-shot 30k → 50k).
+  - `firebase/functions/scripts/cleanup-produits-supprimes.mjs` (one-shot suppression 3 produits + 3 stocks + champ quotaFabrication.pioche).
 
 ## ✅ Résolus session 2026-05-23 — v1.10.1
 

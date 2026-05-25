@@ -209,28 +209,13 @@ export const CA_PLAFOND_RESP_VENTE = 40000;
 //
 // Cf. /02-drh.md et /05-vendeur.md pour la doc.
 
-// LEGACY (avant 2026-05-25) : COMMISSION_VENDEUR et CA_PLAFOND_VENDEUR_LEGACY
-// etaient utilises par un ancien systeme "CA × commission, plafond 40 000".
-// Constantes conservees pour reference historique (snapshots /paiesEstimees
-// anterieurs au 2026-05-25 ont ete calcules avec ces valeurs), mais plus
-// utilisees par le calcul actif depuis le passage en prorata pur.
-export const CA_PLAFOND_VENDEUR_LEGACY = 40000;
-export const COMMISSION_VENDEUR = {
-  'vendeur-novice':         0.325,
-  'vendeur-intermediaire':  0.350,
-  'vendeur-experimente':    0.375
-};
-
-// Le calcul actif (depuis 2026-05-25) utilise toujours la formule prorata des
-// que quotaCAVendeur > 0. Cette fonction reste exposee pour les call sites qui
-// branchent un libelle "nouveau systeme" mais retourne desormais true par
-// defaut. Conserve la signature object|number pour compat.
+// Garde defensif : la formule prorata n'a de sens que pour un quotaCAVendeur
+// strictement positif (sinon division par zero). Accepte cfg ou valeur brute.
 export function isNouveauSystemeVendeur(cfgOrQuotaCA) {
   const q = (cfgOrQuotaCA && typeof cfgOrQuotaCA === 'object')
     ? Number(cfgOrQuotaCA.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT)
     : Number(cfgOrQuotaCA);
-  if (!Number.isFinite(q) || q <= 0) return false;
-  return true;
+  return Number.isFinite(q) && q > 0;
 }
 
 export const PLAFOND_CA_VENDEUR = {

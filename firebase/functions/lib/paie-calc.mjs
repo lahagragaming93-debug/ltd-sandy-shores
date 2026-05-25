@@ -39,21 +39,11 @@ export const CA_PLAFOND_RESP_VENTE = 40000;
 // bonus max=5 000$, plafond total inchange 13/14/15k.
 export const QUOTA_CA_VENDEUR_DEFAULT = 50000;
 
-// LEGACY (avant 2026-05-25) : conservees pour reference historique.
-// Snapshots /paiesEstimees anterieurs au 2026-05-25 calcules avec ces valeurs.
-export const CA_PLAFOND_VENDEUR_LEGACY = 40000;
-export const COMMISSION_VENDEUR = {
-  'vendeur-novice':         0.325,
-  'vendeur-intermediaire':  0.350,
-  'vendeur-experimente':    0.375
-};
-
 export function isNouveauSystemeVendeur(cfgOrQuotaCA) {
   const q = (cfgOrQuotaCA && typeof cfgOrQuotaCA === 'object')
     ? Number(cfgOrQuotaCA.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT)
     : Number(cfgOrQuotaCA);
-  if (!Number.isFinite(q) || q <= 0) return false;
-  return true;
+  return Number.isFinite(q) && q > 0;
 }
 
 export const PLAFOND_CA_VENDEUR = {

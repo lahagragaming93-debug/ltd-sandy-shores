@@ -31,20 +31,20 @@ console.log('[cleanup-produits-supprimes] mode :', APPLY ? 'APPLY' : 'DRY-RUN');
 console.log('[cleanup-produits-supprimes] ids  :', IDS.join(', '));
 console.log('');
 
-// 1. Etat actuel /produits + /stocks
-for (const id of IDS) {
-  const [pSnap, sSnap] = await Promise.all([
-    db.collection('produits').doc(id).get(),
-    db.collection('stocks').doc(id).get()
-  ]);
-  const pExist = pSnap.exists;
-  const sExist = sSnap.exists;
-  const qte = sExist ? (sSnap.data().quantite ?? '?') : '-';
-  console.log(`  ${id.padEnd(20)} produit:${pExist ? 'OUI' : 'NON'}  stock:${sExist ? `${qte} u.` : 'NON'}`);
-}
+// Pre-fetch en parallele : 3 produits + 3 stocks + config en 1 round-trip groupe.
+const [produitsSnaps, stocksSnaps, cfgSnap] = await Promise.all([
+  Promise.all(IDS.map(id => db.collection('produits').doc(id).get())),
+  Promise.all(IDS.map(id => db.collection('stocks').doc(id).get())),
+  db.collection('config').doc('global').get()
+]);
 
-// 2. Etat actuel config.quotaFabrication.pioche
-const cfgSnap = await db.collection('config').doc('global').get();
+IDS.forEach((id, i) => {
+  const pExist = produitsSnaps[i].exists;
+  const sExist = stocksSnaps[i].exists;
+  const qte = sExist ? (stocksSnaps[i].data().quantite ?? '?') : '-';
+  console.log(`  ${id.padEnd(20)} produit:${pExist ? 'OUI' : 'NON'}  stock:${sExist ? `${qte} u.` : 'NON'}`);
+});
+
 const qFab = cfgSnap.exists ? (cfgSnap.data().quotaFabrication || {}) : {};
 console.log('');
 console.log('[cleanup-produits-supprimes] config.quotaFabrication actuel :', JSON.stringify(qFab));

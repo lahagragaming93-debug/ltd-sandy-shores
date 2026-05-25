@@ -378,6 +378,11 @@ function renderTable() {
     tbody.innerHTML = `<tr><td colspan="${ncols}" class="muted text-center">Aucun employé.</td></tr>`;
     return;
   }
+  // Hoiste hors de la boucle map : valeurs invariantes par row.
+  const nouveauVendeur = isNouveauSystemeVendeur(config);
+  const quotaCAShow = Number(config.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
+  const quotaFabActif = Object.values(config.quotaFabrication || {}).some(v => Number(v) > 0);
+
   tbody.innerHTML = rows.map(u => {
     const m = metricsByUser[u.id] || {};
     const heures = durationHM(m.heuresMs || 0);
@@ -399,21 +404,13 @@ function renderTable() {
       const part = caTotal > 0 && caShow < caTotal
         ? ` <span class="muted" style="font-size:0.72rem;">(sur ${money(caTotal)} total)</span>`
         : '';
-      // Plafond CA = quotaCAVendeur courant (panel Quotas hebdo). Si la config
-      // n'a pas encore de quotaCAVendeur, on retombe sur le defaut courant.
-      const nouveauVendeur = isNouveauSystemeVendeur(config);
-      const quotaCAShow = Number(config.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
-      const plafondCAShow = quotaCAShow;
       let fabLabel = '';
-      if (nouveauVendeur) {
+      if (nouveauVendeur && quotaFabActif) {
         const fabSnap = snap?.fabrications || m.fabrications || {};
         const scoreFab = scoreQuotaFabrication(fabSnap, config.quotaFabrication || {});
-        const quotaFabActif = Object.values(config.quotaFabrication || {}).some(v => Number(v) > 0);
-        if (quotaFabActif) {
-          fabLabel = `<br><span class="muted" style="font-size:0.72rem;">quota fab ${pct(scoreFab*100, 0)} · bonus ${money(Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX))}</span>`;
-        }
+        fabLabel = `<br><span class="muted" style="font-size:0.72rem;">quota fab ${pct(scoreFab*100, 0)} · bonus ${money(Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX))}</span>`;
       }
-      progressLabel = `${money(caShow)} / ${money(plafondCAShow)}${part}${fabLabel}`;
+      progressLabel = `${money(caShow)} / ${money(quotaCAShow)}${part}${fabLabel}`;
     } else if (isPompiste(u.role)) {
       const score = scorePompiste(bidonsShow, caoutShow, config.quotaBidons, config.quotaCaoutchoucs);
       progressLabel = `${pct(score, 0)}`;

@@ -1,7 +1,20 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-25 (catalogue : pioche/sac-jute/fillet supprimés + stock auto sur déclaration fab)**
+> Dernière mise à jour : **2026-05-25 (v1.13.0 — refonte paie vendeur 50k + catalogue trim + stock auto fab)**
+
+---
+
+## ✅ Session 2026-05-25 — v1.13.0 release
+
+Bump SemVer MINOR : refonte paie vendeur (calc visible) + nouveau comportement déclaration fabrication = stock auto. Voir détail dans les 3 sous-sections ci-dessous.
+
+### Routine simplify post-implementation
+3 reviews (reuse / quality / efficiency) en parallèle. Findings appliqués :
+- Constantes legacy `COMMISSION_VENDEUR` + `CA_PLAFOND_VENDEUR_LEGACY` retirées du code (front + miroir backend) — plus aucun import après refonte prorata 50k.
+- `isNouveauSystemeVendeur()` réduite à un garde defensif (`q > 0`) au lieu d'un check de bascule. Doc allégée.
+- `rh.js renderTable()` : hoist de `nouveauVendeur`, `quotaCAShow`, `quotaFabActif` hors de la boucle `rows.map()` (calcul 1 fois par render au lieu de N fois par row).
+- `cleanup-produits-supprimes.mjs` dry-run : 3 paires de get séquentielles → 1 `Promise.all` groupé (3 RTT économisés).
 
 ---
 
@@ -42,7 +55,7 @@ Revoir le barème vendeur. Pompistes 13/14/15k inchangés, direction/DRH/respons
 Plafond total inchangé : **13/14/15k** (= plafondCA + bonusMax). Calcul reste en prorata pur (`MIN(CA/quotaCAVendeur, 1) × plafondCA + score × bonusMax`).
 
 ### Changements code
-- **[`public/js/utils/permissions.js`](public/js/utils/permissions.js)** : `PLAFOND_CA_VENDEUR` 10/11/12 → **8/9/10**, `BONUS_QUOTA_VENDEUR_MAX` 3000 → **5000**, `QUOTA_CA_VENDEUR_DEFAULT` 40000 → **50000**. `isNouveauSystemeVendeur` retourne `true` dès que `quotaCAVendeur > 0` (la bascule legacy 40k+ → ancien système n'est plus déclenchable). `COMMISSION_VENDEUR` et `CA_PLAFOND_VENDEUR_LEGACY` conservés comme référence historique (snapshots /paiesEstimees antérieurs).
+- **[`public/js/utils/permissions.js`](public/js/utils/permissions.js)** : `PLAFOND_CA_VENDEUR` 10/11/12 → **8/9/10**, `BONUS_QUOTA_VENDEUR_MAX` 3000 → **5000**, `QUOTA_CA_VENDEUR_DEFAULT` 40000 → **50000**. `isNouveauSystemeVendeur` simplifiée en garde defensif (`q > 0`). Constantes legacy `COMMISSION_VENDEUR` et `CA_PLAFOND_VENDEUR_LEGACY` retirées du code (les snapshots `/paiesEstimees` stockent leurs propres valeurs et n'importent pas ces constantes au runtime).
 - **[`public/js/utils/paie.js`](public/js/utils/paie.js)** : `salaireVendeur()` simplifié — branche legacy retirée (retourne 0 si quotaCA invalide), default param = `QUOTA_CA_VENDEUR_DEFAULT`. Doc maj.
 - **[`firebase/functions/lib/paie-calc.mjs`](firebase/functions/lib/paie-calc.mjs)** : miroir backend aligné (mêmes constantes + même simplification de `salaireVendeur`). Libellé `formule` utilise `BONUS_QUOTA_VENDEUR_MAX` au lieu de "3k" en dur.
 - **[`firebase/functions/index.js`](firebase/functions/index.js)** : fallback `quotaCAVendeur` 40000 → 50000 dans `genererAvertissementsAuto`.
