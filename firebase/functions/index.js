@@ -67,10 +67,18 @@ export const clotureHebdo = onSchedule({
       .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
   ]);
 
-  const caProduits  = ventesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
+  // Filtre = source='discord' (bot Faab'Hook) + !annulee.
+  // STRICTEMENT identique a snapshotSheetSemaine ligne 543-545.
+  // NE PAS ajouter !v.cachee : les ventes "cachees" sont en fait des ventes du
+  // bot matchees avec une declaration manuelle, et restent valides pour l'audit
+  // IRS. Patch 2026-05-25.
+  const ventesFiltrees = ventesSnap.docs.map(d => d.data())
+    .filter(v => v.source === 'discord' && !v.annulee);
+
+  const caProduits  = ventesFiltrees.reduce((s, v) => s + (Number(v.montant) || 0), 0);
   const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
   const ca          = caProduits + caCarburant;
-  const benefice    = ventesSnap.docs.reduce((s, d) => s + (d.data().benefice || 0), 0);
+  const benefice    = ventesFiltrees.reduce((s, v) => s + (Number(v.benefice) || 0), 0);
   // Exclure les depenses type='paie' (doublon avec /paies). Sinon les paies
   // sont comptees 2 fois : depenses + masseSalariale.
   const depensesReelles = depensesSnap.docs.filter(d => d.data().type !== 'paie');
@@ -91,7 +99,7 @@ export const clotureHebdo = onSchedule({
     chargesDeductibles: dedu,
     masseSalariale: 0,             // pas encore connue (sera mise en cloture etape 2)
     benefice: ca - depTotal,       // provisoire (sans masse)
-    nbVentes: ventesSnap.size + redistSnap.size,
+    nbVentes: ventesFiltrees.length + redistSnap.size,
     nbDepenses: depensesSnap.size,
     statut: 'cloturee-partielle',
     dateCloture: FieldValue.serverTimestamp()
@@ -210,11 +218,12 @@ export const clotureHebdoPaies = onSchedule({
   debut.setHours(0, 0, 0, 0);
   const weekKey = debut.toISOString().slice(0, 10);
 
-  // Fenetre paie : lundi 00:00 (= maintenant - 1 jour 21:05) -> mardi 21:00 (= il y a 5 min)
-  const debutFenetrePaie = new Date(fin.getTime() + 1);  // lundi N+1 00:00
-  const finFenetrePaie = new Date(debutFenetrePaie);
-  finFenetrePaie.setDate(finFenetrePaie.getDate() + 1);  // mardi
-  finFenetrePaie.setHours(21, 0, 0, 0);                  // 21:00:00
+  // Fenetre paie : lundi-S 02h00 -> lundi-S+1 02h00 Paris (decalee de 2h, coherent
+  // avec cloturerSemaine).
+  // EXCLUT explicitement les paies lun-S 00h-02h (= paies S-1 en creneau accelere legacy).
+  // Patch 2026-05-25 v3.
+  const debutFenetrePaie = new Date(debut.getTime() + 2 * 3600 * 1000);
+  const finFenetrePaie = new Date(fin.getTime() + 1 + 2 * 3600 * 1000);
 
   // Recharge le doc semaine pour recalculer le benefice net
   const semSnap = await db.collection('semaines').doc(weekKey).get();
@@ -5104,9 +5113,18 @@ export const cloturerSemaine = onRequest({
     const debutSemainePassee = parisWallToUtc(debutParisWall);
     const finSemainePassee   = parisWallToUtc(finParisWall);
 
-    // Fenetre PAIE : lundi N+1 00h00 Paris -> maintenant (vrai UTC)
-    const debutFenetrePaie = new Date(finSemainePassee.getTime() + 1);
-    const finFenetrePaie = now;
+    // Fenetre PAIE : lundi-S 02h00 -> lundi-S+1 02h00 Paris (decalee de 2h).
+    // Couvre les 2 cas :
+    //  - Paies versees dans la semaine S apres 02h (dim soir ~23h pre-cloture) — nouveau process.
+    //  - Paies versees dans le creneau accelere post-S (lun-S+1 00h-02h) — legacy.
+    // EXCLUT explicitement les paies lun-S 00h-02h car celles-ci sont des paies
+    // S-1 versees en creneau accelere (cf. clarification user 25/05 : "les paies
+    // 18/05 00h-02h c'est mon ancien fonctionnement, elles vont en S20").
+    // Toute paie versee apres lun-S+1 02h appartient a S+1 (cap dur).
+    // Patch 2026-05-25 v3 : fenetre decalee de +2h pour exclure creneau S-1.
+    const debutFenetrePaie = new Date(debutSemainePassee.getTime() + 2 * 3600 * 1000);
+    const finCreneauAccelere = new Date(finSemainePassee.getTime() + 1 + 2 * 3600 * 1000);
+    const finFenetrePaie = now < finCreneauAccelere ? now : finCreneauAccelere;
 
     // Agrège les chiffres de la semaine
     const [ventesSnap, redistSnap, depensesSnap, paiesSnap] = await Promise.all([
@@ -5124,7 +5142,14 @@ export const cloturerSemaine = onRequest({
         .where('timestamp', '<=', Timestamp.fromDate(finFenetrePaie)).get()
     ]);
 
-    const ventes = ventesSnap.docs.map(d => d.data()).filter(v => !v.cachee);
+    // Filtre = source='discord' (bot Faab'Hook) + !annulee.
+    // STRICTEMENT identique a snapshotSheetSemaine ligne 543-545. Sans ce filtre,
+    // les declarations manuelles du site doublonnent le CA (cf. bug S21 : Sheet
+    // 309631 vs reel 154601). NE PAS ajouter !v.cachee : les ventes "cachees"
+    // sont en fait des ventes du bot matchees avec une declaration manuelle, et
+    // restent valides pour l'audit IRS.
+    const ventes = ventesSnap.docs.map(d => d.data())
+      .filter(v => v.source === 'discord' && !v.annulee);
     const caProduits = ventes.reduce((s, v) => s + (v.montant || 0), 0);
     const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
     const ca = caProduits + caCarburant;

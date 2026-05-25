@@ -39,17 +39,17 @@ const MOIS_FR = [
 
 // Titre d'onglet snapshot : "Semaine 20 (11-17 mai 2026)"
 // Si le lundi et le dimanche sont dans des mois differents, on affiche les 2.
+// Patch 2026-05-25 : ignore `debut` (en UTC reel, peut etre off-by-one au passage
+// de jour Paris) et calcule TOUJOURS lundi depuis weekKey ("YYYY-MM-DD" du lundi
+// RP Paris). Sinon snapshotSheetTitle renvoyait "Semaine 20 (18-23 mai)" pour
+// weekKey=2026-05-18 quand debut etait en UTC = "2026-05-17T22:00Z".
 export function snapshotSheetTitle(weekKey, debut, fin) {
-  const lundi = debut instanceof Date ? debut : new Date(String(weekKey) + 'T00:00:00');
+  // Force le calcul a partir de weekKey, qui est en TZ Paris par construction.
+  const lundi = new Date(String(weekKey) + 'T12:00:00'); // midi pour eviter edge DST
   const num = weekIsoNumber(lundi);
   const annee = lundi.getFullYear();
-  // Pour le titre on affiche lundi-dimanche. Le dimanche est recalcule a partir
-  // du weekKey (lundi + 6 jours, midi local pour eviter tout edge-case TZ) au
-  // lieu d'utiliser dateFin qui est stocke en 23:59:59.999 et bascule au lundi
-  // suivant apres conversion UTC->Paris dans Intl.DateTimeFormat.
-  const dDeb = debut instanceof Date ? debut : lundi;
+  const dDeb = lundi;
   const dimMidi = new Date(lundi);
-  dimMidi.setHours(12, 0, 0, 0);
   dimMidi.setDate(dimMidi.getDate() + 6);
   const dFin = dimMidi;
   // Extraction jour/mois cote Paris (les bornes sont stockees en UTC mais

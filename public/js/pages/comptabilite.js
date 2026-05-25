@@ -42,6 +42,29 @@ const html = `
   </div>
 
   ${editable ? `
+  <!-- ============================================================
+       Cabinet BLA Corporate — Espace patron (direction + super-admin)
+       Lien vers le portail patron BLA pour exporter le JSON IRS hebdo
+       + accès direct aux 2 protocoles PDF (checklist + complet)
+       ============================================================ -->
+  <div class="panel mb-2" id="bla-panel" style="border-left:3px solid #C9A961;background:linear-gradient(90deg, rgba(201,169,97,0.08), transparent 250px);">
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <span style="color:#C9A961;font-weight:700;">Cabinet BLA Corporate · Espace patron</span>
+      <span class="muted" style="font-size:0.75rem;font-style:italic;">Visible direction & admin technique uniquement</span>
+    </div>
+    <div style="padding:14px 16px;">
+      <p class="muted" style="margin-bottom:14px;font-size:0.88rem;line-height:1.5;">
+        Une fois la semaine clôturée ci-dessus, va sur ton <strong>portail patron BLA Corporate</strong> pour télécharger le JSON IRS prêt à importer sur <code>sanandreas-gouv-irs.ovh</code>.
+        Cycle complet en une seule session dimanche soir (~2h30) — voir checklist ci-dessous.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <a href="https://bla-corporate-ltd-sandy.web.app/dashboard" target="_blank" rel="noopener" class="btn btn-primary" style="background:#C9A961;color:#0A0A0A;border-color:#C9A961;font-weight:600;">→ Ouvrir le portail BLA</a>
+        <a href="https://europe-west1-bla-corporate.cloudfunctions.net/generateProtocolePdf?client=ltd-sandy&format=short" target="_blank" rel="noopener" class="btn" title="Checklist 1-2 pages dense à imprimer">Checklist clôture (PDF)</a>
+        <a href="https://europe-west1-bla-corporate.cloudfunctions.net/generateProtocolePdf?client=ltd-sandy&format=long" target="_blank" rel="noopener" class="btn" title="Protocole complet 10 étapes avec grille classification dépenses">Protocole complet patron (PDF)</a>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal clôture semaine -->
   <div id="modal-cloture" class="modal-backdrop hidden">
     <div class="modal" style="max-width:580px;">

@@ -226,7 +226,7 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
 
   // === SECTION PAIES ===
   const idxPaiesHeader = rows.length;
-  rows.push([`💰 PAIES VERSÉES (fenêtre lundi N+1 → mardi N+1 21h) — ${paies.length}`, null, null, null, null, null, null, null, null]);
+  rows.push([`💰 PAIES VERSÉES (fenêtre lundi-S 00h → lundi-S+1 02h Paris) — ${paies.length}`, null, null, null, null, null, null, null, null]);
   rows.push(['Date', 'Payeur', 'Bénéficiaire', 'ID Discord bénéf.', 'Montant', 'Période', '', '', '']);
   const idxPaiesDataStart = rows.length;
   if (paies.length === 0) {
@@ -513,10 +513,12 @@ export async function snapshotSheetSemaine({ db, sheets, weekKey, weekDebut, wee
   if (!db || !sheets) throw new Error('snapshotSheetSemaine: db et sheets requis');
   if (!weekKey || !weekDebut || !weekFin) throw new Error('snapshotSheetSemaine: weekKey/weekDebut/weekFin requis');
 
-  // Fenetre paie post-dim : lundi N+1 00h00 -> mardi N+1 21h00 Paris.
-  // weekFin = dim 23:59:59.999 Paris. + 1 ms = lundi 00:00:00. + 45h = mardi 21h.
-  const debutFenetrePaie = new Date(weekFin.getTime() + 1);
-  const finFenetrePaie = new Date(weekFin.getTime() + 1 + 45 * 3600 * 1000);
+  // Fenetre paie : lundi-S 02h00 -> lundi-S+1 02h00 Paris (decalee de 2h, coherent
+  // avec cloturerSemaine et clotureHebdoPaies).
+  // EXCLUT explicitement les paies lun-S 00h-02h (= paies S-1 en creneau accelere legacy).
+  // Patch 2026-05-25 v3.
+  const debutFenetrePaie = new Date(weekDebut.getTime() + 2 * 3600 * 1000);
+  const finFenetrePaie = new Date(weekFin.getTime() + 1 + 2 * 3600 * 1000);
 
   const [ventesSnap, depensesSnap, paiesSnap, usersByDiscord] = await Promise.all([
     db.collection('ventes')
