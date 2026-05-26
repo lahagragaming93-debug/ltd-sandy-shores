@@ -223,6 +223,38 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
     }, 50);
   }
 
+  // === Portail modaux : echappe les .modal-backdrop vers <body> ===
+  // Necessaire car .panel a backdrop-filter, ce qui transforme le containing
+  // block des descendants position:fixed -> modal contraint au panel au lieu
+  // du viewport. Move vers body resoud quel que soit l'ancetre. Les event
+  // listeners attaches par getElementById restent valides apres move.
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    if (m.parentElement !== document.body) document.body.appendChild(m);
+  });
+
+  // === Auto-reload sur nouvelle version (clients FiveM/CEF qui ne peuvent
+  // pas faire Ctrl+Shift+R). Polling 60s : fetch version.js raw avec
+  // cache:no-store, si la VERSION distante differe de la VERSION chargee
+  // -> location.reload(). Cache-busting via query string pour eviter le
+  // cache CDN GitHub Pages. ===
+  if (!window.__ltdVersionPolling) {
+    window.__ltdVersionPolling = setInterval(async () => {
+      try {
+        const res = await fetch('js/version.js?_t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) return;
+        const text = await res.text();
+        const match = text.match(/VERSION\s*=\s*['"]([^'"]+)['"]/);
+        if (match && match[1] && match[1] !== VERSION) {
+          // Ne pas couper une saisie en cours : on attend le prochain tick.
+          const tag = document.activeElement?.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          console.log('[auto-reload] nouvelle version :', match[1], '(actuelle :', VERSION + ')');
+          window.location.reload();
+        }
+      } catch { /* ignore network blips */ }
+    }, 60_000);
+  }
+
   // === Panneaux repliables (.panel.framed) ===
   // Attache le bouton ▾/▸ sur les panneaux deja presents, puis observe le
   // <main> pour capter ceux ajoutes dynamiquement par les pages (rendus
