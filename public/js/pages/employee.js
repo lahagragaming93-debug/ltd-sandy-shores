@@ -260,6 +260,15 @@ const html = `
 `;
 renderShell(profile, 'employee', html);
 
+// Portail modaux : on les deplace en enfant direct de <body> pour echapper
+// a tout ancetre avec backdrop-filter / transform / filter / contain qui
+// transforme le containing block du position:fixed. Garantit que les modaux
+// couvrent bien tout le viewport (et non juste le panel ou main parent).
+// Les event listeners attaches par getElementById restent valides apres move.
+document.querySelectorAll('.modal-backdrop').forEach(m => {
+  document.body.appendChild(m);
+});
+
 const me = getCurrentUser(); // utilisateur connecte (toujours soi-meme, jamais l'employe vise)
 
 // === Donnees fixes (semaine en cours + cumul historique) ===
