@@ -259,15 +259,8 @@ const html = `
   </p>
 `;
 renderShell(profile, 'employee', html);
-
-// Portail modaux : on les deplace en enfant direct de <body> pour echapper
-// a tout ancetre avec backdrop-filter / transform / filter / contain qui
-// transforme le containing block du position:fixed. Garantit que les modaux
-// couvrent bien tout le viewport (et non juste le panel ou main parent).
-// Les event listeners attaches par getElementById restent valides apres move.
-document.querySelectorAll('.modal-backdrop').forEach(m => {
-  document.body.appendChild(m);
-});
+// Note : le portail .modal-backdrop -> document.body est applique
+// generiquement dans renderShell (cf. layout.js) depuis v1.13.5.
 
 const me = getCurrentUser(); // utilisateur connecte (toujours soi-meme, jamais l'employe vise)
 

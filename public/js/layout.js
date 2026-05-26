@@ -233,10 +233,11 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
   });
 
   // === Auto-reload sur nouvelle version (clients FiveM/CEF qui ne peuvent
-  // pas faire Ctrl+Shift+R). Polling 60s : fetch version.js raw avec
+  // pas faire Ctrl+Shift+R). Polling 5 min : fetch version.js raw avec
   // cache:no-store, si la VERSION distante differe de la VERSION chargee
   // -> location.reload(). Cache-busting via query string pour eviter le
-  // cache CDN GitHub Pages. ===
+  // cache CDN GitHub Pages. Les releases sont manuelles, 5 min suffit
+  // largement (60s etait inutilement agressif). ===
   if (!window.__ltdVersionPolling) {
     window.__ltdVersionPolling = setInterval(async () => {
       try {
@@ -252,7 +253,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
           window.location.reload();
         }
       } catch { /* ignore network blips */ }
-    }, 60_000);
+    }, 300_000);
   }
 
   // === Panneaux repliables (.panel.framed) ===

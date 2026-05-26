@@ -1,7 +1,35 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-26 (v1.13.3 — hotfix modaux pompiste clipped dans .panel)**
+> Dernière mise à jour : **2026-05-26 (v1.13.6 — infra auto-reload + portail modaux generique)**
+
+---
+
+## ✅ Session 2026-05-26 — v1.13.4 / v1.13.5 / v1.13.6 : infra auto-reload + portail modaux
+
+### Contexte
+Suite au hotfix v1.13.3 (modaux pompiste clipped a cause de `backdrop-filter` sur `.panel` ancetre), Gordy CHAPMAN voyait toujours le bug sur sa tablette FiveM. Cache CEF agressif + impossibilite de Ctrl+Shift+R en jeu. 3 releases successives pour resoudre durablement.
+
+### v1.13.4 — portail modaux dans employee.js
+- **[`public/js/pages/employee.js`](public/js/pages/employee.js)** : apres `renderShell`, deplacement de tous les `.modal-backdrop` vers `document.body` via `appendChild`. Garantit que `position: fixed; inset: 0` couvre bien le viewport quel que soit l'ancetre (echappe au containing block pose par `backdrop-filter` / `transform` / `filter` / `contain`).
+
+### v1.13.5 — portail generique + auto-reload polling
+- **[`public/js/layout.js`](public/js/layout.js)** : portail modaux **promu dans `renderShell`** = applique automatiquement a TOUTES les pages, plus seulement employee. Idempotent grace au check `parentElement !== document.body`.
+- **Polling auto-reload** : toutes les 5 min, `fetch('js/version.js?_t=NOW', { cache: 'no-store' })`, parse `VERSION` avec regex, compare a la `VERSION` chargee en memoire. Si differente → `location.reload()`. Skip si l'utilisateur tape dans un INPUT / TEXTAREA pour ne pas couper la saisie. Garde `window.__ltdVersionPolling` pour ne pas spawner un setInterval par navigation.
+- Cache-busting via query string `?_t=Date.now()` pour bypasser le cache CDN GitHub Pages (`max-age=600` par defaut).
+- **Permet aux clients FiveM/CEF de recuperer les nouvelles versions sans Ctrl+Shift+R**.
+
+### v1.13.6 — cleanup post-routine
+- **employee.js** : retrait du portail local (doublon, deja fait en generique dans layout.js).
+- **Polling reduit 60s → 300s** (5 min) : les releases etant manuelles, 60s etait inutilement agressif (= 60 requetes/h/client). Decision agent simplify.
+
+### Tool admin (commit séparé `00f616d`)
+- **[`firebase/functions/scripts/force-relogin-all.mjs`](firebase/functions/scripts/force-relogin-all.mjs)** : cycle `disabled:true → 800ms → disabled:false` sur tous les comptes sauf direction (patron / co-patron / admin-tech). Force tous les clients connectes a se reloguer.
+- **Utilise une fois ce soir** pour transitionner les 17 employes actuellement connectes vers v1.13.5 (sinon ils restaient bloques sur v1.13.4 a cause du cache CEF). Apres cette transition, le polling prend le relais : plus besoin de ce script pour les releases futures.
+
+### Limites & notes ops
+- Le cache CEF (Chromium Embedded Framework dans FiveM) est plus tenace que sur un navigateur classique. Le `force-relogin` Firebase Auth invalide la session mais ne vide pas necessairement le cache JS — Gordy a du fermer/rouvrir la tablette en plus. Pour les futures releases, le polling **dans v1.13.5+** detectera la nouvelle version et fera `location.reload()` (qui passe-through-cache via le `cache: 'no-store'` du fetch initial).
+- Le polling fait `fetch('js/version.js')` en chemin relatif. **OK pour toutes les pages actuelles** (tous les HTML sont a `/public/`). Si on ajoute un jour une page dans un sous-dossier, repenser le chemin.
 
 ---
 
