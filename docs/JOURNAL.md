@@ -1,7 +1,29 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-26 (v1.13.2 — ratio TTE inclut tout carburant + simplify + cleanup)**
+> Dernière mise à jour : **2026-05-26 (v1.13.3 — hotfix modaux pompiste clipped dans .panel)**
+
+---
+
+## ✅ Session 2026-05-26 — v1.13.3 hotfix modaux pompiste clipped dans `.panel`
+
+### Bug remonte par un pompiste (Gordy CHAPMAN)
+Screenshot patron : sur "Mon espace" (employee.html), le modal "Ravitailler une station" s'affichait coupé / superposé aux KPIs au lieu de couvrir le viewport. Les pompistes ne pouvaient pas faire leurs déclarations (boutons Valider/Annuler hors écran). Aussi affecté : "Corriger un stock" et "Note de frais essence".
+
+### Diagnostic CSS
+Les 3 modaux (`#modal-ravit`, `#modal-correc`, `#modal-note-frais`) étaient rendus **à l'intérieur** de `<div class="panel framed mb-3">` (le panel d'accueil "Salut Gordy !" qui contient les boutons d'action). Or `.panel` a `backdrop-filter: var(--glass-blur)` (introduit en v1.11.0 "glow up").
+
+**Piège CSS** : `backdrop-filter` sur un ancêtre crée un nouveau **containing block** pour les descendants en `position: fixed` (même règle que `transform`, `filter`, `perspective`, `contain`). Conséquence : `.modal-backdrop { position: fixed; inset: 0; }` devenait relatif au panel d'accueil au lieu du viewport → modal contraint aux dimensions du panel, débordant sur les KPIs en dessous.
+
+### Fix
+- **[`public/js/pages/employee.js`](public/js/pages/employee.js)** : les 3 modaux pompiste sortis du `<div class="panel framed mb-3">` et placés au niveau racine de `.main` (juste avant `<div id="bloc-non-declarees">`). `.main` n'a pas de `backdrop-filter`, donc `position: fixed` redevient relatif au viewport.
+- Commentaire ajouté pour documenter le piège (éviter qu'un futur refactor les remette dans un panel).
+
+### Audit
+Vérifié les 6 autres pages avec des modaux (`admin.js`, `rh.js`, `stocks.js`, `comptabilite.js`, `notes-frais.js`, `stations.js`) : **tous au top level**, pas le même bug. Le modal "Déclarer une vente" (`utils/vente-modal.js`) est créé dynamiquement et appendé à `document.body` directement (déjà bonne pratique).
+
+### Note pour le futur
+Si on rajoute un nouveau modal dans une page : **toujours au top level du `mainContentHtml`**, jamais dans un `.panel` ou un container avec `backdrop-filter` / `transform` / `filter`. Sinon le `position: fixed` ne couvre pas le viewport.
 
 ---
 

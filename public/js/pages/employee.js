@@ -124,101 +124,101 @@ const html = `
              <button class="btn" id="btn-note-frais" style="font-size:0.9rem;background:rgba(70,180,90,0.18);border:1px solid #5a8;" title="Déclarer une avance d'essence pour véhicule LTD">Note de frais essence</button>`
           : ''}
       </div>
-
-      <!-- Modal ravitaillement (pompiste + responsable-pompiste) — saisie en bidons (1 bidon = 15 L) -->
-      ${isPompisteRavitailleur(profile.role) ? `
-        <div id="modal-ravit" class="modal-backdrop hidden">
-          <div class="modal" style="max-width:540px;">
-            <h3>Ravitailler une station</h3>
-            <div class="alert info mb-2" style="font-size:0.82rem;">
-              <span>Choisis la station que tu viens de ravitailler et saisis le <strong>nombre de bidons ajoutés</strong>.
-              La conversion en litres (1 bidon = 15 L) est automatique.</span>
-            </div>
-            <label>Station <span style="color:var(--color-blood-light);">*</span></label>
-            <select id="ravit-station" style="width:100%;">
-              <option value="">— Sélectionne une station —</option>
-            </select>
-            <div id="ravit-station-info" class="muted" style="font-size:0.78rem;margin:4px 0 8px;"></div>
-
-            <label>Nombre de bidons ajoutés <span style="color:var(--color-blood-light);">*</span> <span class="muted" style="font-size:0.75rem;">— 1 bidon = 15 L</span></label>
-            <input type="number" id="ravit-bidons" min="1" step="1" placeholder="Ex : 5" />
-            <div id="ravit-preview" class="muted" style="font-size:0.78rem;margin:4px 0 0;">—</div>
-
-            <div class="row mt-3">
-              <button class="btn btn-primary" id="btn-save-ravit">Valider le ravitaillement</button>
-              <button class="btn btn-ghost" id="btn-cancel-ravit">Annuler</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Modal correction stock (incoherence site/IG) -->
-        <div id="modal-correc" class="modal-backdrop hidden">
-          <div class="modal" style="max-width:540px;">
-            <h3>Corriger le stock d'une station</h3>
-            <div class="alert warn mb-2" style="font-size:0.82rem;">
-              <span>À utiliser <strong>uniquement</strong> en cas d'écart entre le stock affiché sur le site
-              et le stock réel in-game. Une <strong>alerte est envoyée à la direction</strong> à chaque
-              correction (audit obligatoire).</span>
-            </div>
-            <label>Station <span style="color:var(--color-blood-light);">*</span></label>
-            <select id="correc-station" style="width:100%;">
-              <option value="">— Sélectionne une station —</option>
-            </select>
-            <div id="correc-station-info" class="muted" style="font-size:0.78rem;margin:4px 0 8px;"></div>
-
-            <label>Nouvelle valeur du stock (L) <span style="color:var(--color-blood-light);">*</span></label>
-            <input type="number" id="correc-litres" min="0" step="1" placeholder="Ex : 12000" />
-            <div id="correc-preview" class="muted" style="font-size:0.78rem;margin:4px 0 8px;">—</div>
-
-            <label>Raison de la correction <span style="color:var(--color-blood-light);">*</span></label>
-            <input type="text" id="correc-raison" maxlength="200" placeholder="Ex : écart 2000 L IG vs site, j'ai vérifié à la pompe" />
-            <div class="muted" style="font-size:0.72rem;margin:2px 0 0;">Min 5 caractères. Sera visible par la direction dans l'alerte.</div>
-
-            <div class="row mt-3">
-              <button class="btn btn-primary" id="btn-save-correc">Valider la correction</button>
-              <button class="btn btn-ghost" id="btn-cancel-correc">Annuler</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Modal note de frais (avance essence vehicule LTD) -->
-        <div id="modal-note-frais" class="modal-backdrop hidden">
-          <div class="modal" style="max-width:540px;">
-            <h3>Déclarer une note de frais essence</h3>
-            <div class="alert info mb-2" style="font-size:0.82rem;">
-              <span>Tu as avancé de ta poche l'essence d'un véhicule LTD ?
-              <strong>Procédure</strong> :<br>
-              1. Mets l'essence dans le véhicule en jeu<br>
-              2. Prends un screenshot (touche Impr écran / F12 / etc.)<br>
-              3. Reviens ici → clique dans la zone ci-dessous et fais <strong>Ctrl+V</strong> pour coller<br>
-              4. Saisis le montant → le patron valide et te rembourse en fin de semaine.</span>
-            </div>
-            <label>Montant avancé ($) <span style="color:var(--color-blood-light);">*</span></label>
-            <input type="number" id="nf-montant" min="1" step="1" placeholder="Ex : 1200" />
-
-            <label>Screenshot de la confirmation IG <span style="color:var(--color-blood-light);">*</span></label>
-            <div id="nf-paste-zone" tabindex="0" style="border:2px dashed var(--color-bone-dark, #666);border-radius:6px;padding:24px;text-align:center;cursor:pointer;background:rgba(0,0,0,0.18);min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;outline:none;">
-              <div style="margin-top:6px;"><strong>Clique ici puis Ctrl+V</strong> pour coller le screenshot</div>
-              <div class="muted" style="font-size:0.75rem;margin-top:4px;">Image redimensionnée auto (max 1600px, qualité 75%)</div>
-            </div>
-            <div id="nf-preview-zone" class="hidden" style="margin-top:8px;text-align:center;">
-              <img id="nf-preview-img" alt="Preview" style="max-width:100%;max-height:280px;border:1px solid var(--color-bone-dark,#444);border-radius:4px;" />
-              <div class="muted mt-1" id="nf-preview-meta" style="font-size:0.75rem;">—</div>
-              <button class="btn btn-sm btn-ghost mt-1" id="nf-clear-img">Retirer / recoller un autre</button>
-            </div>
-
-            <label>Description / contexte <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
-            <textarea id="nf-desc" rows="2" maxlength="500" placeholder="Ex : essence Bison patron + Sandking"></textarea>
-
-            <div class="row mt-3">
-              <button class="btn btn-primary" id="btn-save-note-frais">Envoyer la note</button>
-              <button class="btn btn-ghost" id="btn-cancel-note-frais">Annuler</button>
-            </div>
-          </div>
-        </div>
-      ` : ''}
     ` : ''}
   </div>
+
+  <!-- Modaux pompiste/resp-pompiste — DOIVENT etre hors du .panel parent car
+       .panel a backdrop-filter, ce qui contraint position:fixed des enfants au
+       panel au lieu du viewport (modal apparait clipped sur les KPI sinon). -->
+  ${(!modeVoirComme && isPompisteRavitailleur(profile.role)) ? `
+    <div id="modal-ravit" class="modal-backdrop hidden">
+      <div class="modal" style="max-width:540px;">
+        <h3>Ravitailler une station</h3>
+        <div class="alert info mb-2" style="font-size:0.82rem;">
+          <span>Choisis la station que tu viens de ravitailler et saisis le <strong>nombre de bidons ajoutés</strong>.
+          La conversion en litres (1 bidon = 15 L) est automatique.</span>
+        </div>
+        <label>Station <span style="color:var(--color-blood-light);">*</span></label>
+        <select id="ravit-station" style="width:100%;">
+          <option value="">— Sélectionne une station —</option>
+        </select>
+        <div id="ravit-station-info" class="muted" style="font-size:0.78rem;margin:4px 0 8px;"></div>
+
+        <label>Nombre de bidons ajoutés <span style="color:var(--color-blood-light);">*</span> <span class="muted" style="font-size:0.75rem;">— 1 bidon = 15 L</span></label>
+        <input type="number" id="ravit-bidons" min="1" step="1" placeholder="Ex : 5" />
+        <div id="ravit-preview" class="muted" style="font-size:0.78rem;margin:4px 0 0;">—</div>
+
+        <div class="row mt-3">
+          <button class="btn btn-primary" id="btn-save-ravit">Valider le ravitaillement</button>
+          <button class="btn btn-ghost" id="btn-cancel-ravit">Annuler</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-correc" class="modal-backdrop hidden">
+      <div class="modal" style="max-width:540px;">
+        <h3>Corriger le stock d'une station</h3>
+        <div class="alert warn mb-2" style="font-size:0.82rem;">
+          <span>À utiliser <strong>uniquement</strong> en cas d'écart entre le stock affiché sur le site
+          et le stock réel in-game. Une <strong>alerte est envoyée à la direction</strong> à chaque
+          correction (audit obligatoire).</span>
+        </div>
+        <label>Station <span style="color:var(--color-blood-light);">*</span></label>
+        <select id="correc-station" style="width:100%;">
+          <option value="">— Sélectionne une station —</option>
+        </select>
+        <div id="correc-station-info" class="muted" style="font-size:0.78rem;margin:4px 0 8px;"></div>
+
+        <label>Nouvelle valeur du stock (L) <span style="color:var(--color-blood-light);">*</span></label>
+        <input type="number" id="correc-litres" min="0" step="1" placeholder="Ex : 12000" />
+        <div id="correc-preview" class="muted" style="font-size:0.78rem;margin:4px 0 8px;">—</div>
+
+        <label>Raison de la correction <span style="color:var(--color-blood-light);">*</span></label>
+        <input type="text" id="correc-raison" maxlength="200" placeholder="Ex : écart 2000 L IG vs site, j'ai vérifié à la pompe" />
+        <div class="muted" style="font-size:0.72rem;margin:2px 0 0;">Min 5 caractères. Sera visible par la direction dans l'alerte.</div>
+
+        <div class="row mt-3">
+          <button class="btn btn-primary" id="btn-save-correc">Valider la correction</button>
+          <button class="btn btn-ghost" id="btn-cancel-correc">Annuler</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-note-frais" class="modal-backdrop hidden">
+      <div class="modal" style="max-width:540px;">
+        <h3>Déclarer une note de frais essence</h3>
+        <div class="alert info mb-2" style="font-size:0.82rem;">
+          <span>Tu as avancé de ta poche l'essence d'un véhicule LTD ?
+          <strong>Procédure</strong> :<br>
+          1. Mets l'essence dans le véhicule en jeu<br>
+          2. Prends un screenshot (touche Impr écran / F12 / etc.)<br>
+          3. Reviens ici → clique dans la zone ci-dessous et fais <strong>Ctrl+V</strong> pour coller<br>
+          4. Saisis le montant → le patron valide et te rembourse en fin de semaine.</span>
+        </div>
+        <label>Montant avancé ($) <span style="color:var(--color-blood-light);">*</span></label>
+        <input type="number" id="nf-montant" min="1" step="1" placeholder="Ex : 1200" />
+
+        <label>Screenshot de la confirmation IG <span style="color:var(--color-blood-light);">*</span></label>
+        <div id="nf-paste-zone" tabindex="0" style="border:2px dashed var(--color-bone-dark, #666);border-radius:6px;padding:24px;text-align:center;cursor:pointer;background:rgba(0,0,0,0.18);min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;outline:none;">
+          <div style="margin-top:6px;"><strong>Clique ici puis Ctrl+V</strong> pour coller le screenshot</div>
+          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Image redimensionnée auto (max 1600px, qualité 75%)</div>
+        </div>
+        <div id="nf-preview-zone" class="hidden" style="margin-top:8px;text-align:center;">
+          <img id="nf-preview-img" alt="Preview" style="max-width:100%;max-height:280px;border:1px solid var(--color-bone-dark,#444);border-radius:4px;" />
+          <div class="muted mt-1" id="nf-preview-meta" style="font-size:0.75rem;">—</div>
+          <button class="btn btn-sm btn-ghost mt-1" id="nf-clear-img">Retirer / recoller un autre</button>
+        </div>
+
+        <label>Description / contexte <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
+        <textarea id="nf-desc" rows="2" maxlength="500" placeholder="Ex : essence Bison patron + Sandking"></textarea>
+
+        <div class="row mt-3">
+          <button class="btn btn-primary" id="btn-save-note-frais">Envoyer la note</button>
+          <button class="btn btn-ghost" id="btn-cancel-note-frais">Annuler</button>
+        </div>
+      </div>
+    </div>
+  ` : ''}
 
   <!-- Bloc ventes IG non declarees (vendeurs uniquement) — affiche apres
        5 min sans declaration. La cloche direction reste alimentee. -->
