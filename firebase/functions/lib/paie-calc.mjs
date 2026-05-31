@@ -55,7 +55,9 @@ export const BONUS_QUOTA_VENDEUR_MAX = 5000;
 export const PRODUITS_QUOTA_FAB = [
   'bouteille-eau-purifiee',
   'mastic-carrosserie',
-  'visseries'
+  'visseries',
+  'pain-burger',
+  'lumiere-violette'
 ];
 
 const DIRECTION = ['patron', 'co-patron'];

@@ -1,7 +1,24 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-01 (v1.14.1 — hotfix : comptaExport dépenses exclut les paies)**
+> Dernière mise à jour : **2026-06-01 (v1.14.2 — 2 produits ajoutés aux quotas fabrication vendeur)**
+
+---
+
+## ✅ Session 2026-06-01 — v1.14.2 : Pain à burger + Lumière Violette dans les quotas fabrication vendeur
+
+### Demande patron
+Pouvoir fixer des quotas de fabrication aux vendeurs sur **Pain à burger** et **Lumière Violette**, comme les produits déjà craftables.
+
+### Constat
+Les 2 produits existaient déjà au catalogue ([produits.js](public/js/data/produits.js)) — `lumiere-violette` (déjà `enFabrication`) et `pain-burger`. Mais les quotas de fabrication ne sont PAS pilotés par le flag `enFabrication` : ils itèrent la constante **`PRODUITS_QUOTA_FAB`** (déclarée en double, front + back, à garder synchro). Précédent : `bouteille-eau-purifiee` y est sans être `enFabrication` → pas besoin de toucher les flags produits.
+
+### Changements code
+- **[`public/js/utils/permissions.js`](public/js/utils/permissions.js)** + **[`firebase/functions/lib/paie-calc.mjs`](firebase/functions/lib/paie-calc.mjs)** : `PRODUITS_QUOTA_FAB` passe de 3 à 5 entrées (+`pain-burger`, +`lumiere-violette`).
+- **[`public/js/pages/rh.js`](public/js/pages/rh.js)** : panneau « Quotas hebdomadaires » — 2 champs ajoutés (`q-fab-pain`, `q-fab-lumiere`) + lecture + écriture dans `quotaFabrication`.
+- **[`public/js/pages/employee.js`](public/js/pages/employee.js)** : **aucun changement** — le formulaire « Déclarer une fabrication » est déjà dynamique (`PRODUITS_QUOTA_FAB.filter(quota>0)`). Les produits apparaissent au vendeur dès que le patron met un quota > 0.
+- **Déploiement Cloud Functions** requis (paie-calc.mjs sert à `vendeurDeclarerFabrication` validation + `genererAvertissementsAuto` + snapshot paies estimées).
+- Bump `version.js` 1.14.0 → 1.14.2 (changement UI client → auto-reload).
 
 ---
 
