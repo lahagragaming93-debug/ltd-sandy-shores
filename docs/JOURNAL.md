@@ -1,7 +1,25 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-31 (v1.14.0 — refonte visuelle sidebar/header/icônes + protocole clôture réordonné)**
+> Dernière mise à jour : **2026-06-01 (v1.14.1 — hotfix : comptaExport dépenses exclut les paies)**
+
+---
+
+## ✅ Session 2026-06-01 — v1.14.1 hotfix : onglet « Dépenses » du Sheet montrait les paies
+
+### Symptôme (remonté par le patron après sa 1re clôture du nouveau système)
+Clôture OK, paies versées après lundi 00h00. Sur le **site** la compta était correcte, mais dans le **Google Sheet**, l'onglet live « Dépenses Semaine … » affichait encore les lignes `type=paie` (versements timestampés `01/06 00h06+`).
+
+### Cause
+`csvDepenses()` (endpoint `comptaExport?type=depenses`, [firebase/functions/index.js](firebase/functions/index.js)) renvoyait **toutes** les lignes `/depenses` de la semaine RP courante, **y compris `type=paie`**. Les paies sont écrites en double dans `/depenses` (artefact legacy) ET `/paies`. Versées lundi 00h+ (créneau clôture S-1), leur timestamp lundi les rangeait dans la semaine en cours. Le **site** filtrait déjà ces paies (`depensesHorsPaie`) et la clôture aussi — mais l'onglet Sheet affichait le CSV brut.
+
+### Fix
+- **`csvDepenses()`** : `continue` sur `type ∈ {paie, paies, salaire, salaires}`. Aligne l'endpoint sur le comportement du site. Les paies gardent leur onglet « Paies » dédié + sont captées dans la masse salariale du snapshot à la clôture.
+- Pas de bump `version.js` (fix backend pur, aucun JS client modifié → pas de reload client nécessaire).
+- Déploiement ciblé : `firebase deploy --only functions:comptaExport`. Puis « Rafraîchir doc comptabilité » pour casser le cache IMPORTDATA.
+
+### À surveiller (dette connue, pas corrigé ici)
+- **Numérotation des onglets** : le snapshot était « Semaine 22 (25-31 mai) » et le nouvel onglet live « Semaine 22 (31 mai - 06 juin) » → deux « Semaine 22 » + date de début un cran trop tôt (dimanche). Bug d'étiquetage dans la logique de renommage des onglets à la clôture, à traiter séparément.
 
 ---
 

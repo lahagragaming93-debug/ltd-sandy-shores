@@ -4024,6 +4024,14 @@ async function csvDepenses(usersByDiscord, bounds = null) {
   )];
   for (const d of snap.docs) {
     const x = d.data();
+    // v1.14.1 : exclure les lignes type=paie. Les paies sont ecrites en double
+    // dans /depenses (artefact legacy) ET dans /paies. Elles ont leur propre
+    // onglet "Paies" + sont captees dans la masse salariale du snapshot a la
+    // cloture. Les paies versees lundi 00h+ (creneau cloture S-1) avaient un
+    // timestamp lundi -> elles polluaient l'onglet "Depenses" de la semaine en
+    // cours. Le site filtrait deja (depensesHorsPaie) ; on aligne l'endpoint.
+    const t = String(x.type || '').toLowerCase();
+    if (t === 'paie' || t === 'paies' || t === 'salaire' || t === 'salaires') continue;
     lines.push(csvRow(
       dateIso(x.timestamp),
       x.raison || '',
