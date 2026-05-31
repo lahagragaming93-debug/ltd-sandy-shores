@@ -54,14 +54,98 @@ const html = `
     </div>
     <div style="padding:14px 16px;">
       <p class="muted" style="margin-bottom:14px;font-size:0.88rem;line-height:1.5;">
-        Une fois la semaine clôturée ci-dessus, va sur ton <strong>portail patron BLA Corporate</strong> pour télécharger le JSON IRS prêt à importer sur <code>sanandreas-gouv-irs.ovh</code>.
-        Cycle complet en une seule session dimanche soir (~2h30) — voir checklist ci-dessous.
+        Le portail patron BLA Corporate sert à télécharger le <strong>JSON IRS</strong> prêt à importer sur <code>sanandreas-gouv-irs.ovh</code>.
+        Le <strong>protocole de clôture complet</strong> (à suivre chaque semaine) est dépliable juste en dessous.
       </p>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
         <a href="https://bla-corporate-ltd-sandy.web.app/dashboard" target="_blank" rel="noopener" class="btn btn-primary" style="background:#C9A961;color:#0A0A0A;border-color:#C9A961;font-weight:600;">→ Ouvrir le portail BLA</a>
-        <a href="https://europe-west1-bla-corporate.cloudfunctions.net/generateProtocolePdf?client=ltd-sandy&format=short" target="_blank" rel="noopener" class="btn" title="Checklist 1-2 pages dense à imprimer">Checklist clôture (PDF)</a>
-        <a href="https://europe-west1-bla-corporate.cloudfunctions.net/generateProtocolePdf?client=ltd-sandy&format=long" target="_blank" rel="noopener" class="btn" title="Protocole complet 10 étapes avec grille classification dépenses">Protocole complet patron (PDF)</a>
       </div>
+
+      <!-- ============================================================
+           Vrai protocole de clôture hebdomadaire (source : guide
+           09-comptabilite.md §3 + logique crons clotureHebdo /
+           clotureHebdoPaies). Remplace les anciens PDF BLA (format
+           short/long) qui décrivaient un cycle dimanche soir erroné.
+           ============================================================ -->
+      <details class="protocole-cloture" style="margin-top:16px;border:1px solid rgba(201,169,97,0.30);border-radius:var(--radius-sm);background:rgba(10,8,8,0.35);">
+        <summary style="cursor:pointer;padding:12px 14px;font-family:var(--font-heading);font-weight:700;font-size:0.95rem;color:#C9A961;letter-spacing:0.01em;">
+          Protocole de clôture hebdomadaire — à suivre chaque semaine
+        </summary>
+        <div style="padding:4px 18px 20px;font-size:0.86rem;line-height:1.55;">
+
+          <!-- Règle d'or -->
+          <div style="background:rgba(139,0,0,0.18);border-left:3px solid var(--color-blood-light);border-radius:var(--radius-xs);padding:10px 14px;margin:10px 0 18px;">
+            <strong style="color:var(--color-sand-light);">Règle d'or :</strong> ne verse <strong>AUCUNE paie avant lundi 00h00 pile</strong> (heure de Paris).
+            Une paie versée dimanche soir porte un timestamp dimanche → elle est ratée par la clôture et fausse la masse salariale. La fenêtre de paie s'ouvre <strong>strictement à lundi 00h00</strong>.
+          </div>
+
+          <p style="margin:0 0 6px;"><strong style="color:var(--color-sand-light);">La semaine comptable</strong> va du <strong>lundi 00h00 au dimanche 23h59:59</strong>. Le rattachement de chaque opération se fait sur son timestamp. Les paies d'une semaine se versent <em>juste après</em> sa clôture, pas pendant.</p>
+
+          <!-- Étape 1 -->
+          <p class="pc-step">1 — Dimanche soir, AVANT minuit (préparation)</p>
+          <ul class="pc-list">
+            <li>Sur <strong>/rh</strong> : vérifie la gauge <strong>masse salariale</strong> (≤ 85 % du CA idéalement, 90 % max — TTE Art. 4-1.5) et les salaires estimés par employé.</li>
+            <li>Sur <strong>/comptabilite</strong> : résous les <strong>dépenses orange « À classifier »</strong>.</li>
+            <li>Corrige les anomalies avant minuit. <strong>Ne verse encore aucune paie.</strong></li>
+          </ul>
+
+          <!-- Étape 2 -->
+          <p class="pc-step">2 — Dimanche 23h59 → lundi 00h00 (automatique, rien à faire)</p>
+          <p style="margin:0;">Le cron <code>clotureHebdo</code> (étape 1) fige le CA + dépenses + bénéfice brut (statut <code>cloturee-partielle</code>), crée les snapshots <code>/paiesEstimees</code> (qui alimentent les cases « Versé ? » sur /rh) et l'onglet figé du Sheet.</p>
+
+          <!-- Étape 3 -->
+          <p class="pc-step">3 — Lundi 00h00 → 01h00 (TON action manuelle)</p>
+          <ul class="pc-list">
+            <li><strong>Ferme le LTD en jeu</strong> (rideau) : plus aucune vente/dépense pendant que tu paies.</li>
+            <li>Sur <strong>/rh</strong>, sélectionne la <strong>semaine clôturée (badge « À PAYER »)</strong> → la colonne « Versé ? » apparaît.</li>
+            <li><strong>Verse chaque salaire en jeu</strong> (virement IG). Le bot remonte chaque versement et affiche un badge vert ≈ montant.</li>
+            <li><strong>Coche « Versé ? »</strong> au fur et à mesure → le KPI « Reste à verser » descend jusqu'à 0 $.</li>
+          </ul>
+
+          <!-- Étape 4 -->
+          <p class="pc-step">4 — Clôture la comptabilité (cadenas)</p>
+          <ul class="pc-list">
+            <li>Sur <strong>/comptabilite</strong> → bouton <strong>Clôturer</strong> → coche « J'ai versé les salaires et vérifié les chiffres » → <strong>Clôturer définitivement</strong> (statut <code>cloturee-manuelle</code>).</li>
+            <li>Les chiffres de la semaine sont alors <strong>figés définitivement</strong> dans <code>/semaines</code> — c'est ce qui te donne des montants stables pour la déclaration.</li>
+          </ul>
+
+          <!-- Étape 5 -->
+          <p class="pc-step">5 — Rouvre le LTD</p>
+          <p style="margin:0;">Une fois la clôture faite (idéalement après 01h00), rouvre le LTD en jeu.</p>
+
+          <!-- Étape 6 -->
+          <p class="pc-step">6 — Déclaration IRS (dernière étape)</p>
+          <ul class="pc-list">
+            <li>Ouvre le <strong>portail BLA Corporate</strong> (bouton « Ouvrir le portail BLA » ci-dessus) et <strong>génère le fichier JSON IRS</strong> de la semaine clôturée.</li>
+            <li>Dépose ce JSON sur <code>sanandreas-gouv-irs.ovh</code> pour soumettre ta déclaration.</li>
+            <li>À faire <strong>avant mardi 21h</strong> (TTE Art. 4-3.3). Les chiffres étant déjà figés à l'étape 4, le JSON est fiable.</li>
+          </ul>
+
+          <!-- Filet -->
+          <div style="background:rgba(74,107,138,0.14);border-left:3px solid var(--color-info);border-radius:var(--radius-xs);padding:10px 14px;margin:16px 0;">
+            <strong style="color:var(--color-sand-light);">Filet de sécurité — mardi 21h05.</strong> Si tu oublies de cliquer le cadenas, le cron <code>clotureHebdoPaies</code> (étape 2) finalise seul à partir des paies versées entre lundi 00h et mardi 21h. <strong>Limite absolue : mardi 21h05.</strong> Au-delà, une paie compte pour la semaine suivante.
+          </div>
+
+          <!-- Erreurs interdites -->
+          <p style="margin:16px 0 6px;color:var(--color-sand-light);font-weight:700;">Les 3 erreurs interdites</p>
+          <table class="data" style="font-size:0.82rem;">
+            <thead><tr><th>Ne pas faire</th><th>Conséquence</th></tr></thead>
+            <tbody>
+              <tr><td>Verser une paie <strong>avant lundi 00h00</strong></td><td>Ratée pour la semaine → masse salariale faussée</td></tr>
+              <tr><td>Verser une paie <strong>après mardi 21h05</strong></td><td>Comptée sur la semaine suivante par erreur</td></tr>
+              <tr><td>Laisser le LTD <strong>ouvert entre 00h et 01h</strong></td><td>Ventes/dépenses du lundi polluent la semaine clôturée</td></tr>
+            </tbody>
+          </table>
+
+          <!-- Vérif -->
+          <p style="margin:16px 0 6px;color:var(--color-sand-light);font-weight:700;">Vérification finale (30 s)</p>
+          <ul style="margin:0;padding-left:20px;">
+            <li>/comptabilite → alerte verte « Semaine du … clôturée le … par … ».</li>
+            <li>/rh → semaine clôturée → <strong>Reste à verser = 0 $</strong>.</li>
+            <li>Sheet → onglet « Semaine N » figé (CA / Charges / Bénéfice + tables).</li>
+          </ul>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -83,8 +167,8 @@ const html = `
       </details>
       <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-top:12px;">
         <input type="checkbox" id="cloture-confirmation-irs" style="margin-top:4px;" />
-        <span><strong>Je confirme avoir soumis ma déclaration fiscale sur le site IRS</strong>
-        <br><span class="muted" style="font-size:0.78rem;">(Art. 4-3.3 — déclaration à soumettre avant mardi 21h)</span></span>
+        <span><strong>Je confirme avoir versé les salaires et vérifié les chiffres de la semaine</strong>
+        <br><span class="muted" style="font-size:0.78rem;">La déclaration IRS se fait <strong>après</strong> la clôture : portail BLA → JSON → site IRS (à soumettre avant mardi 21h, Art. 4-3.3).</span></span>
       </label>
       <label class="mt-2">Note de clôture <span class="muted" style="font-size:0.75rem;">— optionnel</span></label>
       <input type="text" id="cloture-note" placeholder="Ex : Semaine standard, RAS." />
@@ -1134,7 +1218,7 @@ chargerStatsbank();
 
 
 // ============================================================
-// Bouton 🔄 Rafraîchir doc comptabilité (Dashboard + 4 feuilles data)
+// Bouton Rafraîchir doc comptabilité (Dashboard + 4 feuilles data)
 // ============================================================
 document.getElementById("btn-refresh-dashboard")?.addEventListener("click", async () => {
   const btn = document.getElementById("btn-refresh-dashboard");
@@ -1161,7 +1245,7 @@ document.getElementById("btn-refresh-dashboard")?.addEventListener("click", asyn
 });
 
 // ============================================================
-// Bouton 🔒 Clôturer la semaine
+// Bouton Clôturer la semaine
 // ============================================================
 function isPostDimancheSoir() {
   // Clôture possible uniquement à partir de lundi 00h00 (en France)
@@ -1207,7 +1291,7 @@ document.getElementById("btn-confirm-cloture")?.addEventListener("click", async 
   const confirmationIRS = document.getElementById("cloture-confirmation-irs").checked;
   const noteCloture = document.getElementById("cloture-note").value.trim();
   if (!confirmationIRS) {
-    toastError("Tu dois confirmer avoir fait la déclaration IRS");
+    toastError("Coche la confirmation (salaires versés + chiffres vérifiés) avant de clôturer.");
     return;
   }
   const btn = document.getElementById("btn-confirm-cloture");

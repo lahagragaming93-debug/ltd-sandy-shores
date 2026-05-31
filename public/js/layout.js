@@ -8,45 +8,46 @@ import { deconnecter, clearViewAsRole } from './auth.js';
 import { listenAlertesActives, marquerAlerteLue, marquerToutesAlertesLues } from './api.js';
 import { VERSION, AUTHOR, SIGNATURE_COURTE } from './version.js';
 import { initCollapsiblePanels, observeMain } from './utils/collapsible-panel.js';
+import { icon } from './utils/icons.js';
 
 const NAV_ITEMS = [
-  { key: 'dashboard',       href: 'dashboard.html',     icon: '★', label: 'Dashboard',          group: 'Direction' },
-  { key: 'stocks_epicerie', href: 'stocks.html',        icon: '◾', label: 'Stocks épicerie',    group: 'Opérations' },
-  { key: 'stocks_essence',  href: 'stations.html',      icon: '⛽', label: 'Stations essence',   group: 'Opérations' },
-  { key: 'ventes',          href: 'ventes.html',        icon: '$',  label: 'Ventes',             group: 'Opérations' },
-  { key: 'comptabilite',    href: 'comptabilite.html',  icon: '☰',  label: 'Comptabilité',       group: 'Finance' },
-  { key: 'banque',          href: 'banque.html',        icon: '🏦', label: 'Banque LTD',         group: 'Finance' },
-  { key: 'revenus_carburant', href: 'revenus-carburant.html', icon: '⛽', label: 'Revenus carburant', group: 'Finance' },
-  { key: 'rh',              href: 'rh.html',            icon: '☆',  label: 'Ressources humaines',group: 'Personnel' },
-  { key: 'notes_frais',     href: 'notes-frais.html',   icon: '💸', label: 'Notes de frais',     group: 'Personnel' },
-  { key: 'admin',           href: 'admin.html',         icon: '⚙',  label: 'Administration',     group: 'Système' },
-  { key: 'employee',        href: 'employee.html',      icon: '◉',  label: 'Mon espace',         group: 'Personnel' },
-  { key: 'paies',           href: 'paies.html',         icon: '$',  label: 'Mes paies',          group: 'Personnel' },
-  { key: 'tuto',            href: 'tuto.html',          icon: '📚', label: 'Tutoriel',           group: 'Aide' },
-  { key: 'guide',           href: 'guide.html',         icon: '📖', label: 'Guide',              group: 'Aide' }
+  { key: 'dashboard',       href: 'dashboard.html',     icon: 'dashboard',     label: 'Dashboard',          group: 'Direction' },
+  { key: 'stocks_epicerie', href: 'stocks.html',        icon: 'package',       label: 'Stocks épicerie',    group: 'Opérations' },
+  { key: 'stocks_essence',  href: 'stations.html',      icon: 'fuel',          label: 'Stations essence',   group: 'Opérations' },
+  { key: 'ventes',          href: 'ventes.html',        icon: 'receipt',       label: 'Ventes',             group: 'Opérations' },
+  { key: 'comptabilite',    href: 'comptabilite.html',  icon: 'ledger',        label: 'Comptabilité',       group: 'Finance' },
+  { key: 'banque',          href: 'banque.html',        icon: 'landmark',      label: 'Banque LTD',         group: 'Finance' },
+  { key: 'revenus_carburant', href: 'revenus-carburant.html', icon: 'trending-up', label: 'Revenus carburant', group: 'Finance' },
+  { key: 'rh',              href: 'rh.html',            icon: 'users',         label: 'Ressources humaines',group: 'Personnel' },
+  { key: 'notes_frais',     href: 'notes-frais.html',   icon: 'wallet',        label: 'Notes de frais',     group: 'Personnel' },
+  { key: 'admin',           href: 'admin.html',         icon: 'settings',      label: 'Administration',     group: 'Système' },
+  { key: 'employee',        href: 'employee.html',      icon: 'circle-user',   label: 'Mon espace',         group: 'Personnel' },
+  { key: 'paies',           href: 'paies.html',         icon: 'banknote',      label: 'Mes paies',          group: 'Personnel' },
+  { key: 'tuto',            href: 'tuto.html',          icon: 'graduation',    label: 'Tutoriel',           group: 'Aide' },
+  { key: 'guide',           href: 'guide.html',         icon: 'book-open',     label: 'Guide',              group: 'Aide' }
 ];
 
 // ============================================================
 // Helpers d'affichage rôle (badge stylé + initiales)
 // ============================================================
 const ROLE_DISPLAY = {
-  'patron':                  { emoji: '⭐', label: 'PATRON' },
-  'co-patron':               { emoji: '★',  label: 'CO-PATRON' },
-  'drh':                     { emoji: '📋', label: 'DRH' },
-  'responsable-vente':       { emoji: '🛒', label: 'RESP. VENTE' },
-  'responsable-pompiste':    { emoji: '⛽', label: 'RESP. POMPISTE' },
-  'vendeur-novice':          { emoji: '🌱', label: 'NOVICE' },
-  'vendeur-intermediaire':   { emoji: '💼', label: 'INTERMÉDIAIRE' },
-  'vendeur-experimente':     { emoji: '⭐', label: 'EXPÉRIMENTÉ' },
-  'pompiste-novice':         { emoji: '🌱', label: 'NOVICE' },
-  'pompiste-intermediaire':  { emoji: '💼', label: 'INTERMÉDIAIRE' },
-  'pompiste-experimente':    { emoji: '⭐', label: 'EXPÉRIMENTÉ' },
-  'admin-technique':         { emoji: '🛠', label: 'ADMIN TECH' }
+  'patron':                  { ico: 'crown',         label: 'PATRON' },
+  'co-patron':               { ico: 'star',          label: 'CO-PATRON' },
+  'drh':                     { ico: 'clipboard',     label: 'DRH' },
+  'responsable-vente':       { ico: 'shopping-cart', label: 'RESP. VENTE' },
+  'responsable-pompiste':    { ico: 'fuel',          label: 'RESP. POMPISTE' },
+  'vendeur-novice':          { ico: 'sprout',        label: 'NOVICE' },
+  'vendeur-intermediaire':   { ico: 'briefcase',     label: 'INTERMÉDIAIRE' },
+  'vendeur-experimente':     { ico: 'award',         label: 'EXPÉRIMENTÉ' },
+  'pompiste-novice':         { ico: 'sprout',        label: 'NOVICE' },
+  'pompiste-intermediaire':  { ico: 'briefcase',     label: 'INTERMÉDIAIRE' },
+  'pompiste-experimente':    { ico: 'award',         label: 'EXPÉRIMENTÉ' },
+  'admin-technique':         { ico: 'wrench',        label: 'ADMIN TECH' }
 };
 
 export function roleBadgeHtml(role) {
-  const d = ROLE_DISPLAY[role] || { emoji: '?', label: (ROLE_LABELS[role] || role || 'INCONNU').toUpperCase() };
-  return `<span class="role-badge role-${role}">${d.emoji} ${d.label}</span>`;
+  const d = ROLE_DISPLAY[role] || { ico: 'dot', label: (ROLE_LABELS[role] || role || 'INCONNU').toUpperCase() };
+  return `<span class="role-badge role-${role}">${icon(d.ico, { size: 13, cls: 'role-badge-ico' })}<span>${d.label}</span></span>`;
 }
 
 function initiales(prenom, nom) {
@@ -67,12 +68,13 @@ function escapeHtml(s) {
 // Helpers alertes (icône, URL cible, heure relative)
 // ============================================================
 function alertIcon(type) {
-  if (type === 'stock-rupture')    return '🔴';
-  if (type === 'stock-bas')        return '📦';
-  if (type === 'station-bas')      return '⛽';
-  if (type === 'vente-sans-stock') return '🚨';
-  if (type && type.startsWith('masse')) return '💰';
-  return '⚠';
+  let name = 'alert-triangle';
+  if (type === 'stock-rupture')    name = 'alert-circle';
+  else if (type === 'stock-bas')        name = 'package';
+  else if (type === 'station-bas')      name = 'fuel';
+  else if (type === 'vente-sans-stock') name = 'alert-triangle';
+  else if (type && type.startsWith('masse')) name = 'banknote';
+  return icon(name, { size: 18 });
 }
 
 function alertHref(a) {
@@ -113,7 +115,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         <div class="user-role">${roleBadgeHtml(profile.role)}</div>
       </div>
       <button class="btn-logout" id="btn-logout" title="Déconnexion" aria-label="Déconnexion">
-        <span class="btn-logout-ico">⎋</span>
+        <span class="btn-logout-ico">${icon('log-out', { size: 16 })}</span>
       </button>
     </div>`;
 
@@ -129,12 +131,23 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
       (navByGroup[item.group] ||= []).push(item);
     });
 
+  // Chaque groupe = un <div.nav-group> avec un bouton-titre repliable
+  // (chevron) + un conteneur de liens. data-group sert a la persistance
+  // localStorage. En mode rail (sidebar repliee), les titres se masquent
+  // et seules les icones restent (label via tooltip natif title=).
   const navHtml = Object.entries(navByGroup).map(([group, items]) => `
-    <div class="group-title">${group}</div>
-    ${items.map(it => `
-      <a href="${it.href}" class="${it.key === activePageKey ? 'active' : ''}" data-nav-link>
-        <span class="nav-icon">${it.icon}</span><span>${it.label}</span>
-      </a>`).join('')}
+    <div class="nav-group" data-group="${escapeHtml(group)}">
+      <button type="button" class="group-title" data-group-toggle aria-expanded="true">
+        <span class="group-title-label">${escapeHtml(group)}</span>
+        <span class="group-chevron" aria-hidden="true">${icon('chevron-down', { size: 14 })}</span>
+      </button>
+      <div class="nav-group-items">
+        ${items.map(it => `
+          <a href="${it.href}" class="${it.key === activePageKey ? 'active' : ''}" data-nav-link title="${escapeHtml(it.label)}">
+            <span class="nav-icon">${icon(it.icon, { size: 19 })}</span><span class="nav-label">${escapeHtml(it.label)}</span>
+          </a>`).join('')}
+      </div>
+    </div>
   `).join('');
 
   // Bouton retour : désactivé si pas d'historique navigable (page d'entrée)
@@ -143,6 +156,9 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
   document.body.innerHTML = `
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
+        <button type="button" class="btn-rail-toggle" id="btn-rail-toggle" title="Replier le menu" aria-label="Replier ou déplier le menu">
+          <span class="rail-toggle-ico" aria-hidden="true">${icon('chevrons-left', { size: 16 })}</span>
+        </button>
         <div class="brand">
           <img src="img/logo.png" alt="LTD Sandy Shores" class="brand-logo" />
           <div class="name">SANDY SHORES</div>
@@ -155,8 +171,8 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
       </aside>
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
       <header class="topbar">
-        <button class="btn-menu" id="btn-menu" title="Menu" aria-label="Ouvrir le menu">☰</button>
-        <button class="btn-back" id="btn-back" title="Retour" aria-label="Page précédente" ${canGoBack ? '' : 'disabled'}>←</button>
+        <button class="btn-menu" id="btn-menu" title="Menu" aria-label="Ouvrir le menu">${icon('menu', { size: 20 })}</button>
+        <button class="btn-back" id="btn-back" title="Retour" aria-label="Page précédente" ${canGoBack ? '' : 'disabled'}>${icon('arrow-left', { size: 18 })}</button>
         <h1 id="page-title">${getPageTitle(activePageKey)}</h1>
         <div class="spacer"></div>
 
@@ -166,7 +182,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
         ${(isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh') ? `
         <div class="alerts-wrapper" id="alerts-wrapper">
           <button class="btn-alerts" id="btn-alerts" title="Alertes" aria-label="Voir les alertes">
-            <span class="btn-alerts-ico">🔔</span>
+            <span class="btn-alerts-ico">${icon('bell', { size: 19 })}</span>
             <span class="btn-alerts-badge" id="alerts-count" hidden>0</span>
           </button>
           <div class="alerts-dropdown hidden" id="alerts-dropdown" role="menu">
@@ -187,16 +203,16 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
       <main class="main">
         ${profile.viewingAs ? `
           <div class="alert" id="bandeau-view-as" style="background:rgba(180,120,40,0.22);border:2px solid #c93;font-weight:bold;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <span>🎭 <strong>Mode aperçu</strong> : tu vois le site comme <strong>${escapeHtml(ROLE_LABELS[profile.viewingAs] || profile.viewingAs)}</strong>.
-            Tes vrais droits restent <strong>${escapeHtml(ROLE_LABELS[profile.roleReel] || profile.roleReel)}</strong>.</span>
-            <button class="btn btn-ghost" id="btn-quitter-apercu" type="button" style="padding:4px 12px;margin-left:auto;">↩ Revenir à ma vue ${escapeHtml(ROLE_LABELS[profile.roleReel] || '')}</button>
+            <span style="display:inline-flex;align-items:center;gap:8px;">${icon('eye', { size: 18 })}<span><strong>Mode aperçu</strong> : tu vois le site comme <strong>${escapeHtml(ROLE_LABELS[profile.viewingAs] || profile.viewingAs)}</strong>.
+            Tes vrais droits restent <strong>${escapeHtml(ROLE_LABELS[profile.roleReel] || profile.roleReel)}</strong>.</span></span>
+            <button class="btn btn-ghost" id="btn-quitter-apercu" type="button" style="padding:4px 12px;margin-left:auto;display:inline-flex;align-items:center;gap:6px;">${icon('corner-up-left', { size: 15 })}<span>Revenir à ma vue ${escapeHtml(ROLE_LABELS[profile.roleReel] || '')}</span></button>
           </div>
         ` : ''}
         ${profile.bloque ? `
-          <div class="alert" style="background:rgba(220,40,40,0.20);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:12px;">
-            🔒 <strong>COMPTE BLOQUÉ — 3 avertissements actifs.</strong>
+          <div class="alert" style="background:rgba(220,40,40,0.20);border:2px solid var(--color-blood);font-weight:bold;margin-bottom:12px;display:flex;align-items:flex-start;gap:8px;">
+            <span style="flex-shrink:0;margin-top:1px;">${icon('lock', { size: 18 })}</span><span><strong>COMPTE BLOQUÉ — 3 avertissements actifs.</strong>
             Tu peux consulter le site mais aucune écriture, déclaration ou ravitaillement n'est possible.
-            Contacte la direction pour qu'elle retire un avertissement et débloque ton compte.
+            Contacte la direction pour qu'elle retire un avertissement et débloque ton compte.</span>
           </div>
         ` : ''}
         ${mainContentHtml}
@@ -299,6 +315,61 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
     a.addEventListener('click', () => closeSidebar());
   });
 
+  // === Repli "rail" de la sidebar (desktop) + repli des categories ===
+  // Purement visuel : aucune cible de nav, permission ou handler metier
+  // n'est touche. L'etat est persiste en localStorage (par navigateur).
+  const appShell = document.querySelector('.app-shell');
+  const btnRail  = document.getElementById('btn-rail-toggle');
+  const railIco  = btnRail?.querySelector('.rail-toggle-ico');
+  const LS_RAIL  = 'ltd-sidebar-collapsed';
+  const LS_GROUP = 'ltd-navgroup:'; // + nom de groupe
+
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+
+  function applyRail(collapsed) {
+    if (!appShell) return;
+    appShell.classList.toggle('sidebar-collapsed', collapsed);
+    if (btnRail) {
+      btnRail.title = collapsed ? 'Déplier le menu' : 'Replier le menu';
+      btnRail.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+    if (railIco) railIco.innerHTML = icon(collapsed ? 'chevrons-right' : 'chevrons-left', { size: 16 });
+  }
+
+  // Restauration etat rail au chargement
+  applyRail(lsGet(LS_RAIL) === '1');
+
+  if (btnRail) {
+    btnRail.addEventListener('click', () => {
+      const next = !appShell.classList.contains('sidebar-collapsed');
+      applyRail(next);
+      lsSet(LS_RAIL, next ? '1' : '0');
+    });
+  }
+
+  // Categories repliables : chaque .nav-group a un bouton-titre [data-group-toggle]
+  sidebar.querySelectorAll('.nav-group').forEach(groupEl => {
+    const name   = groupEl.getAttribute('data-group') || '';
+    const toggle = groupEl.querySelector('[data-group-toggle]');
+    if (!toggle) return;
+
+    const setGroup = (collapsed) => {
+      groupEl.classList.toggle('collapsed', collapsed);
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    };
+    // Default = deplie ; '1' en storage = replie
+    setGroup(lsGet(LS_GROUP + name) === '1');
+
+    toggle.addEventListener('click', () => {
+      // En mode rail, les titres sont masques : on ne replie pas par erreur
+      if (appShell?.classList.contains('sidebar-collapsed')) return;
+      const next = !groupEl.classList.contains('collapsed');
+      setGroup(next);
+      lsSet(LS_GROUP + name, next ? '1' : '0');
+    });
+  });
+
   // === Cloche d'alertes : ouverture/fermeture du dropdown ===
   // La cloche n'est rendue que pour direction/DRH/admin-tech. Pour les autres
   // roles, les elements DOM n'existent pas : on skip tout le bloc.
@@ -364,7 +435,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
     btnMarkAllRead.hidden = nonLues.length === 0;
 
     if (alertes.length === 0) {
-      dropList.innerHTML = `<li class="alerts-empty">✓ Aucune alerte active. Tout va bien.</li>`;
+      dropList.innerHTML = `<li class="alerts-empty"><span style="display:inline-flex;align-items:center;gap:6px;justify-content:center;">${icon('check', { size: 16 })}<span>Aucune alerte active. Tout va bien.</span></span></li>`;
       return;
     }
 
@@ -376,7 +447,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
       const grav  = a.gravite || 'warn';
       const heure = relativeTime(a.timestamp);
       const luCls = a.lu ? ' alert-lu' : '';
-      const btnLu = a.lu ? '' : `<button type="button" class="alert-mark-read" data-mark-read="${a.id}" title="Marquer lu" aria-label="Marquer lu">✓</button>`;
+      const btnLu = a.lu ? '' : `<button type="button" class="alert-mark-read" data-mark-read="${a.id}" title="Marquer lu" aria-label="Marquer lu">${icon('check', { size: 14 })}</button>`;
       const inner = `
         <span class="alert-ico">${ico}</span>
         <div class="alert-body">
@@ -387,7 +458,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
           </div>
         </div>
         ${btnLu}
-        ${href ? '<span class="alert-arrow">→</span>' : ''}
+        ${href ? `<span class="alert-arrow">${icon('arrow-right', { size: 15 })}</span>` : ''}
       `;
       return href
         ? `<li><a class="alert-item alert-grav-${escapeHtml(grav)}${luCls}" href="${href}" data-alert-link>${inner}</a></li>`

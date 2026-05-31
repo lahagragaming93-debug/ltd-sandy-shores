@@ -31,8 +31,11 @@
   --glass-panel:        rgba(28, 22, 22, 0.62);
   --glass-panel-strong: rgba(28, 22, 22, 0.82);
   --glass-deep:         rgba(10, 8, 8, 0.78);
-  --glass-blur:         blur(18px) saturate(135%);
-  --glass-blur-soft:    blur(10px) saturate(125%);
+  /* Liquid glass SIMULÉ : plus de backdrop-filter (CEF-safe + supprime le bug
+     de containing-block sur les position:fixed qui clippait les modales).
+     Les surfaces gardent leur translucidité via rgba + dégradés + reflets. */
+  --glass-blur:         none;
+  --glass-blur-soft:    none;
   --hairline:           rgba(210, 180, 140, 0.14);
   --hairline-strong:    rgba(210, 180, 140, 0.28);
 
@@ -836,10 +839,16 @@ a.alert-item:hover .alert-arrow {
   -webkit-backdrop-filter: var(--glass-blur-soft);
   backdrop-filter: var(--glass-blur-soft);
   border-right: 1px solid rgba(184,27,27,0.42);
-  padding: 22px 0;
+  padding: 12px 0;
   position: relative;
   box-shadow: 4px 0 24px rgba(0,0,0,0.32);
+  display: flex;
+  flex-direction: column;
 }
+/* La nav prend la hauteur restante ; si jamais le contenu deborde malgre
+   la compacite (ecran tres court), elle scrolle au lieu de pousser le footer
+   hors ecran. Objectif : tout tient sur un bloc sur un ecran standard. */
+.sidebar nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .sidebar::after {
   content: '';
   position: absolute;
@@ -852,9 +861,10 @@ a.alert-item:hover .alert-arrow {
 }
 .sidebar .brand {
   text-align: center;
-  padding: 0 16px 22px;
+  padding: 0 12px 10px;
   border-bottom: 1px solid var(--hairline);
-  margin-bottom: 18px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
 }
 .sidebar .brand .logo-placeholder {
   width: 80px; height: 80px;
@@ -869,9 +879,9 @@ a.alert-item:hover .alert-arrow {
 }
 .sidebar .brand .brand-logo {
   display: block;
-  width: 96px;
-  height: 96px;
-  margin: 0 auto 12px;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 6px;
   object-fit: contain;
   filter: drop-shadow(0 4px 14px rgba(0,0,0,0.65)) drop-shadow(0 0 22px rgba(201,169,97,0.18));
 }
@@ -887,43 +897,43 @@ a.alert-item:hover .alert-arrow {
   .login-logo { width: 100px; height: 100px; }
 }
 @media (max-width: 1280px) {
-  .sidebar .brand .brand-logo { width: 72px; height: 72px; }
+  .sidebar .brand .brand-logo { width: 48px; height: 48px; }
 }
 @media (max-width: 1024px) {
-  .sidebar .brand .brand-logo { width: 80px; height: 80px; }
+  .sidebar .brand .brand-logo { width: 64px; height: 64px; }
 }
 .sidebar .brand .name {
   font-family: var(--font-display);
   color: var(--color-blood-light);
-  font-size: 1.2rem;
-  letter-spacing: 0.6px;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
   text-shadow: 0 0 18px rgba(184,27,27,0.35);
-  line-height: 1.2;
+  line-height: 1.15;
 }
 .sidebar .brand .subname {
   font-family: var(--font-heading);
   font-weight: 600;
   color: var(--color-sand);
-  font-size: 0.66rem;
-  letter-spacing: 0.18em;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .sidebar nav { padding: 0 14px; }
 .sidebar nav a {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  margin-bottom: 4px;
+  gap: 10px;
+  padding: 7px 12px;
+  margin-bottom: 2px;
   color: var(--color-sand);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   border-bottom: none;
   font-family: var(--font-heading);
   font-weight: 500;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   letter-spacing: -0.005em;
   transition: all var(--t-base);
   position: relative;
@@ -941,18 +951,61 @@ a.alert-item:hover .alert-arrow {
   border-color: rgba(184,27,27,0.35);
   box-shadow: inset 3px 0 0 var(--color-blood-light), 0 0 18px rgba(184,27,27,0.10);
 }
-.sidebar nav .nav-icon { width: 20px; text-align: center; }
+.sidebar nav .nav-icon {
+  width: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-sand);
+}
+.sidebar nav .nav-icon svg { width: 17px; height: 17px; }
+.sidebar nav a.active .nav-icon { color: var(--color-blood-light); }
+
+/* === Categories repliables (.nav-group + bouton .group-title) === */
+.nav-group { margin-bottom: 2px; }
 
 .sidebar nav .group-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  cursor: pointer;
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 0.66rem;
+  font-size: 0.61rem;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.13em;
   color: var(--color-sand-dark);
-  padding: 18px 14px 8px;
-  border-bottom: 1px solid var(--hairline);
-  margin-bottom: 8px;
+  padding: 9px 12px 5px;
+  margin-bottom: 3px;
+  transition: color var(--t-fast);
+}
+.sidebar nav .group-title:hover { color: var(--color-sand); }
+.group-title-label { text-align: left; }
+.group-chevron {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-sand-dark);
+  transition: transform var(--t-base);
+  flex-shrink: 0;
+}
+.nav-group.collapsed .group-chevron { transform: rotate(-90deg); }
+
+/* Conteneur des liens : animation de repli (max-height) */
+.nav-group-items {
+  overflow: hidden;
+  max-height: 600px;
+  transition: max-height var(--t-base), opacity var(--t-fast);
+}
+.nav-group.collapsed .nav-group-items {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .main {
@@ -1719,7 +1772,7 @@ input:focus, select:focus, textarea:focus {
 @media (max-width: 1280px) {
   .app-shell { grid-template-columns: 220px 1fr; }
   .main { padding: 22px 26px 40px; }
-  .sidebar nav a { font-size: 0.84rem; padding: 9px 12px; }
+  .sidebar nav a { font-size: 0.8rem; padding: 6px 11px; }
   .sidebar .brand .logo-placeholder { width: 60px; height: 60px; font-size: 1.1rem; }
   .topbar { padding: 0 18px; gap: 12px; }
   .topbar h1 { font-size: 1.15rem; letter-spacing: 0.8px; }
@@ -2336,4 +2389,117 @@ input:focus, select:focus, textarea:focus {
   .markdown-body h1, .markdown-body h2, .markdown-body h3,
   .markdown-body strong, .markdown-body em { color: #000; }
   body { background: #fff; }
+}
+
+/* ============================================================
+   REFONTE VISUELLE — icones SVG, sidebar repliable (rail) +
+   categories repliables. 100% additif : aucun hook JS, aucune
+   cible de nav, permission ou logique metier n'est modifie.
+   ============================================================ */
+
+/* --- Base de toutes les icones SVG inline --- */
+.ico {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* --- Icones dans les boutons chrome (centrage propre) --- */
+.btn-logout-ico, .btn-alerts-ico, .rail-toggle-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Badge de role : pastille icone + libelle alignes --- */
+.role-badge .role-badge-ico { margin-right: 1px; }
+
+/* --- Labels de nav (masques en mode rail) --- */
+.sidebar nav a .nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity var(--t-fast);
+}
+
+/* --- Bouton de repli du rail (visible desktop uniquement) --- */
+.btn-rail-toggle {
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  width: 26px; height: 26px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-sand);
+  background: rgba(0,0,0,0.30);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  z-index: 3;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.btn-rail-toggle:hover {
+  background: rgba(139,0,0,0.30);
+  border-color: var(--color-blood-light);
+  color: var(--color-sand-light);
+}
+
+/* === DESKTOP : rail repliable (>1024px) === */
+@media (min-width: 1025px) {
+  .btn-rail-toggle { display: inline-flex; }
+
+  /* Shell plafonne a la hauteur d'ecran : la sidebar fait 1 bloc (footer
+     colle en bas), .main scrolle en interne (overflow-y:auto deja pose),
+     et la nav ne scrolle que si l'ecran est vraiment trop court. */
+  .app-shell {
+    height: 100vh;
+    overflow: hidden;
+    transition: grid-template-columns var(--t-base);
+  }
+  .app-shell.sidebar-collapsed { grid-template-columns: 76px 1fr; }
+
+  /* Marque : texte masque, logo reduit, centre */
+  .app-shell.sidebar-collapsed .sidebar .brand { padding: 0 8px 14px; }
+  .app-shell.sidebar-collapsed .sidebar .brand .name,
+  .app-shell.sidebar-collapsed .sidebar .brand .subname { display: none; }
+  .app-shell.sidebar-collapsed .sidebar .brand .brand-logo {
+    width: 44px; height: 44px; margin-bottom: 0;
+  }
+  .app-shell.sidebar-collapsed .btn-rail-toggle {
+    right: 50%; transform: translateX(50%); top: 10px;
+  }
+
+  /* Nav repliee : titres de groupe masques, labels masques, icones centrees.
+     On force les groupes "ouverts" visuellement (le repli par categorie n'a
+     pas de sens quand on ne voit que les icones). */
+  .app-shell.sidebar-collapsed .sidebar nav { padding: 0 8px; }
+  .app-shell.sidebar-collapsed .sidebar nav .group-title { display: none; }
+  .app-shell.sidebar-collapsed .sidebar nav .nav-group-items {
+    max-height: none; opacity: 1; pointer-events: auto;
+  }
+  .app-shell.sidebar-collapsed .sidebar nav a {
+    justify-content: center; padding: 11px 0; gap: 0;
+  }
+  .app-shell.sidebar-collapsed .sidebar nav a .nav-label { display: none; }
+
+  /* Footer version : masque en mode rail */
+  .app-shell.sidebar-collapsed .sidebar-footer { font-size: 0; padding: 8px 0; }
+}
+
+/* === MOBILE/TABLETTE : pas de rail (sidebar off-canvas via hamburger) === */
+@media (max-width: 1024px) {
+  .btn-rail-toggle { display: none !important; }
+}
+
+/* === Protocole de clôture (panneau dépliable page Comptabilité) === */
+.protocole-cloture .pc-step {
+  margin: 16px 0 4px;
+  color: var(--color-gold);
+  font-weight: 700;
+}
+.protocole-cloture .pc-list {
+  margin: 0 0 4px;
+  padding-left: 20px;
 }

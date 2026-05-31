@@ -1,7 +1,32 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-05-26 (v1.13.6 — infra auto-reload + portail modaux generique)**
+> Dernière mise à jour : **2026-05-31 (v1.14.0 — refonte visuelle sidebar/header/icônes + protocole clôture réordonné)**
+
+---
+
+## ✅ Session 2026-05-31 — v1.14.0 : refonte visuelle (sidebar repliable, icônes SVG, header) + protocole clôture
+
+### Refonte visuelle (purement esthétique, aucune logique métier touchée)
+- **Nouveau [`public/js/utils/icons.js`](public/js/utils/icons.js)** : set d'~35 icônes SVG inline (style outline, `currentColor`, taille paramétrable) + helper `icon(name, {size, cls, title})`. 100% CEF-safe, zéro dépendance externe.
+- **[`public/js/layout.js`](public/js/layout.js)** :
+  - Tous les emojis d'UI (nav, badges de rôle `ROLE_DISPLAY`, icônes d'alertes `alertIcon`, header `☰ ← 🔔 ⎋`, bandeaux `🎭 🔒 ✓ →`) → **icônes SVG**.
+  - **Catégories de nav repliables** : chaque groupe est un `<button class="group-title" data-group-toggle>` + chevron ; état persité en `localStorage` (`ltd-navgroup:<groupe>`).
+  - **Sidebar repliable en rail** (bouton `#btn-rail-toggle`) : réduit à 76px (icônes seules + tooltip natif), état persité (`ltd-sidebar-collapsed`). `href`, `data-nav-link`, permissions, IDs et handlers **inchangés**.
+- **[`public/css/western.css`](public/css/western.css)** :
+  - `--glass-blur` / `--glass-blur-soft` → `none` : **plus de `backdrop-filter`** → glass simulé via rgba/dégradés, CEF-safe ET **supprime la cause racine** du bug de containing-block sur `position:fixed` (hotfix v1.13.3/4).
+  - Styles rail + catégories repliables (chevron, `max-height`), dimension des icônes SVG.
+  - **Sidebar compactée** (logo 96→54px, polices/espacements réduits) + **shell desktop plafonné à `height:100vh`** → toute la sidebar (6 catégories + 14 items) tient sur **un seul bloc sans scroll** sur écran standard ; sur petit écran la nav scrolle en interne au lieu de la page.
+
+### Page Comptabilité — protocole de clôture
+- **2 boutons PDF BLA retirés** (`generateProtocolePdf?...short` / `...long`) : ils décrivaient un cycle « dimanche soir » erroné. Bouton « Ouvrir le portail BLA » conservé.
+- **Vrai protocole** ajouté en panneau `<details>` dépliable, basé sur le guide §3 + la logique réelle des crons.
+- **Réordonné** : payes → clôture (cadenas, chiffres figés) → **déclaration IRS en DERNIÈRE étape** (portail BLA → JSON → site IRS). La case de la modale passe de « j'ai déclaré IRS » à « salaires versés + chiffres vérifiés ». **Backend `cloturerSemaine` non touché** (reçoit toujours `confirmationIRS:true` en interne — pas de redéploiement).
+- Emojis de commentaires nettoyés (`🔄 🔒 ⚙`). Récap salaires **Discord** : emojis conservés (usage normal Discord, SVG impossible là-bas).
+
+### Routine simplify
+- Protocole : 6 titres d'étape + 4 listes au style inline répété → classes `.pc-step` / `.pc-list`.
+- Skips assumés : memoize `icon()`, extraction util collapse/storage, système de tokens CSS, template partiel → out-of-scope / incohérent avec le style vanilla inline du codebase / micro-opti sur chemin froid.
 
 ---
 

@@ -482,7 +482,7 @@ if (stockOnly && caoutsActifPage) {
 }
 
 // Les quotas hebdo (bidons / caoutchoucs / CA vendeur / fabrication) sont
-// centralises sur RH > "Quotas hebdomadaires". Le bouton ⚙ y redirige.
+// centralises sur RH > "Quotas hebdomadaires". Le bouton reglages y redirige.
 
 // === Redistributions de la semaine + Déclarations caoutchoucs ===
 const debut = startOfWeekRP();
