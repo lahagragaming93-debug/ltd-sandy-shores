@@ -55,7 +55,7 @@ export const clotureHebdo = onSchedule({
   const weekKey = debut.toISOString().slice(0, 10);
 
   // Agréger (ventes produits + ventes carburant + dépenses)
-  const [ventesSnap, redistSnap, depensesSnap] = await Promise.all([
+  const [ventesSnap, redistSnap, depensesSnap, cfgSnap] = await Promise.all([
     db.collection('ventes')
       .where('timestamp', '>=', Timestamp.fromDate(debut))
       .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
@@ -65,7 +65,20 @@ export const clotureHebdo = onSchedule({
     db.collection('depenses')
       .where('timestamp', '>=', Timestamp.fromDate(debut))
       .where('timestamp', '<=', Timestamp.fromDate(fin)).get(),
+    db.collection('config').doc('global').get(),
   ]);
+
+  // Fige les OBJECTIFS de quota de la semaine (config globale au moment de la
+  // cloture). Permet aux pilotages vendeurs/pompistes d'afficher les vrais
+  // objectifs d'une semaine passee, et pas le quota courant (qui peut avoir
+  // change depuis). Les realises sont deja archives (quotasVendeur/Pompiste).
+  const cfgCloture = cfgSnap.exists ? cfgSnap.data() : {};
+  const quotaConfig = {
+    quotaBidons:       cfgCloture.quotaBidons       ?? 1700,
+    quotaCaoutchoucs:  cfgCloture.quotaCaoutchoucs   ?? 800,
+    quotaCAVendeur:    cfgCloture.quotaCAVendeur     ?? 50000,
+    quotaFabrication:  cfgCloture.quotaFabrication   || {}
+  };
 
   // Filtre = source='discord' (bot Faab'Hook) + !annulee.
   // STRICTEMENT identique a snapshotSheetSemaine ligne 543-545.
@@ -101,6 +114,7 @@ export const clotureHebdo = onSchedule({
     benefice: ca - depTotal,       // provisoire (sans masse)
     nbVentes: ventesFiltrees.length + redistSnap.size,
     nbDepenses: depensesSnap.size,
+    quotaConfig,                   // objectifs de quota figes pour cette semaine
     statut: 'cloturee-partielle',
     dateCloture: FieldValue.serverTimestamp()
   }, { merge: true });

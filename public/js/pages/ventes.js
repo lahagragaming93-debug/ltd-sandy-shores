@@ -4,16 +4,27 @@
 
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listenVentesSemaine, listVentesSemaine, listUsers, listProduits } from '../api.js';
-import { money, num, datetime, escapeHtml, dateKeyLocal } from '../utils/formatters.js';
+import { listenVentesSemaine, listVentesSemaine, listUsers, listProduits,
+         getConfig, listQuotasVendeurSemaine } from '../api.js';
+import { money, num, datetime, escapeHtml, dateKeyLocal, weekId } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { ouvrirModalModifierVente } from '../utils/vente-modal.js';
 import { initSemaineSelector } from '../utils/semaine-selector.js';
+import { isVendeur, isDirection, isSuperAdmin,
+         PRODUITS_QUOTA_FAB, QUOTA_CA_VENDEUR_DEFAULT } from '../utils/permissions.js';
+import { scoreQuotaFabrication, fabricationsFromQuotaDoc } from '../utils/paie.js';
+import { nomProduit } from '../data/produits.js';
 
 // Roles autorises a modifier une vente apres verrouillage
 const PEUT_MODIFIER = ['patron', 'co-patron', 'admin-technique', 'drh', 'responsable-vente'];
 
 const { profile } = await requireAuth('ventes');
+
+// Pilotage vendeurs : visible direction + super-admin + responsable vente.
+// Permet au resp. vente de suivre les quotas (CA + fabrication) de ses
+// vendeurs SANS accès RH (qui lui reste bloqué).
+const canPilotageVendeurs = isDirection(profile.role) || isSuperAdmin(profile.role)
+  || profile.role === 'responsable-vente';
 
 const html = `
   <div class="kpi-grid" id="kpis-ventes">
@@ -59,6 +70,16 @@ const html = `
     </div>
   </div>
 
+  ${canPilotageVendeurs ? `
+  <div class="panel framed">
+    <div class="panel-title" style="flex-wrap:wrap;gap:8px;">
+      <span>Pilotage vendeurs</span>
+      <span class="muted" style="font-size:0.78rem;" id="pilotage-vendeurs-meta">—</span>
+    </div>
+    <div id="pilotage-vendeurs">Chargement…</div>
+  </div>
+  ` : ''}
+
   <div class="panel">
     <div class="panel-title"><span>Discordances vente ↔ stock</span></div>
     <div id="discordances">—</div>
@@ -75,6 +96,16 @@ const [users, produits] = await Promise.all([
 ]);
 
 const usersById = users.reduce((m, u) => (m[u.id] = u, m), {});
+
+// Pilotage vendeurs : config quotas (chargée une fois) + snapshot des quotas
+// de fabrication de la semaine sélectionnée (rechargé au changement de semaine).
+let configPilotage = {};       // config globale ACTUELLE (semaine en cours)
+let quotaCfgPilotage = {};      // objectifs EFFECTIFS de la semaine affichée
+let quotasVendeurPilotage = [];
+if (canPilotageVendeurs) {
+  configPilotage = await getConfig().catch(() => ({}));
+  quotaCfgPilotage = configPilotage;
+}
 
 const selVendeur = document.getElementById('filtre-vendeur');
 users.filter(u => ['vendeur-novice','vendeur-intermediaire','vendeur-experimente'].includes(u.role))
@@ -112,12 +143,14 @@ function chargerVentes(debut, fin, isCurrent) {
       ventes = list;
       renderTable();
       renderKpis();
+      renderPilotageVendeurs();
     });
   } else {
     listVentesSemaine(debut, fin).then(list => {
       ventes = list;
       renderTable();
       renderKpis();
+      renderPilotageVendeurs();
     }).catch(err => {
       console.error('[ventes] fetch semaine cloturee', err);
       document.getElementById('tbody-ventes').innerHTML =
@@ -129,7 +162,7 @@ function chargerVentes(debut, fin, isCurrent) {
 // Selecteur semaine : initialise + branche le rechargement
 await initSemaineSelector('#selecteur-semaine', {
   storageKey: 'ventes-semaine-selectionnee',
-  onChange: ({ debut, fin, isCurrent, statutLabel }) => {
+  onChange: async ({ debut, fin, weekKey, isCurrent, statutLabel, semaine }) => {
     currentStatutLabel = isCurrent ? 'En cours' : statutLabel;
     // Met a jour le titre du panel + badge
     const fmt = d => d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
@@ -141,6 +174,16 @@ await initSemaineSelector('#selecteur-semaine', {
     } else {
       badge.innerHTML = `<span class="badge ok">${escapeHtml(statutLabel)}</span> · lecture seule`;
     }
+    // Pilotage vendeurs : recharge les quotas de fabrication de la semaine ciblée
+    // (le CA, lui, vient des ventes chargées par chargerVentes ci-dessous).
+    if (canPilotageVendeurs) {
+      const wId = isCurrent ? weekId() : weekKey;
+      quotasVendeurPilotage = await listQuotasVendeurSemaine(wId).catch(() => []);
+      // Objectifs de quota : semaine en cours = config actuelle ; semaine
+      // clôturée = objectifs figés dans /semaines (fallback config actuelle
+      // pour les semaines clôturées avant la mise en place du snapshot).
+      quotaCfgPilotage = isCurrent ? configPilotage : (semaine?.quotaConfig || configPilotage);
+    }
     chargerVentes(debut, fin, isCurrent);
   }
 });
@@ -148,6 +191,94 @@ await initSemaineSelector('#selecteur-semaine', {
 document.getElementById('filtre-vendeur').addEventListener('change', renderTable);
 document.getElementById('filtre-paiement').addEventListener('change', renderTable);
 document.getElementById('filtre-recherche').addEventListener('input', renderTable);
+
+// === Pilotage vendeurs : récap CA + fabrication par vendeur ===
+// 2 statuts séparés (CA / Fabrication). Suit la semaine sélectionnée.
+// Lecture seule (aucune écriture) : c'est l'équivalent du pilotage pompistes
+// pour le responsable vente, qui n'a pas accès à RH.
+function renderPilotageVendeurs() {
+  if (!canPilotageVendeurs) return;
+  const div = document.getElementById('pilotage-vendeurs');
+  if (!div) return;
+
+  const quotaCA  = Number(quotaCfgPilotage.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
+  const quotaFab = quotaCfgPilotage.quotaFabrication || {};
+  const fabActifs = PRODUITS_QUOTA_FAB.filter(id => Number(quotaFab[id] || 0) > 0);
+
+  const vendeurs = users
+    .filter(u => u.statut === 'actif' && isVendeur(u.role))
+    .map(u => {
+      const myV = ventes.filter(v => v.vendeurId === u.id);
+      const caPart = myV.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
+      const qDoc = quotasVendeurPilotage.find(q => q.employeId === u.id) || {};
+      return { u, caPart, fabrications: fabricationsFromQuotaDoc(qDoc) };
+    });
+
+  const totalCA = vendeurs.reduce((s, x) => s + x.caPart, 0);
+  document.getElementById('pilotage-vendeurs-meta').textContent =
+    `${vendeurs.length} vendeur${vendeurs.length > 1 ? 's' : ''} · ${money(totalCA)} CA particulier cumulé`;
+
+  if (vendeurs.length === 0) {
+    div.innerHTML = `<p class="muted">Aucun vendeur actif.</p>`;
+    return;
+  }
+
+  const badge = (score) => {
+    if (score >= 1)   return '<span class="badge ok">Atteint</span>';
+    if (score >= 0.5) return '<span class="badge neutral">En cours</span>';
+    return '<span class="badge warn">En retard</span>';
+  };
+
+  vendeurs.sort((a, b) => (b.caPart / (quotaCA || 1)) - (a.caPart / (quotaCA || 1)));
+
+  div.innerHTML = `
+    <div class="table-scroll" style="max-height:500px;">
+      <table class="data" id="table-pilotage-vendeurs">
+        <thead><tr>
+          <th data-sort="nom">Vendeur</th>
+          <th data-sort="role">Rôle</th>
+          <th data-sort="ca">CA particulier</th>
+          <th data-sort="statutca">Statut CA</th>
+          <th>Fabrication</th>
+          <th data-sort="statutfab">Statut Fab.</th>
+          <th class="center">Voir</th>
+        </tr></thead>
+        <tbody>
+          ${vendeurs.map(({ u, caPart, fabrications }) => {
+            const pctCA = quotaCA > 0 ? Math.min(100, (caPart / quotaCA) * 100) : 0;
+            const scoreCA = quotaCA > 0 ? Math.min(1, caPart / quotaCA) : 1;
+            const scoreFab = scoreQuotaFabrication(fabrications, quotaFab);
+            const caCell = `<div class="mono" style="font-size:0.85rem;">${money(caPart)} / ${money(quotaCA)}</div>
+              <div class="progress" style="height:8px;margin-top:2px;"><div class="fill" style="width:${pctCA}%;${caPart >= quotaCA ? 'background:var(--color-cactus,#5a8);' : (pctCA < 30 ? 'background:var(--color-blood);' : '')}"></div></div>`;
+            const fabCell = fabActifs.length === 0
+              ? '<span class="muted" style="font-size:0.78rem;">aucune fabrication cette semaine</span>'
+              : fabActifs.map(id => {
+                  const f = Number(fabrications[id] || 0);
+                  const q = Number(quotaFab[id] || 0);
+                  const pctF = q > 0 ? Math.min(100, (f / q) * 100) : 0;
+                  return `<div style="margin-bottom:4px;">
+                    <div class="mono" style="font-size:0.78rem;">${escapeHtml(nomProduit(id))} : ${num(f)} / ${num(q)}</div>
+                    <div class="progress" style="height:6px;"><div class="fill" style="width:${pctF}%;${f >= q ? 'background:var(--color-cactus,#5a8);' : (pctF < 30 ? 'background:var(--color-blood);' : '')}"></div></div>
+                  </div>`;
+                }).join('');
+            return `
+              <tr>
+                <td><strong>${escapeHtml(u.prenom || '')} ${escapeHtml(u.nom || '')}</strong></td>
+                <td class="muted" style="font-size:0.78rem;">${escapeHtml(u.role || '')}</td>
+                <td data-sort-value="${caPart}">${caCell}</td>
+                <td data-sort-value="${scoreCA}">${badge(scoreCA)}</td>
+                <td>${fabCell}</td>
+                <td data-sort-value="${scoreFab}">${fabActifs.length === 0 ? '<span class="muted">—</span>' : badge(scoreFab)}</td>
+                <td class="center"><a class="btn btn-sm" href="employee.html?asUser=${escapeHtml(u.id)}" title="Voir l'espace de ce vendeur">Voir</a></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  makeSortable(document.getElementById('table-pilotage-vendeurs'));
+}
 
 function renderTable() {
   const v = document.getElementById('filtre-vendeur').value;

@@ -1,7 +1,31 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-01 (v1.14.2 — 2 produits ajoutés aux quotas fabrication vendeur)**
+> Dernière mise à jour : **2026-06-01 (v1.15.0 — pilotage vendeurs + pompistes améliorés + snapshot quota à la clôture)**
+
+---
+
+## ✅ Session 2026-06-01 — v1.15.0 : pilotage vendeurs (Ventes) + pilotage pompistes amélioré + snapshot quota
+
+### Demande patron
+Le responsable vente n'a pas accès à RH. Lui donner un suivi des quotas de ses vendeurs directement dans Ventes. Idem améliorer le pilotage pompistes (n'afficher que les dimensions actives) + pouvoir voir les vraies valeurs d'objectif des semaines passées.
+
+### Pilotage vendeurs (NOUVEAU) — [public/js/pages/ventes.js](public/js/pages/ventes.js)
+- Panneau « Pilotage vendeurs » (gaté direction + super-admin + `responsable-vente`), sous le tableau des factures. **100% lecture seule, frontend** (lit ventes + `quotasVendeur` + config, comme RH).
+- Par vendeur : **CA particulier** réalisé/quota (barre) + **statut CA**, **fabrication** (chaque produit actif faits/quota) + **statut Fabrication** (2 statuts séparés), bouton « Voir » → espace employé.
+- **Suit le sélecteur de semaine** de la page (donc semaines passées consultables sans RH).
+- RH reste bloqué pour le resp. vente (inchangé).
+
+### Pilotage pompistes amélioré — [public/js/pages/stations.js](public/js/pages/stations.js)
+- **Dimensions désactivées masquées** : si quota caoutchoucs = 0, la colonne disparaît (et inversement). On ne montre que l'actif.
+- **Sélecteur de semaine** ajouté au panneau pilotage (`chargerPilotagePompistes(debut, fin, wId, cfgQuota)` paramétré).
+
+### Snapshot des objectifs de quota à la clôture — [firebase/functions/index.js](firebase/functions/index.js)
+- `clotureHebdo` (étape 1, lundi 00h) fige désormais `quotaConfig` (`quotaBidons`, `quotaCaoutchoucs`, `quotaCAVendeur`, `quotaFabrication`) dans `/semaines/{weekKey}`.
+- Les 2 pilotages lisent cet objectif figé pour une semaine clôturée (via `payload.semaine.quotaConfig`, déjà chargé par le sélecteur — zéro requête en plus). Fallback sur la config actuelle pour la semaine en cours ET les semaines clôturées AVANT cette mise en place.
+- **Limite** : non rétroactif (les semaines déjà clôturées n'ont pas la donnée). Se résorbe semaine après semaine.
+- Déploiement ciblé : `firebase deploy --only functions:clotureHebdo`.
+- Bump `version.js` 1.14.2 → 1.15.0 (UI client → auto-reload).
 
 ---
 

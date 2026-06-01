@@ -16,6 +16,7 @@ import { isDirection, isSuperAdmin, isPompiste } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique, infoModal } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
+import { initSemaineSelector } from '../utils/semaine-selector.js';
 
 const { profile } = await requireAuth('stocks_essence');
 // fullEdit  = peut TOUT modifier (prix, capacite, seuil, N° pompe, supprimer, ajouter une station)
@@ -72,9 +73,12 @@ const html = `
 
   ${(fullEdit || profile.role === 'responsable-pompiste') ? `
   <div class="panel framed">
-    <div class="panel-title">
-      <span>Pilotage pompistes — semaine en cours</span>
-      <span class="muted" style="font-size:0.78rem;" id="pilotage-meta">—</span>
+    <div class="panel-title" style="flex-wrap:wrap;gap:8px;">
+      <span>Pilotage pompistes</span>
+      <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span class="muted" style="font-size:0.78rem;" id="pilotage-meta">—</span>
+        <select id="sel-semaine-pilotage" title="Choisir la semaine" style="min-width:200px;"></select>
+      </span>
     </div>
     <div id="pilotage-pompistes">Chargement…</div>
   </div>
@@ -573,15 +577,14 @@ async function chargerRedistributions() {
 chargerRedistributions();
 
 // === Pilotage pompistes (recap par pompiste pour resp-pompiste + direction) ===
-async function chargerPilotagePompistes() {
+async function chargerPilotagePompistes(pDebut = debut, pFin = fin, pWId = weekId(), pCfgQuota = config) {
   if (!canModerer) return;
   const div = document.getElementById('pilotage-pompistes');
   if (!div) return;
-  const wId = weekId();
   const [users, quotas, redists] = await Promise.all([
     listUsers().catch(() => []),
-    listQuotasSemaine(wId).catch(() => []),
-    listRedistributionsSemaine(debut, fin).catch(() => [])
+    listQuotasSemaine(pWId).catch(() => []),
+    listRedistributionsSemaine(pDebut, pFin).catch(() => [])
   ]);
 
   // Pompistes operationnels + resp-pompiste
@@ -611,9 +614,10 @@ async function chargerPilotagePompistes() {
     if (ts && (!v.dernier || ts > v.dernier)) v.dernier = ts;
   }
 
-  // Config quotas
-  const qB = config.quotaBidons      ?? 1700;
-  const qC = config.quotaCaoutchoucs ??  800;
+  // Config quotas : objectifs de la semaine affichée (figés pour une semaine
+  // clôturée, config actuelle pour la semaine en cours / fallback).
+  const qB = pCfgQuota.quotaBidons      ?? 1700;
+  const qC = pCfgQuota.quotaCaoutchoucs ??  800;
   const bidonsActif = qB > 0;
   const caoutsActif = qC > 0;
 
@@ -653,8 +657,8 @@ async function chargerPilotagePompistes() {
         <thead><tr>
           <th data-sort="nom">Pompiste</th>
           <th data-sort="role">Rôle</th>
-          <th data-sort="bidons">Bidons quota</th>
-          <th data-sort="caoutchoucs">Caoutchoucs quota</th>
+          ${bidonsActif ? '<th data-sort="bidons">Bidons quota</th>' : ''}
+          ${caoutsActif ? '<th data-sort="caoutchoucs">Caoutchoucs quota</th>' : ''}
           <th class="right" data-sort="litres">Litres semaine</th>
           <th class="right" data-sort="nbRavits">Ravitaillements</th>
           <th data-sort="dernier">Dernière activité</th>
@@ -673,20 +677,15 @@ async function chargerPilotagePompistes() {
             const dernierStr = v.dernier
               ? new Date(v.dernier).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
               : '<span class="muted">—</span>';
-            const bCell = bidonsActif
-              ? `<div class="mono" style="font-size:0.85rem;">${num(bDone)} / ${num(qB)}</div>
-                 <div class="progress" style="height:8px;margin-top:2px;"><div class="fill" style="width:${pctB}%;${bDone >= qB ? 'background:var(--color-cactus,#5a8);' : (pctB < 30 ? 'background:var(--color-blood);' : '')}"></div></div>`
-              : '<span class="muted" style="font-size:0.78rem;">quota désactivé</span>';
-            const cCell = caoutsActif
-              ? `<div class="mono" style="font-size:0.85rem;">${num(cDone)} / ${num(qC)}</div>
-                 <div class="progress" style="height:8px;margin-top:2px;"><div class="fill" style="width:${pctC}%;${cDone >= qC ? 'background:var(--color-cactus,#5a8);' : (pctC < 30 ? 'background:var(--color-blood);' : '')}"></div></div>`
-              : '<span class="muted" style="font-size:0.78rem;">quota désactivé</span>';
+            const cellQuota = (done, qv, pctv) => `<div class="mono" style="font-size:0.85rem;">${num(done)} / ${num(qv)}</div><div class="progress" style="height:8px;margin-top:2px;"><div class="fill" style="width:${pctv}%;${done >= qv ? 'background:var(--color-cactus,#5a8);' : (pctv < 30 ? 'background:var(--color-blood);' : '')}"></div></div>`;
+            const bCell = bidonsActif ? `<td data-sort-value="${bDone}">${cellQuota(bDone, qB, pctB)}</td>` : '';
+            const cCell = caoutsActif ? `<td data-sort-value="${cDone}">${cellQuota(cDone, qC, pctC)}</td>` : '';
             return `
               <tr>
                 <td><strong>${escapeHtml(p.prenom || '')} ${escapeHtml(p.nom || '')}</strong></td>
                 <td class="muted" style="font-size:0.78rem;">${escapeHtml(p.role || '')}</td>
-                <td data-sort-value="${bDone}">${bCell}</td>
-                <td data-sort-value="${cDone}">${cCell}</td>
+                ${bCell}
+                ${cCell}
                 <td class="right mono">${num(Math.round(v.litres))} L<div class="muted" style="font-size:0.72rem;">${v.bidons.toFixed(1)} bidons</div></td>
                 <td class="right mono">${v.nb}</td>
                 <td class="mono" style="font-size:0.78rem;" data-sort-value="${v.dernier || 0}">${dernierStr}</td>
@@ -702,7 +701,19 @@ async function chargerPilotagePompistes() {
   const tPilote = document.getElementById('table-pilotage');
   makeSortable(tPilote);
 }
-chargerPilotagePompistes();
+
+// Selecteur de semaine du panneau pilotage (direction + resp-pompiste).
+// initSemaineSelector declenche onChange immediatement -> charge la semaine
+// restauree (ou la semaine en cours par defaut).
+if (canModerer) {
+  initSemaineSelector('#sel-semaine-pilotage', {
+    storageKey: 'pilotage-pompiste-semaine',
+    onChange: ({ debut: d, fin: f, weekKey, isCurrent, semaine }) => {
+      const cfgQ = isCurrent ? config : (semaine?.quotaConfig || config);
+      chargerPilotagePompistes(d, f, isCurrent ? weekId() : weekKey, cfgQ);
+    }
+  });
+}
 
 // === Declarations caoutchoucs de la semaine (resp-pompiste + direction) ===
 async function chargerCaoutchoucs() {
