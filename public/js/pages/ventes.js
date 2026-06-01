@@ -12,7 +12,7 @@ import { ouvrirModalModifierVente } from '../utils/vente-modal.js';
 import { initSemaineSelector } from '../utils/semaine-selector.js';
 import { isVendeur, isDirection, isSuperAdmin,
          PRODUITS_QUOTA_FAB, QUOTA_CA_VENDEUR_DEFAULT } from '../utils/permissions.js';
-import { scoreQuotaFabrication, fabricationsFromQuotaDoc } from '../utils/paie.js';
+import { scoreQuotaFabrication, fabricationsFromQuotaDoc, salaireEstime } from '../utils/paie.js';
 import { nomProduit } from '../data/produits.js';
 
 // Roles autorises a modifier une vente apres verrouillage
@@ -220,7 +220,12 @@ function renderPilotageVendeurs() {
       const heuresMs = servicesPilotage
         .filter(s => s.employeId === u.id)
         .reduce((acc, s) => acc + (s.duree || 0), 0);
-      return { u, caPart, fabrications: fabricationsFromQuotaDoc(qDoc), heuresMs };
+      const fabrications = fabricationsFromQuotaDoc(qDoc);
+      const salaireEst = salaireEstime(
+        { role: u.role, caGenere: caPart, fabrications, salaireDecide: u.salaireDecide || 0 },
+        quotaCfgPilotage
+      );
+      return { u, caPart, fabrications, heuresMs, salaireEst };
     });
 
   const totalCA = vendeurs.reduce((s, x) => s + x.caPart, 0);
@@ -251,10 +256,11 @@ function renderPilotageVendeurs() {
           <th data-sort="statutca">Statut CA</th>
           <th>Fabrication</th>
           <th data-sort="statutfab">Statut Fab.</th>
+          <th class="right" data-sort="salaire">Salaire estimé</th>
           <th class="center">Voir</th>
         </tr></thead>
         <tbody>
-          ${vendeurs.map(({ u, caPart, fabrications, heuresMs }) => {
+          ${vendeurs.map(({ u, caPart, fabrications, heuresMs, salaireEst }) => {
             const pctCA = quotaCA > 0 ? Math.min(100, (caPart / quotaCA) * 100) : 0;
             const scoreCA = quotaCA > 0 ? Math.min(1, caPart / quotaCA) : 1;
             const scoreFab = scoreQuotaFabrication(fabrications, quotaFab);
@@ -280,6 +286,7 @@ function renderPilotageVendeurs() {
                 <td data-sort-value="${scoreCA}">${badge(scoreCA)}</td>
                 <td>${fabCell}</td>
                 <td data-sort-value="${scoreFab}">${fabActifs.length === 0 ? '<span class="muted">—</span>' : badge(scoreFab)}</td>
+                <td class="right mono" data-sort-value="${salaireEst}">${money(salaireEst)}</td>
                 <td class="center"><a class="btn btn-sm" href="employee.html?asUser=${escapeHtml(u.id)}" title="Voir l'espace de ce vendeur">Voir</a></td>
               </tr>
             `;

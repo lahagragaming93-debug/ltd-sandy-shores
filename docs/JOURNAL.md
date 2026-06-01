@@ -1,7 +1,17 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-01 (v1.15.1 — colonne Heures de service dans le pilotage vendeurs)**
+> Dernière mise à jour : **2026-06-01 (v1.16.0 — salaire estimé dans les pilotages + pilotage pompistes déplacé vers Revenus carburant)**
+
+---
+
+## ✅ Session 2026-06-01 — v1.16.0 : salaire estimé dans les pilotages + déplacement pilotage pompistes
+
+- **[public/js/pages/ventes.js](public/js/pages/ventes.js)** : colonne **Salaire estimé** ajoutée au Pilotage vendeurs (`salaireEstime` avec l'objectif de quota de la semaine affichée).
+- **Pilotage pompistes DÉPLACÉ** de Stations essence → **Revenus carburant** ([public/js/pages/revenus-carburant.js](public/js/pages/revenus-carburant.js)). Raison : Stations essence est consultée par les pompistes (qui n'ont pas à voir ces infos de management) ; Revenus carburant est réservée direction/DRH/responsable-pompiste. Inclut son sélecteur de semaine dédié, l'affichage des dimensions actives uniquement, et la colonne **Salaire estimé**.
+- **[public/js/pages/stations.js](public/js/pages/stations.js)** : panneau pilotage + fonction `chargerPilotagePompistes` + sélecteur retirés ; imports devenus inutiles nettoyés (`initSemaineSelector`, `salaireEstime`, `listUsers`, `listQuotasSemaine`, `weekId`).
+- **Revenus carburant** : filtre de période par défaut passé de `30j` à `semaine` (cette semaine).
+- Frontend only, lecture seule. Bump `version.js` 1.15.1 → 1.16.0. Aucun déploiement backend.
 
 ---
 
