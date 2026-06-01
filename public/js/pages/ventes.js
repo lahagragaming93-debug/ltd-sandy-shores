@@ -5,8 +5,8 @@
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
 import { listenVentesSemaine, listVentesSemaine, listUsers, listProduits,
-         getConfig, listQuotasVendeurSemaine } from '../api.js';
-import { money, num, datetime, escapeHtml, dateKeyLocal, weekId } from '../utils/formatters.js';
+         getConfig, listQuotasVendeurSemaine, listServicesSemaine } from '../api.js';
+import { money, num, datetime, escapeHtml, dateKeyLocal, weekId, durationHM } from '../utils/formatters.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 import { ouvrirModalModifierVente } from '../utils/vente-modal.js';
 import { initSemaineSelector } from '../utils/semaine-selector.js';
@@ -102,6 +102,7 @@ const usersById = users.reduce((m, u) => (m[u.id] = u, m), {});
 let configPilotage = {};       // config globale ACTUELLE (semaine en cours)
 let quotaCfgPilotage = {};      // objectifs EFFECTIFS de la semaine affichée
 let quotasVendeurPilotage = [];
+let servicesPilotage = [];      // heures de service de la semaine affichée
 if (canPilotageVendeurs) {
   configPilotage = await getConfig().catch(() => ({}));
   quotaCfgPilotage = configPilotage;
@@ -178,7 +179,12 @@ await initSemaineSelector('#selecteur-semaine', {
     // (le CA, lui, vient des ventes chargées par chargerVentes ci-dessous).
     if (canPilotageVendeurs) {
       const wId = isCurrent ? weekId() : weekKey;
-      quotasVendeurPilotage = await listQuotasVendeurSemaine(wId).catch(() => []);
+      const [qv, svc] = await Promise.all([
+        listQuotasVendeurSemaine(wId).catch(() => []),
+        listServicesSemaine(debut, fin).catch(() => [])
+      ]);
+      quotasVendeurPilotage = qv;
+      servicesPilotage = svc;
       // Objectifs de quota : semaine en cours = config actuelle ; semaine
       // clôturée = objectifs figés dans /semaines (fallback config actuelle
       // pour les semaines clôturées avant la mise en place du snapshot).
@@ -211,7 +217,10 @@ function renderPilotageVendeurs() {
       const myV = ventes.filter(v => v.vendeurId === u.id);
       const caPart = myV.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
       const qDoc = quotasVendeurPilotage.find(q => q.employeId === u.id) || {};
-      return { u, caPart, fabrications: fabricationsFromQuotaDoc(qDoc) };
+      const heuresMs = servicesPilotage
+        .filter(s => s.employeId === u.id)
+        .reduce((acc, s) => acc + (s.duree || 0), 0);
+      return { u, caPart, fabrications: fabricationsFromQuotaDoc(qDoc), heuresMs };
     });
 
   const totalCA = vendeurs.reduce((s, x) => s + x.caPart, 0);
@@ -237,6 +246,7 @@ function renderPilotageVendeurs() {
         <thead><tr>
           <th data-sort="nom">Vendeur</th>
           <th data-sort="role">Rôle</th>
+          <th class="right" data-sort="heures">Heures</th>
           <th data-sort="ca">CA particulier</th>
           <th data-sort="statutca">Statut CA</th>
           <th>Fabrication</th>
@@ -244,7 +254,7 @@ function renderPilotageVendeurs() {
           <th class="center">Voir</th>
         </tr></thead>
         <tbody>
-          ${vendeurs.map(({ u, caPart, fabrications }) => {
+          ${vendeurs.map(({ u, caPart, fabrications, heuresMs }) => {
             const pctCA = quotaCA > 0 ? Math.min(100, (caPart / quotaCA) * 100) : 0;
             const scoreCA = quotaCA > 0 ? Math.min(1, caPart / quotaCA) : 1;
             const scoreFab = scoreQuotaFabrication(fabrications, quotaFab);
@@ -265,6 +275,7 @@ function renderPilotageVendeurs() {
               <tr>
                 <td><strong>${escapeHtml(u.prenom || '')} ${escapeHtml(u.nom || '')}</strong></td>
                 <td class="muted" style="font-size:0.78rem;">${escapeHtml(u.role || '')}</td>
+                <td class="right mono" data-sort-value="${heuresMs}">${durationHM(heuresMs)}</td>
                 <td data-sort-value="${caPart}">${caCell}</td>
                 <td data-sort-value="${scoreCA}">${badge(scoreCA)}</td>
                 <td>${fabCell}</td>

@@ -1,7 +1,14 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-01 (v1.15.0 — pilotage vendeurs + pompistes améliorés + snapshot quota à la clôture)**
+> Dernière mise à jour : **2026-06-01 (v1.15.1 — colonne Heures de service dans le pilotage vendeurs)**
+
+---
+
+## ✅ Session 2026-06-01 — v1.15.1 : colonne Heures dans le pilotage vendeurs
+
+- **[public/js/pages/ventes.js](public/js/pages/ventes.js)** : ajout d'une colonne **Heures** (somme `services.duree` par vendeur, format `durationHM`) au panneau Pilotage vendeurs, juste après le Rôle. Triable, suit le sélecteur de semaine. Charge `listServicesSemaine(debut, fin)` en parallèle des quotas. **Pilotage pompistes non touché** (demande patron : vendeurs uniquement).
+- Frontend only, lecture seule. Bump `version.js` 1.15.0 → 1.15.1.
 
 ---
 
