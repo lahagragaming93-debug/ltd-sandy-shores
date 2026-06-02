@@ -46,13 +46,16 @@ export const clotureHebdo = onSchedule({
   console.log('=== Début clôture hebdomadaire (étape 1 : ventes + dépenses) ===');
   const now = new Date();
 
-  // À lundi 00:00, la semaine qui vient de finir = lundi précédent → dimanche 23:59:59
-  const fin = new Date(now.getTime() - 1); // lundi 00:00 - 1ms = dim 23:59:59.999
-  const debut = new Date(fin);
-  debut.setDate(debut.getDate() - 6);
-  debut.setHours(0, 0, 0, 0);
-
-  const weekKey = debut.toISOString().slice(0, 10);
+  // À lundi 00:00 Paris (cron), on clôture la semaine qui vient de finir.
+  // ref = now - 1ms = dimanche 23:59:59.999 Paris (exact, = instant du cron - 1ms).
+  // debut + weekKey via weekRangeRPParis (horloge Paris, DST-correct) ; fin = ref
+  // pour garder une borne haute EXACTE (le helper converge à ±1ms sur le .999).
+  // Fix 2026-06-02 : avant, debut via setHours(0,0,0,0) s'exécutait en UTC
+  // (runtime Functions) => lundi 02h00 Paris l'été => trou lundi 00h-02h dans
+  // le snapshot d'audit IRS. weekRangeRPParis ancre debut en horloge Paris.
+  const ref = new Date(now.getTime() - 1);
+  const { debut, weekKey } = weekRangeRPParis(ref);
+  const fin = ref;
 
   // Agréger (ventes produits + ventes carburant + dépenses)
   const [ventesSnap, redistSnap, depensesSnap, cfgSnap] = await Promise.all([
@@ -180,8 +183,9 @@ export const clotureHebdo = onSchedule({
 // avec le titre dynamique pour la semaine RP courante. Idempotent.
 async function renameLiveOnglets(sheets) {
   try {
-    const { debut: lundiCour, fin: dimCour } = weekRangeRPParis();
-    const wkKey = `${lundiCour.getFullYear()}-${String(lundiCour.getMonth() + 1).padStart(2, '0')}-${String(lundiCour.getDate()).padStart(2, '0')}`;
+    // wkKey vient directement de weekRangeRPParis (calcul horloge Paris correct).
+    // Avant : reconstruit via lundiCour.getDate() -> bug TZ (S-1 sur serveur UTC).
+    const { debut: lundiCour, fin: dimCour, weekKey: wkKey } = weekRangeRPParis();
     // Ex : "Semaine 21 (18-24 mai 2026)"
     const suffix = snapshotSheetTitle(wkKey, lundiCour, dimCour).replace(/^Semaine /, 'Semaine ');
     const titleVentes  = `Ventes ${suffix}`;
@@ -221,16 +225,12 @@ export const clotureHebdoPaies = onSchedule({
   console.log('=== Début clôture hebdomadaire (étape 2 : paies) ===');
   const now = new Date();
 
-  // Semaine clos il y a 2 jours (lundi 00:00 -> dimanche 23:59 il y a 2 jours)
-  // À mardi 21:05, la semaine N = mardi - 2 jours = dimanche (= dim 23:59 N)
-  const fin = new Date(now);
-  fin.setHours(0, 0, 0, 0);
-  fin.setDate(fin.getDate() - 1);   // lundi 00:00
-  fin.setMilliseconds(fin.getMilliseconds() - 1); // dimanche 23:59:59.999
-  const debut = new Date(fin);
-  debut.setDate(debut.getDate() - 6);
-  debut.setHours(0, 0, 0, 0);
-  const weekKey = debut.toISOString().slice(0, 10);
+  // Semaine close il y a 2 jours. À mardi 21:05 Paris, on vise un instant DANS
+  // cette semaine (now - 2 jours = dimanche ~21h Paris) et on prend ses bornes
+  // via weekRangeRPParis (horloge Paris, DST-correct).
+  // Fix 2026-06-02 : avant, bornes via setHours(0,0,0,0) en UTC => lundi 02h
+  // Paris l'été => trou lundi 00h-02h. Idem clotureHebdo.
+  const { debut, fin, weekKey } = weekRangeRPParis(new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000));
 
   // Fenetre paie : lundi-S 02h00 -> lundi-S+1 02h00 Paris (decalee de 2h, coherent
   // avec cloturerSemaine).
@@ -3864,8 +3864,8 @@ function parisWallToUtcGlobal(parisWall) {
   return utc;
 }
 // Retourne { debut, fin } UTC pour la semaine RP courante (lun 00:00 Paris -> dim 23:59:59.999 Paris).
-function weekRangeRPParis() {
-  const nowParis = toParisWall(new Date());
+function weekRangeRPParis(ref) {
+  const nowParis = toParisWall(ref || new Date());
   const dayParis = nowParis.getUTCDay(); // 0=dim, 1=lun
   const diff = dayParis === 0 ? 6 : dayParis - 1;
   const lundiWall = new Date(nowParis);
@@ -3874,7 +3874,13 @@ function weekRangeRPParis() {
   const dimancheWall = new Date(lundiWall);
   dimancheWall.setUTCDate(dimancheWall.getUTCDate() + 6);
   dimancheWall.setUTCHours(23, 59, 59, 999);
-  return { debut: parisWallToUtcGlobal(lundiWall), fin: parisWallToUtcGlobal(dimancheWall) };
+  // weekKey = lundi en horloge Paris. IMPORTANT : on lit les champs UTC du
+  // *wall* (lundiWall), JAMAIS getFullYear/getMonth/getDate sur le Date global
+  // retourne : sur serveur UTC en CEST, lundi 00h Paris = dim 22h UTC, donc les
+  // getters locaux retombent sur le dimanche -> weekKey decale d'un jour (bug
+  // onglets live numerotes S-1 + plage demarrant le dimanche). Cf weekRangeFromIso.
+  const weekKey = `${lundiWall.getUTCFullYear()}-${pad(lundiWall.getUTCMonth() + 1)}-${pad(lundiWall.getUTCDate())}`;
+  return { debut: parisWallToUtcGlobal(lundiWall), fin: parisWallToUtcGlobal(dimancheWall), weekKey };
 }
 
 // v1.7.8 (2026-05-24) — Helper "ISO week → bornes UTC en Europe/Paris".

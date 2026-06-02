@@ -162,7 +162,8 @@ async function chargerTout() {
         soldeApres: Number(x.soldeApres) || 0,
         raison: x.raison || '',
         source: 'depense',
-        utilisateur: x.utilisateur || ''
+        utilisateur: x.utilisateur || '',
+        typeDepense: x.type || ''
       };
     });
 
@@ -229,6 +230,24 @@ async function chargerTout() {
   }
 }
 
+// Une "paie ponctuelle du lundi" = sortie "Paye ponctuelle de membre" (le libelle
+// IG des salaires) versee un lundi (Paris). Les salaires de la semaine N sont
+// verses le lundi (apres dimanche 23h59) = debut de la semaine N+1. Cote banque,
+// on les SORT du total "Sorties" + "Net" de la semaine affichee (ils relevent de
+// la semaine precedente), tout en les gardant visibles dans la liste (tag "paie S-1").
+// NE matche PAS le transfert d'impot ("Transfert ... (Impot ...)").
+const _wdParis = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', weekday: 'short' });
+function estPaieLundi(m) {
+  if (m.type !== 'remove') return false;
+  const r = (m.raison || '').toLowerCase();
+  const estPaie = r.includes('paye ponctuelle') || m.typeDepense === 'paie';
+  if (!estPaie) return false;
+  const d = m.timestamp?.toDate ? m.timestamp.toDate()
+          : (m.timestamp?.toMillis ? new Date(m.timestamp.toMillis()) : null);
+  if (!d) return false;
+  return _wdParis.format(d) === 'Mon';
+}
+
 function rendre() {
   const filtreType = document.getElementById('filtre-type').value;
   const filtreRech = document.getElementById('filtre-recherche').value.toLowerCase().trim();
@@ -243,8 +262,14 @@ function rendre() {
   //                             PAS les subventions / virements / autres
   //                             entrees xbankaccount non-commerciales.
   //        "Sorties" + "Net" = sur la période sélectionnée
-  const nbRemove      = mouvements.filter(m => m.type === 'remove').length;
-  const totalSorties  = mouvements.filter(m => m.type === 'remove').reduce((s, m) => s + m.montant, 0);
+  // Sorties = mouvements 'remove' SAUF les paies du lundi (= paies S-1, versees
+  // apres la cloture, rattachees a la semaine precedente). Elles restent dans la
+  // liste mais hors du total Sorties + Net de la semaine en cours.
+  const removes        = mouvements.filter(m => m.type === 'remove' && !estPaieLundi(m));
+  const nbRemove       = removes.length;
+  const totalSorties   = removes.reduce((s, m) => s + m.montant, 0);
+  const paiesLundi     = mouvements.filter(estPaieLundi);
+  const totalPaiesLundi = paiesLundi.reduce((s, m) => s + m.montant, 0);
   const totalVentes   = ventesPeriode.reduce((s, v) => s + (Number(v.montant) || 0), 0);
   const nbVentes      = ventesPeriode.length;
   const totalEssence  = redistribPeriode.reduce((s, r) => s + (Number(r.montant) || 0), 0);
@@ -266,7 +291,7 @@ function rendre() {
     <div class="kpi kpi-depense">
       <div class="label">Sorties <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalSorties)}</div>
-      <div class="delta">${nbRemove} mouvements</div>
+      <div class="delta">${nbRemove} mouvements${paiesLundi.length ? ` · hors ${paiesLundi.length} paie(s) S-1 (${money(totalPaiesLundi)})` : ''}</div>
     </div>
     <div class="kpi ${(totalRecettes - totalSorties) >= 0 ? 'kpi-positive' : 'kpi-negative'}" style="border-color:var(--color-info);">
       <div class="label">Net <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
@@ -286,6 +311,7 @@ function rendre() {
 
   tbody.innerHTML = visibles.slice(0, 1000).map(m => {
     const isAdd = m.type === 'add';
+    const isPaieS1 = estPaieLundi(m);
     const badge = isAdd
       ? '<span class="badge ok">Entrée</span>'
       : '<span class="badge danger">Sortie</span>';
@@ -297,7 +323,7 @@ function rendre() {
         <td class="right mono" style="${colorMontant};font-weight:bold;">${isAdd ? '+' : '−'}${moneyPrecis(m.montant)}</td>
         <td class="right mono muted">${moneyPrecis(m.soldeAvant)}</td>
         <td class="right mono"><strong>${moneyPrecis(m.soldeApres)}</strong></td>
-        <td>${escapeHtml(m.raison || '—')}</td>
+        <td>${escapeHtml(m.raison || '—')}${isPaieS1 ? ' <span class="badge neutral" style="font-size:0.65rem;">paie S-1 · hors total</span>' : ''}</td>
         <td><span class="badge neutral">${escapeHtml(m.source)}</span></td>
       </tr>
     `;
