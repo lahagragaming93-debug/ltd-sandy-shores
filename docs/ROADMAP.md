@@ -1,7 +1,18 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-05-25 (v1.13.0 — refonte paie vendeur 50k + catalogue trim + stock auto fab)**
+> Dernière MAJ : **2026-06-02 (v1.17.0 — fix fuseau clôtures + paies S-1 hors total Sorties ; dette technique audit 2026-06-02 documentée)**
+
+## ✅ Résolus session 2026-06-02 — v1.17.0
+
+- **Fix fuseau clôtures auto** : `clotureHebdo` / `clotureHebdoPaies` calculaient leurs bornes en UTC (`setHours`) → trou **lundi 00h-02h** dans le snapshot d'audit IRS. Corrigé via `weekRangeRPParis(ref)` (horloge Paris, DST-correct). Détail : voir [JOURNAL](JOURNAL.md).
+- **Paies S-1 hors total Sorties (page Banque)** : les « Paye ponctuelle de membre » du lundi (paies S-1 versées après la clôture du dimanche) sortent du total **Sorties** + **Net** de la semaine en cours (visibles, tag « paie S-1 »). Le transfert d'impôt reste compté.
+
+## 🔍 Dette technique identifiée — audit cohérence 2026-06-02 (NON corrigé, choix patron)
+
+- **Étiquette « Paiement » toujours « especes »** : le parser bot (`discord-bot/parsers/facture.js`) classe « carte » si le texte contient « carte », sinon « especes » par défaut — aucune branche « virement ». Résultat : 100 % des ventes étiquetées « especes » (même les virements B2B), KPI « carte » structurellement à 0. **N'affecte PAS le CA.** À corriger (capter le vrai mode) ou retirer la colonne.
+- **Débordement borne « fin » de semaine (~1 s)** : `weekRangeRPParis` / `weekRangeFromIso` produisent `fin` à lundi 00:00:00.998 (au lieu de dimanche 23:59:59.999) l'été → archives affichent « Date fin = lundi ». Cosmétique + fenêtre théorique de double-comptage de ~998 ms à la frontière (négligeable). Viser 23:59:59.999 exact OU borne haute en `<` strict.
+- **Marge produits fabriqués non fiable** : pain burger / eau au catalogue avec `prixAchat`=0 → bénéfice ≈ 100 % sur les ventes B2B fabriquées (bénéfice + impôt prévisionnel surévalués). Conformité TTE Art. 2-6.2 (prix ≤ 2,5× coût) invérifiable sans coût de revient modélisé (recettes `/recettes`, déjà roadmappé). **Le résultat imposable global reste juste** (matières premières déjà déductibles au fil de l'eau).
 
 ## ✅ Résolus session 2026-05-25 — v1.13.0
 
