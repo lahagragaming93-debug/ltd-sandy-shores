@@ -705,15 +705,23 @@ function renderUsers() {
     btn.addEventListener('click', async () => {
       const ok = await confirmCritique({
         titre: 'Supprimer définitivement',
-        message: 'Cette action <strong>supprime définitivement</strong> le compte de l\'utilisateur du site.<br><br>Le compte Firebase Auth (login/email) doit être supprimé <strong>séparément</strong> depuis la console Firebase pour libérer l\'email.<br><br>Les données déjà enregistrées (ventes, paies, services) ne sont PAS supprimées (audit TTE).',
+        message: 'Cette action <strong>supprime définitivement</strong> le compte de l\'utilisateur : sa <strong>fiche</strong> ET son <strong>compte de connexion</strong> (login/email) sont supprimés — ce qui libère l\'identifiant pour une éventuelle recréation.<br><br>Les données déjà enregistrées (ventes, paies, services) ne sont PAS supprimées (audit TTE).',
         btnConfirm: 'Supprimer le compte',
         delaiSec: 3,
         requireType: 'SUPPRIMER'
       });
       if (!ok) return;
       try {
-        await deleteUser(btn.dataset.delete);
-        toastSuccess("Compte supprimé. Pense à supprimer l'utilisateur depuis Firebase Auth.");
+        const { auth } = await import('../firebase-config.js');
+        const idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/supprimerEmploye', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ targetUid: btn.dataset.delete })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+        toastSuccess("Compte supprimé (fiche + login).");
       } catch (e) { toastError(e?.message || e?.code || "Erreur inattendue."); }
     });
   });
@@ -898,7 +906,11 @@ document.getElementById('btn-creer').addEventListener('click', async () => {
     document.getElementById('alert-credentials').classList.remove('hidden');
   } catch (err) {
     console.error(err);
-    toastError(err.message || "Erreur lors de la création.");
+    if (err.code === 'auth/email-already-in-use') {
+      toastError(`L'identifiant "${data.username}" est déjà pris par un compte de connexion existant (parfois un ancien compte non listé ici). Choisis un autre identifiant, ou supprime l'ancien compte avant de recréer.`);
+    } else {
+      toastError(err.message || "Erreur lors de la création.");
+    }
   }
 });
 

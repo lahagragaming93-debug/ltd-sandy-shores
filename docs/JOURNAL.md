@@ -1,7 +1,20 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-02 (v1.17.0 — fix fuseau clôtures auto + paies S-1 hors total Sorties banque)**
+> Dernière mise à jour : **2026-06-02 (v1.18.0 — suppression employé supprime aussi le compte Auth + message clair sur identifiant déjà pris)**
+
+---
+
+## ✅ Session 2026-06-02 — v1.18.0 : suppression employé = fiche + compte Auth (fin des orphelins)
+
+### Problème
+Supprimer un employé sur le site retirait sa **fiche Firestore** mais **pas son compte Firebase Auth** (le client SDK ne peut supprimer que le compte connecté). Résultat : comptes Auth **orphelins** → à la recréation d'un même identifiant, `createUserWithEmailAndPassword` renvoyait **`auth/email-already-in-use`** (l'email interne `{username}@ltd-sandy-shores.local` étant déjà pris), alors que l'employé n'apparaissait nulle part dans Administration.
+
+### Correctif
+- **Nouvelle Cloud Function `supprimerEmploye`** ([firebase/functions/index.js](firebase/functions/index.js)) — calquée sur `adminResetPassword` : POST + `Authorization: Bearer <idToken>` → `verifyIdToken` → caller doit être patron/co-patron/admin-technique. Supprime **le compte Auth (`adminAuth.deleteUser`) ET la fiche `/users/{uid}`**. Ignore `auth/user-not-found` (orphelin déjà parti). Garde-fous : pas d'auto-suppression, pas de suppression d'un patron sauf par patron/admin-technique. Les ventes/paies/services restent (audit TTE).
+- **Bouton « Supprimer »** ([public/js/pages/admin.js](public/js/pages/admin.js)) : appelle désormais `supprimerEmploye` (au lieu du `deleteUser` Firestore-only). Message de confirmation + toast mis à jour (« fiche + login », plus de « pense à supprimer depuis Firebase Auth »).
+- **Création** : message clair sur `auth/email-already-in-use` (« identifiant déjà pris par un compte de connexion existant… ») au lieu de l'erreur Firebase brute.
+- **Déploiement** : Functions (`firebase deploy --only functions`) + frontend (push `main`). Bump `version.js` 1.17.0 → 1.18.0.
 
 ---
 

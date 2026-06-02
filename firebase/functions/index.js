@@ -2246,6 +2246,67 @@ export const adminResetPassword = onRequest({
   }
 });
 
+// supprimerEmploye — Supprime un compte employé (fiche Firestore + compte Auth)
+// ----------------------------------------------------------------
+// Sécurité : caller doit être Patron / Co-Patron / Admin Technique
+// (vérifié via le ID token Firebase Auth fourni en header).
+// Supprime À LA FOIS la fiche /users/{uid} ET le compte Firebase Auth, pour ne
+// plus laisser de compte Auth orphelin — qui bloquait la recréation d'un même
+// identifiant (erreur auth/email-already-in-use, le client SDK ne pouvant pas
+// supprimer un autre compte Auth que le sien).
+// Les données métier (ventes, paies, services) ne sont PAS touchées (audit TTE).
+// ----------------------------------------------------------------
+export const supprimerEmploye = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const callerRole = callerSnap.data().role;
+    const ROLES_ADMIN = ['patron', 'co-patron', 'admin-technique'];
+    if (!ROLES_ADMIN.includes(callerRole)) {
+      return res.status(403).json({ error: 'Only patron/co-patron/admin-technique can delete accounts' });
+    }
+
+    const { targetUid } = req.body || {};
+    if (!targetUid) return res.status(400).json({ error: 'Missing targetUid' });
+    if (targetUid === decoded.uid) return res.status(403).json({ error: 'Cannot delete your own account' });
+
+    // Garde-fou patron : seul un patron ou un admin-technique peut supprimer un patron.
+    const targetSnap = await db.collection('users').doc(targetUid).get();
+    if (targetSnap.exists) {
+      const targetRole = targetSnap.data().role;
+      if (targetRole === 'patron' && callerRole !== 'patron' && callerRole !== 'admin-technique') {
+        return res.status(403).json({ error: 'Only patron or admin-technique can delete the patron account' });
+      }
+    }
+
+    // 1) Compte Firebase Auth (libère l'email/login). Ignore s'il est déjà absent.
+    let authDeleted = false;
+    try {
+      await adminAuth.deleteUser(targetUid);
+      authDeleted = true;
+    } catch (e) {
+      if (e.code !== 'auth/user-not-found') throw e;
+    }
+
+    // 2) Fiche Firestore (les ventes/paies/services restent pour l'audit TTE).
+    await db.collection('users').doc(targetUid).delete();
+
+    return res.status(200).json({ ok: true, authDeleted });
+  } catch (err) {
+    console.error('[supprimerEmploye]', err);
+    return res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
 // ----------------------------------------------------------------
 // pompisteRavitaillerManuel — Le pompiste declare avoir mis N bidons.
 // ----------------------------------------------------------------

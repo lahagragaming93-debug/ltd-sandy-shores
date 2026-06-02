@@ -1,7 +1,11 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-06-02 (v1.17.0 — fix fuseau clôtures + paies S-1 hors total Sorties ; dette technique audit 2026-06-02 documentée)**
+> Dernière MAJ : **2026-06-02 (v1.18.0 — suppression employé supprime aussi le compte Auth, fin des orphelins)**
+
+## ✅ Résolus session 2026-06-02 — v1.18.0
+
+- **Comptes Auth orphelins / `auth/email-already-in-use`** : supprimer un employé ne supprimait pas son compte Firebase Auth → blocage à la recréation du même identifiant. Nouvelle Cloud Function `supprimerEmploye` (Admin SDK, admin-gated) qui supprime **fiche + compte Auth** ; le bouton « Supprimer » l'appelle ; message clair à la création si l'identifiant est déjà pris. Détail : voir [JOURNAL](JOURNAL.md).
 
 ## ✅ Résolus session 2026-06-02 — v1.17.0
 
