@@ -1,7 +1,24 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-01 (v1.16.0 — salaire estimé dans les pilotages + pilotage pompistes déplacé vers Revenus carburant)**
+> Dernière mise à jour : **2026-06-02 (v1.17.0 — fix fuseau clôtures auto + paies S-1 hors total Sorties banque)**
+
+---
+
+## ✅ Session 2026-06-02 — v1.17.0 : fix fuseau clôtures auto + paies S-1 hors total Sorties (Banque)
+
+### Bug de fuseau (clôtures automatiques) — [firebase/functions/index.js](firebase/functions/index.js)
+- `clotureHebdo` et `clotureHebdoPaies` calculaient leurs bornes de semaine avec `setHours(0,0,0,0)` exécuté en **UTC** (runtime Functions) → début de semaine ancré à **lundi 02h00 Paris** l'été → **trou lundi 00h-02h** : les opérations de ce créneau étaient exclues du snapshot d'audit IRS (ex. réel W23 : ventes 1952101/1952103 de 720 $ à 01h38/01h39 + dépense essence 81 $ à 00h53).
+- Corrigé : bornes via `weekRangeRPParis(ref)` (horloge Paris, DST-correct). `clotureHebdo` garde un `fin` **exact** (`now - 1ms`) ; `clotureHebdoPaies` vise la semaine close via `now - 2 jours`. Fenêtre de paie (lundi 02h → lundi+1 02h Paris) conservée, désormais juste été **et** hiver.
+- `weekRangeRPParis(ref)` rendu **paramétrable** (rétro-compatible : sans argument = `new Date()`, comportement inchangé pour les endpoints, `renameLiveOnglets`, etc.).
+- Vérifié par test isolé (été/hiver) : bornes justes, opération de la zone morte ré-incluse.
+- **Déploiement backend** : `firebase deploy --only functions` (ltd-sandy-shores-f3919).
+
+### Paies S-1 hors total Sorties — [public/js/pages/banque.js](public/js/pages/banque.js)
+- Les sorties **« Paye ponctuelle de membre »** datées du **lundi** (= paies de la semaine S-1, versées après la clôture du dimanche 23h59) sont exclues du total **Sorties** + **Net** de la semaine affichée, mais restent **visibles** avec un tag « paie S-1 · hors total ». Le **transfert d'impôt** reste compté (déclaré en fin de semaine).
+- Helper `estPaieLundi(m)` : raison ~« paye ponctuelle » (ou `type='paie'`), gated lundi Paris. `depOps` capte désormais `typeDepense`.
+- Vérifié live W23 : **165 774 $** exclus (= total `/paies` au centime), Sorties 282 578 → **116 804 $**, transfert IRS conservé.
+- Bump `version.js` 1.16.0 → **1.17.0**. Déploiement frontend GitHub Pages (push `main`).
 
 ---
 
