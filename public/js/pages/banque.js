@@ -270,11 +270,27 @@ function rendre() {
   const totalSorties   = removes.reduce((s, m) => s + m.montant, 0);
   const paiesLundi     = mouvements.filter(estPaieLundi);
   const totalPaiesLundi = paiesLundi.reduce((s, m) => s + m.montant, 0);
-  const totalVentes   = ventesPeriode.reduce((s, v) => s + (Number(v.montant) || 0), 0);
-  const nbVentes      = ventesPeriode.length;
+  // Sépare le VRAI CA épicerie (categorieFiscale 'vente') des entrées classées
+  // fiscalement (don reçu, subvention, autre entrée) : elles sont bien encaissées
+  // (donc dans le total + la banque), mais affichées À PART pour ne pas gonfler
+  // le chiffre "épicerie" (sinon un don de 300K passe pour du CA épicerie).
+  const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
+  const ventesEpicerie = ventesPeriode.filter(estVenteCA);
+  const ventesClassees = ventesPeriode.filter(v => !estVenteCA(v));
+  const totalVentes   = ventesEpicerie.reduce((s, v) => s + (Number(v.montant) || 0), 0);
+  const nbVentes      = ventesEpicerie.length;
+  const LABELS_CAT_FISC = { 'don-recu': 'don reçu', 'don-verse': 'don versé', 'subvention': 'subvention', 'autre-entree': 'autre entrée' };
+  const classeesParCat = {};
+  ventesClassees.forEach(v => {
+    const c = v.categorieFiscale;
+    (classeesParCat[c] = classeesParCat[c] || { total: 0, n: 0 });
+    classeesParCat[c].total += (Number(v.montant) || 0);
+    classeesParCat[c].n += 1;
+  });
+  const totalClassees = ventesClassees.reduce((s, v) => s + (Number(v.montant) || 0), 0);
   const totalEssence  = redistribPeriode.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const nbEssence     = redistribPeriode.length;
-  const totalRecettes = totalEssence + totalVentes;
+  const totalRecettes = totalEssence + totalVentes + totalClassees; // argent réellement encaissé (épicerie + essence + entrées classées)
   const periodeLabel  = getPeriodeLabel();
 
   document.getElementById('kpis-banque').innerHTML = `
@@ -283,10 +299,10 @@ function rendre() {
       <div class="value">${money(soldeLive.montant)}</div>
       <div class="delta">au ${escapeHtml(datetime(soldeLive.date) || '—')} · live, indépendant du filtre</div>
     </div>
-    <div class="kpi kpi-recette" title="Ventes essence (redistributions NPC carte + cash/manuel pompiste) + ventes epicerie /ventes toutes methodes de paiement. Exclut subventions/virements/autres entrees banque non-commerciales.">
+    <div class="kpi kpi-recette" title="Ventes essence (redistributions) + ventes épicerie (/ventes, toutes méthodes de paiement) + entrées classées (don reçu, etc.). Les entrées classées restent dans le total (argent encaissé) mais sont affichées À PART, hors « épicerie », pour ne pas fausser le CA épicerie.">
       <div class="label">Recettes totales <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
       <div class="value">${money(totalRecettes)}</div>
-      <div class="delta">${money(totalEssence)} essence (${nbEssence}) · ${money(totalVentes)} épicerie (${nbVentes})</div>
+      <div class="delta">${money(totalEssence)} essence (${nbEssence}) · ${money(totalVentes)} épicerie (${nbVentes})${Object.keys(classeesParCat).map(c => ` · ${money(classeesParCat[c].total)} ${LABELS_CAT_FISC[c] || c} (${classeesParCat[c].n})`).join('')}</div>
     </div>
     <div class="kpi kpi-depense">
       <div class="label">Sorties <span class="muted" style="font-size:0.7rem;">(${escapeHtml(periodeLabel)})</span></div>
