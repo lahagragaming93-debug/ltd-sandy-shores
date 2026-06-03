@@ -14,6 +14,18 @@ import { isVendeur, isDirection, isSuperAdmin,
          PRODUITS_QUOTA_FAB, QUOTA_CA_VENDEUR_DEFAULT } from '../utils/permissions.js';
 import { scoreQuotaFabrication, fabricationsFromQuotaDoc, salaireEstime } from '../utils/paie.js';
 import { nomProduit } from '../data/produits.js';
+import { auth } from '../firebase-config.js';
+import { toastSuccess, toastError } from '../utils/toast.js';
+
+const CAT_FN_BASE = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
+const CATEGORIES_FISCALES = [
+  ['vente', 'Vente'], ['don-recu', 'Don reçu'], ['don-verse', 'Don versé'],
+  ['subvention', 'Subvention'], ['autre-entree', 'Autre entrée']
+];
+function labelCategorieFiscale(cf) {
+  const found = CATEGORIES_FISCALES.find(([v]) => v === cf);
+  return found ? found[1] : 'Vente';
+}
 
 // Roles autorises a modifier une vente apres verrouillage
 const PEUT_MODIFIER = ['patron', 'co-patron', 'admin-technique', 'drh', 'responsable-vente'];
@@ -336,19 +348,30 @@ function renderTable() {
         ? `<button class="btn btn-sm btn-modif-vente" data-id="${escapeHtml(v.id)}" title="Modifier la vente" data-tooltip="Modifier">Modifier</button>`
         : `<button class="btn btn-sm" disabled title="Semaine clôturée — non modifiable" data-tooltip="Semaine clôturée">Clôturée</button>`;
     }
+    // Classification fiscale (déclaration IRS). Hors 'vente' = exclu du CA.
+    const cf = v.categorieFiscale || 'vente';
+    let selCategorie = '';
+    if (peutModifier) {
+      const opts = CATEGORIES_FISCALES
+        .map(([val, lab]) => `<option value="${val}"${cf === val ? ' selected' : ''}>${lab}</option>`).join('');
+      selCategorie = `<select class="sel-cat-vente" data-id="${escapeHtml(v.id)}" title="Catégorie fiscale — hors « Vente » = sorti du CA et transmis au cabinet" style="font-size:0.74rem;margin-top:4px;width:100%;">${opts}</select>`;
+    }
+    const catBadge = cf !== 'vente'
+      ? ` <span class="badge" style="background:rgba(120,170,90,0.22);color:#9c6;font-size:0.64rem;" title="Hors CA — déclaré en ${labelCategorieFiscale(cf)}">${labelCategorieFiscale(cf)}</span>`
+      : '';
     return `
       <tr>
         <td class="mono">${datetime(v.timestamp)}</td>
         <td class="mono">#${escapeHtml(v.factureId || v.id)}</td>
         <td>${vendeur ? escapeHtml(vendeur.prenom + ' ' + vendeur.nom) : escapeHtml(v.vendeurNom || '—')}</td>
         <td>${escapeHtml(v.client || '—')}</td>
-        <td class="right mono">${money(v.montant)}</td>
+        <td class="right mono">${money(v.montant)}${catBadge}</td>
         <td class="right mono ${(v.benefice||0) >= 0 ? '' : 'muted'}">${money(v.benefice || 0)}</td>
         <td><span class="badge neutral">${escapeHtml(v.paiement || '—')}</span></td>
         <td class="muted">${escapeHtml(v.raison || '')}</td>
         <td class="center">${verif}</td>
         <td class="center">${sourceTag}${modifIcon}</td>
-        <td class="actions-cell">${btnModif}</td>
+        <td class="actions-cell">${btnModif}${selCategorie}</td>
       </tr>
     `;
   }).join('');
@@ -367,12 +390,43 @@ function renderTable() {
         });
       });
     });
+
+    // Bind sélecteurs de catégorie fiscale (don reçu/versé, subvention, autre entrée)
+    tbody.querySelectorAll('.sel-cat-vente').forEach(sel => {
+      const avant = sel.value;
+      sel.addEventListener('change', async () => {
+        const id = sel.dataset.id;
+        const categorieFiscale = sel.value;
+        sel.disabled = true;
+        try {
+          const idToken = await auth.currentUser.getIdToken();
+          const resp = await fetch(`${CAT_FN_BASE}/categoriserVente`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+            body: JSON.stringify({ venteId: id, categorieFiscale })
+          });
+          const json = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+          toastSuccess(categorieFiscale === 'vente'
+            ? 'Reclassé en vente (compté dans le CA).'
+            : `Classé en « ${labelCategorieFiscale(categorieFiscale)} » — sorti du CA, transmis au cabinet pour le JSON IRS.`);
+          // listenVentesSemaine re-render tout seul (badge + CA mis à jour)
+        } catch (e) {
+          sel.value = avant;
+          toastError('Échec classification : ' + (e?.message || 'erreur inattendue.'));
+        } finally {
+          sel.disabled = false;
+        }
+      });
+    });
   }
 }
 
 function renderKpis() {
-  const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
-  const benefice = ventes.reduce((s, v) => s + (v.benefice || 0), 0);
+  // CA = ventes uniquement ; les entrées classées (dons/subventions/autres) sont hors CA.
+  const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
+  const ca = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
+  const benefice = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.benefice || 0) : 0), 0);
 
   // Comptage generique de toutes les valeurs de `paiement` rencontrees
   // (especes, carte, autre, virement, ...). Avant : seules "especes" et "carte"

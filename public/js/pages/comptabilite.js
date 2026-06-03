@@ -406,7 +406,8 @@ async function chargerTout() {
   // Cache les patterns fournisseurs pour la modale Reclasser
   window._cfgFournisseurs = cfg.fournisseurs || [];
 
-  const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
+  const ca = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   // Subventions : recette NON IMPOSABLE (TTE Art. 4-2.16). Comptee dans le
   // benefice net (tresorerie reelle) mais PAS dans le resultat imposable.
@@ -1095,7 +1096,8 @@ document.getElementById('btn-export-csv').addEventListener('click', async () => 
     listRedistributionsSemaine(debut, fin).catch(() => []),
     listSubventionsSemaine(debut, fin).catch(() => [])
   ]);
-  const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
+  const ca = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const caTotal = ca + caCarburant;
   const totalSubv = subv.reduce((s, b) => s + (Number(b.montant) || 0), 0);

@@ -91,10 +91,14 @@ export const clotureHebdo = onSchedule({
   const ventesFiltrees = ventesSnap.docs.map(d => d.data())
     .filter(v => v.source === 'discord' && !v.annulee);
 
-  const caProduits  = ventesFiltrees.reduce((s, v) => s + (Number(v.montant) || 0), 0);
+  // Une entrée classée fiscalement hors 'vente' (don reçu/versé, subvention,
+  // autre entrée) ne compte PAS dans le CA produits (Art 4-2.1 : CA = ventes/
+  // contrats/abonnements). Défaut (champ absent) = 'vente' → inchangé.
+  const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
+  const caProduits  = ventesFiltrees.reduce((s, v) => s + (estVenteCA(v) ? (Number(v.montant) || 0) : 0), 0);
   const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
   const ca          = caProduits + caCarburant;
-  const benefice    = ventesFiltrees.reduce((s, v) => s + (Number(v.benefice) || 0), 0);
+  const benefice    = ventesFiltrees.reduce((s, v) => s + (estVenteCA(v) ? (Number(v.benefice) || 0) : 0), 0);
   // Exclure les depenses type='paie' (doublon avec /paies). Sinon les paies
   // sont comptees 2 fois : depenses + masseSalariale.
   const depensesReelles = depensesSnap.docs.filter(d => d.data().type !== 'paie');
@@ -4156,7 +4160,7 @@ async function csvVentes(usersByDiscord, bounds = null) {
   //
   // Les ventes bot dédupliquées (cachee=true) RESTENT affichées : c'est
   // justement la facture IG d'origine que l'auditeur veut voir.
-  const lines = [csvRow('Date', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison')];
+  const lines = [csvRow('Date', 'N° Facture IG', 'Vendeur', 'Client', 'Montant', 'Paiement', 'Raison', 'Catégorie fiscale')];
   for (const d of snap.docs) {
     const v = d.data();
     if (v.source !== 'discord') continue; // skip déclarations manuelles
@@ -4169,7 +4173,8 @@ async function csvVentes(usersByDiscord, bounds = null) {
       v.clientNom || v.client || '',
       v.montant || 0,
       v.paiement || '',
-      v.raison || ''
+      v.raison || '',
+      v.categorieFiscale || 'vente'   // 'vente' = CA ; don-recu/don-verse/subvention/autre-entree = hors CA (BLA classe dans le JSON IRS)
     ));
   }
   return lines.join('\n');
@@ -4715,6 +4720,61 @@ async function csvSemainesFermees() {
 //     /config/global.fournisseurs pour que toutes les futures dépenses
 //     correspondantes héritent automatiquement de cette classification.
 // ----------------------------------------------------------------
+// ----------------------------------------------------------------
+// categoriserVente : classe fiscalement une entrée encaissée.
+// Une "vente" peut en réalité être un don reçu/versé, une subvention ou
+// une autre entrée (Code TTE Art. 3-1.5 / 4-2). Classée hors 'vente', elle
+// SORT du CA produits (clôture + compta) et est exportée avec sa catégorie
+// pour que le cabinet (BLA) la place dans la bonne case du JSON IRS
+// (ex. « Montant Dons Reçu », imposable 10%/30%).
+// Direction uniquement. Cloud Function = admin SDK (bypass règles Firestore).
+// ----------------------------------------------------------------
+const CATEGORIES_FISCALES = ['vente', 'don-recu', 'don-verse', 'subvention', 'autre-entree'];
+export const categoriserVente = onRequest({
+  region: 'europe-west1',
+  cors: true
+}, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  try {
+    const authHeader = req.get('Authorization') || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    const callerSnap = await db.collection('users').doc(decoded.uid).get();
+    if (!callerSnap.exists) return res.status(403).json({ error: 'Caller profile not found' });
+    const caller = callerSnap.data();
+    const role = caller.role || '';
+    if (role !== 'patron' && role !== 'co-patron' && role !== 'admin-technique') {
+      return res.status(403).json({ error: 'Seule la direction peut classer fiscalement une entrée.' });
+    }
+
+    const { venteId, categorieFiscale, noteAudit } = req.body || {};
+    if (!venteId) return res.status(400).json({ error: 'venteId manquant' });
+    if (!CATEGORIES_FISCALES.includes(categorieFiscale)) {
+      return res.status(400).json({ error: 'categorieFiscale invalide' });
+    }
+
+    const venteRef = db.collection('ventes').doc(venteId);
+    const venteSnap = await venteRef.get();
+    if (!venteSnap.exists) return res.status(404).json({ error: 'Entrée introuvable' });
+
+    await venteRef.set({
+      categorieFiscale,
+      categoriseParPatron: true,
+      categorisePar: decoded.uid,
+      categoriseParNom: `${caller.prenom || ''} ${caller.nom || ''}`.trim(),
+      dateCategorisation: FieldValue.serverTimestamp(),
+      noteCategorisation: noteAudit || null
+    }, { merge: true });
+
+    return res.json({ ok: true, venteId, categorieFiscale });
+  } catch (e) {
+    console.error('[categoriserVente]', e);
+    return res.status(500).json({ error: e.message || 'Erreur interne' });
+  }
+});
+
 export const reclasserDepense = onRequest({
   region: 'europe-west1',
   cors: true
@@ -5267,10 +5327,12 @@ export const cloturerSemaine = onRequest({
     // restent valides pour l'audit IRS.
     const ventes = ventesSnap.docs.map(d => d.data())
       .filter(v => v.source === 'discord' && !v.annulee);
-    const caProduits = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+    // Exclut du CA les entrées classées hors 'vente' (dons/subventions/autres).
+    const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
+    const caProduits = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
     const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
     const ca = caProduits + caCarburant;
-    const beneficeBrut = ventes.reduce((s, v) => s + (v.benefice || 0), 0);
+    const beneficeBrut = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.benefice || 0) : 0), 0);
     const depReelles = depensesSnap.docs.map(d => d.data()).filter(d => d.type !== 'paie');
     const depTotal = depReelles.reduce((s, d) => s + (d.montant || 0), 0);
     const dedu = depReelles.filter(d => d.deductible !== false).reduce((s, d) => s + (d.montant || 0), 0);
