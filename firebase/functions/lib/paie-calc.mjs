@@ -180,9 +180,12 @@ export function calculerPaieEstimee({ user, ventes = [], redistributions = [], q
 
   // CA personnel = ventes attribuees a cet utilisateur
   const myVentes = ventes.filter(v => v.vendeurId === user.id);
-  const ca = myVentes.reduce((s, v) => s + (Number(v.montant) || 0), 0);
+  // Un don/subvention classé sur une vente ne compte ni dans le CA ni dans la
+  // commission du vendeur (sinon salaire estimé gonflé artificiellement).
+  const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
+  const ca = myVentes.reduce((s, v) => s + (estVenteCA(v) ? (Number(v.montant) || 0) : 0), 0);
   const caParticulier = myVentes.reduce(
-    (s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0
+    (s, v) => s + (estVenteCA(v) ? (v.montantParticulier ?? v.montant ?? 0) : 0), 0
   );
 
   // Quota pompiste

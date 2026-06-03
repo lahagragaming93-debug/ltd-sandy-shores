@@ -131,10 +131,10 @@ async function chargerKpis() {
     listSubventionsSemaine(debut, fin).catch(() => [])
   ]);
 
-  const ca = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const ca = ventes.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montant || 0) : 0), 0); // dons/subventions hors CA
   const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const caTotal = ca + caCarburant;
-  const benefice = ventes.reduce((s, v) => s + (v.benefice || 0), 0);
+  const benefice = ventes.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.benefice || 0) : 0), 0);
   // Depenses : exclut type='paie' (doublon)
   const totalDepenses = depenses.filter(d => d.type !== 'paie').reduce((s, d) => s + (d.montant || 0), 0);
   const totalSubventions = subventions.reduce((s, b) => s + (Number(b.montant) || 0), 0);
@@ -146,7 +146,7 @@ async function chargerKpis() {
   let masseEstimee = 0;
   for (const usr of allUsers.filter(x => compteEnFinance(x.role) && x.statut === 'actif')) {
     const myV = ventes.filter(v => v.vendeurId === usr.id);
-    const myCaParticulier = myV.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
+    const myCaParticulier = myV.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montantParticulier ?? v.montant ?? 0) : 0), 0); // don hors CA → pas de salaire gonflé
     const q = quotas.find(qu => qu.employeId === usr.id) || { bidons: 0, caoutchoucs: 0 };
     const qv = quotasV.find(qu => qu.employeId === usr.id) || {};
     masseEstimee += salaireEstime({
@@ -225,7 +225,7 @@ async function chargerKpis() {
   ventes.forEach(v => {
     const t = v.timestamp?.toDate?.() || new Date();
     const j = t.toLocaleDateString('fr-FR', { weekday: 'long' }).toLowerCase();
-    if (ventesParJour[j] != null) ventesParJour[j] += (v.montant || 0);
+    if (ventesParJour[j] != null) ventesParJour[j] += ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montant || 0) : 0);
   });
   renderChartVentes(ventesParJour);
 

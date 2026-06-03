@@ -436,7 +436,7 @@ async function chargerTout() {
   let masseEstimee = 0;
   for (const usr of users.filter(x => compteEnFinance(x.role) && x.statut === 'actif')) {
     const myV = ventes.filter(v => v.vendeurId === usr.id);
-    const myCaParticulier = myV.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
+    const myCaParticulier = myV.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montantParticulier ?? v.montant ?? 0) : 0), 0); // don hors commission
     const q = quotas.find(qu => qu.employeId === usr.id) || { bidons: 0, caoutchoucs: 0 };
     const qv = quotasV.find(qu => qu.employeId === usr.id) || {};
     masseEstimee += salaireEstime({

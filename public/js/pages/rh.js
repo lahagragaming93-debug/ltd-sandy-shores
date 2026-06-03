@@ -268,9 +268,10 @@ function calculerMetriques() {
   metricsByUser = {};
   users.forEach(u => {
     const myVentes = ventes.filter(v => v.vendeurId === u.id);
-    const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
-    const caParticulier = myVentes.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
-    const benefice = myVentes.reduce((s, v) => s + (v.benefice || 0), 0);
+    const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente'; // don/subvention hors CA & hors commission
+    const ca = myVentes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
+    const caParticulier = myVentes.reduce((s, v) => s + (estVenteCA(v) ? (v.montantParticulier ?? v.montant ?? 0) : 0), 0);
+    const benefice = myVentes.reduce((s, v) => s + (estVenteCA(v) ? (v.benefice || 0) : 0), 0);
 
     const myServices = services.filter(s => s.employeId === u.id);
     const heuresMs = myServices.reduce((s, x) => s + (x.duree || 0), 0);
@@ -307,7 +308,7 @@ function calculerMetriques() {
 function renderKpis() {
   // On exclut les rôles techniques (admin-technique) des calculs financiers / masse salariale
   const usersFinance = users.filter(u => compteEnFinance(u.role));
-  const caProduits   = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const caProduits   = ventes.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montant || 0) : 0), 0); // dénominateur masse/CA TTE : hors dons
   // CA carburant POMPISTE seulement (source 'manuel-pompiste') : exclut les
   // ventes NPC automatiques (source 'banqueLtd-redistribution') qui ne sont
   // liees a aucun employe. Avant le fix, ces ventes gonflaient le denominateur

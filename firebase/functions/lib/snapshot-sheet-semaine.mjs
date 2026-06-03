@@ -145,7 +145,7 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
   // 3 colonnes x 3 KPI valeur + 1 row detail
   // Donnees figees : on lit semaineData (doc /semaines/{weekKey}) en priorite,
   // mais on recalcule a partir des collections pour tracabilite croisee.
-  const caProduits  = Number(semaineData?.caProduits ?? 0) || ventes.reduce((s, v) => s + (Number(v.montant) || 0), 0);
+  const caProduits  = Number(semaineData?.caProduits ?? 0) || ventes.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (Number(v.montant) || 0) : 0), 0); // fallback : dons hors CA (cohérent avec clôture)
   const caCarburant = Number(semaineData?.caCarburant ?? 0);
   const caTotal     = Number(semaineData?.ca ?? (caProduits + caCarburant));
   const depTotal    = Number(semaineData?.depensesTotales ?? semaineData?.depenses ?? depenses.reduce((s, d) => s + (Number(d.montant) || 0), 0));

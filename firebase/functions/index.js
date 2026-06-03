@@ -299,7 +299,7 @@ async function genererAvertissementsAuto(weekKey, debutSem, finSem) {
   const caParVendeur = {};
   ventesSnap.docs.forEach(d => {
     const v = d.data();
-    if (v.vendeurId) caParVendeur[v.vendeurId] = (caParVendeur[v.vendeurId] || 0) + (Number(v.montant) || 0);
+    if (v.vendeurId && (!v.categorieFiscale || v.categorieFiscale === 'vente')) caParVendeur[v.vendeurId] = (caParVendeur[v.vendeurId] || 0) + (Number(v.montant) || 0); // don hors quota vendeur
   });
   const quotaPByUser = new Map(quotasPSnap.docs.map(d => [d.data().employeId, d.data()]));
   const quotaVByUser = new Map(quotasVSnap.docs.map(d => [d.data().employeId, d.data()]));

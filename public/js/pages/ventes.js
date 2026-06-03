@@ -227,7 +227,7 @@ function renderPilotageVendeurs() {
     .filter(u => u.statut === 'actif' && isVendeur(u.role))
     .map(u => {
       const myV = ventes.filter(v => v.vendeurId === u.id);
-      const caPart = myV.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
+      const caPart = myV.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montantParticulier ?? v.montant ?? 0) : 0), 0); // don hors CA vendeur
       const qDoc = quotasVendeurPilotage.find(q => q.employeId === u.id) || {};
       const heuresMs = servicesPilotage
         .filter(s => s.employeId === u.id)

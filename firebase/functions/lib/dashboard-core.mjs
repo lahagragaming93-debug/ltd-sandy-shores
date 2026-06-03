@@ -192,7 +192,7 @@ async function chargerDonnees(db) {
   const totalDettesRestantes = engagements.reduce((s, e) => s + (Number(e.montantRestant) || 0), 0);
 
   // Calculs
-  const caProduits  = ventes.reduce((s, v) => s + (v.montant || 0), 0);
+  const caProduits  = ventes.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montant || 0) : 0), 0); // dons/subventions hors CA
   const caCarburant = redis.reduce((s, r) => s + (Number(r.montant) || 0), 0);
   const caTotal     = caProduits + caCarburant;
   const totalDep    = depenses.reduce((s, d) => s + (d.montant || 0), 0);

@@ -428,8 +428,9 @@ async function chargerEtRendreDetail({ debut: sDebut, fin: sFin, isCurrent, week
 }
 
 function renderVendeur(myVentes, quotaV, isCurrent) {
-  const ca = myVentes.reduce((s, v) => s + (v.montant || 0), 0);
-  const caParticulier = myVentes.reduce((s, v) => s + (v.montantParticulier ?? v.montant ?? 0), 0);
+  const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente'; // don/subvention hors CA & hors commission
+  const ca = myVentes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
+  const caParticulier = myVentes.reduce((s, v) => s + (estVenteCA(v) ? (v.montantParticulier ?? v.montant ?? 0) : 0), 0);
   const caPro = ca - caParticulier;
 
   // Fabrications de la semaine (cumul par produit) + score quota
