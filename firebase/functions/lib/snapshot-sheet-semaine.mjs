@@ -152,6 +152,8 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
   const chargesDedu = Number(semaineData?.chargesDeductibles ?? depenses.filter(d => d.deductible !== false).reduce((s, d) => s + (Number(d.montant) || 0), 0));
   const masseSal    = Number(semaineData?.masseSalariale ?? paies.reduce((s, p) => s + (Number(p.montant) || 0), 0));
   const beneficeNet = Number(semaineData?.beneficeNet ?? (caTotal - depTotal - masseSal));
+  // Dons reçus : encaissés mais HORS CA, imposables à part (10/30% Art 3-1.5).
+  const donsRecus = Number(semaineData?.donsRecus ?? 0) || ventes.reduce((s, v) => s + (v.categorieFiscale === 'don-recu' ? (Number(v.montant) || 0) : 0), 0);
 
   // KPI ligne 1 (rows 4-5) : CA total · Charges dedu · Benefice net
   rows.push([
@@ -169,6 +171,9 @@ function buildSnapshot({ weekKey, debut, fin, semaineData, ventes, depenses, pai
     `${depenses.filter(d => d.deductible !== false).length}/${depenses.length} dépenses dédu · Total dépenses ${moneyStr(depTotal)}`, null, null,
     `CA − dépenses − salaires versés · ${beneficeNet >= 0 ? 'positif' : '⚠ déficitaire'}`, null, null
   ]); // row 6 : details
+  if (donsRecus > 0) {
+    rows.push([`🎁 DONS REÇUS ${moneyStr(donsRecus)}`, null, null, 'hors CA · imposable 30% (Art 3-1.5)', null, null, 'À déclarer en « Montant Dons Reçu »', null, null]); // row don
+  }
   rows.push(['', '', '', '', '', '', '', '', '']); // row 7 spacer
 
   // === SECTION VENTES ===

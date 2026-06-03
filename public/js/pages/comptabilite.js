@@ -916,7 +916,8 @@ async function renderSemaineFigee(s) {
   document.getElementById('tbody-recettes').innerHTML = `
     <tr><td>CA produits</td><td class="right mono">${money(s.caProduits || (s.ca - (s.caCarburant || 0)))}</td></tr>
     <tr><td>CA carburant</td><td class="right mono">${money(s.caCarburant || 0)}</td></tr>
-    <tr class="row-total"><td>Total recettes</td><td class="right mono">${money(s.ca)}</td></tr>
+    <tr class="row-total"><td>Total recettes (CA)</td><td class="right mono">${money(s.ca)}</td></tr>
+    ${s.donsRecus ? `<tr><td>Dons reçus <span class="muted" style="font-size:0.75rem;">(hors CA · imposable 30%)</span></td><td class="right mono">${money(s.donsRecus)}</td></tr>` : ''}
   `;
 
   // Recharge dynamiquement les paies + depenses pour afficher les details.

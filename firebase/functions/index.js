@@ -99,6 +99,11 @@ export const clotureHebdo = onSchedule({
   const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
   const ca          = caProduits + caCarburant;
   const benefice    = ventesFiltrees.reduce((s, v) => s + (estVenteCA(v) ? (Number(v.benefice) || 0) : 0), 0);
+  // Entrées classées hors 'vente' (don reçu/versé, subvention, autre) : encaissées
+  // mais HORS CA, à déclarer/afficher à part (don reçu imposable 10/30% Art 3-1.5).
+  const entreesFiscales = {};
+  ventesFiltrees.forEach(v => { const c = v.categorieFiscale; if (c && c !== 'vente') entreesFiscales[c] = (entreesFiscales[c] || 0) + (Number(v.montant) || 0); });
+  const donsRecus = entreesFiscales['don-recu'] || 0;
   // Exclure les depenses type='paie' (doublon avec /paies). Sinon les paies
   // sont comptees 2 fois : depenses + masseSalariale.
   const depensesReelles = depensesSnap.docs.filter(d => d.data().type !== 'paie');
@@ -114,6 +119,8 @@ export const clotureHebdo = onSchedule({
     ca,
     caProduits,
     caCarburant,
+    donsRecus,
+    entreesFiscales,
     beneficeBrut: benefice,
     depenses: depTotal,
     chargesDeductibles: dedu,
@@ -5333,6 +5340,10 @@ export const cloturerSemaine = onRequest({
     const caCarburant = redistSnap.docs.reduce((s, d) => s + (Number(d.data().montant) || 0), 0);
     const ca = caProduits + caCarburant;
     const beneficeBrut = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.benefice || 0) : 0), 0);
+    // Entrées classées hors 'vente' (don reçu, subvention, autre) — hors CA, à part.
+    const entreesFiscales = {};
+    ventes.forEach(v => { const c = v.categorieFiscale; if (c && c !== 'vente') entreesFiscales[c] = (entreesFiscales[c] || 0) + (Number(v.montant) || 0); });
+    const donsRecus = entreesFiscales['don-recu'] || 0;
     const depReelles = depensesSnap.docs.map(d => d.data()).filter(d => d.type !== 'paie');
     const depTotal = depReelles.reduce((s, d) => s + (d.montant || 0), 0);
     const dedu = depReelles.filter(d => d.deductible !== false).reduce((s, d) => s + (d.montant || 0), 0);
@@ -5353,6 +5364,7 @@ export const cloturerSemaine = onRequest({
       dateDebut: Timestamp.fromDate(debutSemainePassee),
       dateFin:   Timestamp.fromDate(finSemainePassee),
       ca, caProduits, caCarburant,
+      donsRecus, entreesFiscales,
       beneficeBrut,
       depenses: depTotal,
       depensesTotales: depTotal,
