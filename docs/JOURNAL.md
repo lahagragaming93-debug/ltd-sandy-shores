@@ -1,7 +1,23 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-02 (v1.18.0 — suppression employé supprime aussi le compte Auth + message clair sur identifiant déjà pris)**
+> Dernière mise à jour : **2026-06-03 (v1.19.0 — classification fiscale des entrées : don reçu/subvention hors CA, déclaré à part)**
+
+---
+
+## ✅ Session 2026-06-03 — v1.19.0 : classification fiscale des entrées (don reçu, subvention) hors CA
+
+### Besoin
+Un **don de 300 000 $** (LTD Little Seoul → LTD Sandy) avait été saisi comme une **vente** → il gonflait le CA, les **salaires/quotas vendeurs** et la déclaration IRS. Le Code TTE **Art. 3-1.5** impose un don reçu **à part** (poste « Montant Dons Reçu », imposable **30 %** au-delà de 50 000 $), **hors CA** (Art. 4-2.1).
+
+### Correctif
+- **Cloud Function `categoriserVente`** (direction) : pose `categorieFiscale` sur une ligne de vente (`vente` / `don-recu` / `don-verse` / `subvention` / `autre-entree`).
+- **Page Ventes** : sélecteur « Catégorie fiscale » par ligne + badge.
+- **CA exclu partout** (audit, 17 emplacements) : dashboard, RH, employé, compta, ventes, **banque** (KPI Recettes), et **salaires/quotas vendeurs** (`lib/paie-calc.mjs`, `lib/dashboard-core.mjs`, `clotureHebdoPaies`). Le don reste compté en **trésorerie** (banque).
+- **Snapshot de clôture** (`clotureHebdo` + `cloturerSemaine` + `lib/snapshot-sheet-semaine.mjs`) : stocke `donsRecus` + affiche « Dons reçus (hors CA · imposable 30 %) » (page Compta + Sheet).
+- **`comptaExport?type=ventes`** : nouvelle colonne « Catégorie fiscale ».
+- **Portail patron (BLA, `portals/ltd-sandy`)** : le JSON IRS met le don en `dons_recus` (hors CA) ; prévisionnel = don imposé **30 %** à part.
+- **Déploiement** : Functions (`ltd-sandy-shores-f3919`) + frontend (push `main`) + portail BLA. Bump `version.js` 1.18.0 → 1.19.0.
 
 ---
 
