@@ -49,13 +49,16 @@ export const clotureHebdo = onSchedule({
   const now = new Date();
 
   // À lundi 00:00 Paris (cron), on clôture la semaine qui vient de finir.
-  // ref = now - 1ms = dimanche 23:59:59.999 Paris (exact, = instant du cron - 1ms).
-  // debut + weekKey via weekRangeRPParis (horloge Paris, DST-correct) ; fin = ref
-  // pour garder une borne haute EXACTE (le helper converge à ±1ms sur le .999).
-  // Fix 2026-06-02 : avant, debut via setHours(0,0,0,0) s'exécutait en UTC
-  // (runtime Functions) => lundi 02h00 Paris l'été => trou lundi 00h-02h dans
-  // le snapshot d'audit IRS. weekRangeRPParis ancre debut en horloge Paris.
-  const ref = new Date(now.getTime() - 1);
+  // FIX 2026-06-08 : avant, `ref = now - 1ms`. Mais un cron ne se déclenche
+  // JAMAIS à 00h00.000 pile (délai de quelques ms à quelques s). Donc now - 1ms
+  // retombait sur LUNDI 00h00 → weekRangeRPParis renvoyait la semaine EN COURS
+  // (fenêtre quasi nulle, vide) au lieu de la semaine précédente. Bug observé le
+  // 2026-06-08 : doc /semaines/2026-06-08 "semaine 24" vide (ca=0), semaine 23
+  // jamais fermée. Correctif ROBUSTE (indépendant du délai de déclenchement) :
+  // on prend le LUNDI 00h00 de la semaine COURANTE (weekRangeRPParis(now).debut)
+  // puis - 1ms → dimanche 23:59:59.999 Paris de la semaine PRÉCÉDENTE.
+  // (clotureHebdoPaies étape 2 utilise now - 2j, déjà robuste.)
+  const ref = new Date(weekRangeRPParis(now).debut.getTime() - 1);
   const { debut, weekKey } = weekRangeRPParis(ref);
   const fin = ref;
 

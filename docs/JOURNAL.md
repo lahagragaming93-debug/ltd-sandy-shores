@@ -5,6 +5,18 @@
 
 ---
 
+## 🐛 Hotfix 2026-06-08 — la clôture auto fermait la MAUVAISE semaine (en cours, vide) au lieu de la précédente
+
+### Bug
+Le cron `clotureHebdo` (lundi 00h) faisait `ref = now - 1ms`. Mais un cron ne se déclenche jamais à 00h00.000 pile (délai de qq ms) → `now - 1ms` retombait sur **lundi** → `weekRangeRPParis` renvoyait la **semaine EN COURS** (fenêtre quasi nulle → `ca=0`) au lieu de la précédente. Observé le 2026-06-08 : doc `/semaines/2026-06-08` « semaine 24 » vide, **semaine 23 jamais fermée**, lignes de paie semaine 23 non créées → patron bloqué pour ses payes.
+
+### Correctif
+- `firebase/functions/index.js` (`clotureHebdo`) : `ref = weekRangeRPParis(now).debut - 1ms` (ancre sur le lundi 00h de la semaine courante, puis recule au dimanche précédent) → **robuste au délai de déclenchement**. `clotureHebdoPaies` (mardi 21h, `now - 2j`) était déjà robuste.
+- **Récupération** : supprimé le doc fantôme `/semaines/2026-06-08`, redéployé `clotureHebdo`, **relancé la clôture étape 1 via Cloud Scheduler** → `/semaines/2026-06-01` (semaine 23) recréée correctement (`ca=736 301`, `masse=0`) + snapshots de paie. Le patron paie + clôture manuellement comme d'habitude.
+- **Aucune donnée perdue** : la clôture ne fait qu'un snapshot, elle ne supprime jamais les ventes/dépenses/payes brutes.
+
+---
+
 ## ✅ Session 2026-06-07 — v1.20.0 : perf (carburant en agrégation serveur, CEF) + dépenses par catégorie IRS + JSON IRS auto Discord
 
 ### Performance (site lent à l'affichage, surtout en CEF FiveM)
