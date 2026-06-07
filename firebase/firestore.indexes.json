@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "redistributions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "ASCENDING" },
+        { "fieldPath": "montant",   "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "alertes",
       "queryScope": "COLLECTION",
       "fields": [

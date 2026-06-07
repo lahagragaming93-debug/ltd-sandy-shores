@@ -1,7 +1,27 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-03 (v1.19.0 — classification fiscale des entrées : don reçu/subvention hors CA, déclaré à part)**
+> Dernière mise à jour : **2026-06-07 (v1.20.0 — perf carburant en agrégation serveur + dépenses par catégorie IRS + JSON IRS auto Discord)**
+
+---
+
+## ✅ Session 2026-06-07 — v1.20.0 : perf (carburant en agrégation serveur, CEF) + dépenses par catégorie IRS + JSON IRS auto Discord
+
+### Performance (site lent à l'affichage, surtout en CEF FiveM)
+Audit multi-angles : cause n°1 = le client **téléchargeait ~3 390 docs carburant/semaine (~450 Ko)** juste pour calculer **une somme** (CA carburant).
+- **`getCarburantStatsSemaine`** ([public/js/api.js](public/js/api.js)) : **agrégation serveur Firestore** (`getAggregateFromServer` sum+count) → **0 doc rapatrié**, fallback `getDocs` si l'index n'est pas prêt (ne casse jamais). Index composite `redistributions (timestamp, montant)` ajouté + déployé. Branché sur **compta** + **dashboard**.
+- **Page Revenus carburant** : table tronquée aux **200 dernières lignes** (totaux/KPI restent calculés sur tout) — évitait ~27 000 nœuds DOM d'un coup.
+- **CSS CEF** : entête collante en **fond opaque** (au lieu de `backdrop-filter: blur` recalculé à chaque frame de scroll) ; fonds body en `scroll` (au lieu de `fixed`) ; `transition` retirée des lignes de table.
+- **compta** : requête `services` inutile supprimée ; `masseEstimee` pré-indexé par vendeur (fin du O(users×ventes)).
+
+### Comptabilité — dépenses par catégorie IRS
+Le récap Dépenses est calé sur les **postes exacts de la déclaration IRS** (Matière première, Frais véhicules, Locations, Nourriture… / Autres non déductibles). **Primes hebdo/mensuelle estimées retirées** (jamais versées, hors résultat imposable). Le **paiement d'impôt** (`autre-deductible`) compte désormais en **non déductible** (comme le JSON IRS) → l'imposable affiché = la vraie déclaration.
+
+### JSON IRS auto sur Discord (Cloud Function)
+**`notifyDeclarationDiscord`** (trigger Firestore `semaines/{weekKey}`) : à la clôture complète d'une semaine (`cloturee` / `cloturee-manuelle`), génère le JSON IRS plat et le poste dans **#ltd-sandy** (mini-récap + bloc copiable + lien IRS). Secret `BLA_LTD_JSON_WEBHOOK`, idempotent via `/blaJsonPosted`. BLA ne calcule pas l'impôt (l'IRS le fait à l'import).
+
+### Déploiement
+Frontend (push `main`) + Functions (`notifyDeclarationDiscord`) + index Firestore. Bump `version.js` 1.19.0 → 1.20.0.
 
 ---
 

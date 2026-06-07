@@ -235,7 +235,13 @@ function rendre() {
   } else {
     const cellOuTiret = (val, formatter) =>
       (Number(val) || 0) > 0 ? formatter(val) : '<span class="muted">—</span>';
-    tbodyTrans.innerHTML = rows.map(r => `
+    // PERF CEF : ne pas injecter des milliers de <tr> d'un coup (freeze de
+    // plusieurs secondes + scroll saccadé). On affiche les 200 transactions les
+    // plus récentes ; les totaux / KPI / récap par station plus haut sont
+    // calculés sur l'INTÉGRALITÉ des données, donc restent exacts.
+    const MAX_TX = 200;
+    const shown = rows.slice(0, MAX_TX);
+    tbodyTrans.innerHTML = shown.map(r => `
       <tr>
         <td>${datetime(r.timestamp)}</td>
         <td>${escapeHtml(r.station || r.stationId || '—')}</td>
@@ -246,7 +252,8 @@ function rendre() {
         <td class="right mono">${cellOuTiret(r.stockApres, v => num(v) + ' L')}</td>
         <td class="mono">#${escapeHtml(String(r.id || r.redistributionId || '—'))}</td>
       </tr>
-    `).join('');
+    `).join('') +
+    (rows.length > MAX_TX ? `<tr><td colspan="8" class="muted text-center">… ${rows.length - MAX_TX} transactions plus anciennes masquées (${rows.length} au total sur la période — les totaux ci-dessus les incluent).</td></tr>` : '');
   }
 
   // === Graphique CA par jour ===

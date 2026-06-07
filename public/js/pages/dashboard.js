@@ -7,7 +7,7 @@ import { renderShell } from '../layout.js';
 import {
   listVentesSemaine, listenStocks, listenStations, listDepensesSemaine,
   listPaiesSemaine, listSemaines, listenAlertesActives, getConfig,
-  getDernierSoldeBanque, listRedistributionsSemaine,
+  getDernierSoldeBanque, getCarburantStatsSemaine,
   listUsers, listServicesSemaine, listQuotasSemaine, listQuotasVendeurSemaine,
   listSubventionsSemaine
 } from '../api.js';
@@ -116,13 +116,14 @@ async function chargerKpis() {
   // affiche corresponde a la fin de la periode choisie (avant : toujours live).
   // v1.11.3 : on charge aussi les subventions de la semaine pour le calcul
   // du benefice net (coherent avec /comptabilite).
-  const [ventes, depenses, paies, config, soldeBanque, redistributions, allUsers, services, quotas, quotasV, semaines, subventions] = await Promise.all([
+  // PERF (2026-06-07) : carburant en agrégation serveur (carbStats = {total,count}).
+  const [ventes, depenses, paies, config, soldeBanque, carbStats, allUsers, services, quotas, quotasV, semaines, subventions] = await Promise.all([
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
     getConfig().catch(() => ({})),
     getDernierSoldeBanque(debut, fin).catch(() => null),
-    listRedistributionsSemaine(debut, fin).catch(() => []),
+    getCarburantStatsSemaine(debut, fin).catch(() => ({ total: 0, count: 0 })),
     listUsers().catch(() => []),
     listServicesSemaine(debut, fin).catch(() => []),
     listQuotasSemaine(weekId()).catch(() => []),
@@ -132,7 +133,7 @@ async function chargerKpis() {
   ]);
 
   const ca = ventes.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montant || 0) : 0), 0); // dons/subventions hors CA
-  const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const caCarburant = carbStats.total;
   const caTotal = ca + caCarburant;
   const benefice = ventes.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.benefice || 0) : 0), 0);
   // Depenses : exclut type='paie' (doublon)
@@ -196,7 +197,7 @@ async function chargerKpis() {
     <div class="kpi">
       <div class="label">CA carburant</div>
       <div class="value">${money(caCarburant)}</div>
-      <div class="delta">${redistributions.length} ventes essence</div>
+      <div class="delta">${carbStats.count} ventes essence</div>
     </div>
     <div class="kpi">
       <div class="label">Bénéfice brut</div>

@@ -6,7 +6,7 @@ import { db, auth } from './firebase-config.js';
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit, onSnapshot, Timestamp, writeBatch,
-  serverTimestamp
+  serverTimestamp, getAggregateFromServer, sum, count
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { dateKeyLocal } from './utils/formatters.js';
 
@@ -199,6 +199,27 @@ export async function listRedistributionsSemaine(dateDebut, dateFin) {
     orderBy('timestamp', 'desc'));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+// PERF (2026-06-07) : CA carburant de la semaine en AGRÉGATION SERVEUR (somme
+// des montants + nombre de redistributions) SANS rapatrier les docs. La
+// collection carburant fait des milliers de docs/semaine (ventes NPC auto)
+// alors que compta/dashboard n'en veulent que le total + le compte → on les
+// calcule côté Firestore (0 doc transféré au lieu de ~3400). Fallback getDocs
+// si l'agrégation échoue (index pas encore construit) → ne casse jamais
+// l'affichage, au pire = ancien comportement.
+export async function getCarburantStatsSemaine(dateDebut, dateFin) {
+  const q = query(collection(db, 'redistributions'),
+    where('timestamp', '>=', Timestamp.fromDate(dateDebut)),
+    where('timestamp', '<=', Timestamp.fromDate(dateFin)));
+  try {
+    const snap = await getAggregateFromServer(q, { total: sum('montant'), count: count() });
+    return { total: snap.data().total || 0, count: snap.data().count || 0 };
+  } catch (e) {
+    console.warn('[getCarburantStatsSemaine] agrégation indisponible, fallback getDocs:', e?.message || e);
+    const docs = await getDocs(q);
+    let total = 0; docs.forEach(d => { total += Number(d.data().montant) || 0; });
+    return { total, count: docs.size };
+  }
 }
 // Toutes les redistributions d'un pompiste (cumul depuis embauche). Pas
 // d'orderBy serveur (eviterait un index composite), on trie cote client.

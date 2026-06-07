@@ -117,7 +117,7 @@ html, body {
   background-size: cover, cover, cover, cover;
   background-position: center center, center, center, center center;
   background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
-  background-attachment: fixed, fixed, fixed, fixed;
+  background-attachment: scroll, scroll, scroll, scroll; /* PERF CEF : 'fixed' force un repaint plein écran à chaque scroll */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -1191,9 +1191,9 @@ table.data tbody td {
   border-bottom: 1px solid rgba(58,58,58,0.45);
   color: var(--color-bone);
 }
-table.data tbody tr {
-  transition: background var(--t-fast);
-}
+/* PERF CEF : transition retirée sur CHAQUE ligne (des milliers de noeuds
+   porteurs d'une transition = recalc de style coûteux au scroll). Le :hover
+   reste (quasi gratuit sans transition). */
 table.data tbody tr:hover {
   background: rgba(139, 0, 0, 0.12);
 }
@@ -1214,9 +1214,11 @@ table.data td.center, table.data th.center { text-align: center; }
   position: sticky;
   top: 0;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(90,0,0,0.95) 0%, rgba(58,0,0,0.92) 100%);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  /* PERF CEF : fond OPAQUE au lieu d'un backdrop-filter blur. Un flou sur une
+     entête collante force le Chromium FiveM à re-flouter la zone derrière
+     l'entête à CHAQUE frame de scroll, sur des milliers de lignes = gros jank.
+     Aucun rendu visuel significatif perdu. */
+  background: linear-gradient(180deg, rgb(90,0,0) 0%, rgb(58,0,0) 100%);
 }
 .table-scroll::-webkit-scrollbar { width: 10px; }
 .table-scroll::-webkit-scrollbar-track { background: transparent; }

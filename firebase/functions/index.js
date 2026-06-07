@@ -27,6 +27,8 @@ const adminAuth = getAdminAuth();
 const BOT_TOKEN       = defineSecret('LTD_BOT_INGEST_TOKEN');
 const COMPTA_TOKEN    = defineSecret('LTD_COMPTA_EXPORT_TOKEN');
 const DASHBOARD_SA_KEY = defineSecret('DASHBOARD_SA_KEY');
+// Webhook Discord #ltd-sandy (serveur BLA) pour poster le JSON IRS à la clôture.
+const BLA_LTD_JSON_WEBHOOK = defineSecret('BLA_LTD_JSON_WEBHOOK');
 
 // ----------------------------------------------------------------
 // 1. Clôture hebdomadaire — Lundi 00h00 Paris
@@ -536,6 +538,155 @@ async function notifierDiscord(type, message, gravite) {
     })
   });
 }
+
+// ============================================================
+// notifyDeclarationDiscord — JSON IRS auto sur Discord à la clôture
+// ------------------------------------------------------------
+// Quand une semaine atteint la clôture COMPLÈTE (statut 'cloturee' [cron
+// étape 2] ou 'cloturee-manuelle' [bouton patron] — la masse salariale est
+// alors connue), génère le JSON IRS PLAT et le poste dans #ltd-sandy du
+// serveur Discord BLA (webhook secret BLA_LTD_JSON_WEBHOOK).
+// ⚠️ Le mapping dépenses -> postes IRS DOIT rester identique à celui du portail
+// BLA (portals/ltd-sandy/assets/js/portal.js, loadWeek + buildIrsJson). BLA NE
+// CALCULE PAS l'impôt : le JSON = des lignes, l'IRS applique les tranches à
+// l'import. Idempotent via /blaJsonPosted/{weekKey}.
+// ============================================================
+function blaWeekNum(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return { year: d.getUTCFullYear(), week };
+}
+
+function buildIrsJsonFromWeek(sem, depenseDocs) {
+  const caProduits  = Number(sem.caProduits) || 0;
+  const caCarburant = Number(sem.caCarburant) || 0;
+  const donsRecus   = Number(sem.donsRecus) || (sem.entreesFiscales && sem.entreesFiscales['don-recu']) || 0;
+  const masse       = Number(sem.masseSalariale) || 0;
+
+  const D = { salaires: masse, prime_hebdo: 0, prime_mensuelle: 0, matiere_premiere: 0, nourriture: 0,
+              frais_avocat: 0, locations: 0, achats_vehicules: 0, frais_vehicules: 0, caution_remboursee: 0, dons_verses: 0 };
+  const N = { locations: 0, achats_vehicules: 0, autres: 0 };
+
+  for (const doc of depenseDocs) {
+    const d = doc.data();
+    const type = String(d.type || '').toLowerCase();
+    if (type === 'paie') continue;            // capté via la masse salariale
+    const m = Number(d.montant) || 0;
+    const ded = d.deductible !== false;       // canonique LTD/CSV (undefined => déductible)
+    if (ded) {
+      if (type === 'matieres-premieres' || type === 'matiere-premiere') D.matiere_premiere += m;
+      else if (type === 'frais-vehicule' || type === 'frais-vehicules' || type === 'entretien-vehicules' || type === 'entretien-vehicule') D.frais_vehicules += m;
+      else if (type === 'nourriture') D.nourriture += m;
+      else if (type === 'prime-hebdo') D.prime_hebdo += m;
+      else if (type === 'prime-mensuelle') D.prime_mensuelle += m;
+      else if (type === 'honoraires') D.frais_avocat += m;
+      else if (type === 'locations' || type === 'location' || type === 'loyer') D.locations += m;
+      else if (type === 'vehicules' || type === 'achat-vehicule') D.achats_vehicules += m;
+      else if (type === 'caution-remboursee') D.caution_remboursee += m;
+      else if (type === 'dons' || type === 'don') D.dons_verses += m;
+      else N.autres += m;                     // déductible sans poste IRS (ex 'autre-deductible' = impôt) -> Autres non déd.
+    } else {
+      if (type === 'locations' || type === 'location' || type === 'loyer') N.locations += m;
+      else if (type === 'vehicules' || type === 'achat-vehicule') N.achats_vehicules += m;
+      else N.autres += m;
+    }
+  }
+
+  const debut = sem.dateDebut && sem.dateDebut.toDate ? sem.dateDebut.toDate() : new Date();
+  const mid = new Date(debut.getTime() + 3.5 * 86400000);  // jeudi ~midi : n° de semaine ISO robuste au fuseau
+  const wk = blaWeekNum(mid);
+  const r = (n) => Math.round(n || 0);
+
+  const json = {
+    numero_semaine: String(wk.week),
+    commentaire: 'Préparée par BLA Corporate · Andrew BEAUCHAMP · semaine ' + wk.week + '/' + wk.year,
+    ca: r(caProduits + caCarburant),
+    autres_revenus: 0,
+    dons_recus: r(donsRecus),
+    sacem: 0,
+    caution_encaissee: 0,
+    salaires: r(D.salaires),
+    prime_hebdo: r(D.prime_hebdo),
+    prime_mensuelle: r(D.prime_mensuelle),
+    matiere_premiere: r(D.matiere_premiere),
+    nourriture: r(D.nourriture),
+    frais_avocat: r(D.frais_avocat),
+    locations_deductibles: r(D.locations),
+    achats_vehicules_deductibles: r(D.achats_vehicules),
+    frais_vehicules: r(D.frais_vehicules),
+    caution_remboursee: r(D.caution_remboursee),
+    dons_verses: r(D.dons_verses),
+    locations_non_deductibles: r(N.locations),
+    achats_vehicules_non_deductibles: r(N.achats_vehicules),
+    autres_non_deductibles: r(N.autres)
+  };
+  const totalDeductibles = D.salaires + D.prime_hebdo + D.prime_mensuelle + D.matiere_premiere + D.nourriture
+    + D.frais_avocat + D.locations + D.achats_vehicules + D.frais_vehicules + D.caution_remboursee + D.dons_verses;
+  return { json, week: wk.week, caTotal: caProduits + caCarburant, totalDeductibles: r(totalDeductibles), donsRecus: r(donsRecus) };
+}
+
+export const notifyDeclarationDiscord = onDocumentWritten({
+  document: 'semaines/{weekKey}',
+  region: 'europe-west1',
+  secrets: [BLA_LTD_JSON_WEBHOOK]
+}, async (event) => {
+  const after  = event.data?.after?.data();
+  const before = event.data?.before?.data();
+  if (!after) return;
+  const isFull = (s) => s === 'cloturee' || s === 'cloturee-manuelle';
+  if (!isFull(after.statut) || (before && isFull(before.statut))) return;   // 1× à la clôture complète
+
+  const weekKey = event.params.weekKey;
+  const postedRef = db.collection('blaJsonPosted').doc(weekKey);
+  if ((await postedRef.get()).exists) return;                                // idempotence (backstop)
+
+  const webhook = BLA_LTD_JSON_WEBHOOK.value();
+  if (!webhook) { console.log('[notifyDeclarationDiscord] webhook absent (secret non défini)'); return; }
+  if (!after.dateDebut || !after.dateFin) { console.log('[notifyDeclarationDiscord] bornes absentes', weekKey); return; }
+
+  const depSnap = await db.collection('depenses')
+    .where('timestamp', '>=', after.dateDebut)
+    .where('timestamp', '<=', after.dateFin).get();
+
+  const res = buildIrsJsonFromWeek(after, depSnap.docs);
+  const fmt = (n) => Math.round(n || 0).toLocaleString('fr-FR');
+  const IRS_URL = 'https://sanandreas-gouv-irs.ovh/declaration-impots';
+
+  let bloc = '```json\n' + JSON.stringify(res.json, null, 2) + '\n```';
+  const intro = 'Déclaration IRS — semaine S' + res.week + ' prête à importer. Copie ce bloc :\n';
+  if ((intro + bloc).length > 1900) bloc = '```json\n' + JSON.stringify(res.json) + '\n```';
+  const content = intro + bloc;
+
+  const donTag = res.donsRecus > 50000 ? ' · imposé 30%' : (res.donsRecus > 0 ? ' · imposé 10%' : '');
+  const embed = {
+    title: 'Semaine S' + res.week + ' clôturée — JSON IRS prêt',
+    color: 13215073,
+    description: 'Va sur le portail IRS, étape 1 « Importer JSON », colle le bloc ci-dessus, vérifie et soumets. L\'impôt est calculé automatiquement par l\'IRS.',
+    fields: [
+      { name: 'Chiffre d\'affaires', value: fmt(res.caTotal) + ' $', inline: true },
+      { name: 'Charges déductibles', value: fmt(res.totalDeductibles) + ' $', inline: true },
+      { name: 'Dons reçus', value: fmt(res.donsRecus) + ' $' + donTag, inline: true },
+      { name: 'Portail IRS', value: '[sanandreas-gouv-irs.ovh/declaration-impots](' + IRS_URL + ')' }
+    ],
+    footer: { text: 'BLA Corporate · Andrew BEAUCHAMP' },
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const resp = await fetch(webhook, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, embeds: [embed] })
+    });
+    if (!resp.ok) { console.error('[notifyDeclarationDiscord] webhook HTTP', resp.status, (await resp.text()).slice(0, 300)); return; }
+    await postedRef.set({ weekKey, week: res.week, postedAt: FieldValue.serverTimestamp() });
+    console.log('[notifyDeclarationDiscord] JSON IRS posté pour', weekKey, 'S' + res.week);
+  } catch (e) {
+    console.error('[notifyDeclarationDiscord] erreur post', e?.message || e);
+  }
+});
 
 // ----------------------------------------------------------------
 // Trigger : recompte les avertissements actifs d'un employe et

@@ -8,8 +8,8 @@ import { requireAuth, getCurrentUser } from '../auth.js';
 import { renderShell, roleBadgeHtml } from '../layout.js';
 import {
   listVentesSemaine, listDepensesSemaine, listPaiesSemaine, listSemaines,
-  ajouterDepense, listUsers, listStatsHebdoOfficielles, listRedistributionsSemaine,
-  listServicesSemaine, listQuotasSemaine, listQuotasVendeurSemaine, getConfig, listSubventionsSemaine
+  ajouterDepense, listUsers, listStatsHebdoOfficielles, getCarburantStatsSemaine,
+  listQuotasSemaine, listQuotasVendeurSemaine, getConfig, listSubventionsSemaine
 } from '../api.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, dateKeyLocal } from '../utils/formatters.js';
@@ -378,14 +378,15 @@ async function chargerTout() {
     return;
   }
 
-  const [smList, ventes, depenses, paies, u, redistributions, services, quotas, quotasV, cfg, subventions] = await Promise.all([
+  // PERF (2026-06-07) : carburant en agrégation serveur (carbStats = {total,count},
+  // 0 doc rapatrié au lieu de ~3400). Query 'services' supprimée (résultat jamais utilisé).
+  const [smList, ventes, depenses, paies, u, carbStats, quotas, quotasV, cfg, subventions] = await Promise.all([
     semainesPromise,
     listVentesSemaine(debut, fin).catch(() => []),
     listDepensesSemaine(debut, fin).catch(() => []),
     listPaiesSemaine(debut, fin).catch(() => []),
     listUsers().catch(() => []),
-    listRedistributionsSemaine(debut, fin).catch(() => []),
-    listServicesSemaine(debut, fin).catch(() => []),
+    getCarburantStatsSemaine(debut, fin).catch(() => ({ total: 0, count: 0 })),
     listQuotasSemaine(weekId()).catch(() => []),
     listQuotasVendeurSemaine(weekId()).catch(() => []),
     getConfig().catch(() => ({})),
@@ -408,7 +409,7 @@ async function chargerTout() {
 
   const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
   const ca = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
-  const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const caCarburant = carbStats.total;
   // Subventions : recette NON IMPOSABLE (TTE Art. 4-2.16). Comptee dans le
   // benefice net (tresorerie reelle) mais PAS dans le resultat imposable.
   const totalSubventions = subventions.reduce((s, b) => s + (Number(b.montant) || 0), 0);
@@ -422,9 +423,34 @@ async function chargerTout() {
   // (= optimiste vis-a-vis du fisc, risque d'audit IRS). Une depense sans
   // classification doit etre reclassifiee via la modale "Reclasser" avant
   // d'etre comptee comme deductible.
-  const deductiblesDepenses = depensesHorsPaie.filter(d => d.deductible === true)
-    .reduce((s, d) => s + (d.montant || 0), 0);
-  const nonDeductibles = totalDepenses - deductiblesDepenses;
+  // Ventilation par catégorie IRS — IDENTIQUE à la déclaration (postes étape 3
+  // déductibles / étape 4 non déductibles) et au JSON du portail BLA. Une
+  // dépense compte comme déductible UNIQUEMENT si elle est marquée déductible ET
+  // tombe dans une catégorie déductible reconnue par l'IRS. Tout le reste
+  // (a-classifier, et le paiement d'impôt 'autre-deductible' qui n'a PAS de poste
+  // déductible IRS) est non déductible — exactement comme sur la vraie déclaration.
+  const IRS_DED_CAT = {
+    'matieres-premieres': 'Matière première', 'matiere-premiere': 'Matière première',
+    'frais-vehicule': 'Frais véhicules', 'frais-vehicules': 'Frais véhicules', 'entretien-vehicules': 'Frais véhicules', 'entretien-vehicule': 'Frais véhicules',
+    'nourriture': 'Nourriture', 'honoraires': 'Frais avocat / comptable',
+    'locations': 'Locations', 'location': 'Locations', 'loyer': 'Locations',
+    'vehicules': 'Achats véhicules', 'achat-vehicule': 'Achats véhicules',
+    'caution-remboursee': 'Caution remboursée', 'dons': 'Dons versés', 'don': 'Dons versés',
+    'prime-hebdo': 'Prime hebdo', 'prime-mensuelle': 'Prime mensuelle'
+  };
+  const IRS_NON_CAT = {
+    'locations': 'Locations (non déd.)', 'location': 'Locations (non déd.)', 'loyer': 'Locations (non déd.)',
+    'vehicules': 'Achats véhicules (non déd.)', 'achat-vehicule': 'Achats véhicules (non déd.)'
+  };
+  const catDed = {}, catNon = {};
+  depensesHorsPaie.forEach(d => {
+    const t = String(d.type || '').toLowerCase();
+    const m = d.montant || 0;
+    if (d.deductible === true && IRS_DED_CAT[t]) { const k = IRS_DED_CAT[t]; catDed[k] = (catDed[k] || 0) + m; }
+    else { const k = IRS_NON_CAT[t] || 'Autres (non déductibles)'; catNon[k] = (catNon[k] || 0) + m; }
+  });
+  const deductiblesDepenses = Object.values(catDed).reduce((a, b) => a + b, 0);
+  const nonDeductibles = Object.values(catNon).reduce((a, b) => a + b, 0);
 
   // === Masse salariale PRÉVISIONNELLE ===
   // Au lieu de juste les paies versées, on calcule en continu le salaire
@@ -433,10 +459,17 @@ async function chargerTout() {
   // ce qu'il devra verser lundi-mardi prochain — pas seulement ce qu'il a
   // déjà versé.
   const masseVersee = paies.reduce((s, p) => s + (p.montant || 0), 0);
+  // PERF : pré-indexer le CA particulier par vendeur en UN passage (au lieu de
+  // re-filtrer tout le tableau ventes pour chaque user → O(ventes × users)).
+  const caParticulierParVendeur = {};
+  for (const v of ventes) {
+    if (!v.categorieFiscale || v.categorieFiscale === 'vente') {
+      caParticulierParVendeur[v.vendeurId] = (caParticulierParVendeur[v.vendeurId] || 0) + (v.montantParticulier ?? v.montant ?? 0);
+    }
+  }
   let masseEstimee = 0;
   for (const usr of users.filter(x => compteEnFinance(x.role) && x.statut === 'actif')) {
-    const myV = ventes.filter(v => v.vendeurId === usr.id);
-    const myCaParticulier = myV.reduce((s, v) => s + ((!v.categorieFiscale || v.categorieFiscale === 'vente') ? (v.montantParticulier ?? v.montant ?? 0) : 0), 0); // don hors commission
+    const myCaParticulier = caParticulierParVendeur[usr.id] || 0; // don hors commission (pré-indexé)
     const q = quotas.find(qu => qu.employeId === usr.id) || { bidons: 0, caoutchoucs: 0 };
     const qv = quotasV.find(qu => qu.employeId === usr.id) || {};
     masseEstimee += salaireEstime({
@@ -465,8 +498,10 @@ async function chargerTout() {
   // des revenus — l'IRS regarde le total, pas un subset metier.
   const masse = checkMasseSalariale(masseSalariale, caTotal);
 
-  const pHebdo = primeHebdo(caTotal);
-  const pMensuel = primeMensuelle(beneficeNet);
+  // Primes hebdo/mensuelle : ESTIMATIONS calculées (primeHebdo(ca) /
+  // primeMensuelle) — jamais réellement versées, et HORS résultat imposable.
+  // Retirées de l'affichage des dépenses le 2026-06-07 (demande patron) : on ne
+  // garde que les charges réellement prises en compte.
 
   dataCache = { ca, caCarburant, caTotal, deductibles, deductiblesDepenses, nonDeductibles, masseSalariale, beneficeNet, paies, debut, fin, totalSubventions, subventions };
 
@@ -480,7 +515,7 @@ async function chargerTout() {
     <div class="kpi kpi-recette">
       <div class="label">CA carburant</div>
       <div class="value">${money(caCarburant)}</div>
-      <div class="delta">${redistributions.length} ventes essence</div>
+      <div class="delta">${carbStats.count} ventes essence</div>
     </div>
     ${totalSubventions > 0 ? `
     <div class="kpi kpi-recette" title="Subventions reçues — non imposable (TTE Art. 4-2.16). Comptée dans le bénéfice net mais hors résultat imposable.">
@@ -525,20 +560,22 @@ async function chargerTout() {
     ` : ''}
   `;
 
-  // === Dépenses ===
-  // NB : "Charges deductibles (hors salaires)" = uniquement les /depenses
-  // marquees deductible. La ligne "Salaires versés" est detaillee a part pour
-  // visibilite, mais entre dans le calcul du resultat imposable (cf. KPI
-  // "Charges deductibles" qui agrege les deux).
+  // === Dépenses (détail par catégorie IRS) ===
+  // Mêmes postes que la déclaration IRS (ventilation catDed/catNon calculée plus
+  // haut, identique au JSON portail). On n'affiche QUE les charges réellement
+  // prises en compte : vraies /depenses + salaires. Total = totalDepenses + masse.
+  const rowsCat = (cat) => Object.keys(cat).sort((a, b) => cat[b] - cat[a])
+    .map(k => `<tr><td style="padding-left:24px;" class="muted">${k}</td><td class="right mono">${money(cat[k])}</td></tr>`).join('');
+  const aucuneLigne = '<tr><td style="padding-left:24px;" class="muted">—</td><td class="right mono muted">0</td></tr>';
   document.getElementById('tbody-depenses').innerHTML = `
-    <tr><td>Charges déductibles (hors salaires)</td><td class="right mono">${money(deductiblesDepenses)}</td></tr>
-    <tr><td>Charges non déductibles</td><td class="right mono">${money(nonDeductibles)}</td></tr>
-    <tr><td>Salaires versés (déductibles)</td><td class="right mono">${money(masseSalariale)}</td></tr>
-    <tr><td>Prime hebdo (Art. 4-1.10)</td><td class="right mono ${pHebdo > 0 ? 'gold' : 'muted'}">${money(pHebdo)}</td></tr>
-    <tr><td>Prime mensuelle (Art. 4-1.11)</td><td class="right mono ${pMensuel > 0 ? 'gold' : 'muted'}">${money(pMensuel)}</td></tr>
+    <tr><td style="font-weight:600;">Charges déductibles (hors salaires)</td><td class="right mono" style="font-weight:600;">${money(deductiblesDepenses)}</td></tr>
+    ${rowsCat(catDed) || aucuneLigne}
+    <tr><td style="font-weight:600;">Charges non déductibles</td><td class="right mono" style="font-weight:600;">${money(nonDeductibles)}</td></tr>
+    ${rowsCat(catNon) || aucuneLigne}
+    <tr><td style="font-weight:600;">Salaires versés (déductibles)</td><td class="right mono" style="font-weight:600;">${money(masseSalariale)}</td></tr>
     <tr class="row-total">
       <td>Total dépenses</td>
-      <td class="right mono">${money(totalDepenses + masseSalariale + pHebdo + pMensuel)}</td>
+      <td class="right mono">${money(totalDepenses + masseSalariale)}</td>
     </tr>
   `;
 
@@ -1092,14 +1129,14 @@ _Source : LTD Sandy Shores — Comptabilité_`;
 
 // === Exports ===
 document.getElementById('btn-export-csv').addEventListener('click', async () => {
-  const [ventes, depenses, paies, redistributions, subv] = await Promise.all([
+  const [ventes, depenses, paies, carbStats, subv] = await Promise.all([
     listVentesSemaine(debut, fin), listDepensesSemaine(debut, fin), listPaiesSemaine(debut, fin),
-    listRedistributionsSemaine(debut, fin).catch(() => []),
+    getCarburantStatsSemaine(debut, fin).catch(() => ({ total: 0, count: 0 })),
     listSubventionsSemaine(debut, fin).catch(() => [])
   ]);
   const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente';
   const ca = ventes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
-  const caCarburant = redistributions.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const caCarburant = carbStats.total;
   const caTotal = ca + caCarburant;
   const totalSubv = subv.reduce((s, b) => s + (Number(b.montant) || 0), 0);
   const dep = depenses.reduce((s, d) => s + (d.montant || 0), 0);
