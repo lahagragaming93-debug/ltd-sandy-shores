@@ -39,12 +39,25 @@ export async function getUserDoc(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
+// === Cache mémoire (60s) pour listUsers + listSemaines (perf nav inter-pages) ===
+// Re-téléchargées sur CHAQUE page (jusqu'à 200 users) alors qu'elles changent
+// rarement → cache court comme getConfig, invalidé sur écriture user. Fallback
+// naturel : si pas de cache valide, on refait le getDocs (jamais cassé).
+let _usersCache = null, _usersCacheTs = 0;
+let _semainesCache = null, _semainesCacheTs = 0;
+const LIST_TTL_MS = 60_000;
+export function invalidateUsersCache() { _usersCache = null; }
 export async function setUserDoc(uid, data) {
   await setDoc(doc(db, 'users', uid), data, { merge: true });
+  _usersCache = null;
 }
-export async function listUsers() {
+export async function listUsers(force = false) {
+  const now = Date.now();
+  if (!force && _usersCache && (now - _usersCacheTs) < LIST_TTL_MS) return _usersCache.slice();
   const snap = await getDocs(query(collection(db, 'users'), orderBy('nom'), limit(MAX_USERS)));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  _usersCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  _usersCacheTs = now;
+  return _usersCache.slice();
 }
 export function listenUsers(cb) {
   return onSnapshot(query(collection(db, 'users'), orderBy('nom'), limit(MAX_USERS)), s => {
@@ -53,9 +66,11 @@ export function listenUsers(cb) {
 }
 export async function updateUser(uid, patch) {
   await updateDoc(doc(db, 'users', uid), patch);
+  _usersCache = null;
 }
 export async function deleteUser(uid) {
   await deleteDoc(doc(db, 'users', uid));
+  _usersCache = null;
 }
 
 // ----- Produits & stocks -----
@@ -527,10 +542,13 @@ export async function marquerPaieVersee({ snapshotId, paye, paieMatcheeId = null
 // n = 20 par defaut : couvre ~5 mois d'historique, suffisant pour le selecteur
 // semaine sur /ventes, /employee et period-filter. Les appelants peuvent forcer moins.
 export async function listSemaines(n = 20) {
-  const q = query(collection(db, 'semaines'),
-    orderBy('dateDebut', 'desc'), limit(n));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const now = Date.now();
+  if (_semainesCache && (now - _semainesCacheTs) < LIST_TTL_MS) return _semainesCache.slice(0, n);
+  const snap = await getDocs(query(collection(db, 'semaines'),
+    orderBy('dateDebut', 'desc'), limit(Math.max(n, 20))));
+  _semainesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  _semainesCacheTs = now;
+  return _semainesCache.slice(0, n);
 }
 export async function getSemaineCourante(weekId) {
   const snap = await getDoc(doc(db, 'semaines', weekId));

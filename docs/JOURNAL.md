@@ -13,6 +13,7 @@ Audit multi-angles : cause n°1 = le client **téléchargeait ~3 390 docs carbur
 - **Page Revenus carburant** : table tronquée aux **200 dernières lignes** (totaux/KPI restent calculés sur tout) — évitait ~27 000 nœuds DOM d'un coup.
 - **CSS CEF** : entête collante en **fond opaque** (au lieu de `backdrop-filter: blur` recalculé à chaque frame de scroll) ; fonds body en `scroll` (au lieu de `fixed`) ; `transition` retirée des lignes de table.
 - **compta** : requête `services` inutile supprimée ; `masseEstimee` pré-indexé par vendeur (fin du O(users×ventes)).
+- **v1.20.1** : **cache mémoire 60 s** pour `listUsers` + `listSemaines` (api.js, invalidé sur écriture user) → fin du re-fetch à chaque navigation ; **voile de chargement** avant l'auth (`auth.js`, retiré par `renderShell`, garde-fou 8 s) → fin de l'écran noir au démarrage.
 
 ### Comptabilité — dépenses par catégorie IRS
 Le récap Dépenses est calé sur les **postes exacts de la déclaration IRS** (Matière première, Frais véhicules, Locations, Nourriture… / Autres non déductibles). **Primes hebdo/mensuelle estimées retirées** (jamais versées, hors résultat imposable). Le **paiement d'impôt** (`autre-deductible`) compte désormais en **non déductible** (comme le JSON IRS) → l'imposable affiché = la vraie déclaration.

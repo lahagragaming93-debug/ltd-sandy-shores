@@ -139,8 +139,25 @@ export function genererMotDePasseProvisoire(length = 12) {
   return p;
 }
 
+// === Voile de chargement (anti écran-noir au démarrage) ===
+// Affiché IMMÉDIATEMENT par requireAuth, avant la résolution de l'auth + le 1er
+// fetch. renderShell() remplace document.body.innerHTML → le voile disparaît
+// tout seul au rendu de la page. N'altère PAS la logique d'auth. Garde-fou :
+// auto-retrait après 8 s pour qu'il ne puisse jamais rester bloqué.
+function showBootLoader() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('boot-loader')) return;
+  const el = document.createElement('div');
+  el.id = 'boot-loader';
+  el.setAttribute('style', 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#0a0a0a;color:#c9a961;font-family:system-ui,sans-serif;');
+  el.innerHTML = '<div style="width:34px;height:34px;border:3px solid rgba(201,169,97,0.25);border-top-color:#c9a961;border-radius:50%;animation:bl-spin .8s linear infinite;"></div><div style="font-size:0.9rem;letter-spacing:0.04em;">LTD Sandy Shores — chargement…</div><style>@keyframes bl-spin{to{transform:rotate(360deg)}}</style>';
+  document.body.appendChild(el);
+  setTimeout(() => { const l = document.getElementById('boot-loader'); if (l) l.remove(); }, 8000);
+}
+
 // === Garde de page : redirige si non autorisé ===
 export function requireAuth(pageKey) {
+  showBootLoader();
   return new Promise(resolve => {
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
