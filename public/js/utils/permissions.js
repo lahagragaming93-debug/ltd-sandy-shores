@@ -229,7 +229,8 @@ export const PRODUITS_QUOTA_FAB = [
   'mastic-carrosserie',
   'visseries',
   'pain-burger',
-  'lumiere-violette'
+  'lumiere-violette',
+  'sac-jute'
 ];
 
 // Valeur par defaut quand config.quotaCAVendeur est absent en Firestore.

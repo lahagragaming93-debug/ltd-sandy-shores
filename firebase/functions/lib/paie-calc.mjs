@@ -57,7 +57,8 @@ export const PRODUITS_QUOTA_FAB = [
   'mastic-carrosserie',
   'visseries',
   'pain-burger',
-  'lumiere-violette'
+  'lumiere-violette',
+  'sac-jute'
 ];
 
 const DIRECTION = ['patron', 'co-patron'];

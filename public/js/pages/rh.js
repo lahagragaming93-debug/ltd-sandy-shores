@@ -66,6 +66,7 @@ const html = `
             <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Visseries</label><input type="number" id="q-fab-visseries" min="0" step="1" /></div>
             <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Pain à burger</label><input type="number" id="q-fab-pain" min="0" step="1" /></div>
             <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Lumière Violette</label><input type="number" id="q-fab-lumiere" min="0" step="1" /></div>
+            <div style="flex:1 1 130px;"><label class="muted" style="font-size:0.78rem;">Sac en jute</label><input type="number" id="q-fab-jute" min="0" step="1" /></div>
           </div>
         </div>
       </div>
@@ -560,6 +561,7 @@ if (editable) {
     document.getElementById('q-fab-visseries').value = qf['visseries']             ?? 0;
     document.getElementById('q-fab-pain').value      = qf['pain-burger']           ?? 0;
     document.getElementById('q-fab-lumiere').value   = qf['lumiere-violette']      ?? 0;
+    document.getElementById('q-fab-jute').value      = qf['sac-jute']              ?? 0;
     blocQ.classList.remove('hidden');
     toggleBtn.textContent = 'Masquer';
     lblState.textContent = 'Valeurs chargées · 0 = produit désactivé.';
@@ -587,7 +589,8 @@ if (editable) {
         'mastic-carrosserie':     parseQ('q-fab-mastic',    0),
         'visseries':              parseQ('q-fab-visseries', 0),
         'pain-burger':            parseQ('q-fab-pain',      0),
-        'lumiere-violette':       parseQ('q-fab-lumiere',   0)
+        'lumiere-violette':       parseQ('q-fab-lumiere',   0),
+        'sac-jute':               parseQ('q-fab-jute',      0)
       }
     };
     try {

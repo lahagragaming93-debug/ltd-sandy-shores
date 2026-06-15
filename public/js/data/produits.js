@@ -192,6 +192,8 @@ export const CATALOGUE = [
     note: 'Composant intermédiaire — utilisé pour Lumière violette. Crafté : 1×Charbon + 2×Cuivre + 5×Bobine → 1×Plomberie (coût 131.75$). intrant=true bloque le modal vente.' },
   { id: 'cable-electrique',        nom: 'Câble électrique',        categorie: 'electronique',     prixVente: 0,    pourPro: false, enFabrication: true, intrant: true,
     note: 'Composant intermédiaire — utilisé pour Lumière violette. Crafté : 1×Charbon + 6×Bobine → 1×Câble (coût 122.50$).' },
+  { id: 'sac-jute',                nom: 'Sac en jute',             categorie: 'divers',           prixVente: 0,    pourPro: false, enFabrication: true,
+    note: 'Crafté : 1×Corde + 1×Tissu → 2×Sacs en jute. Prix de vente à compléter par le patron.' },
 
   // === MATIÈRES PREMIÈRES INTRANTS DE CRAFT (achat fournisseur, intrant=true) ===
   { id: 'charbon',                 nom: 'Charbon',                 categorie: 'matiere_premiere', prixVente: 0,    pourPro: false, intrant: true,

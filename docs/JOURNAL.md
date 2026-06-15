@@ -1,7 +1,17 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-15 (v1.20.3 — RH affiche la bonne semaine au créneau de paie + robustesse snapshot)**
+> Dernière mise à jour : **2026-06-15 (v1.21.0 — quota de fabrication « Sac en jute » ajouté)**
+
+---
+
+## ✅ 2026-06-15 — v1.21.0 : ajout du « Sac en jute » aux quotas de fabrication vendeurs
+
+Nouveau 6e produit dans le quota de fabrication hebdomadaire des vendeurs : **Sac en jute** (`sac-jute`).
+- `public/js/utils/permissions.js` + `firebase/functions/lib/paie-calc.mjs` : `sac-jute` ajouté à `PRODUITS_QUOTA_FAB` (front + back ; le calcul du bonus fab est générique → se propage seul).
+- `public/js/pages/rh.js` : 6e champ dans le panneau « Quotas hebdomadaires » (direction). L'écran « Déclarer une fabrication » côté vendeur l'affiche automatiquement dès qu'un quota > 0 est défini.
+- `public/js/data/produits.js` : entrée catalogue `sac-jute` (« Sac en jute », `enFabrication:true`) pour la résolution du nom + le stock à la fabrication.
+- `vendeurDeclarerFabrication` valide désormais `sac-jute` → **Cloud Functions redéployées**.
 
 ---
 
