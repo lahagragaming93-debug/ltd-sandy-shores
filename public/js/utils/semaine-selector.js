@@ -75,7 +75,8 @@ export async function initSemaineSelector(targetSelector, {
   onChange,
   storageKey = 'semaine-selector',
   includeCurrent = true,
-  limit = 20
+  limit = 20,
+  defaultLastClosed = false
 } = {}) {
   const el = typeof targetSelector === 'string'
     ? document.querySelector(targetSelector)
@@ -115,6 +116,15 @@ export async function initSemaineSelector(targetSelector, {
     const stored = sessionStorage.getItem(storageKey);
     if (stored && [...el.options].some(o => o.value === stored)) {
       initial = stored;
+    } else if (defaultLastClosed && semaines.length) {
+      // Créneau de paie : lundi/mardi (après la clôture dominicale), la "semaine
+      // en cours" vient de commencer et est encore VIDE. On ouvre par défaut sur
+      // la dernière semaine clôturée (= celle à payer) au lieu de la semaine vide.
+      const jour = new Date().getDay(); // 1 = lundi, 2 = mardi
+      if (jour === 1 || jour === 2) {
+        const wk = semaines[0].id || semaines[0].numero;
+        if (wk && [...el.options].some(o => o.value === wk)) initial = wk;
+      }
     }
   } catch {}
   el.value = initial;

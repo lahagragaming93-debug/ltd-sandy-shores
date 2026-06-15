@@ -1,7 +1,22 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-07 (v1.20.0 — perf carburant en agrégation serveur + dépenses par catégorie IRS + JSON IRS auto Discord)**
+> Dernière mise à jour : **2026-06-15 (v1.20.3 — RH affiche la bonne semaine au créneau de paie + robustesse snapshot)**
+
+---
+
+## ✅ 2026-06-15 — v1.20.3 : RH affiche la bonne semaine au créneau de paie + robustesse de l'instantané
+
+### Bug
+À la session de paie (lundi 00h), la page **RH affichait 0 $** pour les salaires variables (vendeurs/pompistes). Deux causes cumulées :
+1. Le sélecteur de semaine ouvrait par défaut sur la **« semaine en cours »** qui, dès lundi 00h00, est la **nouvelle semaine vide** (`startOfWeekRP` bascule sur le nouveau lundi) → `ca=0`/quotas=0 → `salaireEstime()` = 0. Les salaires fixes (direction/responsables) restaient affichés → « certains à 0 ».
+2. L'instantané figé `/paiesEstimees` de la semaine clôturée (mode snapshot) était **incomplet** (clôture partielle → 13/19 employés figés à 0). Donc même en sélectionnant la semaine clôturée, des employés avec du CA restaient à 0.
+
+Conséquence réelle (S24) : le patron a cru tout payer mais a **raté Morgan HARPER** et **sous-payé Sakura MARS**. Rappel : les **heures de service n'entrent pas** dans le calcul du salaire (vendeur = CA, pompiste = quotas).
+
+### Correctif (frontend, sources `public/js`)
+- **`utils/semaine-selector.js`** : nouvelle option `defaultLastClosed`. Au créneau de paie (lundi/mardi) et sans choix mémorisé, le sélecteur s'ouvre sur la **dernière semaine clôturée** (celle à payer) au lieu de la semaine en cours vide.
+- **`pages/rh.js`** : passe `defaultLastClosed: true` ; **bandeau** d'alerte si la semaine en cours est vide (bouton « voir la semaine clôturée ») ; **fallback live** quand l'instantané `/paiesEstimees` est absent OU figé à 0 → le salaire est recalculé sur les ventes/quotas réels de la semaine sélectionnée (table + KPI « Salaires estimés » et « Reste à verser »). Un instantané de clôture partielle ne peut plus afficher 0 par erreur.
 
 ---
 

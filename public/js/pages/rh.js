@@ -31,6 +31,8 @@ const html = `
     <span id="badge-semaine" class="muted mono" style="font-size:0.78rem;align-self:center;">—</span>
   </div>
 
+  <div id="rh-banner"></div>
+
   <div class="kpi-grid" id="kpis-rh">
     <div class="kpi"><div class="label">Chargement…</div><div class="value">—</div></div>
   </div>
@@ -326,12 +328,17 @@ function renderKpis() {
   // (snapshot a la cloture). En mode 'courante', calcul live comme avant.
   let totalEstime, kpisExtra = '';
   if (snapshotMode) {
-    const snaps = Object.values(snapshotsByUser);
-    totalEstime = snaps.reduce((s, sn) => s + (Number(sn.montantEstime) || 0), 0);
-    const resteAVerser = snaps
-      .filter(sn => !sn.paye)
-      .reduce((s, sn) => s + (Number(sn.montantEstime) || 0), 0);
-    const nbARegler = snaps.filter(sn => !sn.paye && (sn.montantEstime || 0) > 0).length;
+    // Effectif estimé = snapshot figé si > 0, sinon recalcul live (snapshot de
+    // clôture partielle/incomplète -> on ne sous-estime pas la masse à verser).
+    let resteAVerser = 0, nbARegler = 0;
+    totalEstime = 0;
+    usersFinance.forEach(u => {
+      const sn = snapshotsByUser[u.id];
+      const eff = (sn && Number(sn.montantEstime) > 0) ? Number(sn.montantEstime) : (metricsByUser[u.id]?.salaireEstime || 0);
+      totalEstime += eff;
+      const paye = sn ? !!sn.paye : false;
+      if (!paye) { resteAVerser += eff; if (eff > 0) nbARegler++; }
+    });
     kpisExtra = `
       <div class="kpi" style="border-color:var(--color-gold,#d4b14d);">
         <div class="label">Reste à verser</div>
@@ -357,6 +364,21 @@ function renderKpis() {
     <div class="kpi"><div class="label">Masse salariale</div><div class="value">${pct(masse.ratio*100,1)}</div><div class="delta ${masse.ok ? 'up' : 'down'}">limite TTE: 90%</div></div>
     ${kpisExtra}
   `;
+
+  // Bandeau : semaine en cours encore vide (typiquement au créneau de paie du
+  // lundi) -> aiguille vers la dernière semaine clôturée pour voir les salaires.
+  const banner = document.getElementById('rh-banner');
+  if (banner) {
+    const sel = document.getElementById('filtre-semaine');
+    const closedOpt = sel ? [...sel.options].find(o => o.value !== 'current') : null;
+    if (!snapshotMode && totalCA === 0 && closedOpt) {
+      banner.innerHTML = `<div class="alert warn" style="margin-bottom:10px;">Semaine en cours encore vide — les salaires variables s'affichent à 0. Pour voir les montants à verser, sélectionne la dernière semaine clôturée. <button class="btn btn-sm" id="rh-goto-closed">Voir la semaine clôturée</button></div>`;
+      const b = document.getElementById('rh-goto-closed');
+      if (b) b.addEventListener('click', () => { sel.value = closedOpt.value; sel.dispatchEvent(new Event('change')); });
+    } else {
+      banner.innerHTML = '';
+    }
+  }
 }
 
 // === Filtres + render table ===
@@ -396,11 +418,15 @@ function renderTable() {
     // En mode snapshot : source de verite = doc /paiesEstimees figeé.
     // (Si pas de snapshot pour cet user, fallback sur calcul live = 0 etc.)
     const snap = snapshotMode ? snapshotsByUser[u.id] : null;
-    const salaireEstime = snap ? (Number(snap.montantEstime) || 0) : (m.salaireEstime || 0);
-    const caShow = snap ? (Number(snap.caParticulier) || Number(snap.ca) || 0) : (m.caParticulier ?? m.ca ?? 0);
-    const caTotal = snap ? (Number(snap.ca) || 0) : (m.ca || 0);
-    const bidonsShow = snap ? (snap.bidons || 0) : (m.bidons || 0);
-    const caoutShow = snap ? (snap.caoutchoucs || 0) : (m.caoutchoucs || 0);
+    // Snapshot fiable seulement s'il est figé à une valeur > 0. Si absent OU figé
+    // à 0 (clôture partielle/incomplète), on retombe sur le recalcul LIVE de la
+    // semaine sélectionnée (= la vraie valeur, identique à l'endpoint estimé).
+    const snapOk = !!(snap && Number(snap.montantEstime) > 0);
+    const salaireEstime = snapOk ? Number(snap.montantEstime) : (m.salaireEstime || 0);
+    const caShow = snapOk ? (Number(snap.caParticulier) || Number(snap.ca) || 0) : (m.caParticulier ?? m.ca ?? 0);
+    const caTotal = snapOk ? (Number(snap.ca) || 0) : (m.ca || 0);
+    const bidonsShow = snapOk ? (snap.bidons || 0) : (m.bidons || 0);
+    const caoutShow = snapOk ? (snap.caoutchoucs || 0) : (m.caoutchoucs || 0);
 
     let progressLabel = '—';
     if (isVendeur(u.role)) {
@@ -409,7 +435,7 @@ function renderTable() {
         : '';
       let fabLabel = '';
       if (nouveauVendeur && quotaFabActif) {
-        const fabSnap = snap?.fabrications || m.fabrications || {};
+        const fabSnap = (snapOk && snap.fabrications) ? snap.fabrications : (m.fabrications || {});
         const scoreFab = scoreQuotaFabrication(fabSnap, config.quotaFabrication || {});
         fabLabel = `<br><span class="muted" style="font-size:0.72rem;">quota fab ${pct(scoreFab*100, 0)} · bonus ${money(Math.round(scoreFab * BONUS_QUOTA_VENDEUR_MAX))}</span>`;
       }
@@ -582,6 +608,7 @@ if (editable) {
 // depuis sessionStorage (clé "rh-semaine") ou "current" par défaut.
 await initSemaineSelector('#filtre-semaine', {
   storageKey: 'rh-semaine',
+  defaultLastClosed: true,
   onChange: chargerSemaine
 });
 
