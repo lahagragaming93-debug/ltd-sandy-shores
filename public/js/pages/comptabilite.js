@@ -396,10 +396,29 @@ async function chargerTout() {
   // grace au check children.length : on ne re-injecte pas les options).
   if (sel.children.length <= 1 && smList.length > 0) {
     semainesPassees = smList;
+    // Libellé lisible : "Semaine 24 · 08-14 juin 2026" (numéro ISO + plage de dates).
+    const MOIS_SEM = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    const labelSemaine = (s) => {
+      const dd = String(s.dateDebut || s.id || '');
+      const m = dd.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return `Semaine ${s.numero || dd}`;
+      const lundi = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+      const dim = new Date(lundi.getTime() + 6 * 86400000);
+      const d = new Date(lundi.getTime());
+      const day = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - day);
+      const ys = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const week = Math.ceil((((d - ys) / 86400000) + 1) / 7);
+      const jj = String(lundi.getUTCDate()).padStart(2, '0');
+      const jj2 = String(dim.getUTCDate()).padStart(2, '0');
+      const moisD = MOIS_SEM[lundi.getUTCMonth()], moisF = MOIS_SEM[dim.getUTCMonth()];
+      const plage = moisD === moisF ? `${jj}-${jj2} ${moisF}` : `${jj} ${moisD} - ${jj2} ${moisF}`;
+      return `Semaine ${s.numero || week} · ${plage} ${m[1]}`;
+    };
     smList.forEach(s => {
       const o = document.createElement('option');
       o.value = s.id || s.numero;
-      o.textContent = `Semaine ${s.numero || s.dateDebut}`;
+      o.textContent = labelSemaine(s);
       sel.appendChild(o);
     });
   }
