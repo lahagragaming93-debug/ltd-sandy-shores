@@ -9,7 +9,7 @@
 //   Local : npm install && node build.mjs
 // ============================================================
 import { build } from 'esbuild';
-import { readdirSync } from 'fs';
+import { readdirSync, readFileSync, writeFileSync } from 'fs';
 
 const SRC = 'public/js/pages';
 const OUT = 'public/js/dist';
@@ -31,3 +31,23 @@ await build({
   logLevel: 'info'
 });
 console.log(`Build OK — ${entries.length} pages bundlées dans ${OUT}/`);
+
+// ============================================================
+// Anti-cache : injecte ?v=<version> sur chaque référence locale .js / .css des
+// pages HTML. Le navigateur re-télécharge le bundle dès qu'une nouvelle version
+// est déployée (plus de JS périmé servi pendant 10 min par le cache GitHub Pages).
+// Version = SHA du commit en CI (stable par commit), sinon timestamp en local.
+// Les URLs externes (Firebase CDN https://…) ne sont pas touchées.
+// N.B. : rewrite des HTML dans public/ APRÈS le bundle → la CI déploie le résultat.
+// Ne PAS committer les HTML modifiés (garder le repo propre) — la CI le fait à la volée.
+// ============================================================
+const VERSION = String(process.env.GITHUB_SHA || Date.now()).slice(0, 12);
+const RE_ASSET = /\b(src|href)="(?!https?:|\/\/|data:|#)([^"?]+\.(?:js|css))(\?v=[^"]*)?"/g;
+let htmlCount = 0;
+for (const f of readdirSync('public').filter(f => f.endsWith('.html'))) {
+  const p = `public/${f}`;
+  const before = readFileSync(p, 'utf8');
+  const after = before.replace(RE_ASSET, (_m, attr, path) => `${attr}="${path}?v=${VERSION}"`);
+  if (after !== before) { writeFileSync(p, after); htmlCount++; }
+}
+console.log(`Anti-cache — ?v=${VERSION} injecté dans ${htmlCount} page(s) HTML.`);
