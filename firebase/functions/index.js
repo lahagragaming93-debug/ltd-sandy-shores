@@ -2254,7 +2254,14 @@ async function resolveEmployeeIdByName(nomComplet) {
     { prenom: parts[0], nom: parts.slice(1).join(' ') },
     // Tentative 2 : prenom = tous sauf dernier, nom = dernier
     // Utile pour "Luciana Angel Mars" -> prenom="Luciana Angel", nom="MARS"
-    ...(parts.length >= 3 ? [{ prenom: parts.slice(0, -1).join(' '), nom: parts.at(-1) }] : [])
+    ...(parts.length >= 3 ? [{ prenom: parts.slice(0, -1).join(' '), nom: parts.at(-1) }] : []),
+    // Tentative 3 (2026-06-19) : ORDRE INVERSE prenom<->nom. Certains comptes
+    // ont ete crees avec prenom/nom permutes (ex: compte prenom="Roux"
+    // nom="THOBIAS" alors que le nom affiche est "Thobias Roux"). Sans ce
+    // fallback la vente reste orpheline (vendeurId=null) et le vendeur ne la
+    // voit jamais dans son bloc "factures a declarer". Place en DERNIER pour
+    // que l'ordre naturel l'emporte en cas d'ambiguite.
+    { prenom: parts.at(-1), nom: parts.slice(0, -1).join(' ') }
   ];
   for (const c of candidats) {
     const match = usersSnap.docs.find(d => {
