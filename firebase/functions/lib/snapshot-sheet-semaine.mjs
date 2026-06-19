@@ -551,10 +551,11 @@ export async function snapshotSheetSemaine({ db, sheets, weekKey, weekDebut, wee
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(v => v.source === 'discord' && !v.annulee);
 
-  // Depenses : exclure type=='paie' (coherent avec cloture).
+  // Depenses : exclure type=='paie' (doublon) ET type=='impot-paye' (paiement
+  // d'impot = hors assiette, coherent avec cloture + portail BLA).
   const depenses = depensesSnap.docs
     .map(d => ({ id: d.id, ...d.data() }))
-    .filter(d => d.type !== 'paie');
+    .filter(d => d.type !== 'paie' && d.type !== 'impot-paye');
 
   // Paies : filtrer sur weekKeyAttribuee == weekKey (pose par cloturerSemaine).
   // Fallback : si pas de tag (cloture cron etape 1 non encore tagguee), on

@@ -109,9 +109,9 @@ export const clotureHebdo = onSchedule({
   const entreesFiscales = {};
   ventesFiltrees.forEach(v => { const c = v.categorieFiscale; if (c && c !== 'vente') entreesFiscales[c] = (entreesFiscales[c] || 0) + (Number(v.montant) || 0); });
   const donsRecus = entreesFiscales['don-recu'] || 0;
-  // Exclure les depenses type='paie' (doublon avec /paies). Sinon les paies
-  // sont comptees 2 fois : depenses + masseSalariale.
-  const depensesReelles = depensesSnap.docs.filter(d => d.data().type !== 'paie');
+  // Exclure les depenses type='paie' (doublon avec /paies) ET type='impot-paye'
+  // (paiement d'impot = hors assiette, Art. 4-3.4 — ni charge ni poste declaration).
+  const depensesReelles = depensesSnap.docs.filter(d => { const t = d.data().type; return t !== 'paie' && t !== 'impot-paye'; });
   const depTotal    = depensesReelles.reduce((s, d) => s + (d.data().montant || 0), 0);
   const dedu        = depensesReelles
     .filter(d => d.data().deductible !== false)
@@ -576,7 +576,7 @@ function buildIrsJsonFromWeek(sem, depenseDocs) {
   for (const doc of depenseDocs) {
     const d = doc.data();
     const type = String(d.type || '').toLowerCase();
-    if (type === 'paie') continue;            // capté via la masse salariale
+    if (type === 'paie' || type === 'impot-paye') continue;   // paie (masse sal.) + impot (hors assiette)
     const m = Number(d.montant) || 0;
     const ded = d.deductible !== false;       // canonique LTD/CSV (undefined => déductible)
     if (ded) {
@@ -4284,7 +4284,7 @@ async function csvDepenses(usersByDiscord, bounds = null) {
     // timestamp lundi -> elles polluaient l'onglet "Depenses" de la semaine en
     // cours. Le site filtrait deja (depensesHorsPaie) ; on aligne l'endpoint.
     const t = String(x.type || '').toLowerCase();
-    if (t === 'paie' || t === 'paies' || t === 'salaire' || t === 'salaires') continue;
+    if (t === 'paie' || t === 'paies' || t === 'salaire' || t === 'salaires' || t === 'impot-paye') continue;
     lines.push(csvRow(
       dateIso(x.timestamp),
       x.raison || '',
@@ -5505,7 +5505,7 @@ export const cloturerSemaine = onRequest({
     const entreesFiscales = {};
     ventes.forEach(v => { const c = v.categorieFiscale; if (c && c !== 'vente') entreesFiscales[c] = (entreesFiscales[c] || 0) + (Number(v.montant) || 0); });
     const donsRecus = entreesFiscales['don-recu'] || 0;
-    const depReelles = depensesSnap.docs.map(d => d.data()).filter(d => d.type !== 'paie');
+    const depReelles = depensesSnap.docs.map(d => d.data()).filter(d => d.type !== 'paie' && d.type !== 'impot-paye'); // exclut paies + paiement d'impot (hors assiette)
     const depTotal = depReelles.reduce((s, d) => s + (d.montant || 0), 0);
     const dedu = depReelles.filter(d => d.deductible !== false).reduce((s, d) => s + (d.montant || 0), 0);
     const masseSalariale = paiesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
