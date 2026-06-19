@@ -399,9 +399,11 @@ async function chargerTout() {
     // Libellé lisible : "Semaine 24 · 08-14 juin 2026" (numéro ISO + plage de dates).
     const MOIS_SEM = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
     const labelSemaine = (s) => {
-      const dd = String(s.dateDebut || s.id || '');
+      // Le champ "numero" contient en réalité la date du lundi (ex. "2026-06-08").
+      // On prend le 1er champ qui ressemble à une date YYYY-MM-DD parmi numero/dateDebut/id.
+      const dd = [s.numero, s.dateDebut, s.id].map(x => String(x == null ? '' : x)).find(x => /^\d{4}-\d{2}-\d{2}/.test(x)) || '';
       const m = dd.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (!m) return `Semaine ${s.numero || dd}`;
+      if (!m) return `Semaine ${s.numero || s.dateDebut || s.id || '?'}`;
       const lundi = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
       const dim = new Date(lundi.getTime() + 6 * 86400000);
       const d = new Date(lundi.getTime());
@@ -413,7 +415,7 @@ async function chargerTout() {
       const jj2 = String(dim.getUTCDate()).padStart(2, '0');
       const moisD = MOIS_SEM[lundi.getUTCMonth()], moisF = MOIS_SEM[dim.getUTCMonth()];
       const plage = moisD === moisF ? `${jj}-${jj2} ${moisF}` : `${jj} ${moisD} - ${jj2} ${moisF}`;
-      return `Semaine ${s.numero || week} · ${plage} ${m[1]}`;
+      return `Semaine ${week} · ${plage} ${m[1]}`;
     };
     smList.forEach(s => {
       const o = document.createElement('option');
