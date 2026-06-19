@@ -270,6 +270,7 @@ const html = `
         <option value="autre-deductible">Autre déductible</option>
         <option value="decoration-locaux">Décoration locaux (non déductible)</option>
         <option value="non-deductible">Non déductible (autre)</option>
+        <option value="impot-paye">Paiement d'impôt — HORS déclaration (exclu)</option>
       </select>
 
       <div class="row" style="gap:8px;margin-top:8px;">
@@ -342,6 +343,7 @@ const html = `
             <option value="entretien-vehicules">Entretien véhicules (déductible)</option>
             <option value="autre-deductible">Autre déductible</option>
             <option value="non-deductible">Non déductible</option>
+            <option value="impot-paye">Paiement d'impôt — HORS déclaration (exclu)</option>
           </select>
         </div>
       </div>
@@ -438,7 +440,11 @@ async function chargerTout() {
   // Exclure les depenses type='paie' (doublon avec /paies attribuees a la
   // semaine precedente via fenetre post-cloture).
   const depensesHorsPaie = depenses.filter(d => d.type !== 'paie');
-  const totalDepenses = depensesHorsPaie.reduce((s, d) => s + (d.montant || 0), 0);
+  // Exclut aussi les paiements d'impôt (type 'impot-paye') des TOTAUX et de la
+  // déclaration — ils restent visibles dans le tableau mais ne sont ni une charge
+  // ni un poste de déclaration (le paiement d'impôt est hors assiette, Art. 4-3.4).
+  const depensesDeclarables = depensesHorsPaie.filter(d => String(d.type || '').toLowerCase() !== 'impot-paye');
+  const totalDepenses = depensesDeclarables.reduce((s, d) => s + (d.montant || 0), 0);
   // Strict : on ne compte deductible QUE si le champ vaut explicitement true.
   // Anciennement : `!== false` qui traitait undefined/null comme deductible
   // (= optimiste vis-a-vis du fisc, risque d'audit IRS). Une depense sans
@@ -464,7 +470,7 @@ async function chargerTout() {
     'vehicules': 'Achats véhicules (non déd.)', 'achat-vehicule': 'Achats véhicules (non déd.)'
   };
   const catDed = {}, catNon = {};
-  depensesHorsPaie.forEach(d => {
+  depensesDeclarables.forEach(d => {
     const t = String(d.type || '').toLowerCase();
     const m = d.montant || 0;
     if (d.deductible === true && IRS_DED_CAT[t]) { const k = IRS_DED_CAT[t]; catDed[k] = (catDed[k] || 0) + m; }
@@ -619,13 +625,16 @@ async function chargerTout() {
     tbody.innerHTML = depensesHorsPaie.map(d => {
       const u = usersById[d.utilisateurId];
       const isValide = d.valideParPatron === true;
-      const isAClassifier = d.type === 'a-classifier' || (!d.fournisseurLabel && !isValide);
+      const isImpot = String(d.type || '').toLowerCase() === 'impot-paye';
+      const isAClassifier = !isImpot && (d.type === 'a-classifier' || (!d.fournisseurLabel && !isValide));
       const fournisseur = d.fournisseurLabel
         ? `<span class="badge ok" title="${escapeHtml(d.raisonClassification || '')}">${escapeHtml(d.fournisseurLabel)}</span>`
         : '<span class="muted">—</span>';
-      const typeBadge = d.deductible !== false
-        ? '<span class="badge ok">Déductible</span>'
-        : '<span class="badge neutral">Non déductible</span>';
+      const typeBadge = isImpot
+        ? '<span class="badge warn">Hors déclaration</span>'
+        : (d.deductible !== false
+          ? '<span class="badge ok">Déductible</span>'
+          : '<span class="badge neutral">Non déductible</span>');
       const statutValid = isValide
         ? '<span class="badge ok" title="Validé par patron">Validé</span>'
         : isAClassifier
