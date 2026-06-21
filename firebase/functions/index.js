@@ -4715,9 +4715,9 @@ async function csvMasseSalarialeEstimee(usersByDiscord, bounds = null) {
   // puis DRH/autres. (Heuristique pour lisibilite humaine du CSV.)
   const ROLE_ORDER = {
     'patron': 0, 'co-patron': 1, 'drh': 2,
-    'responsable-vente': 3, 'responsable-pompiste': 4,
-    'vendeur-experimente': 5, 'vendeur-intermediaire': 6, 'vendeur-novice': 7,
-    'pompiste-experimente': 8, 'pompiste-intermediaire': 9, 'pompiste-novice': 10
+    'responsable-vente': 3, 'chef-equipe': 4, 'responsable-pompiste': 5,
+    'vendeur-experimente': 6, 'vendeur-intermediaire': 7, 'vendeur-novice': 8,
+    'pompiste-experimente': 9, 'pompiste-intermediaire': 10, 'pompiste-novice': 11
   };
   users.sort((a, b) => {
     const oa = ROLE_ORDER[a.role] ?? 99;
@@ -4732,7 +4732,7 @@ async function csvMasseSalarialeEstimee(usersByDiscord, bounds = null) {
   // sous forme utilisable directement ici)
   const PLAFONDS = {
     'patron': 20000, 'co-patron': 20000, 'drh': 18000,
-    'responsable-vente': 17000, 'responsable-pompiste': 17000,
+    'responsable-vente': 17000, 'chef-equipe': 16000, 'responsable-pompiste': 17000,
     'vendeur-novice': 13000, 'vendeur-intermediaire': 14000, 'vendeur-experimente': 15000,
     'pompiste-novice': 13000, 'pompiste-intermediaire': 14000, 'pompiste-experimente': 15000
   };
@@ -4743,7 +4743,8 @@ async function csvMasseSalarialeEstimee(usersByDiscord, bounds = null) {
       ventes,
       quota: quotaByUser[user.id] || null,
       quotaV: quotaVByUser[user.id] || null,
-      cfg
+      cfg,
+      weekKey   // date la formule (resp-vente hybride a partir du 22/06)
     });
 
     const role = user.role || '';
@@ -4753,8 +4754,10 @@ async function csvMasseSalarialeEstimee(usersByDiscord, bounds = null) {
     // Detail lisible humain
     let detail = '';
     if (role === 'patron' || role === 'co-patron' || role === 'drh'
-        || role === 'responsable-pompiste' || role === 'responsable-vente') {
+        || role === 'responsable-pompiste') {
       detail = `Fixe : ${salaireDecide > 0 ? salaireDecide : plafond} $`;
+    } else if (role === 'responsable-vente' || role === 'chef-equipe') {
+      detail = `Fixe + CA particulier : ${Math.round(calc.caParticulier)} $`;
     } else if (role.startsWith('vendeur')) {
       detail = `CA particulier : ${Math.round(calc.caParticulier)} $`;
     } else if (role.startsWith('pompiste')) {

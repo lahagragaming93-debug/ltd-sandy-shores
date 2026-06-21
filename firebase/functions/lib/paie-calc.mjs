@@ -20,6 +20,7 @@ export const PLAFOND_SALAIRE = {
   'co-patron':                20000,
   'drh':                      18000,
   'responsable-vente':        17000,
+  'chef-equipe':              16000,
   'responsable-pompiste':     17000,
   'vendeur-novice':           13000,
   'vendeur-intermediaire':    14000,
@@ -60,6 +61,27 @@ export const PRODUITS_QUOTA_FAB = [
   'lumiere-violette',
   'sac-jute'
 ];
+
+// === Modele hybride Responsable Ventes + Chef d'equipe (decision patron 2026-06-21) ===
+// MIROIR de public/js/utils/permissions.js — garder synchronise.
+// Activation calee sur la cloture dominicale : nouvelle formule SEULEMENT pour
+// les semaines >= ce lundi. La semaine qui se termine le 21/06 (weekKey
+// 2026-06-15) reste a l'ancien modele. Comparaison lexicale weekKey ISO => sure.
+export const PAIE_HYBRIDE_DEPUIS = '2026-06-22';
+export const RESP_VENTE_FIXE = 10000;
+export const RESP_VENTE_VAR_MAX = 7000;
+export const CHEF_EQUIPE_FIXE = 8000;
+export const CHEF_EQUIPE_VAR_MAX = 8000;
+
+// Part variable "vente" : meme taux qu'un vendeur experimente (prorata CA perso
+// sur quota vendeur x plafond CA exp = 20%), plafonnee a varMax. Pas de bonus fab.
+function partVariableVente(caParticulier, quotaCAVendeur, varMax) {
+  const q = Number(quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
+  if (!(q > 0)) return 0;
+  const tauxExpPlafond = PLAFOND_CA_VENDEUR['vendeur-experimente'] ?? 10000;
+  const brut = Math.min(1, (caParticulier || 0) / q) * tauxExpPlafond;
+  return Math.min(Math.round(brut), varMax);
+}
 
 const DIRECTION = ['patron', 'co-patron'];
 const SUPER_ADMINS = ['admin-technique'];
@@ -118,10 +140,26 @@ function salairePompiste(role, bidons, caoutchoucs, quotaBidons = 1700, quotaCao
 // comme responsable-pompiste (salaire fixe au plafond 17000 ou montant decide
 // patron). Ses ventes/crafts personnels ne sont PAS commissionnes — il pilote
 // l'equipe vendeurs. Annule l'ancienne formule pro-rata du 2026-05-14.
-function salaireResponsableVente(salaireDecide) {
+// Decision patron 2026-06-21 : modele HYBRIDE a partir de la semaine du 22/06.
+//   10 000 fixe + part variable (taux vendeur exp) plafonnee a 7 000 => max 17 000.
+// Avant le 22/06 : ancien regime salaire fixe (decide ou plafond). La bascule est
+// pilotee par weekKey (la cloture passe le weekKey de la semaine concernee).
+function salaireResponsableVente(salaireDecide, weekKey, caParticulier, quotaCAVendeur) {
   const plafond = PLAFOND_SALAIRE['responsable-vente'] ?? 17000;
+  if (weekKey && weekKey >= PAIE_HYBRIDE_DEPUIS) {
+    const variable = partVariableVente(caParticulier, quotaCAVendeur, RESP_VENTE_VAR_MAX);
+    return Math.min(RESP_VENTE_FIXE + variable, plafond);
+  }
   const v = (salaireDecide != null && salaireDecide > 0) ? salaireDecide : plafond;
   return Math.min(Math.round(v), plafond);
+}
+
+// Chef d'equipe (nouveau poste 2026-06-21) : 8 000 fixe + part variable (taux
+// vendeur exp) plafonnee a 8 000 => max 16 000. Pas de bonus fabrication.
+function salaireChefEquipe(caParticulier, quotaCAVendeur) {
+  const plafond = PLAFOND_SALAIRE['chef-equipe'] ?? 16000;
+  const variable = partVariableVente(caParticulier, quotaCAVendeur, CHEF_EQUIPE_VAR_MAX);
+  return Math.min(CHEF_EQUIPE_FIXE + variable, plafond);
 }
 
 function salaireResponsablePompiste(salaireDecide) {
@@ -170,7 +208,7 @@ function salaireDirection(role, salaireDecide) {
 //  - direction & responsable-pompiste : fallback sur PLAFOND si salaireDecide
 //    null/0 (sinon ils n'apparaissent pas dans la masse salariale).
 // ============================================================
-export function calculerPaieEstimee({ user, ventes = [], redistributions = [], quota = null, quotaV = null, cfg = {} } = {}) {
+export function calculerPaieEstimee({ user, ventes = [], redistributions = [], quota = null, quotaV = null, cfg = {}, weekKey = null } = {}) {
   if (!user) return { montantEstime: 0, ca: 0, caParticulier: 0, bidons: 0, caoutchoucs: 0, fabrications: {}, formule: 'no-user' };
 
   const role = user.role || '';
@@ -207,8 +245,13 @@ export function calculerPaieEstimee({ user, ventes = [], redistributions = [], q
     montantEstime = salairePompiste(role, bidons, caoutchoucs, quotaBidons, quotaCaoutchoucs);
     formule = `pompiste (moyenne quota bidons/caoutchoucs)`;
   } else if (role === 'responsable-vente') {
-    montantEstime = salaireResponsableVente(user.salaireDecide);
-    formule = `responsable-vente (salaire decide ou plafond, identique resp-pompiste depuis 2026-05-24)`;
+    montantEstime = salaireResponsableVente(user.salaireDecide, weekKey, caParticulier, quotaCAVendeur);
+    formule = (weekKey && weekKey >= PAIE_HYBRIDE_DEPUIS)
+      ? `responsable-vente (10000 fixe + part CA max 7000)`
+      : `responsable-vente (salaire fixe decide ou plafond)`;
+  } else if (role === 'chef-equipe') {
+    montantEstime = salaireChefEquipe(caParticulier, quotaCAVendeur);
+    formule = `chef-equipe (8000 fixe + part CA max 8000)`;
   } else if (role === 'responsable-pompiste') {
     montantEstime = salaireResponsablePompiste(user.salaireDecide);
     formule = `responsable-pompiste (salaire decide ou plafond)`;
@@ -322,7 +365,8 @@ export async function snapshotPaiesEstimees({ db, FieldValue, Timestamp, weekKey
           redistributions,
           quota: quotaByUser[user.id] || null,
           quotaV: quotaVByUser[user.id] || null,
-          cfg
+          cfg,
+          weekKey   // date la formule (resp-vente hybride a partir du 22/06)
         });
 
         await ref.set({

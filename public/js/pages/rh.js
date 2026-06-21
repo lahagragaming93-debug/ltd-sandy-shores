@@ -294,7 +294,7 @@ function calculerMetriques() {
       fabrications,
       salaireDecide: u.salaireDecide || 0
     };
-    const estime = salaireEstime(employe, config);
+    const estime = salaireEstime(employe, config, wId); // date la formule sur la semaine AFFICHEE (sinon fallback live errone sur semaine passee)
 
     metricsByUser[u.id] = {
       ca, caParticulier, benefice, heuresMs, ventes: myVentes,

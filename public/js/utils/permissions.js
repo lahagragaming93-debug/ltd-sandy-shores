@@ -7,6 +7,7 @@ export const ROLES = {
   CO_PATRON:              'co-patron',
   DRH:                    'drh',
   RESP_VENTE:             'responsable-vente',
+  CHEF_EQUIPE:            'chef-equipe',
   RESP_POMPISTE:          'responsable-pompiste',
   VENDEUR_NOVICE:         'vendeur-novice',
   VENDEUR_INTER:          'vendeur-intermediaire',
@@ -25,6 +26,7 @@ export const ROLE_LABELS = {
   'co-patron':               'Co-Patron',
   'drh':                     'DRH',
   'responsable-vente':       'Responsable Vente',
+  'chef-equipe':             "Chef d'équipe",
   'responsable-pompiste':    'Responsable Pompiste',
   'vendeur-novice':          'Vendeur Novice',
   'vendeur-intermediaire':   'Vendeur Intermédiaire',
@@ -37,36 +39,38 @@ export const ROLE_LABELS = {
 
 const DIRECTION = ['patron', 'co-patron'];
 const SUPER_ADMINS = ['admin-technique'];
-const LECTURE_COMPTA = [...DIRECTION, 'drh', ...SUPER_ADMINS];
-const RH_FULL = [...DIRECTION, 'drh', ...SUPER_ADMINS];
+// Chef d'equipe : superviseur ventes. Decision patron 2026-06-21 — voit TOUTES
+// les pages (compta + banque en lecture incluses), peut editer les stocks, mais
+// NE PEUT PAS creer de fiche employe (reserve patron/co-patron via canManageUser).
+const CHEF = 'chef-equipe';
+const LECTURE_COMPTA = [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS];
+const RH_FULL = [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS];
 const VENDEURS = ['vendeur-novice', 'vendeur-intermediaire', 'vendeur-experimente'];
 const POMPISTES = ['pompiste-novice', 'pompiste-intermediaire', 'pompiste-experimente'];
 
 export const ACCESS = {
-  dashboard:         [...DIRECTION, 'drh', ...SUPER_ADMINS],
-  stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
-  stocks_essence:    [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
-  ventes:            [...DIRECTION, 'drh', 'responsable-vente', ...SUPER_ADMINS],
+  dashboard:         [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS],
+  stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
+  stocks_essence:    [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
+  ventes:            [...DIRECTION, 'drh', 'responsable-vente', CHEF, ...SUPER_ADMINS],
   comptabilite:      LECTURE_COMPTA,
+  // L'EDITION compta reste strictement direction + super-admin (PAS chef-equipe).
   comptabilite_edit: [...DIRECTION, ...SUPER_ADMINS],
   rh:                RH_FULL,
-  stations:          [...DIRECTION, 'drh', 'responsable-pompiste', ...POMPISTES, ...SUPER_ADMINS],
-  // Banque LTD : direction + DRH + super-admin (audit financier sensible)
-  banque:            [...DIRECTION, 'drh', ...SUPER_ADMINS],
-  // Revenus carburant : direction + DRH + responsable pompiste (pilotage stations)
-  revenus_carburant: [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
-  // Admin : direction + DRH + responsables + super-admins
-  admin:             [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
-  // Notes de frais (validation + remboursement) : direction + DRH + resp-pompiste
-  notes_frais:       [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
+  stations:          [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...POMPISTES, ...SUPER_ADMINS],
+  // Banque LTD : direction + DRH + super-admin (audit financier sensible) + chef-equipe (demande patron)
+  banque:            [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS],
+  revenus_carburant: [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
+  admin:             [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
+  notes_frais:       [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
-                      'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
+                      'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   paies:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
-                      'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
+                      'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   guide:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
-                      'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
+                      'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   tuto:              [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
-                      'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS]
+                      'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS]
 };
 
 export function canAccess(role, page) {
@@ -97,7 +101,7 @@ export function isPompisteRavitailleur(role) {
 // Idem pour les ventes : vendeur-* + responsable-vente peut déclarer une
 // vente (utile si le RV dépanne un client), mais sans CA personnel.
 export function isVendeurDeclarateur(role) {
-  return isVendeur(role) || role === 'responsable-vente';
+  return isVendeur(role) || role === 'responsable-vente' || role === 'chef-equipe';
 }
 
 // Le rôle est-il pris en compte dans les calculs financiers
@@ -155,7 +159,7 @@ export function canCreateProduit(role) {
 export function defaultLandingPage(role) {
   if (isSuperAdmin(role)) return 'dashboard.html';
   if (isDirection(role) || role === 'drh') return 'dashboard.html';
-  if (role === 'responsable-vente') return 'ventes.html';
+  if (role === 'responsable-vente' || role === 'chef-equipe') return 'ventes.html';
   if (role === 'responsable-pompiste') return 'stations.html';
   return 'employee.html';
 }
@@ -168,6 +172,7 @@ export const PLAFOND_SALAIRE = {
   'co-patron':                20000,
   'drh':                      18000,
   'responsable-vente':        17000,
+  'chef-equipe':              16000,
   'responsable-pompiste':     17000,
   'vendeur-novice':           13000,
   'vendeur-intermediaire':    14000,
@@ -236,3 +241,29 @@ export const PRODUITS_QUOTA_FAB = [
 // Valeur par defaut quand config.quotaCAVendeur est absent en Firestore.
 // = nouvelle cible CA depuis 2026-05-25.
 export const QUOTA_CA_VENDEUR_DEFAULT = 50000;
+
+// === Modele hybride Responsable Ventes + Chef d'equipe (decision patron 2026-06-21) ===
+// Activation calee sur la cloture dominicale : la nouvelle formule ne s'applique
+// QUE pour les semaines >= ce lundi (la semaine qui se termine le 21/06 reste a
+// l'ancien modele : Responsable Ventes = salaire fixe). Comparaison lexicale de
+// weekKey 'YYYY-MM-DD' (ISO) => sure.
+export const PAIE_HYBRIDE_DEPUIS = '2026-06-22';
+// Responsable Ventes : 10 000 fixe + part variable (meme taux qu'un vendeur
+// experimente) plafonnee a 7 000 => plafond total 17 000 (atteint a 35 000 $ de CA).
+export const RESP_VENTE_FIXE = 10000;
+export const RESP_VENTE_VAR_MAX = 7000;
+// Chef d'equipe : 8 000 fixe + part variable (meme taux vendeur exp) plafonnee a
+// 8 000 => plafond total 16 000 (atteint a 40 000 $ de CA).
+export const CHEF_EQUIPE_FIXE = 8000;
+export const CHEF_EQUIPE_VAR_MAX = 8000;
+
+// Part variable "vente" : meme pourcentage qu'un vendeur experimente, soit le
+// prorata du CA perso sur le quota vendeur x plafond CA exp (10 000 / 50 000 = 20%),
+// puis plafonnee a varMax. Aucun bonus quota fabrication (decision patron : non).
+export function partVariableVente(caParticulier, quotaCAVendeur, varMax) {
+  const q = Number(quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
+  if (!(q > 0)) return 0;
+  const tauxExpPlafond = PLAFOND_CA_VENDEUR['vendeur-experimente'] ?? 10000;
+  const brut = Math.min(1, (caParticulier || 0) / q) * tauxExpPlafond;
+  return Math.min(Math.round(brut), varMax);
+}

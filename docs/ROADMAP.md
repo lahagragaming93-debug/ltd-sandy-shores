@@ -1,7 +1,12 @@
 # 🗺️ Roadmap LTD Sandy Shores
 
 > Chantiers en suspens, classés par priorité.
-> Dernière MAJ : **2026-06-02 (v1.18.0 — suppression employé supprime aussi le compte Auth, fin des orphelins)**
+> Dernière MAJ : **2026-06-21 (v1.22.0 — paie Responsable Ventes hybride + poste Chef d'équipe)**
+
+## ✅ Résolus session 2026-06-21 — v1.22.0
+
+- **Paie Responsable Ventes hybride** : `10 000 fixe + 20% CA perso (cap 7 000)` = max 17 000. **Nouveau poste Chef d'équipe** : `8 000 fixe + 20% CA perso (cap 8 000)` = max 16 000. Activation datée `PAIE_HYBRIDE_DEPUIS=2026-06-22` (la semaine close le 21/06 reste à l'ancien modèle). Front + miroir back synchronisés, weekKey propagé. Détail : voir [JOURNAL](JOURNAL.md).
+- **À FAIRE lundi 22/06** : déployer `firestore.rules` (droits chef-equipe : write stocks + lecture compta/banque/users) ; basculer **Sakura** → Chef d'équipe (Hailey reste Responsable Ventes). 🟡 À surveiller : `firestore.rules` pas encore déployé → tant que non fait, un compte chef-equipe verrait ses pages mais sans données compta/banque.
 
 ## ✅ Résolus session 2026-06-02 — v1.18.0
 

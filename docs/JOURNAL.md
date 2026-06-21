@@ -1,9 +1,18 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-15 (v1.21.0 — quota de fabrication « Sac en jute » ajouté)**
+> Dernière mise à jour : **2026-06-21 (v1.22.0 — paie Responsable Ventes hybride + nouveau poste Chef d'équipe)**
 
 ---
+
+## ✅ 2026-06-21 — v1.22.0 : refonte paie Responsable Ventes + poste Chef d'équipe
+
+Décision patron (Blake) : le **Responsable Ventes** repasse en modèle **hybride** et création d'un poste **Chef d'équipe**. Activation **datée** sur la clôture dominicale : nouvelle formule pour les semaines `>= 2026-06-22` uniquement (la semaine qui se termine le 21/06 reste à l'ancien modèle).
+- **Responsable Ventes** : `10 000 fixe + 20% du CA perso (même taux qu'un vendeur expérimenté), plafonné à 7 000` → max **17 000** (atteint à 35 000 de CA). Réactive la commission sur ses ventes perso (annulée en mai).
+- **Chef d'équipe** (nouveau rôle `chef-equipe`) : `8 000 fixe + 20% du CA perso, plafonné à 8 000` → max **16 000** (atteint à 40 000 de CA). Pas de bonus fabrication.
+- Câblage complet du rôle : `permissions.js` (ROLES, ROLE_LABELS, ACCESS toutes pages, isVendeurDeclarateur, defaultLandingPage=ventes, PLAFOND_SALAIRE 16 000), miroir back `paie-calc.mjs`, `calculerPaieEstimee(weekKey)`, `csvMasseSalarialeEstimee` (index.js). Chef d'équipe : voit toutes les pages, peut éditer les stocks, NE crée PAS de fiche employé (réservé direction).
+- Constante `PAIE_HYBRIDE_DEPUIS = '2026-06-22'`. weekKey propagé à `salaireEstime` (front) — fix dashboard.js + rh.js pour que la consultation d'une semaine passée n'applique pas la formule courante.
+- **Cloud Functions redéployées** le 2026-06-21. Front (Pages) via push. RESTE (lundi 22) : déployer `firestore.rules` (accès chef-equipe : stocks write + lectures compta/banque) + basculer **Sakura** (vendeuse intermédiaire) en **Chef d'équipe** ; le Responsable Ventes reste **Hailey**.
 
 ## ✅ 2026-06-15 — v1.21.0 : ajout du « Sac en jute » aux quotas de fabrication vendeurs
 

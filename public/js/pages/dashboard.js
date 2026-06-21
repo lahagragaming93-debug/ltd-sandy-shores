@@ -157,7 +157,7 @@ async function chargerKpis() {
       caoutchoucsRealises: q.caoutchoucs,
       fabrications: fabricationsFromQuotaDoc(qv),
       salaireDecide: usr.salaireDecide
-    }, config);
+    }, config, weekId(debut)); // date la formule sur la semaine AFFICHEE (resp-vente hybride a partir du 22/06)
   }
   const masseSalariale = Math.max(masseEstimee, totalPaies);
   // Benefice net = tresorerie reelle : on inclut les subventions recues

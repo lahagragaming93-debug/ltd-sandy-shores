@@ -7,7 +7,10 @@ import { PLAFOND_SALAIRE, PLAFOND_CA_VENDEUR, BONUS_QUOTA_VENDEUR_MAX,
          QUOTA_CA_VENDEUR_DEFAULT,
          PRODUITS_QUOTA_FAB, isNouveauSystemeVendeur,
          DRH_SALAIRE_FIXE,
+         PAIE_HYBRIDE_DEPUIS, RESP_VENTE_FIXE, RESP_VENTE_VAR_MAX,
+         CHEF_EQUIPE_FIXE, CHEF_EQUIPE_VAR_MAX, partVariableVente,
          isVendeur, isPompiste, isResponsable, isDirection } from './permissions.js';
+import { weekId } from './formatters.js';
 
 /**
  * Extrait les compteurs de fabrication d'un doc /quotasVendeur/{weekId}_{uid}.
@@ -98,10 +101,29 @@ export function salairePompiste(role, bidonsRealises, caoutchoucsRealises,
  * du 2026-05-14 — Blake clarifie que les deux responsables doivent etre traites
  * de maniere identique sur le calcul de paie.)
  */
-export function salaireResponsableVente(salaireDecide) {
+export function salaireResponsableVente(salaireDecide, weekKey = null, caParticulier = 0, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
   const plafond = PLAFOND_SALAIRE['responsable-vente'] ?? 17000;
+  // Nouveau modele hybride a partir de la semaine du 22/06 (decision patron
+  // 2026-06-21) : 10 000 fixe + part variable (taux vendeur exp) plafonnee a 7 000.
+  if (weekKey && weekKey >= PAIE_HYBRIDE_DEPUIS) {
+    const variable = partVariableVente(caParticulier, quotaCAVendeur, RESP_VENTE_VAR_MAX);
+    return Math.min(RESP_VENTE_FIXE + variable, plafond);
+  }
+  // Ancien regime (jusqu'au 21/06 inclus) : salaire fixe (decide ou plafond).
   const v = (salaireDecide != null && salaireDecide > 0) ? salaireDecide : plafond;
   return Math.min(Math.round(v), plafond);
+}
+
+/**
+ * Salaire Chef d'equipe (nouveau poste, decision patron 2026-06-21).
+ * 8 000 fixe + part variable (meme taux qu'un vendeur experimente) plafonnee a
+ * 8 000 => plafond total 16 000 (atteint a 40 000 $ de CA perso). Pas de bonus
+ * fabrication. La part variable se calcule sur le CA particulier de la personne.
+ */
+export function salaireChefEquipe(caParticulier = 0, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
+  const plafond = PLAFOND_SALAIRE['chef-equipe'] ?? 16000;
+  const variable = partVariableVente(caParticulier, quotaCAVendeur, CHEF_EQUIPE_VAR_MAX);
+  return Math.min(CHEF_EQUIPE_FIXE + variable, plafond);
 }
 
 /**
@@ -134,11 +156,14 @@ export function salaireDirection(role, salaireDecide) {
  * @param {object} e — fiche employé (role + métriques de la semaine)
  * @param {object} cfg — configuration (quotaBidons, quotaCaoutchoucs)
  */
-export function salaireEstime(e, cfg = {}) {
+export function salaireEstime(e, cfg = {}, weekKey = null) {
   const quotaBidons = cfg.quotaBidons ?? 1700;
   const quotaCaoutchoucs = cfg.quotaCaoutchoucs ?? 800;
   const quotaFab = cfg.quotaFabrication ?? {};
   const quotaCA = Number(cfg.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
+  // Par defaut on date sur la semaine en cours (affichage live). Les semaines
+  // passees s'affichent via les snapshots /paiesEstimees, pas via ce calcul live.
+  const wk = weekKey || weekId();
 
   if (isVendeur(e.role)) {
     return salaireVendeur(e.role, e.caGenere ?? 0, e.fabrications ?? {}, quotaFab, quotaCA);
@@ -149,9 +174,11 @@ export function salaireEstime(e, cfg = {}) {
                            quotaBidons, quotaCaoutchoucs);
   }
   if (e.role === 'responsable-vente') {
-    // Fixe au plafond ou salaire decide patron (decision 2026-05-24, alignement
-    // avec responsable-pompiste — ses ventes ne sont PAS commissionnees).
-    return salaireResponsableVente(e.salaireDecide ?? 0);
+    // Modele hybride a partir du 22/06 (fixe 10 000 + CA), sinon fixe historique.
+    return salaireResponsableVente(e.salaireDecide ?? 0, wk, e.caGenere ?? 0, quotaCA);
+  }
+  if (e.role === 'chef-equipe') {
+    return salaireChefEquipe(e.caGenere ?? 0, quotaCA);
   }
   if (e.role === 'responsable-pompiste') {
     return salaireResponsablePompiste(e.salaireDecide ?? 0);
