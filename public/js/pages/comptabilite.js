@@ -257,8 +257,8 @@ const html = `
       <label>Catégorie</label>
       <select id="reclasser-categorie">
         <option value="matieres-premieres">Matières premières (déductible)</option>
-        <option value="frais-avocat">Frais avocat (déductible, max 30 000 $)</option>
-        <option value="frais-comptabilite">Frais comptabilité (déductible, max 8 000 $)</option>
+        <option value="frais-avocat">Frais avocat (déductible jusqu'à 30 000 $, surplus auto en non déd.)</option>
+        <option value="frais-comptabilite">Frais comptabilité (déductible jusqu'à 8 000 $, surplus auto en non déd.)</option>
         <option value="entretien-vehicules">Entretien véhicules (déductible)</option>
         <option value="location-vehicule">Location véhicule (déductible)</option>
         <option value="achat-vehicule">Achat véhicule (déductible)</option>
@@ -459,23 +459,41 @@ async function chargerTout() {
   const IRS_DED_CAT = {
     'matieres-premieres': 'Matière première', 'matiere-premiere': 'Matière première',
     'frais-vehicule': 'Frais véhicules', 'frais-vehicules': 'Frais véhicules', 'entretien-vehicules': 'Frais véhicules', 'entretien-vehicule': 'Frais véhicules',
-    'nourriture': 'Nourriture', 'honoraires': 'Frais avocat / comptable',
+    'nourriture': 'Nourriture',
     'locations': 'Locations', 'location': 'Locations', 'loyer': 'Locations',
     'vehicules': 'Achats véhicules', 'achat-vehicule': 'Achats véhicules',
     'caution-remboursee': 'Caution remboursée', 'dons': 'Dons versés', 'don': 'Dons versés',
     'prime-hebdo': 'Prime hebdo', 'prime-mensuelle': 'Prime mensuelle'
+    // honoraires avocat/comptable : traités à part (plafonds) ci-dessous
   };
   const IRS_NON_CAT = {
     'locations': 'Locations (non déd.)', 'location': 'Locations (non déd.)', 'loyer': 'Locations (non déd.)',
     'vehicules': 'Achats véhicules (non déd.)', 'achat-vehicule': 'Achats véhicules (non déd.)'
   };
+  // Honoraires avocat ('honoraires'/'frais-avocat', cap 30 000 Art. 4-2.8) et
+  // comptable ('frais-comptabilite', cap 8 000 Art. 7-9.3) partagent le poste
+  // "Frais avocat / comptable". On cumule le brut puis on cape (surplus -> non déd.).
+  // Doit rester IDENTIQUE à buildIrsJsonFromWeek (firebase/functions/index.js).
+  const PLAFOND_AVOCAT = 30000, PLAFOND_COMPTA = 8000;
+  const AVOCAT_TYPES = ['honoraires', 'frais-avocat'];
+  const COMPTA_TYPES = ['frais-comptabilite'];
   const catDed = {}, catNon = {};
+  let avocatBrut = 0, comptaBrut = 0;
   depensesDeclarables.forEach(d => {
     const t = String(d.type || '').toLowerCase();
     const m = d.montant || 0;
-    if (d.deductible === true && IRS_DED_CAT[t]) { const k = IRS_DED_CAT[t]; catDed[k] = (catDed[k] || 0) + m; }
-    else { const k = IRS_NON_CAT[t] || 'Autres (non déductibles)'; catNon[k] = (catNon[k] || 0) + m; }
+    if (d.deductible === true && AVOCAT_TYPES.includes(t)) { avocatBrut += m; return; }
+    if (d.deductible === true && COMPTA_TYPES.includes(t)) { comptaBrut += m; return; }
+    if (d.deductible === true && IRS_DED_CAT[t]) { const k = IRS_DED_CAT[t]; catDed[k] = (catDed[k] || 0) + m; return; }
+    const k = IRS_NON_CAT[t] || 'Autres (non déductibles)'; catNon[k] = (catNon[k] || 0) + m;
   });
+  // Plafonds honoraires : part déductible capée, surplus en non déductible.
+  const avocatDed = Math.min(avocatBrut, PLAFOND_AVOCAT);
+  const comptaDed = Math.min(comptaBrut, PLAFOND_COMPTA);
+  const honorairesDed = avocatDed + comptaDed;
+  if (honorairesDed > 0) catDed['Frais avocat / comptable'] = (catDed['Frais avocat / comptable'] || 0) + honorairesDed;
+  const honorairesSurplus = (avocatBrut - avocatDed) + (comptaBrut - comptaDed);
+  if (honorairesSurplus > 0) catNon['Autres (non déductibles)'] = (catNon['Autres (non déductibles)'] || 0) + honorairesSurplus;
   const deductiblesDepenses = Object.values(catDed).reduce((a, b) => a + b, 0);
   const nonDeductibles = Object.values(catNon).reduce((a, b) => a + b, 0);
 

@@ -157,8 +157,8 @@ const html = `
       <label>Catégorie</label>
       <select id="fournisseur-categorie">
         <option value="matieres-premieres">Matières premières (déductible)</option>
-        <option value="frais-avocat">Frais avocat (déductible, max 30 000 $)</option>
-        <option value="frais-comptabilite">Frais comptabilité (déductible, max 8 000 $)</option>
+        <option value="frais-avocat">Frais avocat (déductible jusqu'à 30 000 $, surplus auto en non déd.)</option>
+        <option value="frais-comptabilite">Frais comptabilité (déductible jusqu'à 8 000 $, surplus auto en non déd.)</option>
         <option value="entretien-vehicules">Entretien véhicules (déductible)</option>
         <option value="location-vehicule">Location véhicule (déductible)</option>
         <option value="achat-vehicule">Achat véhicule (déductible)</option>

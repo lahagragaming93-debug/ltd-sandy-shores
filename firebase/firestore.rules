@@ -37,9 +37,13 @@ service cloud.firestore {
     function isRespVente()   { return role() == 'responsable-vente'; }
     function isRespPompiste(){ return role() == 'responsable-pompiste'; }
     function isResponsable() { return isRespVente() || isRespPompiste(); }
+    function isChefEquipe()  { return role() == 'chef-equipe'; }
     function isSuperAdmin()  { return role() == 'admin-technique'; }
     // Tous droits admin-équivalents : Direction OU super-admin technique
     function canAdmin()      { return isDirection() || isSuperAdmin(); }
+    // Lecteurs compta / banque / RH : Direction + DRH + Chef d'equipe (decision patron
+    // 2026-06-21 : le chef d'equipe voit toutes les pages en lecture, edition compta exclue).
+    function isComptaViewer(){ return canAdmin() || isDRH() || isChefEquipe(); }
 
     // Hiérarchie de gestion : currentRole peut-il agir sur targetRole ?
     //   admin-technique : tout (super-admin)
@@ -63,7 +67,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isAuth() && (
         request.auth.uid == uid ||
-        isDirection() || isDRH() || isResponsable() || isSuperAdmin()
+        isDirection() || isDRH() || isResponsable() || isChefEquipe() || isSuperAdmin()
       );
       // Création : le créateur doit pouvoir gérer le rôle créé
       // (Direction, DRH, Responsables — selon hiérarchie canManage).
@@ -88,14 +92,14 @@ service cloud.firestore {
     match /produits/{id} {
       allow read:   if isAuth() && isActif();
       allow create: if canAdmin() || isDRH() || isRespPompiste();
-      allow update: if canAdmin() || isDRH() || isRespVente() || isRespPompiste();
+      allow update: if canAdmin() || isDRH() || isRespVente() || isChefEquipe() || isRespPompiste();
       allow delete: if canAdmin() || isDRH() || isRespPompiste();
     }
 
     // === Historique des prix (audit trail, append-only) ===
     match /historiquePrix/{id} {
       allow read:   if canAdmin() || isDRH() || isRespPompiste();
-      allow create: if canAdmin() || isDRH() || isRespVente() || isRespPompiste();
+      allow create: if canAdmin() || isDRH() || isRespVente() || isChefEquipe() || isRespPompiste();
       allow update, delete: if false;
     }
 
@@ -104,13 +108,13 @@ service cloud.firestore {
     // (cf. UI Stocks → "+ Ajouter un produit" + champ "Stock initial")
     match /stocks/{id} {
       allow read:  if isAuth() && isActif();
-      allow write: if canAdmin() || isRespVente() || isDRH() || isRespPompiste();
+      allow write: if canAdmin() || isRespVente() || isChefEquipe() || isDRH() || isRespPompiste();
     }
 
     // === Mouvements de stock (append-only depuis l'app) ===
     match /mouvementsStock/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || isRespVente() || isDRH() || isRespPompiste();
+      allow create: if canAdmin() || isRespVente() || isChefEquipe() || isDRH() || isRespPompiste();
       allow update, delete: if canAdmin();
     }
 
@@ -130,7 +134,7 @@ service cloud.firestore {
     // (Admin SDK ignore les rules).
     match /sorties_en_cours/{id} {
       allow read:  if isAuth() && (
-        canAdmin() || isDRH() || isRespVente() ||
+        canAdmin() || isDRH() || isRespVente() || isChefEquipe() ||
         resource.data.employeId == request.auth.uid
       );
       allow write: if false;
@@ -177,7 +181,7 @@ service cloud.firestore {
     // Delete : direction uniquement (cas exceptionnel, audit).
     match /notesFrais/{id} {
       allow read:   if isAuth() && isActif() && (
-        canAdmin() || isDRH() || isRespPompiste() ||
+        canAdmin() || isDRH() || isRespPompiste() || isChefEquipe() ||
         (resource != null && resource.data.employeId == request.auth.uid)
       );
       allow create: if isAuth() && isActif() && isNotBlocked() &&
@@ -212,13 +216,13 @@ service cloud.firestore {
     // === Audit fabrications vendeur (1 doc par declaration) ===
     // Lecture : direction + DRH (audit). Ecriture : CF Admin SDK uniquement.
     match /fabrications/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
 
     // === Dépenses ===
     match /depenses/{id} {
-      allow read:   if isAuth() && (canAdmin() || isDRH());
+      allow read:   if isAuth() && isComptaViewer();
       allow create: if canAdmin();
       allow update, delete: if canAdmin();
     }
@@ -227,7 +231,7 @@ service cloud.firestore {
     // Lecture : direction + DRH + super-admin (audit financier sensible)
     // Écriture : interdite (le bot Discord écrit via Admin SDK qui ignore les rules)
     match /banqueLtd/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
 
@@ -237,35 +241,35 @@ service cloud.firestore {
     // Memes droits que les sources : lecture direction/DRH, ecriture client
     // interdite (seul l'Admin SDK ecrit via Cloud Function planifiee).
     match /banqueLtdArchive/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
     match /depensesArchive/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
 
     // === Événements RH automatisés (embauches, exclusions, avertissements, licenciements) ===
     match /rhEvenements/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
 
     // === Dossiers employés (forum #Dossiers-Employers, parser dossierEmploye) ===
     match /dossiersEmployes/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
 
     // === Sorties / retours de véhicules LTD (parser vehicule sur #logs-vehicules) ===
     match /sortiesVehicules/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
 
     // === Stats hebdo officielles FiveM (#statsbank) ===
     match /statsHebdoOfficiels/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
 
@@ -278,7 +282,7 @@ service cloud.firestore {
     // === Paies ===
     match /paies/{id} {
       allow read:  if isAuth() && isActif() && (
-        canAdmin() || isDRH() ||
+        canAdmin() || isDRH() || isChefEquipe() ||
         resource.data.beneficiaireId == request.auth.uid
       );
       allow write: if canAdmin();
@@ -286,7 +290,7 @@ service cloud.firestore {
 
     // === Semaines (clôtures) ===
     match /semaines/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if canAdmin();
     }
 
@@ -296,7 +300,7 @@ service cloud.firestore {
     // marquerPaieVersee qui valide les droits (direction/DRH) et utilise
     // l'Admin SDK. Snapshots crees par snapshotPaiesEstimees a la cloture.
     match /paiesEstimees/{id} {
-      allow read:  if isAuth() && (canAdmin() || isDRH());
+      allow read:  if isAuth() && isComptaViewer();
       allow write: if false;
     }
 

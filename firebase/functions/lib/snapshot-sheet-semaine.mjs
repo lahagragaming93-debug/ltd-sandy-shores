@@ -557,12 +557,16 @@ export async function snapshotSheetSemaine({ db, sheets, weekKey, weekDebut, wee
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(d => d.type !== 'paie' && d.type !== 'impot-paye');
 
-  // Paies : filtrer sur weekKeyAttribuee == weekKey (pose par cloturerSemaine).
-  // Fallback : si pas de tag (cloture cron etape 1 non encore tagguee), on
-  // garde les paies de la fenetre.
-  const paiesAll = paiesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const paiesTagguees = paiesAll.filter(p => p.weekKeyAttribuee === weekKey);
-  const paies = paiesTagguees.length > 0 ? paiesTagguees : paiesAll;
+  // Paies de la semaine = paies de la fenetre horaire (non taggees ou taggees pour CETTE
+  // semaine) + paies explicitement rattachees a cette semaine via weekKeyAttribuee, MEME
+  // versees en retard (ex. patron malade : la paie est versee 2-3 jours apres la cloture
+  // mais compte pour la semaine concernee). On exclut les paies de la fenetre taggees pour
+  // une AUTRE semaine -> aucun double comptage.
+  const taggedPaiesSnap = await db.collection('paies').where('weekKeyAttribuee', '==', weekKey).get();
+  const paiesById = {};
+  paiesSnap.docs.forEach(d => { const p = { id: d.id, ...d.data() }; if (!p.weekKeyAttribuee || p.weekKeyAttribuee === weekKey) paiesById[d.id] = p; });
+  taggedPaiesSnap.docs.forEach(d => { paiesById[d.id] = { id: d.id, ...d.data() }; });
+  const paies = Object.values(paiesById);
 
   const { rows, sections } = buildSnapshot({
     weekKey, debut: weekDebut, fin: weekFin, semaineData: semaineData || {},

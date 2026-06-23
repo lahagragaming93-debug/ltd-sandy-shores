@@ -332,7 +332,7 @@ Enveloppe globale à répartir entre salariés.
 
 **Art. 4-2.8** — **Frais d'avocat** : honoraires déductibles. **Max 30 000 $/sem**. Certains frais d'avocats **non déductibles à 100 %**, notamment en matière de comptabilité. Frais des **cabinets comptables également notifiés dans cette partie**.
 
-> **Statut site** : cap 30k mentionné en label mais pas validé serveur. Pas de séparation avocat/comptabilité (cap compta = 8k, cf. Art. 7-9.3). À corriger.
+> **Statut site** : caps appliqués côté serveur — avocat 30 000 $ (Art. 4-2.8), comptabilité 8 000 $ (Art. 7-9.3). Le JSON IRS cape la part déductible et bascule le surplus en non déductible (poste « Autres »). Séparation avocat/comptabilité gérée. (Corrigé 2026-06-23.)
 
 **Art. 4-2.9** — **Matières premières et marchandises** : tous achats à transformer/revendre. Inclut outillage et matériel de production.
 - Véhicules : pas matériel sauf concessionnaires

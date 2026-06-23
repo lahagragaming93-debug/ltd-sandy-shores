@@ -113,9 +113,7 @@ export const clotureHebdo = onSchedule({
   // (paiement d'impot = hors assiette, Art. 4-3.4 — ni charge ni poste declaration).
   const depensesReelles = depensesSnap.docs.filter(d => { const t = d.data().type; return t !== 'paie' && t !== 'impot-paye'; });
   const depTotal    = depensesReelles.reduce((s, d) => s + (d.data().montant || 0), 0);
-  const dedu        = depensesReelles
-    .filter(d => d.data().deductible !== false)
-    .reduce((s, d) => s + (d.data().montant || 0), 0);
+  const dedu        = deductiblesAvecPlafondHonoraires(depensesReelles.map(d => d.data()));
 
   await db.collection('semaines').doc(weekKey).set({
     numero: weekKey,
@@ -563,6 +561,25 @@ function blaWeekNum(date) {
   return { year: d.getUTCFullYear(), week };
 }
 
+// Total des dépenses déductibles (hors salaires) AVEC plafonds honoraires.
+// Garde la définition "large" pour tous les postes (déductible !== false) mais
+// cape les honoraires avocat (30 000, Art. 4-2.8) et comptable (8 000, Art. 7-9.3)
+// pour rester cohérent avec le JSON IRS (buildIrsJsonFromWeek). `deps` = tableau
+// d'objets dépense {type, montant, deductible} déjà filtrés (sans paie/impot-paye).
+function deductiblesAvecPlafondHonoraires(deps) {
+  const PLAFOND_AVOCAT = 30000, PLAFOND_COMPTA = 8000;
+  let avocatBrut = 0, comptaBrut = 0, autresDed = 0;
+  for (const d of deps) {
+    if (d.deductible === false) continue;   // canonique : undefined => déductible
+    const t = String(d.type || '').toLowerCase();
+    const m = Number(d.montant) || 0;
+    if (t === 'honoraires' || t === 'frais-avocat') avocatBrut += m;
+    else if (t === 'frais-comptabilite') comptaBrut += m;
+    else autresDed += m;
+  }
+  return autresDed + Math.min(avocatBrut, PLAFOND_AVOCAT) + Math.min(comptaBrut, PLAFOND_COMPTA);
+}
+
 function buildIrsJsonFromWeek(sem, depenseDocs) {
   const caProduits  = Number(sem.caProduits) || 0;
   const caCarburant = Number(sem.caCarburant) || 0;
@@ -572,6 +589,16 @@ function buildIrsJsonFromWeek(sem, depenseDocs) {
   const D = { salaires: masse, prime_hebdo: 0, prime_mensuelle: 0, matiere_premiere: 0, nourriture: 0,
               frais_avocat: 0, locations: 0, achats_vehicules: 0, frais_vehicules: 0, caution_remboursee: 0, dons_verses: 0 };
   const N = { locations: 0, achats_vehicules: 0, autres: 0 };
+
+  // Honoraires : avocat ('honoraires'/'frais-avocat') et comptable
+  // ('frais-comptabilite') partagent le poste IRS "Frais avocat / comptable"
+  // (frais_avocat) mais ont deux plafonds hebdo distincts (Art. 4-2.8 avocat
+  // 30 000 $ ; Art. 7-9.3 cabinet comptable 8 000 $). On cumule le BRUT
+  // déductible par bucket puis on cape APRES la boucle : la part <= plafond
+  // reste en frais_avocat, le surplus bascule en autres_non_deductibles.
+  // Doit rester IDENTIQUE à la ventilation de public/js/pages/comptabilite.js.
+  const PLAFOND_AVOCAT = 30000, PLAFOND_COMPTA = 8000;
+  let avocatBrut = 0, comptaBrut = 0;
 
   for (const doc of depenseDocs) {
     const d = doc.data();
@@ -585,7 +612,8 @@ function buildIrsJsonFromWeek(sem, depenseDocs) {
       else if (type === 'nourriture') D.nourriture += m;
       else if (type === 'prime-hebdo') D.prime_hebdo += m;
       else if (type === 'prime-mensuelle') D.prime_mensuelle += m;
-      else if (type === 'honoraires') D.frais_avocat += m;
+      else if (type === 'honoraires' || type === 'frais-avocat') avocatBrut += m;
+      else if (type === 'frais-comptabilite') comptaBrut += m;
       else if (type === 'locations' || type === 'location' || type === 'loyer') D.locations += m;
       else if (type === 'vehicules' || type === 'achat-vehicule') D.achats_vehicules += m;
       else if (type === 'caution-remboursee') D.caution_remboursee += m;
@@ -597,6 +625,12 @@ function buildIrsJsonFromWeek(sem, depenseDocs) {
       else N.autres += m;
     }
   }
+
+  // Application des plafonds honoraires (déductible capé ; surplus -> non déductible).
+  const avocatDed = Math.min(avocatBrut, PLAFOND_AVOCAT);
+  const comptaDed = Math.min(comptaBrut, PLAFOND_COMPTA);
+  D.frais_avocat = avocatDed + comptaDed;
+  N.autres += (avocatBrut - avocatDed) + (comptaBrut - comptaDed);
 
   const debut = sem.dateDebut && sem.dateDebut.toDate ? sem.dateDebut.toDate() : new Date();
   const mid = new Date(debut.getTime() + 3.5 * 86400000);  // jeudi ~midi : n° de semaine ISO robuste au fuseau
@@ -5510,17 +5544,21 @@ export const cloturerSemaine = onRequest({
     const donsRecus = entreesFiscales['don-recu'] || 0;
     const depReelles = depensesSnap.docs.map(d => d.data()).filter(d => d.type !== 'paie' && d.type !== 'impot-paye'); // exclut paies + paiement d'impot (hors assiette)
     const depTotal = depReelles.reduce((s, d) => s + (d.montant || 0), 0);
-    const dedu = depReelles.filter(d => d.deductible !== false).reduce((s, d) => s + (d.montant || 0), 0);
+    const dedu = deductiblesAvecPlafondHonoraires(depReelles);
     const masseSalariale = paiesSnap.docs.reduce((s, d) => s + (d.data().montant || 0), 0);
     const beneficeNet = ca - depTotal - masseSalariale;
 
     // Tag les paies ramassees avec weekKeyAttribuee pour qu'elles soient
     // exclues des KPI "cette semaine" (W19) sur dashboard/rh/compta/banque.
     // Sans ce tag, les paies versees lundi 00h-01h pour W18 polluent W19.
+    // GARDE : on ne re-tag QUE les paies sans rattachement existant. Une paie deja
+    // rattachee manuellement a une autre semaine (ex. paie versee en retard et
+    // rattachee a S-1) NE doit PAS etre volee par la cloture de la semaine en cours.
     if (paiesSnap.size > 0) {
       const batchTag = db.batch();
-      paiesSnap.docs.forEach(d => batchTag.update(d.ref, { weekKeyAttribuee: weekKey }));
-      await batchTag.commit();
+      let nTag = 0;
+      paiesSnap.docs.forEach(d => { if (!d.data().weekKeyAttribuee) { batchTag.update(d.ref, { weekKeyAttribuee: weekKey }); nTag++; } });
+      if (nTag > 0) await batchTag.commit();
     }
 
     await db.collection('semaines').doc(weekKey).set({
