@@ -44,6 +44,19 @@ service cloud.firestore {
     // Lecteurs compta / banque / RH : Direction + DRH + Chef d'equipe (decision patron
     // 2026-06-21 : le chef d'equipe voit toutes les pages en lecture, edition compta exclue).
     function isComptaViewer(){ return canAdmin() || isDRH() || isChefEquipe(); }
+    // Acces supplementaires accordes individuellement (Admin > Modifier le compte
+    // > "Acces au site"). ADDITIF : n'autorise QUE des lectures de donnees pour
+    // les pages qu'on a ouvertes a l'employe. Le menu (front, canAccess) reste la
+    // barriere qui determine ou il peut naviguer.
+    function accesSupp() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accesSupp', []);
+    }
+    function aSupp(p) { return p in accesSupp(); }
+    // A recu l'acces a au moins une page de gestion (compta / banque / RH /
+    // dashboard / notes de frais) -> peut lire les collections de fond associees.
+    function aSuppGestion() {
+      return aSupp('comptabilite') || aSupp('banque') || aSupp('rh') || aSupp('dashboard') || aSupp('notes_frais');
+    }
 
     // Hiérarchie de gestion : currentRole peut-il agir sur targetRole ?
     //   admin-technique : tout (super-admin)
@@ -181,7 +194,7 @@ service cloud.firestore {
     // Delete : direction uniquement (cas exceptionnel, audit).
     match /notesFrais/{id} {
       allow read:   if isAuth() && isActif() && (
-        canAdmin() || isDRH() || isRespPompiste() || isChefEquipe() ||
+        canAdmin() || isDRH() || isRespPompiste() || isChefEquipe() || aSuppGestion() ||
         (resource != null && resource.data.employeId == request.auth.uid)
       );
       allow create: if isAuth() && isActif() && isNotBlocked() &&
@@ -216,13 +229,13 @@ service cloud.firestore {
     // === Audit fabrications vendeur (1 doc par declaration) ===
     // Lecture : direction + DRH (audit). Ecriture : CF Admin SDK uniquement.
     match /fabrications/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
 
     // === Dépenses ===
     match /depenses/{id} {
-      allow read:   if isAuth() && isComptaViewer();
+      allow read:   if isAuth() && (isComptaViewer() || aSuppGestion());
       allow create: if canAdmin();
       allow update, delete: if canAdmin();
     }
@@ -231,7 +244,7 @@ service cloud.firestore {
     // Lecture : direction + DRH + super-admin (audit financier sensible)
     // Écriture : interdite (le bot Discord écrit via Admin SDK qui ignore les rules)
     match /banqueLtd/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
 
@@ -241,35 +254,35 @@ service cloud.firestore {
     // Memes droits que les sources : lecture direction/DRH, ecriture client
     // interdite (seul l'Admin SDK ecrit via Cloud Function planifiee).
     match /banqueLtdArchive/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
     match /depensesArchive/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
 
     // === Événements RH automatisés (embauches, exclusions, avertissements, licenciements) ===
     match /rhEvenements/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
 
     // === Dossiers employés (forum #Dossiers-Employers, parser dossierEmploye) ===
     match /dossiersEmployes/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
 
     // === Sorties / retours de véhicules LTD (parser vehicule sur #logs-vehicules) ===
     match /sortiesVehicules/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
 
     // === Stats hebdo officielles FiveM (#statsbank) ===
     match /statsHebdoOfficiels/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
 
@@ -282,7 +295,7 @@ service cloud.firestore {
     // === Paies ===
     match /paies/{id} {
       allow read:  if isAuth() && isActif() && (
-        canAdmin() || isDRH() || isChefEquipe() ||
+        canAdmin() || isDRH() || isChefEquipe() || aSuppGestion() ||
         resource.data.beneficiaireId == request.auth.uid
       );
       allow write: if canAdmin();
@@ -290,7 +303,7 @@ service cloud.firestore {
 
     // === Semaines (clôtures) ===
     match /semaines/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if canAdmin();
     }
 
@@ -300,7 +313,7 @@ service cloud.firestore {
     // marquerPaieVersee qui valide les droits (direction/DRH) et utilise
     // l'Admin SDK. Snapshots crees par snapshotPaiesEstimees a la cloture.
     match /paiesEstimees/{id} {
-      allow read:  if isAuth() && isComptaViewer();
+      allow read:  if isAuth() && (isComptaViewer() || aSuppGestion());
       allow write: if false;
     }
 

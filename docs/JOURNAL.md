@@ -1,7 +1,35 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-06-21 (v1.22.0 — paie Responsable Ventes hybride + nouveau poste Chef d'équipe)**
+> Dernière mise à jour : **2026-07-01 (v1.23.0 — poste Livreur, périmètres chef/resp-vente resserrés, accès par employé)**
+
+---
+
+## ✅ 2026-07-01 — v1.23.0 : poste Livreur, alerte déclaration, périmètres resserrés, accès par employé
+
+Grosse session sur l'app employé. **`firestore.rules` + Cloud Functions redéployés, front via push GitHub Pages.**
+
+### Rattrapage données — ventes orphelines (nom inversé)
+- **Diego Castillo da Silva** : 13 factures bot de la semaine avec `vendeurId=null` (le bot n'avait pas matché — prénom/nom inversés au moment de l'émission). Script admin → `vendeurId` corrigé sur ces 13 docs → **12 260 $ de CA** ré-attribués (paie S27). Aucune vraie vente touchée, CA global/IRS inchangé.
+- **Vérifié empiriquement** (snapshot `/paiesEstimees` S26) : une vente bot NON déclarée mais avec un `vendeurId` valide **compte déjà** dans la paie (calcul = somme des ventes non-cachées par `vendeurId`, `montantParticulier ?? montant`). Une bot ORPHELINE (vendeurId vide) ne compte pour personne — c'était tout le problème de Diego. La déclaration sert au `montantParticulier` exact (exclure le pro) + la traçabilité.
+
+### Alerte « vente à déclarer »
+- Le bloc d'alerte sur l'espace perso était gardé par `isVendeur` → le **chef d'équipe** (et resp-vente, livreur) ne voyait jamais ses factures bot à déclarer. Étendu à `isVendeurDeclarateur` (`employee.js`).
+
+### Nouveau rôle « livreur »
+- 1 rôle unique `livreur`, payé comme un vendeur (part CA prorata, **plafond 15 000**, pas de fixe, pas de bonus fab), **exempté d'avertissement quota** (le rôle n'étant pas `vendeur-*`, il échappe nativement à `genererAvertissementsAuto`). Déclare ses livraisons comme un vendeur (alerte + modal facture bot, produits particuliers).
+- `permissions.js` (ROLES, ROLE_LABELS, PLAFOND_SALAIRE, `isLivreur`, ACCESS, `isVendeurDeclarateur`, `isEmployeeView`, `canManageUser` resp-vente), `paie.js` + `paie-calc.mjs` (`salaireLivreur`), `vente-modal.js`, badge `layout.js`. **Pas encore d'employé livreur en base** — le patron convertira un vendeur en fin de semaine.
+
+### Cohérence affichage rôles (chef-equipe + livreur)
+- Audit complet : `isVendeur/isPompiste/isResponsable/isDirection` ne couvrent ni chef-equipe ni livreur → ils étaient omis de plusieurs écrans. Corrigé : `comptabilite.js` (section « Chef d'équipe », livreur avec vendeurs, **filet « Autres » anti-omission**), `rh.js` (label progression + détail CA/factures), `layout.js` (badges `users`/`package`), `ventes.js` (filtre pilotage), `guide.js`/`tuto.js` (routage).
+
+### Périmètres resserrés (décision patron 2026-07-01)
+- **Chef d'équipe** ET **Responsable-vente** : ne voient plus que **Stocks épicerie · Stations essence · Ventes** (+ espace perso, paies, guide, tuto). Retrait : dashboard, compta, banque, RH, revenus carburant, notes de frais, **admin**. Le resp-vente ne gère donc plus les comptes (réservé direction + DRH). `permissions.js` (`ACCESS`, `LECTURE_COMPTA`/`RH_FULL`).
+
+### Accès supplémentaires par employé (overrides additifs)
+- Nouveau champ `/users.accesSupp` = pages accordées à un employé **en plus** de son rôle, géré depuis **Admin > Modifier le compte > « Accès au site »** (cases ; pages du rôle cochées+grisées). `canAccess(role, page, accesSupp)`, `requireAuth`, menu (`layout.js`), modal (`admin.js`).
+- **Backend** `firestore.rules` : helper `aSuppGestion()` ajouté en **OR additif** aux collections compta/banque/RH/notes → les données chargent aussi pour l'employé à qui on a ouvert la page. Le menu (front) reste la barrière de navigation.
+- NB : pour le **chef d'équipe**, tout marchait déjà côté données (il est dans `isComptaViewer`) ; le backend additif sert surtout aux autres rôles (resp-vente, vendeurs).
 
 ---
 
