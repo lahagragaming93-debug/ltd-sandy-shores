@@ -25,6 +25,7 @@ export const PLAFOND_SALAIRE = {
   'vendeur-novice':           13000,
   'vendeur-intermediaire':    14000,
   'vendeur-experimente':      15000,
+  'livreur':                  15000,
   'pompiste-novice':          13000,
   'pompiste-intermediaire':   14000,
   'pompiste-experimente':     15000,
@@ -89,6 +90,7 @@ const VENDEURS = ['vendeur-novice', 'vendeur-intermediaire', 'vendeur-experiment
 const POMPISTES = ['pompiste-novice', 'pompiste-intermediaire', 'pompiste-experimente'];
 
 export function isVendeur(role)      { return VENDEURS.includes(role); }
+export function isLivreur(role)      { return role === 'livreur'; }
 export function isPompiste(role)     { return POMPISTES.includes(role); }
 export function isResponsable(role)  { return role === 'responsable-vente' || role === 'responsable-pompiste'; }
 export function isDirection(role)    { return DIRECTION.includes(role); }
@@ -121,6 +123,17 @@ function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {}, quotaC
   const salaireCA = ratioCA * plafondCA;
   const bonusFab = scoreQuotaFabrication(fabrications, quotaFab) * BONUS_QUOTA_VENDEUR_MAX;
   return Math.min(Math.round(salaireCA + bonusFab), plafondSalaire);
+}
+
+// Salaire livreur — prorata CA sur quotaCAVendeur, plafond 15 000. Pas de fixe,
+// pas de bonus fabrication, pas d'avertissement quota. Plafond atteint a 50 000 $.
+// MIROIR de public/js/utils/paie.js::salaireLivreur — garder synchronise.
+function salaireLivreur(caGenere, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
+  const plafond = PLAFOND_SALAIRE['livreur'] ?? 15000;
+  const qCA = Number(quotaCAVendeur);
+  if (!isNouveauSystemeVendeur(qCA)) return 0;
+  const ratioCA = qCA > 0 ? Math.min(1, (caGenere || 0) / qCA) : 0;
+  return Math.min(Math.round(ratioCA * plafond), plafond);
 }
 
 function salairePompiste(role, bidons, caoutchoucs, quotaBidons = 1700, quotaCaoutchoucs = 800) {
@@ -241,6 +254,9 @@ export function calculerPaieEstimee({ user, ventes = [], redistributions = [], q
   if (isVendeur(role)) {
     montantEstime = salaireVendeur(role, caParticulier, fabrications, quotaFab, quotaCAVendeur);
     formule = `vendeur (CA prorata ${quotaCAVendeur} + bonus quota fab max ${BONUS_QUOTA_VENDEUR_MAX})`;
+  } else if (isLivreur(role)) {
+    montantEstime = salaireLivreur(caParticulier, quotaCAVendeur);
+    formule = `livreur (CA prorata ${quotaCAVendeur}, plafond ${PLAFOND_SALAIRE['livreur']}, sans avert. quota)`;
   } else if (isPompiste(role)) {
     montantEstime = salairePompiste(role, bidons, caoutchoucs, quotaBidons, quotaCaoutchoucs);
     formule = `pompiste (moyenne quota bidons/caoutchoucs)`;

@@ -307,7 +307,10 @@ const nonDeclarees = ventesAvecCacheesCurr.filter(v => {
 
 function renderNonDeclarees() {
   const bloc = document.getElementById('bloc-non-declarees');
-  if (!isVendeur(profile.role) || nonDeclarees.length === 0) {
+  // isVendeurDeclarateur : vendeurs + responsable-vente + chef-equipe + livreur.
+  // Tous ceux qui peuvent declarer une vente doivent voir l'alerte des factures
+  // bot en attente (sinon ils oublient de declarer -> CA/commission non comptes).
+  if (!isVendeurDeclarateur(profile.role) || nonDeclarees.length === 0) {
     bloc.innerHTML = '';
     return;
   }

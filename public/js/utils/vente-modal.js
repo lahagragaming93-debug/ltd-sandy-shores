@@ -9,7 +9,7 @@ import { listProduits, listVentesSemaineIncluantCachees } from '../api.js';
 import { money, moneyPrecis, escapeHtml, datetime, startOfWeekRP, endOfWeekRP } from './formatters.js';
 import { toastSuccess, toastError } from './toast.js';
 import { auth } from '../firebase-config.js';
-import { isVendeur } from './permissions.js';
+import { isVendeur, isLivreur } from './permissions.js';
 
 const FUNCTIONS_BASE = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
 
@@ -362,7 +362,8 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role, factureBotIdPr
   //   et les produits de fabrication (enFabrication=true)
   // - Direction/DRH/Resp Vente/admin-technique voit tout (sauf intrants)
   const nonIntrant = produitsCache.filter(p => !p.intrant);
-  produitsVisibles = isVendeur(role)
+  // Vendeur ET livreur : uniquement les produits particulier (pourPro=false).
+  produitsVisibles = (isVendeur(role) || isLivreur(role))
     ? nonIntrant.filter(p => !p.pourPro)
     : nonIntrant;
   onSuccessCb = onSuccess || null;
@@ -386,7 +387,7 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role, factureBotIdPr
   const blocSelect = document.getElementById('vente-select-bot-bloc');
   const selectBot  = document.getElementById('vente-select-bot');
   const infoBot    = document.getElementById('vente-bot-info');
-  if (isVendeur(role)) {
+  if (isVendeur(role) || isLivreur(role)) {
     blocSelect.classList.remove('hidden');
     selectBot.innerHTML = '<option value="">Chargement…</option>';
     infoBot.classList.add('hidden');

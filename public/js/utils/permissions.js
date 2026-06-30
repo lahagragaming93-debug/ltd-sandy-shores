@@ -12,6 +12,7 @@ export const ROLES = {
   VENDEUR_NOVICE:         'vendeur-novice',
   VENDEUR_INTER:          'vendeur-intermediaire',
   VENDEUR_EXP:            'vendeur-experimente',
+  LIVREUR:                'livreur',
   POMPISTE_NOVICE:        'pompiste-novice',
   POMPISTE_INTER:         'pompiste-intermediaire',
   POMPISTE_EXP:           'pompiste-experimente',
@@ -31,6 +32,7 @@ export const ROLE_LABELS = {
   'vendeur-novice':          'Vendeur Novice',
   'vendeur-intermediaire':   'Vendeur Intermédiaire',
   'vendeur-experimente':     'Vendeur Expérimenté',
+  'livreur':                 'Livreur',
   'pompiste-novice':         'Pompiste Novice',
   'pompiste-intermediaire':  'Pompiste Intermédiaire',
   'pompiste-experimente':    'Pompiste Expérimenté',
@@ -46,6 +48,12 @@ const CHEF = 'chef-equipe';
 const LECTURE_COMPTA = [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS];
 const RH_FULL = [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS];
 const VENDEURS = ['vendeur-novice', 'vendeur-intermediaire', 'vendeur-experimente'];
+// Livreur : equipe vente, paye comme un vendeur (part CA prorata, plafond 15 000)
+// MAIS exempte d'avertissement quota — il fait les livraisons demandees par le
+// patron, pas de cible CA disciplinaire. Le role 'livreur' (pas 'vendeur-*')
+// echappe nativement a genererAvertissementsAuto (qui ne traite que /^vendeur-/
+// et /^pompiste-/). Decision patron 2026-06-30.
+const LIVREURS = ['livreur'];
 const POMPISTES = ['pompiste-novice', 'pompiste-intermediaire', 'pompiste-experimente'];
 
 export const ACCESS = {
@@ -63,13 +71,13 @@ export const ACCESS = {
   revenus_carburant: [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   admin:             [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   notes_frais:       [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
-  employee:          [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
+  employee:          [...DIRECTION, 'drh', ...VENDEURS, ...LIVREURS, ...POMPISTES,
                       'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
-  paies:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
+  paies:             [...DIRECTION, 'drh', ...VENDEURS, ...LIVREURS, ...POMPISTES,
                       'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
-  guide:             [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
+  guide:             [...DIRECTION, 'drh', ...VENDEURS, ...LIVREURS, ...POMPISTES,
                       'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
-  tuto:              [...DIRECTION, 'drh', ...VENDEURS, ...POMPISTES,
+  tuto:              [...DIRECTION, 'drh', ...VENDEURS, ...LIVREURS, ...POMPISTES,
                       'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS]
 };
 
@@ -81,11 +89,12 @@ export function canAccess(role, page) {
 
 export function isDirection(role)    { return DIRECTION.includes(role); }
 export function isVendeur(role)      { return VENDEURS.includes(role); }
+export function isLivreur(role)      { return LIVREURS.includes(role); }
 export function isPompiste(role)     { return POMPISTES.includes(role); }
 export function isResponsable(role)  { return role === 'responsable-vente' || role === 'responsable-pompiste'; }
 export function isSuperAdmin(role)   { return SUPER_ADMINS.includes(role); }
 export function isEmployeeView(role) {
-  return isVendeur(role) || isPompiste(role);
+  return isVendeur(role) || isLivreur(role) || isPompiste(role);
 }
 
 // Peut effectuer des actions pompiste (ravitailler une station, corriger
@@ -101,7 +110,7 @@ export function isPompisteRavitailleur(role) {
 // Idem pour les ventes : vendeur-* + responsable-vente peut déclarer une
 // vente (utile si le RV dépanne un client), mais sans CA personnel.
 export function isVendeurDeclarateur(role) {
-  return isVendeur(role) || role === 'responsable-vente' || role === 'chef-equipe';
+  return isVendeur(role) || isLivreur(role) || role === 'responsable-vente' || role === 'chef-equipe';
 }
 
 // Le rôle est-il pris en compte dans les calculs financiers
@@ -135,7 +144,7 @@ export function canManageUser(currentRole, targetRole) {
   if (currentRole === 'drh') {
     return targetRole !== 'patron' && targetRole !== 'co-patron' && targetRole !== 'admin-technique';
   }
-  if (currentRole === 'responsable-vente')   return VENDEURS.includes(targetRole);
+  if (currentRole === 'responsable-vente')   return VENDEURS.includes(targetRole) || LIVREURS.includes(targetRole);
   if (currentRole === 'responsable-pompiste')return POMPISTES.includes(targetRole);
   return false;
 }
@@ -177,6 +186,7 @@ export const PLAFOND_SALAIRE = {
   'vendeur-novice':           13000,
   'vendeur-intermediaire':    14000,
   'vendeur-experimente':      15000,
+  'livreur':                  15000,
   'pompiste-novice':          13000,
   'pompiste-intermediaire':   14000,
   'pompiste-experimente':     15000,

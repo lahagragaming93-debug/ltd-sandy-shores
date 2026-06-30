@@ -9,7 +9,7 @@ import { PLAFOND_SALAIRE, PLAFOND_CA_VENDEUR, BONUS_QUOTA_VENDEUR_MAX,
          DRH_SALAIRE_FIXE,
          PAIE_HYBRIDE_DEPUIS, RESP_VENTE_FIXE, RESP_VENTE_VAR_MAX,
          CHEF_EQUIPE_FIXE, CHEF_EQUIPE_VAR_MAX, partVariableVente,
-         isVendeur, isPompiste, isResponsable, isDirection } from './permissions.js';
+         isVendeur, isLivreur, isPompiste, isResponsable, isDirection } from './permissions.js';
 import { weekId } from './formatters.js';
 
 /**
@@ -73,6 +73,20 @@ export function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {},
   const salaireCA = ratioCA * plafondCA;
   const bonusFab = scoreQuotaFabrication(fabrications, quotaFab) * BONUS_QUOTA_VENDEUR_MAX;
   return Math.min(Math.round(salaireCA + bonusFab), plafondSalaire);
+}
+
+/**
+ * Salaire livreur — prorata CA sur quotaCAVendeur, plafond 15 000.
+ * Pas de fixe, pas de bonus fabrication, pas d'avertissement quota : il fait les
+ * livraisons demandees par le patron. Plafond atteint a 50 000 $ de CA (= quota
+ * vendeur). Decision patron 2026-06-30.
+ */
+export function salaireLivreur(caGenere, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
+  const plafond = PLAFOND_SALAIRE['livreur'] ?? 15000;
+  const qCA = Number(quotaCAVendeur);
+  if (!isNouveauSystemeVendeur(qCA)) return 0;
+  const ratioCA = qCA > 0 ? Math.min(1, (caGenere || 0) / qCA) : 0;
+  return Math.min(Math.round(ratioCA * plafond), plafond);
 }
 
 /**
@@ -167,6 +181,9 @@ export function salaireEstime(e, cfg = {}, weekKey = null) {
 
   if (isVendeur(e.role)) {
     return salaireVendeur(e.role, e.caGenere ?? 0, e.fabrications ?? {}, quotaFab, quotaCA);
+  }
+  if (isLivreur(e.role)) {
+    return salaireLivreur(e.caGenere ?? 0, quotaCA);
   }
   if (isPompiste(e.role)) {
     return salairePompiste(e.role, e.bidonsRealises ?? 0,
