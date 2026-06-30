@@ -41,12 +41,14 @@ export const ROLE_LABELS = {
 
 const DIRECTION = ['patron', 'co-patron'];
 const SUPER_ADMINS = ['admin-technique'];
-// Chef d'equipe : superviseur ventes. Decision patron 2026-06-21 — voit TOUTES
-// les pages (compta + banque en lecture incluses), peut editer les stocks, mais
-// NE PEUT PAS creer de fiche employe (reserve patron/co-patron via canManageUser).
+// Chef d'equipe : superviseur ventes. Perimetre RESTREINT (decision patron
+// 2026-07-01) — voit UNIQUEMENT Stocks epicerie, Stations essence, Ventes (+ son
+// espace, paies, guide, tuto). PAS de dashboard, compta, banque, RH, revenus
+// carburant, notes de frais, ni admin. Le responsable-vente a EXACTEMENT le meme
+// perimetre (il ne gere plus de comptes).
 const CHEF = 'chef-equipe';
-const LECTURE_COMPTA = [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS];
-const RH_FULL = [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS];
+const LECTURE_COMPTA = [...DIRECTION, 'drh', ...SUPER_ADMINS];
+const RH_FULL = [...DIRECTION, 'drh', ...SUPER_ADMINS];
 const VENDEURS = ['vendeur-novice', 'vendeur-intermediaire', 'vendeur-experimente'];
 // Livreur : equipe vente, paye comme un vendeur (part CA prorata, plafond 15 000)
 // MAIS exempte d'avertissement quota — il fait les livraisons demandees par le
@@ -57,20 +59,22 @@ const LIVREURS = ['livreur'];
 const POMPISTES = ['pompiste-novice', 'pompiste-intermediaire', 'pompiste-experimente'];
 
 export const ACCESS = {
-  dashboard:         [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS],
+  dashboard:         [...DIRECTION, 'drh', ...SUPER_ADMINS],
   stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
-  stocks_essence:    [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
+  stocks_essence:    [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   ventes:            [...DIRECTION, 'drh', 'responsable-vente', CHEF, ...SUPER_ADMINS],
   comptabilite:      LECTURE_COMPTA,
   // L'EDITION compta reste strictement direction + super-admin (PAS chef-equipe).
   comptabilite_edit: [...DIRECTION, ...SUPER_ADMINS],
   rh:                RH_FULL,
-  stations:          [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...POMPISTES, ...SUPER_ADMINS],
-  // Banque LTD : direction + DRH + super-admin (audit financier sensible) + chef-equipe (demande patron)
-  banque:            [...DIRECTION, 'drh', CHEF, ...SUPER_ADMINS],
-  revenus_carburant: [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
-  admin:             [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
-  notes_frais:       [...DIRECTION, 'drh', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
+  stations:          [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...POMPISTES, ...SUPER_ADMINS],
+  // Banque LTD : direction + DRH + super-admin uniquement (audit financier sensible)
+  banque:            [...DIRECTION, 'drh', ...SUPER_ADMINS],
+  revenus_carburant: [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
+  // Admin : direction + DRH + responsable-pompiste (gere ses pompistes) + super-admin.
+  // Responsable-vente et chef-equipe N'ONT PLUS acces (decision patron 2026-07-01).
+  admin:             [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
+  notes_frais:       [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...LIVREURS, ...POMPISTES,
                       'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   paies:             [...DIRECTION, 'drh', ...VENDEURS, ...LIVREURS, ...POMPISTES,
