@@ -123,7 +123,7 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
 
   const navByGroup = {};
   NAV_ITEMS
-    .filter(item => canAccess(profile.role, item.key))
+    .filter(item => canAccess(profile.role, item.key, profile.accesSupp))
     .forEach(item => {
       // Pour un employé pur, ne montrer que "Mon espace", "Mes paies" et "Guide"
       if (isEmployeeView(profile.role)

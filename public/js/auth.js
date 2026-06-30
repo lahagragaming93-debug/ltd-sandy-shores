@@ -204,7 +204,7 @@ export function requireAuth(pageKey) {
       currentUser = user;
       currentProfile = profile;
 
-      if (pageKey && !canAccess(profile.role, pageKey)) {
+      if (pageKey && !canAccess(profile.role, pageKey, profile.accesSupp)) {
         await infoModal({
           titre: 'Accès refusé',
           message: 'Ton rôle ne te permet pas d\'accéder à ce module.\nTu vas être redirigé vers ta page d\'accueil.',

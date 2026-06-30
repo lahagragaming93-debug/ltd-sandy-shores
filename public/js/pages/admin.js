@@ -8,7 +8,7 @@ import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire,
 import { renderShell } from '../layout.js';
 import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee,
          listAvertissements, listenAvertissementsActifs, creerAvertissement, retirerAvertissement } from '../api.js';
-import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, isDirection, isSuperAdmin } from '../utils/permissions.js';
+import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, canAccess, isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { date, escapeHtml, normalizePrenom, normalizeNom, dateKeyLocal } from '../utils/formatters.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique, infoModal } from '../utils/confirmation.js';
@@ -357,6 +357,8 @@ const html = `
       </div>
       <label>Date d'entrée</label>
       <input type="date" id="edit-date-entree" />
+      <label style="margin-top:12px;">Accès au site <span class="muted" style="font-size:0.72rem;">— coche les pages à donner EN PLUS du rôle</span></label>
+      <div id="edit-acces" style="display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;background:rgba(0,0,0,0.18);padding:9px 11px;border-radius:6px;max-height:220px;overflow:auto;"></div>
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-save-edit">Enregistrer</button>
         <button class="btn btn-ghost" id="btn-cancel-edit">Annuler</button>
@@ -773,6 +775,21 @@ function renderUsers() {
 }
 
 // === Édition d'un compte ===
+// Pages dont l'acces peut etre accorde individuellement (en plus du role).
+// Cles = celles utilisees par requireAuth de chaque page (cf. pages/*.js).
+const PAGES_GERABLES = [
+  { key: 'dashboard',         label: 'Dashboard' },
+  { key: 'stocks_epicerie',   label: 'Stocks épicerie' },
+  { key: 'stocks_essence',    label: 'Stations essence' },
+  { key: 'ventes',            label: 'Ventes' },
+  { key: 'comptabilite',      label: 'Comptabilité' },
+  { key: 'banque',            label: 'Banque LTD' },
+  { key: 'rh',                label: 'Ressources humaines' },
+  { key: 'revenus_carburant', label: 'Revenus carburant' },
+  { key: 'notes_frais',       label: 'Notes de frais' },
+  { key: 'admin',             label: 'Administration' }
+];
+
 function ouvrirEdition(uid) {
   const u = users.find(x => x.id === uid);
   if (!u) return;
@@ -783,6 +800,17 @@ function ouvrirEdition(uid) {
   document.getElementById('edit-id-discord').value = u.idDiscord || '';
   document.getElementById('edit-id-perso').value = u.idPerso || '';
   document.getElementById('edit-date-entree').value = u.dateEntree || '';
+  // Accès au site : pages déjà données par le rôle = cochées + grisées ;
+  // les autres = cochables (deviennent des accès supplémentaires individuels).
+  const supp = Array.isArray(u.accesSupp) ? u.accesSupp : [];
+  document.getElementById('edit-acces').innerHTML = PAGES_GERABLES.map(p => {
+    const parRole = canAccess(u.role, p.key);
+    const coche = parRole || supp.includes(p.key);
+    return `<label style="display:flex;align-items:center;gap:7px;font-size:0.85rem;cursor:${parRole ? 'default' : 'pointer'};">
+      <input type="checkbox" class="edit-acces-cb" value="${p.key}" ${coche ? 'checked' : ''} ${parRole ? 'disabled' : ''}>
+      <span>${p.label}${parRole ? ' <span class="muted" style="font-size:0.7rem;">(via le rôle)</span>' : ''}</span>
+    </label>`;
+  }).join('');
   document.getElementById('modal-edit').classList.remove('hidden');
 }
 
@@ -797,7 +825,9 @@ document.getElementById('btn-save-edit').addEventListener('click', async () => {
     nom:       normalizeNom(document.getElementById('edit-nom').value),
     idDiscord: document.getElementById('edit-id-discord').value.trim(),
     idPerso:   document.getElementById('edit-id-perso').value.trim(),
-    dateEntree:document.getElementById('edit-date-entree').value || null
+    dateEntree:document.getElementById('edit-date-entree').value || null,
+    // Accès supplémentaires = cases cochées NON grisées (les grisées viennent du rôle)
+    accesSupp: Array.from(document.querySelectorAll('.edit-acces-cb:checked:not(:disabled)')).map(cb => cb.value)
   };
   if (!patch.prenom || !patch.nom) return toastError("Prénom et NOM obligatoires.");
   try {

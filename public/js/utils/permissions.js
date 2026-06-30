@@ -85,10 +85,13 @@ export const ACCESS = {
                       'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS]
 };
 
-export function canAccess(role, page) {
+// accesSupp : liste de pages accordees a l'employe EN PLUS de son role (overrides
+// ADDITIFS geres depuis Admin > Modifier le compte). Jamais soustractif.
+export function canAccess(role, page, accesSupp = []) {
   const allowed = ACCESS[page];
   if (!allowed) return false;
-  return allowed.includes(role);
+  if (allowed.includes(role)) return true;
+  return Array.isArray(accesSupp) && accesSupp.includes(page);
 }
 
 export function isDirection(role)    { return DIRECTION.includes(role); }
