@@ -24,7 +24,7 @@ function perimetreText(role) {
   if (role === 'patron')                return 'Tu peux gérer TOUS les comptes.';
   if (role === 'co-patron')             return 'Tu peux gérer tous les comptes sauf le Patron.';
   if (role === 'drh')                   return 'Tu peux gérer tous les comptes sauf le Patron et le Co-Patron.';
-  if (role === 'responsable-vente')     return 'Tu peux gérer uniquement les vendeurs (Novice / Intermédiaire / Expérimenté).';
+  if (role === 'responsable-vente')     return 'Tu peux gérer uniquement les vendeurs (Novice / Intermédiaire / Expérimenté) et les livreurs.';
   if (role === 'responsable-pompiste')  return 'Tu peux gérer uniquement les pompistes (Novice / Intermédiaire / Expérimenté).';
   return 'Aucun périmètre de gestion.';
 }

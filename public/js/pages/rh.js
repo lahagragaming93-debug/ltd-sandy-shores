@@ -444,6 +444,10 @@ function renderTable() {
     } else if (isPompiste(u.role)) {
       const score = scorePompiste(bidonsShow, caoutShow, config.quotaBidons, config.quotaCaoutchoucs);
       progressLabel = `${pct(score, 0)}`;
+    } else if (u.role === 'livreur') {
+      progressLabel = `${money(caShow)} <span class="muted" style="font-size:0.72rem;">CA livraisons · sans quota</span>`;
+    } else if (u.role === 'chef-equipe') {
+      progressLabel = `${money(caShow)} <span class="muted" style="font-size:0.72rem;">CA · fixe 8 000 + part CA</span>`;
     } else if (isResponsable(u.role) || isDirection(u.role) || u.role === 'drh') {
       progressLabel = `Décidé`;
     }
@@ -638,7 +642,7 @@ function ouvrirDetail(uid) {
         <tr><td>Salaire estimé (semaine)</td><td class="right mono">${money(m.salaireEstime || 0)}</td></tr>
         <tr><td>Plafond TTE</td><td class="right mono">${money(PLAFOND_SALAIRE[u.role] || 0)}</td></tr>
   `;
-  if (isVendeur(u.role)) {
+  if (isVendeur(u.role) || u.role === 'livreur' || u.role === 'chef-equipe') {
     const cp = m.caParticulier ?? m.ca ?? 0;
     const caPro = (m.ca || 0) - cp;
     html += `
@@ -648,8 +652,8 @@ function ouvrirDetail(uid) {
       <tr><td>Bénéfice généré pour le LTD</td><td class="right mono">${money(m.benefice || 0)}</td></tr>
       <tr><td>Nombre de ventes</td><td class="right mono">${(m.ventes || []).length}</td></tr>
     `;
-    // Decomposition CA + bonus uniquement avec le nouveau systeme
-    if (isNouveauSystemeVendeur(config)) {
+    // Decomposition CA + bonus fab : vendeurs uniquement (chef/livreur n'ont pas de bonus fab)
+    if (isVendeur(u.role) && isNouveauSystemeVendeur(config)) {
       const plafondCA = PLAFOND_CA_VENDEUR[u.role] || 0;
       const quotaCAConfig = Number(config.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
       const salaireCAPart = Math.round((quotaCAConfig > 0 ? Math.min(1, cp / quotaCAConfig) : 0) * plafondCA);

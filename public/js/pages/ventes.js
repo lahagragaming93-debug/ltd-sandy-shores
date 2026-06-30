@@ -121,7 +121,7 @@ if (canPilotageVendeurs) {
 }
 
 const selVendeur = document.getElementById('filtre-vendeur');
-users.filter(u => ['vendeur-novice','vendeur-intermediaire','vendeur-experimente'].includes(u.role))
+users.filter(u => ['vendeur-novice','vendeur-intermediaire','vendeur-experimente','chef-equipe','livreur'].includes(u.role))
   .forEach(u => {
     const o = document.createElement('option');
     o.value = u.id;

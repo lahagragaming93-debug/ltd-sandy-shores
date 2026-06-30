@@ -40,6 +40,8 @@ function defaultGuideForRole(role) {
   if (role === 'drh') return '02-drh';
   if (role === 'responsable-vente') return '03-responsable-vente';
   if (role === 'responsable-pompiste') return '04-responsable-pompiste';
+  if (role === 'chef-equipe') return '03-responsable-vente';
+  if (role === 'livreur') return '05-vendeur';
   if (role && role.startsWith('vendeur-')) return '05-vendeur';
   if (role && role.startsWith('pompiste-')) return '06-pompiste';
   return '00-index';

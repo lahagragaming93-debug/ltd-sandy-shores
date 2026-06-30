@@ -21,7 +21,8 @@ function defaultTutoKey(role) {
   if (isPompiste(role) || role === 'responsable-pompiste') {
     return role === 'responsable-pompiste' ? 'resp-pompiste' : 'pompiste';
   }
-  if (isVendeur(role) || role === 'responsable-vente') {
+  if (role === 'chef-equipe') return 'resp-vente';
+  if (isVendeur(role) || role === 'responsable-vente' || role === 'livreur') {
     return role === 'responsable-vente' ? 'resp-vente' : 'vendeur';
   }
   return 'pompiste';

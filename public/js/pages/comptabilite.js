@@ -861,11 +861,16 @@ function renderSalaires(users, paies) {
   // Filtre les utilisateurs actifs ET exclut les rôles techniques (admin-technique)
   const actifs = users.filter(u => u.statut !== 'suspendu' && compteEnFinance(u.role));
 
-  // Catégorisation
+  // Catégorisation — chef-equipe a sa section (salaire auto fixe+CA), livreur va
+  // avec les vendeurs (paye au CA). Filet "autres" : tout actif remunere non
+  // capture, pour ne JAMAIS omettre un role de la masse salariale affichee.
   const direction  = actifs.filter(u => isDirection(u.role) || u.role === 'drh');
   const respo      = actifs.filter(u => isResponsable(u.role));
-  const vendeurs   = actifs.filter(u => isVendeur(u.role));
+  const chefs      = actifs.filter(u => u.role === 'chef-equipe');
+  const vendeurs   = actifs.filter(u => isVendeur(u.role) || u.role === 'livreur');
   const pompistes  = actifs.filter(u => isPompiste(u.role));
+  const capt       = new Set([...direction, ...respo, ...chefs, ...vendeurs, ...pompistes].map(u => u.id));
+  const autres     = actifs.filter(u => !capt.has(u.id));
 
   function ligneEmploye(u) {
     const verse = verseParUser[u.id] || verseParUser[u.idPerso] || verseParUser[u.idDiscord] || 0;
@@ -950,14 +955,16 @@ function renderSalaires(users, paies) {
     <div class="alert info mb-2" style="font-size:0.8rem;">
       <span>
         <strong>Direction / Responsables</strong> : salaire fixe (décidé via RH).<br>
-        <strong>Vendeurs / Pompistes</strong> : calcul automatique selon CA / quotas — détail par employé dans <a href="rh.html">Ressources humaines</a>.<br>
+        <strong>Vendeurs / Pompistes / Chef d'équipe / Livreur</strong> : calcul automatique selon CA / quotas — détail par employé dans <a href="rh.html">Ressources humaines</a>.<br>
         Le bouton <strong>Copier récap</strong> en haut à droite prépare un message formaté à coller dans <code>#paie</code>.
       </span>
     </div>
     ${sectionGroupe('Direction', direction)}
     ${sectionGroupe('Responsables', respo)}
+    ${sectionGroupe("Chef d'équipe", chefs, false)}
     ${sectionGroupe('Vendeurs', vendeurs, false)}
     ${sectionGroupe('Pompistes', pompistes, false)}
+    ${sectionGroupe('Autres', autres, false)}
   `;
 }
 
