@@ -844,17 +844,32 @@ function fieldsFromPayload(payload) {
   }
   return out.length ? out : [{ name: 'info', value: '(log)', inline: false }];
 }
+// Certains "mouvements bancaires" (xbankaccount) sont en réalité des
+// REDISTRIBUTIONS essence (raison "Redistribution N°…") : elles doivent aller
+// dans le salon retributions, PAS banque. Routage affiné selon le payload.
+function channelForLog(type, payload) {
+  if (type === 'bankAccount' || type === 'statsbank') {
+    const r = String((payload && (payload.raison || payload.motif)) || '').toLowerCase();
+    if (/redistribution|r[ée]tribution/.test(r)) return 'retributions';
+    return 'banque';
+  }
+  return IG_LOG_CHANNEL[type];
+}
+function labelForLog(type, payload, chan) {
+  if ((type === 'bankAccount' || type === 'statsbank') && chan === 'retributions') return 'Redistribution essence';
+  return IG_LABEL[type] || type;
+}
 // Relai d'un log IG vers son salon. Ne jette JAMAIS (l'ingestion ne doit pas casser).
 async function relayIgLog(type, payload) {
   try {
-    const chan = IG_LOG_CHANNEL[type];
+    const chan = channelForLog(type, payload);
     if (!chan) return;
     const url = logWebhooks()[chan];
     if (!url) return;
     await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [{
-        title: IG_LABEL[type] || type,
+        title: labelForLog(type, payload, chan),
         color: 13215073,
         fields: fieldsFromPayload(payload),
         footer: { text: 'LTD Sandy Shores · log IG' },
