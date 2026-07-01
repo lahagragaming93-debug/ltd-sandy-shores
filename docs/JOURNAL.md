@@ -1,7 +1,17 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-02 (v1.27.0 — paie livreur : 5 000 fixe + commission sur ses ventes)**
+> Dernière mise à jour : **2026-07-02 (v1.28.0 — permission « déclarer une livraison » accordable par personne)**
+
+---
+
+## ✅ 2026-07-02 — v1.28.0 : permission « déclarer une livraison » accordable par personne
+
+Jusqu'ici, seul le **livreur** pouvait déclarer une livraison. Désormais la direction peut **accorder ce droit à des personnes précises** (même mécanique que « Modifier les stocks »).
+
+- Nouvelle permission accordable **« Déclarer une livraison »** dans **Admin › Modifier le compte › Permissions de modification** (clé `livraisons_declare`, stockée dans `accesSupp`). Base = livreur (par le rôle) ; accordable à n'importe qui.
+- La personne accordée accède à la page Livraisons + voit le formulaire de déclaration (et ne voit que **ses** livraisons). `permissions.js` (`ACCESS.livraisons_declare`), `admin.js` (`PERMS_GERABLES`), `livraisons.js` (gate d'accès + `peutDeclarer` via `canAccess`), `firestore.rules` (`create` autorise `role=='livreur'` **ou** `aSupp('livraisons_declare')`).
+- **Règle préservée** : une déclaration de livraison **ne génère toujours AUCUN CA ni salaire**, pour personne (collection `/livraisons` séparée des ventes). Un vendeur à qui on accorde le droit peut déclarer une livraison **sans que ça touche sa paie** — son salaire vient uniquement de ses ventes.
 
 ---
 

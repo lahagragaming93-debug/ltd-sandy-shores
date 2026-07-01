@@ -139,7 +139,7 @@ service cloud.firestore {
         canAdmin() || isDRH() || resource.data.livreurId == request.auth.uid
       );
       allow create: if isAuth() && isActif()
-        && role() == 'livreur'
+        && (role() == 'livreur' || aSupp('livraisons_declare'))
         && request.resource.data.livreurId == request.auth.uid;
       allow update: if false;
       allow delete: if canAdmin();

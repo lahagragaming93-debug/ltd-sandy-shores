@@ -72,6 +72,11 @@ export const ACCESS = {
   // Déclaration de livraison : le livreur déclare ses livraisons (traçabilité,
   // SANS CA) ; la direction + DRH consultent l'historique. Décision patron 2026-07-02.
   livraisons:        [...DIRECTION, 'drh', ...LIVREURS, ...SUPER_ADMINS],
+  // Droit de DÉCLARER une livraison : le livreur (par son rôle) + toute personne à qui
+  // la direction accorde la permission (accesSupp, panneau « Permissions de modification »).
+  // Une déclaration de livraison ne génère JAMAIS de CA ni de salaire (collection /livraisons
+  // séparée des ventes) — quel que soit le rôle de la personne qui déclare.
+  livraisons_declare: [...LIVREURS, ...SUPER_ADMINS],
   comptabilite:      LECTURE_COMPTA,
   // L'EDITION compta reste strictement direction + super-admin (PAS chef-equipe).
   comptabilite_edit: [...DIRECTION, ...SUPER_ADMINS],

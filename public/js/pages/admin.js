@@ -793,7 +793,8 @@ const PAGES_GERABLES = [
 // Permissions de MODIFICATION accordables individuellement (au-delà de la simple
 // consultation d'une page). Même mécanique additive que les accès (champ accesSupp).
 const PERMS_GERABLES = [
-  { key: 'stocks_edit', label: 'Modifier les stocks (quantités, produits)' }
+  { key: 'stocks_edit', label: 'Modifier les stocks (quantités, produits)' },
+  { key: 'livraisons_declare', label: 'Déclarer une livraison (sans CA ni salaire)' }
 ];
 
 function ouvrirEdition(uid) {

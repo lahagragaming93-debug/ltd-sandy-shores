@@ -13,14 +13,22 @@ import {
   ajouterLivraison, listenLivraisons, listenLivraisonsLivreur, supprimerLivraison, listProduits
 } from '../api.js';
 import { money, escapeHtml } from '../utils/formatters.js';
-import { isDirection, isSuperAdmin, isLivreur } from '../utils/permissions.js';
+import { isDirection, isSuperAdmin, canAccess, defaultLandingPage } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
 
-const { user, profile } = await requireAuth('livraisons');
-const peutDeclarer      = isLivreur(profile.role);
+const { user, profile } = await requireAuth();   // auth seule ; on gère l'accès à la page juste après
+const supp              = Array.isArray(profile.accesSupp) ? profile.accesSupp : [];
+// Peut DÉCLARER : le livreur (par son rôle) OU toute personne à qui la direction a accordé la
+// permission « Déclarer une livraison » (accesSupp). Une déclaration ne génère aucun CA ni salaire.
+const peutDeclarer      = canAccess(profile.role, 'livraisons_declare', supp);
 const peutConsulterTout = isDirection(profile.role) || isSuperAdmin(profile.role) || profile.role === 'drh';
 const peutSupprimer     = isDirection(profile.role) || isSuperAdmin(profile.role);
+// Accès à la page = pouvoir consulter (rôle/accès « livraisons ») OU pouvoir déclarer. Sinon redirection.
+if (!peutDeclarer && !canAccess(profile.role, 'livraisons', supp)) {
+  window.location.href = defaultLandingPage(profile.role);
+  throw new Error('Accès livraisons refusé');
+}
 
 // Lundi ISO 'YYYY-MM-DD' d'une date 'YYYY-MM-DD' (getters LOCAUX — jamais de
 // toISOString qui décalerait d'un jour en GMT+1/+2).
