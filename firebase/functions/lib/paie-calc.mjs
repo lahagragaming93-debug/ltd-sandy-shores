@@ -25,7 +25,7 @@ export const PLAFOND_SALAIRE = {
   'vendeur-novice':           13000,
   'vendeur-intermediaire':    14000,
   'vendeur-experimente':      15000,
-  'livreur':                  5000,
+  'livreur':                  15000,
   'pompiste-novice':          13000,
   'pompiste-intermediaire':   14000,
   'pompiste-experimente':     15000,
@@ -73,6 +73,11 @@ export const RESP_VENTE_FIXE = 10000;
 export const RESP_VENTE_VAR_MAX = 7000;
 export const CHEF_EQUIPE_FIXE = 8000;
 export const CHEF_EQUIPE_VAR_MAX = 8000;
+// Livreur (revision decision patron 2026-07-02) : 5 000 fixe (livraisons) + part
+// variable sur ses ventes declarees (taux vendeur exp) plafonnee a 10 000 => max 15 000.
+// MIROIR de public/js/utils/permissions.js — garder synchronise.
+const LIVREUR_FIXE = 5000;
+const LIVREUR_VENTE_VAR_MAX = 10000;
 
 // Part variable "vente" : meme taux qu'un vendeur experimente (prorata CA perso
 // sur quota vendeur x plafond CA exp = 20%), plafonnee a varMax. Pas de bonus fab.
@@ -125,13 +130,14 @@ function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {}, quotaC
   return Math.min(Math.round(salaireCA + bonusFab), plafondSalaire);
 }
 
-// Salaire livreur — FIXE 5 000 $ (decision patron 2026-07-02). Ne depend PLUS du CA :
-// les livraisons ne generent pas de CA, elles sont tracees dans la page « Declaration
-// de livraison ». Le livreur touche 5 000 $ pour honorer les livraisons de la semaine ;
-// le patron verse (ou non, ou partiellement) selon ce qui a ete reellement honore.
+// Salaire livreur (revision decision patron 2026-07-02) : 5 000 $ FIXE pour les
+// livraisons (qui ne generent toujours PAS de CA — page « Declaration de livraison »)
+// + part VARIABLE sur ses VENTES declarees (meme taux qu'un vendeur experimente)
+// plafonnee a 10 000 => total max 15 000 (atteint a 50 000 $ de CA perso).
 // MIROIR de public/js/utils/paie.js::salaireLivreur — garder synchronise.
-function salaireLivreur() {
-  return PLAFOND_SALAIRE['livreur'] ?? 5000;
+function salaireLivreur(caParticulier = 0, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
+  const variable = partVariableVente(caParticulier, quotaCAVendeur, LIVREUR_VENTE_VAR_MAX);
+  return Math.min(LIVREUR_FIXE + variable, PLAFOND_SALAIRE['livreur'] ?? 15000);
 }
 
 function salairePompiste(role, bidons, caoutchoucs, quotaBidons = 1700, quotaCaoutchoucs = 800) {

@@ -8,7 +8,7 @@ import { PLAFOND_SALAIRE, PLAFOND_CA_VENDEUR, BONUS_QUOTA_VENDEUR_MAX,
          PRODUITS_QUOTA_FAB, isNouveauSystemeVendeur,
          DRH_SALAIRE_FIXE,
          PAIE_HYBRIDE_DEPUIS, RESP_VENTE_FIXE, RESP_VENTE_VAR_MAX,
-         CHEF_EQUIPE_FIXE, CHEF_EQUIPE_VAR_MAX, partVariableVente,
+         CHEF_EQUIPE_FIXE, CHEF_EQUIPE_VAR_MAX, LIVREUR_FIXE, LIVREUR_VENTE_VAR_MAX, partVariableVente,
          isVendeur, isLivreur, isPompiste, isResponsable, isDirection } from './permissions.js';
 import { weekId } from './formatters.js';
 
@@ -76,13 +76,17 @@ export function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {},
 }
 
 /**
- * Salaire livreur — FIXE 5 000 $ (decision patron 2026-07-02). Ne depend plus du CA :
- * les livraisons ne generent pas de CA (tracees dans la page « Declaration de
- * livraison »). Le livreur touche 5 000 $ pour honorer les livraisons de la semaine ;
- * le patron verse (ou non) selon ce qui a ete honore. MIROIR de paie-calc.mjs.
+ * Salaire livreur (revision decision patron 2026-07-02) :
+ *   5 000 $ FIXE pour honorer les livraisons de la semaine (les livraisons elles-memes
+ *   ne generent toujours PAS de CA — page « Declaration de livraison »)
+ *   + une part VARIABLE sur ses VENTES declarees, au meme taux qu'un vendeur
+ *     experimente (prorata du CA perso sur le quota), plafonnee a 10 000 $.
+ *   => total max 15 000 $ (atteint a 50 000 $ de CA perso).
+ * MIROIR de paie-calc.mjs::salaireLivreur — garder synchronise.
  */
-export function salaireLivreur() {
-  return PLAFOND_SALAIRE['livreur'] ?? 5000;
+export function salaireLivreur(caParticulier = 0, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
+  const variable = partVariableVente(caParticulier, quotaCAVendeur, LIVREUR_VENTE_VAR_MAX);
+  return Math.min(LIVREUR_FIXE + variable, PLAFOND_SALAIRE['livreur'] ?? 15000);
 }
 
 /**

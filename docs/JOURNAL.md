@@ -1,7 +1,18 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-02 (v1.26.0 — journalisation audit IG + site vers le Discord BLA)**
+> Dernière mise à jour : **2026-07-02 (v1.27.0 — paie livreur : 5 000 fixe + commission sur ses ventes)**
+
+---
+
+## ✅ 2026-07-02 — v1.27.0 : paie livreur = 5 000 fixe + commission sur ses ventes
+
+Révision de la paie du livreur (décision patron) : le forfait **5 000 $** (livraisons) est **conservé**, mais le livreur touche désormais **en plus** une part sur ses **ventes déclarées**.
+
+- `salaireLivreur(caParticulier, quotaCAVendeur)` = **5 000 $ fixe** + **part variable** sur son CA perso, au **même taux qu'un vendeur expérimenté** (`partVariableVente`, prorata du CA sur le quota 50 000 $), **plafonnée à 10 000 $** → **salaire max 15 000 $** (atteint à 50 000 $ de CA). Pas de bonus fabrication.
+- `PLAFOND_SALAIRE['livreur']` : 5 000 → **15 000**. Nouvelles constantes `LIVREUR_FIXE` (5 000) + `LIVREUR_VENTE_VAR_MAX` (10 000). Fichiers `permissions.js`, `utils/paie.js`, `paie-calc.mjs` (miroir back — gardés synchro).
+- **Rétroactif automatique** : le salaire estimé de la semaine en cours se recalcule en direct depuis les ventes → toutes les factures déjà passées par le livreur cette semaine sont **désormais comptées** (5 000 + part CA). Aucune migration de données.
+- Rappel : les **livraisons** ne génèrent toujours pas de CA (page « Déclaration de livraison », déclarée par le **livreur uniquement**).
 
 ---
 

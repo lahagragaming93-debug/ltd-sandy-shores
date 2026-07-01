@@ -202,7 +202,7 @@ export const PLAFOND_SALAIRE = {
   'vendeur-novice':           13000,
   'vendeur-intermediaire':    14000,
   'vendeur-experimente':      15000,
-  'livreur':                  5000,
+  'livreur':                  15000,
   'pompiste-novice':          13000,
   'pompiste-intermediaire':   14000,
   'pompiste-experimente':     15000,
@@ -282,6 +282,11 @@ export const RESP_VENTE_VAR_MAX = 7000;
 // 8 000 => plafond total 16 000 (atteint a 40 000 $ de CA).
 export const CHEF_EQUIPE_FIXE = 8000;
 export const CHEF_EQUIPE_VAR_MAX = 8000;
+// Livreur (revision decision patron 2026-07-02) : 5 000 fixe (livraisons) + part
+// variable sur ses ventes declarees (meme taux qu'un vendeur experimente) plafonnee
+// a 10 000 => plafond total 15 000 (atteint a 50 000 $ de CA perso). Sans bonus fab.
+export const LIVREUR_FIXE = 5000;
+export const LIVREUR_VENTE_VAR_MAX = 10000;
 
 // Part variable "vente" : meme pourcentage qu'un vendeur experimente, soit le
 // prorata du CA perso sur le quota vendeur x plafond CA exp (10 000 / 50 000 = 20%),
