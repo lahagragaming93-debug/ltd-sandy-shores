@@ -29,6 +29,9 @@ const COMPTA_TOKEN    = defineSecret('LTD_COMPTA_EXPORT_TOKEN');
 const DASHBOARD_SA_KEY = defineSecret('DASHBOARD_SA_KEY');
 // Webhook Discord #ltd-sandy (serveur BLA) pour poster le JSON IRS à la clôture.
 const BLA_LTD_JSON_WEBHOOK = defineSecret('BLA_LTD_JSON_WEBHOOK');
+// Webhooks des salons de logs (serveur BLA) — JSON { "<salon>": "<url webhook>" }.
+// Alimente le relai des logs IG (botIngest) + les logs site (logSite).
+const LOG_WEBHOOKS = defineSecret('LTD_LOG_WEBHOOKS');
 
 // ----------------------------------------------------------------
 // 1. Clôture hebdomadaire — Lundi 00h00 Paris
@@ -759,7 +762,7 @@ export const botIngest = onRequest({
   region: 'europe-west1',
   cors: false,
   invoker: 'public',          // webhook : invocation libre, sécurité par token x-bot-token
-  secrets: [BOT_TOKEN]
+  secrets: [BOT_TOKEN, LOG_WEBHOOKS]
 }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('Method not allowed');
   const token = req.get('x-bot-token');
@@ -793,11 +796,116 @@ export const botIngest = onRequest({
       case 'logBrut':         await onLogBrut(payload); break;
       default:                return res.status(400).send('Unknown type');
     }
+    await relayIgLog(type, payload);   // relai vers le salon de logs BLA (audit)
     res.json({ ok: true });
   } catch (err) {
     console.error('botIngest error', err);
     res.status(500).send(err.message || 'Internal error');
   }
+});
+
+// ============================================================
+// Relai des logs vers les salons Discord BLA (audit / recherche)
+// ============================================================
+// Type d'ingestion IG -> nom du salon de logs (serveur BLA).
+const IG_LOG_CHANNEL = {
+  venteAuto: 'ventes-employe', facture: 'ventes-employe', factureCancel: 'ventes-employe',
+  redistribution: 'retributions', rapportPompiste: 'retributions',
+  depense: 'depenses',
+  bankAccount: 'banque', statsbank: 'banque',
+  coffre: 'coffre',
+  paie: 'paies',
+  inventory: 'stocks-inventaire',
+  avertissement: 'rh', licenciement: 'rh', autorankup: 'rh', autoRh: 'rh',
+  dossierEmploye: 'rh', stagiaire: 'rh',
+  service: 'services-vehicules', vehicule: 'services-vehicules'
+  // stationsDashboard : pas de relai (message dashboard édité en place)
+};
+const IG_LABEL = {
+  venteAuto: 'Vente', facture: 'Facture', factureCancel: 'Facture annulée',
+  redistribution: 'Redistribution essence', rapportPompiste: 'Rapport pompiste',
+  depense: 'Dépense', bankAccount: 'Mouvement bancaire', statsbank: 'Stats banque',
+  coffre: 'Coffre', paie: 'Paie', inventory: 'Inventaire', avertissement: 'Avertissement',
+  licenciement: 'Licenciement', autorankup: 'Montée en grade', autoRh: 'RH auto',
+  dossierEmploye: 'Dossier employé', stagiaire: 'Stagiaire', service: 'Service', vehicule: 'Véhicule'
+};
+function logWebhooks() {
+  try { return JSON.parse(LOG_WEBHOOKS.value() || '{}'); } catch { return {}; }
+}
+// Champs lisibles depuis un payload d'ingestion (générique, scalaires seulement).
+function fieldsFromPayload(payload) {
+  const out = [];
+  for (const [k, v] of Object.entries(payload || {})) {
+    if (k === '_meta') continue;
+    if (v == null || v === '' || typeof v === 'object') continue;
+    let val = String(v); if (val.length > 300) val = val.slice(0, 297) + '…';
+    out.push({ name: k.slice(0, 240), value: val, inline: true });
+    if (out.length >= 12) break;
+  }
+  return out.length ? out : [{ name: 'info', value: '(log)', inline: false }];
+}
+// Relai d'un log IG vers son salon. Ne jette JAMAIS (l'ingestion ne doit pas casser).
+async function relayIgLog(type, payload) {
+  try {
+    const chan = IG_LOG_CHANNEL[type];
+    if (!chan) return;
+    const url = logWebhooks()[chan];
+    if (!url) return;
+    await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [{
+        title: IG_LABEL[type] || type,
+        color: 13215073,
+        fields: fieldsFromPayload(payload),
+        footer: { text: 'LTD Sandy Shores · log IG' },
+        timestamp: new Date().toISOString()
+      }] })
+    });
+  } catch (e) { console.error('relayIgLog', type, e && e.message); }
+}
+
+// ------------------------------------------------------------
+// logSite — l'app LTD poste un événement (action sur le site) vers le salon
+// dédié du serveur BLA. Auth : idToken Firebase de l'utilisateur connecté.
+// ------------------------------------------------------------
+const SITE_LOG_CHANNELS = new Set(['connexions', 'comptes-acces', 'stocks', 'ventes', 'livraisons', 'notes-frais', 'compta', 'config']);
+export const logSite = onRequest({ region: 'europe-west1', cors: true, secrets: [LOG_WEBHOOKS] }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  if (req.method !== 'POST') return res.status(405).send('POST');
+  const m = (req.get('Authorization') || '').match(/^Bearer (.+)$/);
+  if (!m) return res.status(401).json({ error: 'auth' });
+  let decoded;
+  try { decoded = await adminAuth.verifyIdToken(m[1]); } catch { return res.status(401).json({ error: 'token' }); }
+  const { channel, title, fields } = req.body || {};
+  if (!SITE_LOG_CHANNELS.has(channel)) return res.status(400).json({ error: 'channel' });
+  const url = logWebhooks()[channel];
+  if (!url) return res.json({ ok: true, skipped: true });
+  let acteur = decoded.email || decoded.uid;
+  try {
+    const u = await db.collection('users').doc(decoded.uid).get();
+    if (u.exists) { const d = u.data() || {}; acteur = `${d.prenom || ''} ${d.nom || ''}`.trim() || acteur; }
+  } catch {}
+  const safeFields = Array.isArray(fields) ? fields.slice(0, 12).map(f => ({
+    name: String(f.name || '—').slice(0, 240),
+    value: String(f.value == null ? '—' : f.value).slice(0, 1000),
+    inline: !!f.inline
+  })) : [];
+  try {
+    await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [{
+        title: String(title || 'Événement').slice(0, 240),
+        color: 13215073,
+        fields: safeFields,
+        footer: { text: 'LTD Sandy Shores · log site · ' + acteur },
+        timestamp: new Date().toISOString()
+      }] })
+    });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e && e.message }); }
 });
 
 // === Handlers ===

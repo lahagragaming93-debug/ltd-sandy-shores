@@ -1,7 +1,22 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-02 (v1.25.0 — onglet Déclaration de livraison + paie livreur fixe 5 000 $)**
+> Dernière mise à jour : **2026-07-02 (v1.26.0 — journalisation audit IG + site vers le Discord BLA)**
+
+---
+
+## ✅ 2026-07-02 — v1.26.0 : journalisation (audit) IG + site vers le Discord BLA
+
+Mise en place d'un système de **logs organisés** sur le serveur Discord BLA, pour retrouver un log rapidement en cas de souci (interne cabinet — **visible direction + staff uniquement**).
+
+### Salons
+- Deux catégories créées : **« 🌵 LOGS IG · LTD SANDY »** (9 salons) et **« 🌵 LOGS SITE · LTD SANDY »** (8 salons), chacun avec son webhook. Accès restreint (Directeur Général, Directeur Adjoint, Assistante de Direction, Staff).
+
+### Logs IG (jeu)
+- La Cloud Function `botIngest` **relaie** chaque log ingéré, trié par type, vers le bon salon : ventes, redistributions, dépenses, banque, coffre, paies, inventaire, RH, services/véhicules. Relai *fire-and-forget* (ne casse jamais l'ingestion). Secret `LTD_LOG_WEBHOOKS`.
+
+### Logs site (application)
+- Nouvelle fonction `logSite` + helper front `logSite(channel, title, fields)`. Actions journalisées : **connexion** (auth.js), **comptes / permissions** (admin.js), **stocks** (ajustement, produit, prix — api.js), **livraisons** (api.js). Fire-and-forget. Salons `ventes` / `notes-frais` / `compta` / `config` créés, prêts à être câblés.
 
 ---
 

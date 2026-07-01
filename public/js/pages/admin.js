@@ -6,7 +6,7 @@
 import { requireAuth, creerCompteEmploye, genererMotDePasseProvisoire,
          getViewAsRole, setViewAsRole, clearViewAsRole } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listenUsers, updateUser, deleteUser, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee,
+import { listenUsers, updateUser, deleteUser, logSite, getConfig, setConfig, getSecrets, setSecrets, listEmbauchesEnAttente, marquerEmbaucheTraitee,
          listAvertissements, listenAvertissementsActifs, creerAvertissement, retirerAvertissement } from '../api.js';
 import { ROLE_LABELS, ROLES, canManageUser, assignableRoles, canEditConfig, canAccess, isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { date, escapeHtml, normalizePrenom, normalizeNom, dateKeyLocal } from '../utils/formatters.js';
@@ -842,6 +842,10 @@ document.getElementById('btn-save-edit').addEventListener('click', async () => {
   if (!patch.prenom || !patch.nom) return toastError("Prénom et NOM obligatoires.");
   try {
     await updateUser(uid, patch);
+    logSite('comptes-acces', 'Compte modifié', [
+      { name: 'Compte', value: `${patch.prenom} ${patch.nom}`, inline: true },
+      { name: 'Accès / permissions', value: (patch.accesSupp && patch.accesSupp.length) ? patch.accesSupp.join(', ') : 'aucun (rôle seul)', inline: false }
+    ]);
     toastSuccess("Compte modifié.");
     document.getElementById('modal-edit').classList.add('hidden');
   } catch (e) { toastError(e?.message || e?.code || "Erreur."); console.error(e); }

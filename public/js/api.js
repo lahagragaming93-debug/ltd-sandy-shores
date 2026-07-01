@@ -33,6 +33,25 @@ export async function callFunction(name, body = {}) {
   return json;
 }
 
+// ----- Logs site (audit) — fire-and-forget -----
+// Poste un événement vers la Cloud Function logSite, qui le relaie dans le salon
+// de logs dédié du serveur BLA. Ne DOIT JAMAIS bloquer ni casser l'action métier
+// (erreurs avalées). channel : connexions | comptes-acces | stocks | ventes |
+// livraisons | notes-frais | compta | config.
+export function logSite(channel, title, fields = []) {
+  (async () => {
+    try {
+      if (!auth.currentUser) return;
+      const idToken = await auth.currentUser.getIdToken();
+      await fetch(`${CF_BASE}/logSite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        body: JSON.stringify({ channel, title, fields })
+      });
+    } catch (e) { /* silencieux */ }
+  })();
+}
+
 // ----- Utilisateurs -----
 const MAX_USERS = 200;
 export async function getUserDoc(uid) {
@@ -84,6 +103,7 @@ export async function deleteProduit(id) {
   // restent en base (audit). Si tu veux nettoyer aussi le stock :
   // await deleteDoc(doc(db, 'stocks', id));
   await deleteDoc(doc(db, 'produits', id));
+  logSite('stocks', 'Produit supprimé', [{ name: 'Produit', value: id, inline: true }]);
 }
 export async function setProduit(id, data) {
   // Audit trail : si prixAchat ou prixVente change, on log dans /historiquePrix
@@ -104,6 +124,11 @@ export async function setProduit(id, data) {
     }
   }
   await setDoc(doc(db, 'produits', id), data, { merge: true });
+  logSite('stocks', 'Produit enregistré', [
+    { name: 'Produit', value: data.nom || id, inline: true },
+    { name: 'Prix achat', value: String(data.prixAchat ?? '—'), inline: true },
+    { name: 'Prix vente', value: String(data.prixVente ?? '—'), inline: true }
+  ]);
 }
 export async function listStocks() {
   const snap = await getDocs(collection(db, 'stocks'));
@@ -136,6 +161,12 @@ export async function ajusterStock(produitId, delta, raison, parUid) {
     raison: raison || '',
     timestamp: serverTimestamp()
   });
+  logSite('stocks', 'Stock ajusté', [
+    { name: 'Produit', value: produitId, inline: true },
+    { name: 'Variation', value: (delta >= 0 ? '+' : '') + delta, inline: true },
+    { name: 'Nouveau total', value: String(nouveau), inline: true },
+    { name: 'Motif', value: raison || '—', inline: false }
+  ]);
 }
 
 // ----- Ventes -----
@@ -177,7 +208,14 @@ const MAX_LIVRAISONS = 300;
 // génère AUCUN CA : pur enregistrement de traçabilité pour que le patron sache
 // ce qui a été livré et juge le versement du fixe de 5 000 $.
 export async function ajouterLivraison(data) {
-  return addDoc(collection(db, 'livraisons'), { ...data, createdAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, 'livraisons'), { ...data, createdAt: serverTimestamp() });
+  logSite('livraisons', 'Livraison déclarée', [
+    { name: 'Client', value: data.client || '—', inline: true },
+    { name: 'Produit', value: data.produit || '—', inline: true },
+    { name: 'Quantité', value: String(data.quantite ?? '—'), inline: true },
+    { name: 'Montant', value: String(data.montant ?? '—') + ' $', inline: true }
+  ]);
+  return ref;
 }
 // Historique complet (direction / DRH / super-admin) — toutes les livraisons.
 export function listenLivraisons(cb) {

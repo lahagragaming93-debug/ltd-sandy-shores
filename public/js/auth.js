@@ -8,7 +8,7 @@ import {
   onAuthStateChanged, sendPasswordResetEmail, updatePassword
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
-import { getUserDoc, setUserDoc, listUsers } from './api.js';
+import { getUserDoc, setUserDoc, listUsers, logSite } from './api.js';
 import { canAccess, defaultLandingPage, ROLES } from './utils/permissions.js';
 import { infoModal } from './utils/confirmation.js';
 import { normalizePrenom, normalizeNom, dateKeyLocal } from './utils/formatters.js';
@@ -111,6 +111,7 @@ export async function connecter(identifiant, password) {
   const email = identifiantToEmail(identifiant);
   if (!email) throw new Error("Identifiant requis.");
   const cred = await signInWithEmailAndPassword(auth, email, password);
+  logSite('connexions', 'Connexion réussie', [{ name: 'Identifiant', value: identifiant, inline: true }]);
   return cred.user;
 }
 
