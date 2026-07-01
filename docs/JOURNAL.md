@@ -1,7 +1,19 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-01 (v1.23.0 — poste Livreur, périmètres chef/resp-vente resserrés, accès par employé)**
+> Dernière mise à jour : **2026-07-02 (v1.24.0 — permission de modification par employé : stocks)**
+
+---
+
+## ✅ 2026-07-02 — v1.24.0 : permission de modification par employé (stocks)
+
+Ajout d'un système de **permissions de modification** accordables employé par employé, en plus des accès aux pages (même mécanique `accesSupp`).
+
+- **Nouvelle permission `stocks_edit`** : modifier les stocks (ajuster une quantité, éditer / créer un produit, corriger l'inventaire). Rôles éditeurs par défaut inchangés (direction, DRH, resp. vente, resp. pompiste, super-admin).
+- **Chef d'équipe** (et tout autre rôle) peut désormais recevoir ce droit **individuellement** via **Admin > Modifier le compte > « Permissions de modification »**.
+- Le modal « Modifier le compte » sépare désormais **Accès aux pages** et **Permissions de modification**.
+- `firestore.rules` : les écritures stock (`/stocks`, `/produits`, `/historiquePrix`, `/mouvementsStock`) passent d'un accès « tous les chefs d'équipe » en bloc à un grant **par employé** (`aSupp('stocks_edit')`) — aucun chef d'équipe n'éditait via l'UI, donc sans impact.
+- Fichiers : `permissions.js`, `stocks.js`, `admin.js`, `firestore.rules`.
 
 ---
 

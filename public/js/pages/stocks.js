@@ -10,20 +10,18 @@ import {
 } from '../api.js';
 import { CATEGORIES, CATEGORY_LABELS } from '../data/produits.js';
 import { money, moneyPrecis, num, datetime, escapeHtml } from '../utils/formatters.js';
-import { isDirection, isSuperAdmin, canCreateProduit } from '../utils/permissions.js';
+import { canAccess, canCreateProduit } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 import { confirmCritique } from '../utils/confirmation.js';
 import { wrapScroll, makeSortable } from '../utils/sortable-table.js';
 
 const { profile } = await requireAuth('stocks_epicerie');
-// 2026-05-11 : restreint a Direction + Admin Technique (audit inventaire hebdo).
-// 2026-05-13 : DRH re-autorise sur demande du patron (alignement Direction).
-// 2026-05-22 : Resp Pompiste autorise (demande patron — gestion complete des stocks).
-// 2026-05-25 : Resp Vente autorise (demande patron — modification stocks epicerie).
-const editable = isDirection(profile.role) || isSuperAdmin(profile.role)
-              || profile.role === 'drh'
-              || profile.role === 'responsable-pompiste'
-              || profile.role === 'responsable-vente';
+// Droit de MODIFICATION du stock. Rôles éditeurs par défaut (direction, DRH, resp.
+// vente, resp. pompiste, super-admin) OU permission individuelle 'stocks_edit'
+// accordée via Admin > Modifier le compte (ex. un chef d'équipe précis).
+// Historique : 05-11 Direction+Admin ; 05-13 DRH ; 05-22 Resp Pompiste ;
+// 05-25 Resp Vente ; 07-02 permission par employé 'stocks_edit'.
+const editable = canAccess(profile.role, 'stocks_edit', profile.accesSupp);
 const canCreate = canCreateProduit(profile.role);
 
 const html = `

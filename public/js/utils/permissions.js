@@ -62,6 +62,12 @@ export const ACCESS = {
   dashboard:         [...DIRECTION, 'drh', ...SUPER_ADMINS],
   stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   stocks_essence:    [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
+  // Permission de MODIFICATION des stocks (ajuster une quantité, éditer un produit,
+  // corriger l'inventaire). Différente de l'ACCÈS aux pages stocks ci-dessus (voir).
+  // Par défaut : direction, DRH, resp. vente, resp. pompiste, super-admin. Le chef
+  // d'équipe (et tout autre rôle) l'obtient au cas par cas via accesSupp — Admin >
+  // Modifier le compte > « Permissions de modification ». Décision patron 2026-07-02.
+  stocks_edit:       [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   ventes:            [...DIRECTION, 'drh', 'responsable-vente', CHEF, ...SUPER_ADMINS],
   comptabilite:      LECTURE_COMPTA,
   // L'EDITION compta reste strictement direction + super-admin (PAS chef-equipe).

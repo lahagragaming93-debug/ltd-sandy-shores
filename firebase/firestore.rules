@@ -105,14 +105,14 @@ service cloud.firestore {
     match /produits/{id} {
       allow read:   if isAuth() && isActif();
       allow create: if canAdmin() || isDRH() || isRespPompiste();
-      allow update: if canAdmin() || isDRH() || isRespVente() || isChefEquipe() || isRespPompiste();
+      allow update: if canAdmin() || isDRH() || isRespVente() || isRespPompiste() || aSupp('stocks_edit');
       allow delete: if canAdmin() || isDRH() || isRespPompiste();
     }
 
     // === Historique des prix (audit trail, append-only) ===
     match /historiquePrix/{id} {
       allow read:   if canAdmin() || isDRH() || isRespPompiste();
-      allow create: if canAdmin() || isDRH() || isRespVente() || isChefEquipe() || isRespPompiste();
+      allow create: if canAdmin() || isDRH() || isRespVente() || isRespPompiste() || aSupp('stocks_edit');
       allow update, delete: if false;
     }
 
@@ -121,13 +121,13 @@ service cloud.firestore {
     // (cf. UI Stocks → "+ Ajouter un produit" + champ "Stock initial")
     match /stocks/{id} {
       allow read:  if isAuth() && isActif();
-      allow write: if canAdmin() || isRespVente() || isChefEquipe() || isDRH() || isRespPompiste();
+      allow write: if canAdmin() || isRespVente() || isDRH() || isRespPompiste() || aSupp('stocks_edit');
     }
 
     // === Mouvements de stock (append-only depuis l'app) ===
     match /mouvementsStock/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin() || isRespVente() || isChefEquipe() || isDRH() || isRespPompiste();
+      allow create: if canAdmin() || isRespVente() || isDRH() || isRespPompiste() || aSupp('stocks_edit');
       allow update, delete: if canAdmin();
     }
 

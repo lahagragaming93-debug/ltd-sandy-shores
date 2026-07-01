@@ -357,7 +357,7 @@ const html = `
       </div>
       <label>Date d'entrée</label>
       <input type="date" id="edit-date-entree" />
-      <label style="margin-top:12px;">Accès au site <span class="muted" style="font-size:0.72rem;">— coche les pages à donner EN PLUS du rôle</span></label>
+      <label style="margin-top:12px;">Accès &amp; permissions <span class="muted" style="font-size:0.72rem;">— coche ce que tu veux donner EN PLUS du rôle</span></label>
       <div id="edit-acces" style="display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;background:rgba(0,0,0,0.18);padding:9px 11px;border-radius:6px;max-height:220px;overflow:auto;"></div>
       <div class="row mt-3">
         <button class="btn btn-primary" id="btn-save-edit">Enregistrer</button>
@@ -790,6 +790,12 @@ const PAGES_GERABLES = [
   { key: 'admin',             label: 'Administration' }
 ];
 
+// Permissions de MODIFICATION accordables individuellement (au-delà de la simple
+// consultation d'une page). Même mécanique additive que les accès (champ accesSupp).
+const PERMS_GERABLES = [
+  { key: 'stocks_edit', label: 'Modifier les stocks (quantités, produits)' }
+];
+
 function ouvrirEdition(uid) {
   const u = users.find(x => x.id === uid);
   if (!u) return;
@@ -803,14 +809,18 @@ function ouvrirEdition(uid) {
   // Accès au site : pages déjà données par le rôle = cochées + grisées ;
   // les autres = cochables (deviennent des accès supplémentaires individuels).
   const supp = Array.isArray(u.accesSupp) ? u.accesSupp : [];
-  document.getElementById('edit-acces').innerHTML = PAGES_GERABLES.map(p => {
+  const renderCb = (p) => {
     const parRole = canAccess(u.role, p.key);
     const coche = parRole || supp.includes(p.key);
     return `<label style="display:flex;align-items:center;gap:7px;font-size:0.85rem;cursor:${parRole ? 'default' : 'pointer'};">
       <input type="checkbox" class="edit-acces-cb" value="${p.key}" ${coche ? 'checked' : ''} ${parRole ? 'disabled' : ''}>
       <span>${p.label}${parRole ? ' <span class="muted" style="font-size:0.7rem;">(via le rôle)</span>' : ''}</span>
     </label>`;
-  }).join('');
+  };
+  const titreGrp = (t) => `<div class="muted" style="grid-column:1/-1;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;margin:4px 0 1px;">${t}</div>`;
+  document.getElementById('edit-acces').innerHTML =
+    titreGrp('Accès aux pages') + PAGES_GERABLES.map(renderCb).join('') +
+    titreGrp('Permissions de modification') + PERMS_GERABLES.map(renderCb).join('');
   document.getElementById('modal-edit').classList.remove('hidden');
 }
 
