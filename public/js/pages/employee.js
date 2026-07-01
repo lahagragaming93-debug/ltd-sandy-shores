@@ -9,7 +9,7 @@ import {
   getServiceOuvert, getQuotaPompiste, getQuotaVendeur, getConfig, listenConfig, listenAvertissements,
   getUserDoc, listUsers, listenStations, listRedistributionsSemaine, listAllRedistributionsPompiste,
   listRedistributionsRangeManuel, listAllRedistributionsManuel,
-  listenMesNotesFrais, callFunction
+  listenMesNotesFrais, callFunction, logSite
 } from '../api.js';
 import { ROLE_LABELS, isVendeur, isPompiste, isPompisteRavitailleur, isVendeurDeclarateur,
          isDirection, isSuperAdmin, PLAFOND_SALAIRE,
@@ -1266,6 +1266,10 @@ if (isPompisteRavitailleur(profile.role) && !modeVoirComme) {
         await callFunction('creerNoteFrais', { montant, screenshotUrl: screenshotDataUrl, description });
         modalNF.classList.add('hidden');
         toastSuccess('Note de frais envoyée à la direction.');
+        logSite('notes-frais', 'Note de frais créée', [
+          { name: 'Montant', value: String(montant), inline: true },
+          { name: 'Description', value: (description || '—').slice(0, 300), inline: false }
+        ]);
       } catch (e) {
         alert('Échec : ' + (e?.message || 'erreur inattendue.'));
       } finally {

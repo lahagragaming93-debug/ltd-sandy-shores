@@ -8,7 +8,7 @@
 
 import { requireAuth } from '../auth.js';
 import { renderShell } from '../layout.js';
-import { listenAllNotesFrais, callFunction } from '../api.js';
+import { listenAllNotesFrais, callFunction, logSite } from '../api.js';
 import { money, datetime, escapeHtml } from '../utils/formatters.js';
 import { isDirection, isSuperAdmin } from '../utils/permissions.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
@@ -253,6 +253,10 @@ async function onAction(id, action) {
   try {
     await callFunction('traiterNoteFrais', { noteId: id, action, motifRejet });
     toastSuccess(`Note de frais ${action === 'approuver' ? 'approuvée' : action === 'rembourser' ? 'marquée remboursée' : 'rejetée'}.`);
+    logSite('notes-frais', 'Note de frais ' + (action === 'approuver' ? 'approuvée' : action === 'rembourser' ? 'remboursée' : 'rejetée'), [
+      { name: 'Note', value: String(id), inline: true },
+      ...(motifRejet ? [{ name: 'Motif rejet', value: String(motifRejet).slice(0, 300), inline: false }] : [])
+    ]);
   } catch (e) {
     toastError("Échec : " + (e?.message || 'erreur inattendue.'));
   }

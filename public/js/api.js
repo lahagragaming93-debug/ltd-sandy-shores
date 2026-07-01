@@ -404,6 +404,11 @@ export async function ajouterDepense(data) {
     ...data,
     timestamp: serverTimestamp()
   });
+  logSite('compta', 'Dépense ajoutée', [
+    { name: 'Montant', value: String(data.montant ?? '—'), inline: true },
+    { name: 'Type', value: String(data.type || data.categorie || 'a-classifier'), inline: true },
+    { name: 'Raison', value: String(data.raison || data.description || '—').slice(0, 300), inline: false }
+  ]);
 }
 
 // Solde du compte bancaire LTD.
@@ -676,6 +681,9 @@ export async function setConfig(patch) {
   await setDoc(doc(db, 'config', 'global'), patch, { merge: true });
   _configCache = null; // invalidate apres ecriture
   _configCacheTs = 0;
+  logSite('config', 'Configuration modifiée', Object.keys(patch || {}).slice(0, 12).map(k => ({
+    name: k, value: (typeof patch[k] === 'object' ? JSON.stringify(patch[k]) : String(patch[k])).slice(0, 200), inline: true
+  })));
 }
 // Listener temps reel sur /config/global. Indispensable pour les tablettes
 // in-game (FiveM) qui n'ont pas de F5 : quand la direction modifie les

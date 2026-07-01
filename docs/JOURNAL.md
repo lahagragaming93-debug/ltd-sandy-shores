@@ -1,7 +1,20 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-02 (v1.28.0 — permission « déclarer une livraison » accordable par personne)**
+> Dernière mise à jour : **2026-07-02 (v1.28.1 — journalisation site complétée : ventes, notes de frais, compta, config)**
+
+---
+
+## ✅ 2026-07-02 — v1.28.1 : journalisation (audit) site complétée
+
+Les salons de logs `ventes`, `notes-frais`, `compta` et `config` avaient été **créés mais jamais branchés** (v1.26.0 les listait « prêts à être câblés »). C'est corrigé — toutes les actions site remontent maintenant dans le Discord BLA (audit interne, direction + staff) :
+
+- **ventes** : déclaration ET modification d'une vente (montant, bénéfice, produits, client) — `utils/vente-modal.js`.
+- **notes-frais** : création (employé) + traitement direction (approuvée / remboursée / rejetée) — `pages/employee.js`, `pages/notes-frais.js`.
+- **compta** : dépense ajoutée + **reclassification** d'une dépense (catégorie, déductible) — `api.js`, `pages/comptabilite.js`.
+- **config** : toute modification de la configuration (quotas, prix, seuils…) — `api.js` (`setConfig`).
+
+Journalisation *fire-and-forget* via le helper `logSite` existant (n'impacte jamais l'action métier ; erreurs avalées). Aucun changement backend. Complète la v1.26.0.
 
 ---
 

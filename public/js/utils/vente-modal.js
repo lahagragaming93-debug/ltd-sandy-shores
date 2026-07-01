@@ -5,7 +5,7 @@
 // Le prixAchat affiche cote client est INDICATIF — recalcul serveur.
 // ============================================================
 
-import { listProduits, listVentesSemaineIncluantCachees } from '../api.js';
+import { listProduits, listVentesSemaineIncluantCachees, logSite } from '../api.js';
 import { money, moneyPrecis, escapeHtml, datetime, startOfWeekRP, endOfWeekRP } from './formatters.js';
 import { toastSuccess, toastError } from './toast.js';
 import { auth } from '../firebase-config.js';
@@ -338,6 +338,14 @@ async function soumettre() {
       ? `Vente modifiée : ${money(json.montant)} (bénéfice ${money(json.benefice)}).`
       : `Vente #${json.factureId} enregistrée : ${money(json.montant)} encaissés, bénéfice ${money(json.benefice)}.`;
     toastSuccess(msg);
+    logSite('ventes', mode === 'edit' ? 'Vente modifiée' : 'Vente déclarée', [
+      { name: 'Montant', value: money(json.montant), inline: true },
+      { name: 'Bénéfice', value: money(json.benefice), inline: true },
+      ...(json.factureId ? [{ name: 'Facture', value: '#' + json.factureId, inline: true }] : []),
+      ...(clientNom ? [{ name: 'Client', value: clientNom, inline: true }] : []),
+      { name: 'Produits', value: lignes.map(l => l.quantite + '× ' + ((produitsCache || []).find(p => p.id === l.produitId)?.nom || l.produitId)).join(', ').slice(0, 900) || '—', inline: false },
+      ...(mode === 'edit' && motifModification ? [{ name: 'Motif modif', value: motifModification.slice(0, 300), inline: false }] : [])
+    ]);
     fermerModal();
     if (typeof onSuccessCb === 'function') onSuccessCb(json);
   } catch (e) {

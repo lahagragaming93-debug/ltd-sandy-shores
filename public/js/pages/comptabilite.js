@@ -9,7 +9,7 @@ import { renderShell, roleBadgeHtml } from '../layout.js';
 import {
   listVentesSemaine, listDepensesSemaine, listPaiesSemaine, listSemaines,
   ajouterDepense, listUsers, listStatsHebdoOfficielles, getCarburantStatsSemaine,
-  listQuotasSemaine, listQuotasVendeurSemaine, getConfig, listSubventionsSemaine
+  listQuotasSemaine, listQuotasVendeurSemaine, getConfig, listSubventionsSemaine, logSite
 } from '../api.js';
 import { money, num, pct, datetime, escapeHtml,
          startOfWeekRP, endOfWeekRP, weekId, dateKeyLocal } from '../utils/formatters.js';
@@ -836,6 +836,11 @@ document.getElementById('btn-save-reclasser')?.addEventListener('click', async (
     const json = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
     toastSuccess('Dépense reclassifiée');
+    logSite('compta', 'Dépense reclassée', [
+      { name: 'Montant', value: money(depenseEnCoursReclasser?.montant), inline: true },
+      { name: 'Catégorie', value: categorie, inline: true },
+      { name: 'Déductible', value: (document.querySelector('input[name="reclasser-deductible"]:checked')?.value === 'true') ? 'oui' : 'non', inline: true }
+    ]);
     document.getElementById('modal-reclasser').classList.add('hidden');
     depenseEnCoursReclasser = null;
     await chargerTout();
