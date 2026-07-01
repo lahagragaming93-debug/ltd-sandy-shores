@@ -1,7 +1,22 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-02 (v1.24.0 — permission de modification par employé : stocks)**
+> Dernière mise à jour : **2026-07-02 (v1.25.0 — onglet Déclaration de livraison + paie livreur fixe 5 000 $)**
+
+---
+
+## ✅ 2026-07-02 — v1.25.0 : Déclaration de livraison + paie livreur fixe
+
+Nouvel onglet **« Livraisons »** pour le livreur + refonte de sa paie.
+
+### Onglet « Déclaration de livraison »
+- Le **livreur** déclare ses livraisons : **date, heure, client livré, produit, quantité, montant total facturé**. Nouvelle collection `/livraisons`.
+- **Aucune incidence sur le CA** : traçabilité pure (le montant correspond à la vraie facture émise en jeu). Le patron consulte l'**historique** (filtre par semaine, KPI livraisons / quantité / montant).
+- Accès : livreur (déclare + voit les siennes), direction + DRH (consultent tout, suppression possible). `permissions.js` (`ACCESS.livraisons`), `layout.js` (nav + icône truck), `api.js` (`ajouterLivraison` / `listenLivraisons` / `listenLivraisonsLivreur`), `firestore.rules` (`/livraisons`).
+- Le livreur **garde** la déclaration de ventes comptoir (flux inchangé).
+
+### Paie livreur : fixe 5 000 $
+- `salaireLivreur` ne dépend plus du CA : **5 000 $ fixe** (le livreur honore les livraisons de la semaine ; le patron verse selon ce qui a été réellement fait, en s'appuyant sur l'historique). `paie-calc.mjs` + `utils/paie.js` + `PLAFOND_SALAIRE['livreur']`.
 
 ---
 

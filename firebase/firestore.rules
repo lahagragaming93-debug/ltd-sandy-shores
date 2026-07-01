@@ -131,6 +131,20 @@ service cloud.firestore {
       allow update, delete: if canAdmin();
     }
 
+    // === Livraisons (declarations du livreur — tracabilite, SANS CA) ===
+    // Le livreur cree SES propres declarations. Direction / DRH / super-admin
+    // consultent tout ; un livreur ne voit que les siennes. Suppression = direction.
+    match /livraisons/{id} {
+      allow read:   if isAuth() && isActif() && (
+        canAdmin() || isDRH() || resource.data.livreurId == request.auth.uid
+      );
+      allow create: if isAuth() && isActif()
+        && role() == 'livreur'
+        && request.resource.data.livreurId == request.auth.uid;
+      allow update: if false;
+      allow delete: if canAdmin();
+    }
+
     // === Ventes ===
     // create/update sont fait par les Cloud Functions (declarerVente,
     // modifierVente) avec Admin SDK qui bypass les rules. Cote client : seul

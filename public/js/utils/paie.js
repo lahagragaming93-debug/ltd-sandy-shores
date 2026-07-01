@@ -76,17 +76,13 @@ export function salaireVendeur(role, caGenere, fabrications = {}, quotaFab = {},
 }
 
 /**
- * Salaire livreur — prorata CA sur quotaCAVendeur, plafond 15 000.
- * Pas de fixe, pas de bonus fabrication, pas d'avertissement quota : il fait les
- * livraisons demandees par le patron. Plafond atteint a 50 000 $ de CA (= quota
- * vendeur). Decision patron 2026-06-30.
+ * Salaire livreur — FIXE 5 000 $ (decision patron 2026-07-02). Ne depend plus du CA :
+ * les livraisons ne generent pas de CA (tracees dans la page « Declaration de
+ * livraison »). Le livreur touche 5 000 $ pour honorer les livraisons de la semaine ;
+ * le patron verse (ou non) selon ce qui a ete honore. MIROIR de paie-calc.mjs.
  */
-export function salaireLivreur(caGenere, quotaCAVendeur = QUOTA_CA_VENDEUR_DEFAULT) {
-  const plafond = PLAFOND_SALAIRE['livreur'] ?? 15000;
-  const qCA = Number(quotaCAVendeur);
-  if (!isNouveauSystemeVendeur(qCA)) return 0;
-  const ratioCA = qCA > 0 ? Math.min(1, (caGenere || 0) / qCA) : 0;
-  return Math.min(Math.round(ratioCA * plafond), plafond);
+export function salaireLivreur() {
+  return PLAFOND_SALAIRE['livreur'] ?? 5000;
 }
 
 /**

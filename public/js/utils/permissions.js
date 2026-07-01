@@ -69,6 +69,9 @@ export const ACCESS = {
   // Modifier le compte > « Permissions de modification ». Décision patron 2026-07-02.
   stocks_edit:       [...DIRECTION, 'drh', 'responsable-vente', 'responsable-pompiste', ...SUPER_ADMINS],
   ventes:            [...DIRECTION, 'drh', 'responsable-vente', CHEF, ...SUPER_ADMINS],
+  // Déclaration de livraison : le livreur déclare ses livraisons (traçabilité,
+  // SANS CA) ; la direction + DRH consultent l'historique. Décision patron 2026-07-02.
+  livraisons:        [...DIRECTION, 'drh', ...LIVREURS, ...SUPER_ADMINS],
   comptabilite:      LECTURE_COMPTA,
   // L'EDITION compta reste strictement direction + super-admin (PAS chef-equipe).
   comptabilite_edit: [...DIRECTION, ...SUPER_ADMINS],
@@ -199,7 +202,7 @@ export const PLAFOND_SALAIRE = {
   'vendeur-novice':           13000,
   'vendeur-intermediaire':    14000,
   'vendeur-experimente':      15000,
-  'livreur':                  15000,
+  'livreur':                  5000,
   'pompiste-novice':          13000,
   'pompiste-intermediaire':   14000,
   'pompiste-experimente':     15000,

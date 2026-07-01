@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { key: 'stocks_epicerie', href: 'stocks.html',        icon: 'package',       label: 'Stocks épicerie',    group: 'Opérations' },
   { key: 'stocks_essence',  href: 'stations.html',      icon: 'fuel',          label: 'Stations essence',   group: 'Opérations' },
   { key: 'ventes',          href: 'ventes.html',        icon: 'receipt',       label: 'Ventes',             group: 'Opérations' },
+  { key: 'livraisons',      href: 'livraisons.html',    icon: 'truck',         label: 'Livraisons',         group: 'Opérations' },
   { key: 'comptabilite',    href: 'comptabilite.html',  icon: 'ledger',        label: 'Comptabilité',       group: 'Finance' },
   { key: 'banque',          href: 'banque.html',        icon: 'landmark',      label: 'Banque LTD',         group: 'Finance' },
   { key: 'revenus_carburant', href: 'revenus-carburant.html', icon: 'trending-up', label: 'Revenus carburant', group: 'Finance' },

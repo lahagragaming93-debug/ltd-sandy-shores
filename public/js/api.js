@@ -171,6 +171,33 @@ export async function listVentesSemaineIncluantCachees(dateDebut, dateFin) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// ----- Livraisons (déclarations du livreur — traçabilité, SANS CA) -----
+const MAX_LIVRAISONS = 300;
+// Le livreur déclare une livraison (correspond à une facture émise en jeu). Ne
+// génère AUCUN CA : pur enregistrement de traçabilité pour que le patron sache
+// ce qui a été livré et juge le versement du fixe de 5 000 $.
+export async function ajouterLivraison(data) {
+  return addDoc(collection(db, 'livraisons'), { ...data, createdAt: serverTimestamp() });
+}
+// Historique complet (direction / DRH / super-admin) — toutes les livraisons.
+export function listenLivraisons(cb) {
+  const q = query(collection(db, 'livraisons'), orderBy('createdAt', 'desc'), limit(MAX_LIVRAISONS));
+  return onSnapshot(q, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+// Vue restreinte : uniquement les livraisons d'un livreur (sa propre vue). Tri
+// client (évite un index composite livreurId + createdAt).
+export function listenLivraisonsLivreur(livreurId, cb) {
+  const q = query(collection(db, 'livraisons'), where('livreurId', '==', livreurId), limit(MAX_LIVRAISONS));
+  return onSnapshot(q, s => cb(
+    s.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+  ));
+}
+// Suppression (direction uniquement — corriger une déclaration erronée).
+export async function supprimerLivraison(id) {
+  return deleteDoc(doc(db, 'livraisons', id));
+}
+
 // ----- Mouvements de stock -----
 export async function listMouvementsRecents(n = 50) {
   const q = query(collection(db, 'mouvementsStock'),
