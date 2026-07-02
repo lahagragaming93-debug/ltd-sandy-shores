@@ -11,11 +11,12 @@ import {
   listRedistributionsRangeManuel, listAllRedistributionsManuel,
   listenMesNotesFrais, callFunction, logSite
 } from '../api.js';
-import { ROLE_LABELS, isVendeur, isPompiste, isPompisteRavitailleur, isVendeurDeclarateur,
+import { ROLE_LABELS, isVendeur, isLivreur, isPompiste, isPompisteRavitailleur, isVendeurDeclarateur,
          isDirection, isSuperAdmin, PLAFOND_SALAIRE,
          QUOTA_CA_VENDEUR_DEFAULT, PLAFOND_CA_VENDEUR,
-         BONUS_QUOTA_VENDEUR_MAX, PRODUITS_QUOTA_FAB } from '../utils/permissions.js';
-import { salaireVendeur, salairePompiste, scorePompiste, scoreQuotaFabrication,
+         BONUS_QUOTA_VENDEUR_MAX, PRODUITS_QUOTA_FAB,
+         partVariableVente, LIVREUR_FIXE, LIVREUR_VENTE_VAR_MAX } from '../utils/permissions.js';
+import { salaireVendeur, salaireLivreur, salairePompiste, scorePompiste, scoreQuotaFabrication,
          fabricationsFromQuotaDoc } from '../utils/paie.js';
 import { nomProduit } from '../data/produits.js';
 import { money, moneyPrecis, num, pct, datetime, escapeHtml,
@@ -423,6 +424,8 @@ async function chargerEtRendreDetail({ debut: sDebut, fin: sFin, isCurrent, week
 
   if (isVendeur(profile.role)) {
     renderVendeur(myVentes, quotaV, isCurrent);
+  } else if (isLivreur(profile.role)) {
+    renderLivreur(myVentes, isCurrent);
   } else if (isPompiste(profile.role)) {
     renderPompiste(quota, isCurrent);
   } else {
@@ -588,6 +591,81 @@ function renderVendeur(myVentes, quotaV, isCurrent) {
       });
     });
   }
+}
+
+// Livreur (revision 2026-07-02) : PAS un salaire fixe. Paye = 5 000 fixe pour
+// les livraisons + part variable sur ses VENTES declarees (taux vendeur exp,
+// plafonnee a 10 000) => plafond total 15 000. On lui montre donc son salaire
+// ESTIME live, pas un "plafond fixe" comme la direction.
+function renderLivreur(myVentes, isCurrent) {
+  const estVenteCA = (v) => !v.categorieFiscale || v.categorieFiscale === 'vente'; // don/subvention hors CA & hors commission
+  const ca = myVentes.reduce((s, v) => s + (estVenteCA(v) ? (v.montant || 0) : 0), 0);
+  const caParticulier = myVentes.reduce((s, v) => s + (estVenteCA(v) ? (v.montantParticulier ?? v.montant ?? 0) : 0), 0);
+  const caPro = ca - caParticulier;
+  const quotaCA = Number(config.quotaCAVendeur ?? QUOTA_CA_VENDEUR_DEFAULT);
+
+  const variable   = partVariableVente(caParticulier, quotaCA, LIVREUR_VENTE_VAR_MAX);
+  const salaireEst = salaireLivreur(caParticulier, quotaCA); // min(fixe + variable, plafond)
+  const pctCA      = quotaCA > 0 ? Math.min(100, (caParticulier / quotaCA) * 100) : 0;
+
+  document.getElementById('kpis-emp').innerHTML = `
+    <div class="kpi kpi-salaire"><div class="label">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'}</div><div class="value">${money(salaireEst)}</div><div class="delta">${money(LIVREUR_FIXE)} fixe + ${money(variable)} ventes · plafond ${money(plafondSalaire)}</div></div>
+    <div class="kpi"><div class="label">Part fixe livraisons</div><div class="value">${money(LIVREUR_FIXE)}</div><div class="delta">honorée dès que tu livres</div></div>
+    <div class="kpi"><div class="label">CA commissionnable</div><div class="value">${money(caParticulier)}</div><div class="delta">${myVentes.length} vente${myVentes.length>1?'s':''}${caPro > 0 ? ` · ${money(caPro)} hors commission` : ''}</div></div>
+    <div class="kpi"><div class="label">Part variable ventes</div><div class="value">${money(variable)}</div><div class="delta ${variable >= LIVREUR_VENTE_VAR_MAX ? 'up' : ''}">/ ${money(LIVREUR_VENTE_VAR_MAX)} max</div></div>
+  `;
+
+  document.getElementById('detail').innerHTML = `
+    <p class="muted mb-2">
+      En tant que <strong>Livreur</strong>, ta paye = <strong>${money(LIVREUR_FIXE)} fixe</strong> pour honorer tes livraisons de la semaine
+      + une <strong>part variable</strong> sur tes <strong>ventes déclarées</strong> (même taux qu'un vendeur expérimenté), plafonnée à ${money(LIVREUR_VENTE_VAR_MAX)}.
+      Total maximum <strong>${money(plafondSalaire)}</strong>. Les livraisons elles-mêmes ne génèrent pas de CA : déclare-les sur la page « Livraisons ».
+    </p>
+    <div class="row" style="gap:14px;flex-direction:column;align-items:stretch;">
+      <div>
+        <div class="muted mono mb-1">Part variable sur tes ventes (CA commissionnable ${money(caParticulier)} / ${money(quotaCA)} = part variable au plafond)</div>
+        <div class="progress" style="height:24px;">
+          <div class="fill" style="width:${pctCA}%;${caParticulier >= quotaCA ? 'background:var(--color-cactus,#5a8);' : ''}"></div>
+          <div class="label">${money(variable)} / ${money(LIVREUR_VENTE_VAR_MAX)}</div>
+        </div>
+      </div>
+      <div>
+        <div class="muted mono mb-1">${isCurrent ? 'Salaire estimé' : 'Salaire calculé'} / plafond — ${money(LIVREUR_FIXE)} fixe + part variable ${money(variable)}</div>
+        <div class="progress" style="height:24px;">
+          <div class="fill" style="width:${plafondSalaire ? (salaireEst/plafondSalaire)*100 : 0}%"></div>
+          <div class="label">${money(salaireEst)} / ${money(plafondSalaire)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-title mt-3" style="margin-bottom:6px;"><span>Mes factures de la semaine</span><span class="muted" style="font-size:0.78rem;">${myVentes.length} vente${myVentes.length>1?'s':''}</span></div>
+    <div class="table-scroll" style="max-height:400px;">
+      <table class="data" id="table-mes-ventes">
+        <thead><tr>
+          <th data-sort="date">Date</th>
+          <th data-sort="facture">#Facture</th>
+          <th data-sort="client">Client</th>
+          <th data-sort="paiement">Paiement</th>
+          <th class="right" data-sort="montant">Montant</th>
+          <th class="right" data-sort="benefice">Bénéfice</th>
+        </tr></thead>
+        <tbody>
+          ${myVentes.length === 0 ? '<tr><td colspan="6" class="muted text-center">Aucune vente sur cette semaine.</td></tr>' :
+            myVentes.map(v => `
+              <tr>
+                <td>${datetime(v.timestamp)}</td>
+                <td class="mono">#${escapeHtml(v.factureId || v.id)}</td>
+                <td>${escapeHtml(v.client || '—')}</td>
+                <td><span class="badge neutral">${escapeHtml(v.paiement || '—')}</span></td>
+                <td class="right mono">${money(v.montant)}</td>
+                <td class="right mono">${money(v.benefice || 0)}</td>
+              </tr>
+            `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  if (myVentes.length > 0) makeSortable(document.getElementById('table-mes-ventes'));
 }
 
 function renderPompiste(quota, isCurrent) {

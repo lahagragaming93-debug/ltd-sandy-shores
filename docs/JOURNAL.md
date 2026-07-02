@@ -1,7 +1,17 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-02 (v1.28.1 — journalisation site complétée : ventes, notes de frais, compta, config)**
+> Dernière mise à jour : **2026-07-02 (v1.28.2 — le livreur voit enfin son salaire estimé dans son espace)**
+
+---
+
+## ✅ 2026-07-02 — v1.28.2 : espace livreur — affichage du salaire estimé
+
+Le **livreur ne voyait pas son salaire estimé** dans « Mon espace ». Cause : le rendu de l'espace perso (`pages/employee.js`) choisit une vue selon le rôle — `isVendeur` et `isPompiste` ont leur rendu avec salaire estimé, **tous les autres rôles tombaient dans `renderAutre`** (= salaire *fixe* décidé par la direction). Le livreur, n'étant ni vendeur ni pompiste, héritait de ce rendu « fixe » : aucun salaire estimé affiché, et un message **erroné** (« tes ventes n'impactent pas ta paye »).
+
+- Nouvelle branche + fonction **`renderLivreur`** dédiée, alignée sur le modèle v1.27.0 : **5 000 fixe + part variable sur ses ventes déclarées** (plafond 15 000).
+- KPI **Salaire estimé** live (`5 000 fixe + {part variable} · plafond 15 000`) + KPI Part fixe livraisons, CA commissionnable, Part variable (/ 10 000 max), 2 barres de progression, message correct, table « Mes factures de la semaine ».
+- Calcul **au centime identique au back** (mêmes `salaireLivreur` / `partVariableVente`). **Pur affichage — aucun backend touché**, aucune migration.
 
 ---
 
