@@ -371,7 +371,7 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role, factureBotIdPr
   // - Direction/DRH/Resp Vente/admin-technique voit tout (sauf intrants)
   const nonIntrant = produitsCache.filter(p => !p.intrant);
   // Vendeur ET livreur : uniquement les produits particulier (pourPro=false).
-  produitsVisibles = (isVendeur(role) || isLivreur(role))
+  produitsVisibles = (isVendeur(role) || isLivreur(role) || role === 'chef-equipe')
     ? nonIntrant.filter(p => !p.pourPro)
     : nonIntrant;
   onSuccessCb = onSuccess || null;
@@ -395,7 +395,7 @@ export async function ouvrirModalNouvelleVente({ onSuccess, role, factureBotIdPr
   const blocSelect = document.getElementById('vente-select-bot-bloc');
   const selectBot  = document.getElementById('vente-select-bot');
   const infoBot    = document.getElementById('vente-bot-info');
-  if (isVendeur(role) || isLivreur(role)) {
+  if (isVendeur(role) || isLivreur(role) || role === 'chef-equipe') {
     blocSelect.classList.remove('hidden');
     selectBot.innerHTML = '<option value="">Chargement…</option>';
     infoBot.classList.add('hidden');

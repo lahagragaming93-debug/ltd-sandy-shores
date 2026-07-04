@@ -1,6 +1,6 @@
 # LTD Sandy Shores — Plateforme de gestion
 
-> **Version `1.28.2`** — by **BLATV**
+> **Version `1.28.3`** — by **BLATV**
 
 Plateforme web complète de gestion pour le LTD Sandy Shores (épicerie multisites + franchise stations-essence) opérant sur le serveur FiveM Sandy Shores RPG. Conforme TTE Chapitre IV — Secteur 2.
 

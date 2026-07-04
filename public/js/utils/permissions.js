@@ -61,7 +61,7 @@ const POMPISTES = ['pompiste-novice', 'pompiste-intermediaire', 'pompiste-experi
 export const ACCESS = {
   dashboard:         [...DIRECTION, 'drh', ...SUPER_ADMINS],
   stocks_epicerie:   [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
-  stocks_essence:    [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
+  stocks_essence:    [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...POMPISTES, ...SUPER_ADMINS],
   // Permission de MODIFICATION des stocks (ajuster une quantité, éditer un produit,
   // corriger l'inventaire). Différente de l'ACCÈS aux pages stocks ci-dessus (voir).
   // Par défaut : direction, DRH, resp. vente, resp. pompiste, super-admin. Le chef

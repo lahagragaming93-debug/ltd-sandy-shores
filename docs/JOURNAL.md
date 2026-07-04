@@ -1,7 +1,19 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-02 (v1.28.2 — le livreur voit enfin son salaire estimé dans son espace)**
+> Dernière mise à jour : **2026-07-04 (v1.28.3 — déblocage des déclarations : livreur, pompiste, chef d'équipe)**
+
+---
+
+## ✅ 2026-07-04 — v1.28.3 : déblocage des déclarations (livreur, pompiste, chef d'équipe)
+
+Trois rôles ne pouvaient plus faire leurs déclarations. **Audit complet des 3 couches** (permissions UI / règles Firestore / Cloud Functions) sur les 14 rôles : **3 bugs bloquants corrigés, aucune autre feature cassée** (le reste du tour est sain).
+
+- **Livreur — impossible de déclarer une livraison.** Cause réelle : la barre de navigation masque **tous** les liens sauf « Mon espace / Mes paies / Guide » pour les rôles employé (vendeur/livreur/pompiste). Le livreur n'avait donc **aucun point d'entrée** vers la page Livraisons — le reste du chemin (permission `livraisons_declare`, formulaire, règle `create`, compte `actif`) était correct. Fix : le lien « Livraisons » réapparaît pour le livreur (et tout titulaire de `livraisons_declare`) dans la sidebar **et** un bouton **« Déclarer une livraison »** est ajouté dans « Mon espace ». `layout.js`, `pages/employee.js`.
+- **Pompiste — « Accès refusé » pour déclarer ses caoutchoucs.** La page Stations était gardée par la clé `stocks_essence` qui **n'incluait pas les pompistes** (la clé jumelle `stations`, qui les inclut, n'était jamais câblée). Fix : ajout des pompistes à `stocks_essence`. La Cloud Function de déclaration les autorisait déjà — seule la garde de page bloquait. `permissions.js`.
+- **Chef d'équipe — déclaration de vente toujours en échec.** Désync front/back : la fenêtre de déclaration traitait le chef comme un admin (pas de sélecteur de facture) alors que la Cloud Function lui **exige** une facture in-game → rejet systématique (HTTP 400). Fix : le chef passe désormais par le même flux que les vendeurs (sélection de sa propre facture in-game, anti-fraude conservé). `utils/vente-modal.js`.
+
+Tous les correctifs sont **front** (aucun backend modifié). Règles Firestore redéployées par sécurité pour garantir la présence du bloc `/livraisons` en production. Note technique : la clé de permission orpheline `stations` (doublon de `stocks_essence`) est laissée en place (dette mineure, sans risque).
 
 ---
 

@@ -124,13 +124,16 @@ export function renderShell(profile, activePageKey, mainContentHtml) {
 
   const navByGroup = {};
   NAV_ITEMS
-    .filter(item => canAccess(profile.role, item.key, profile.accesSupp))
+    .filter(item => canAccess(profile.role, item.key, profile.accesSupp)
+      || (item.key === 'livraisons' && canAccess(profile.role, 'livraisons_declare', profile.accesSupp)))
     .forEach(item => {
-      // Pour un employé pur, ne montrer que "Mon espace", "Mes paies" et "Guide"
+      // Pour un employé pur, ne montrer que "Mon espace", "Mes paies", "Guide"
+      // + "Livraisons" pour qui peut déclarer (livreur ou titulaire de la permission).
       if (isEmployeeView(profile.role)
           && item.key !== 'employee'
           && item.key !== 'paies'
-          && item.key !== 'guide') return;
+          && item.key !== 'guide'
+          && item.key !== 'livraisons') return;
       (navByGroup[item.group] ||= []).push(item);
     });
 

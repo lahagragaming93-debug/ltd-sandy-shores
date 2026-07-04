@@ -114,6 +114,9 @@ const html = `
         ${isVendeurDeclarateur(profile.role)
           ? '<button class="btn btn-primary" id="btn-declarer-vente" style="font-size:1.05rem;">Déclarer une vente</button>'
           : ''}
+        ${isLivreur(profile.role)
+          ? '<a class="btn btn-primary" href="livraisons.html" style="font-size:1.05rem;">Déclarer une livraison</a>'
+          : ''}
         ${isPompisteRavitailleur(profile.role)
           ? `${quotaBidonsActif
               ? '<button class="btn btn-primary" id="btn-ravitailler" style="font-size:1.05rem;">Ravitailler une station</button>'
