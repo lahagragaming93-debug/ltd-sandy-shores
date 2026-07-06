@@ -173,8 +173,8 @@ const html = `
         </select>
         <div id="correc-station-info" class="muted" style="font-size:0.78rem;margin:4px 0 8px;"></div>
 
-        <label>Nouvelle valeur du stock (L) <span style="color:var(--color-blood-light);">*</span></label>
-        <input type="number" id="correc-litres" min="0" step="1" placeholder="Ex : 12000" />
+        <label>Stock réel relevé à la pompe (L) <span style="color:var(--color-blood-light);">*</span></label>
+        <input type="number" id="correc-litres" min="0" step="1" placeholder="Saisis la vraie valeur (ex : 2127)" />
         <div id="correc-preview" class="muted" style="font-size:0.78rem;margin:4px 0 8px;">—</div>
 
         <label>Raison de la correction <span style="color:var(--color-blood-light);">*</span></label>
@@ -1151,7 +1151,10 @@ if (isPompisteRavitailleur(profile.role) && !modeVoirComme) {
     const s = stationsCacheLocale.find(x => x.id === sid);
     if (!s) { elCorInfo.textContent = ''; refreshCorrecPreview(); return; }
     elCorInfo.innerHTML = `Stock actuel sur le site : <strong>${num(s.stockActuel || 0)} L</strong> / ${num(s.stockMax || 0)} L`;
-    inCorLitres.value = s.stockActuel || 0;
+    // Ne PAS pré-remplir avec le stock du site : sinon le pompiste laisse la
+    // valeur en place et la correction devient un no-op (écart nul, aucun
+    // changement). Il doit saisir la valeur réelle relevée à la pompe. (v1.28.4)
+    inCorLitres.value = '';
     refreshCorrecPreview();
   }
   function refreshCorrecPreview() {
@@ -1188,10 +1191,17 @@ if (isPompisteRavitailleur(profile.role) && !modeVoirComme) {
     });
     document.getElementById('btn-save-correc').addEventListener('click', async () => {
       const stationId = selCorStat.value;
-      const nouveauStock = Number(inCorLitres.value);
+      const rawVal = inCorLitres.value.trim();
+      const nouveauStock = Number(rawVal);
       const raison = inCorRaison.value.trim();
       if (!stationId) return alert('Sélectionne une station.');
-      if (!Number.isFinite(nouveauStock) || nouveauStock < 0) return alert('Valeur de stock invalide.');
+      if (rawVal === '' || !Number.isFinite(nouveauStock) || nouveauStock < 0) {
+        return alert('Saisis la valeur réelle du stock relevée à la pompe.');
+      }
+      const sCur = stationsCacheLocale.find(x => x.id === stationId);
+      if (sCur && nouveauStock === Number(sCur.stockActuel || 0)) {
+        return alert('Cette valeur est identique au stock actuel du site : rien à corriger. Saisis la valeur réelle relevée à la pompe.');
+      }
       if (raison.length < 5) return alert('Raison obligatoire (min 5 caractères).');
       const btn = document.getElementById('btn-save-correc');
       btn.disabled = true; btn.textContent = 'Envoi…';

@@ -1,7 +1,17 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-04 (v1.28.3 — déblocage des déclarations : livreur, pompiste, chef d'équipe)**
+> Dernière mise à jour : **2026-07-06 (v1.28.4 — correction de stock station : la valeur saisie est bien appliquée)**
+
+---
+
+## ✅ 2026-07-06 — v1.28.4 : correction de stock station — la valeur saisie est enfin appliquée
+
+Le bouton **« Corriger un stock »** (Mon espace, pompiste) ne prenait pas en compte la valeur saisie : la correction repartait avec l'ancienne valeur du site → **écart nul, aucun changement**, en silence. Un pompiste a tenté 5 corrections de suite sans effet.
+
+- **Cause** : le champ « Nouvelle valeur du stock » était **pré-rempli avec le stock actuel du site**. Le pompiste indiquait sa cible dans la *raison* mais laissait le champ pré-rempli → la Cloud Function recevait l'ancienne valeur (`stockAvant === stockApres`). Confirmé sur les données live (`/redistributions` : 5 corrections consécutives `avant = après`).
+- **Fix (front)** : le champ n'est **plus pré-rempli** (placeholder « saisis la vraie valeur relevée à la pompe »), le stock actuel reste affiché en info juste au-dessus. La validation **bloque un champ vide ou un écart nul** avec un message clair. Libellé précisé (« Stock réel relevé à la pompe »).
+- **Backend inchangé** — la Cloud Function `pompisteCorrigerStock` était correcte. `pages/employee.js`.
 
 ---
 
