@@ -8,6 +8,14 @@
 
 export const CHANGELOG = [
   {
+    version: '1.28.6',
+    date: '16/07/2026',
+    title: "Correction d'affichage du journal",
+    items: [
+      'Mise en page du journal des mises à jour corrigée (espaces superflus supprimés).'
+    ]
+  },
+  {
     version: '1.28.5',
     date: '16/07/2026',
     title: 'Journal des mises à jour intégré',
