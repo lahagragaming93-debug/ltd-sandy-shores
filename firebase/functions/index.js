@@ -1683,6 +1683,42 @@ async function crossRefBanqueDepense({ montant, toPropername, toDiscord, account
   }
 }
 
+// ------------------------------------------------------------
+// pontDepuisRetraitBanque — un retrait du compte entreprise devient une dépense.
+//
+// Contexte : jusqu'au 16/07/2026 les dépenses arrivaient par un salon Discord
+// dédié (#depenses, « SORTIE D'ARGENT »). Le serveur a migré au format de logs
+// unifié FlashFA et ce salon est muet depuis 21h24 — les retraits, eux, passent
+// toujours (xbankaccount - withdraw). Ce pont rebranche la compta dessus.
+//
+// Anti-doublon : si le salon dédié redevenait actif, la même sortie arriverait
+// par les DEUX chemins. Le couple (montant, soldeApres) identifie un mouvement
+// bancaire de façon naturelle (le solde après opération ne se répète pas) : si
+// une dépense identique existe déjà, on ne crée rien. Requête à égalités seules
+// -> pas d'index composite nécessaire.
+// ------------------------------------------------------------
+async function pontDepuisRetraitBanque(p) {
+  const montant = Number(p.montant) || 0;
+  const soldeApres = Number(p.soldeApres) || 0;
+
+  const dejaVue = await db.collection('depenses')
+    .where('montant', '==', montant)
+    .where('soldeApres', '==', soldeApres)
+    .limit(1)
+    .get();
+  if (!dejaVue.empty) return;   // déjà entrée par le salon dédié : on ne double pas
+
+  await onDepense({
+    compteId: p.accountId || '',
+    utilisateur: p.fromPropername || p.fromName || '',
+    montant,
+    soldeAvant: Number(p.soldeAvant) || 0,
+    soldeApres,
+    raison: p.raison || '',
+    factureId: p.billId || p.billIdRecu || null
+  });
+}
+
 // === Banque LTD : transactions xbankaccount sur iban LTDSANDY ===
 // Stocke chaque mouvement (entrée ou sortie) avec le solde après transaction.
 // Utilisé pour afficher le solde temps réel + audit complet des mouvements.
@@ -1727,6 +1763,22 @@ async function onBankAccount(p) {
     timestamp: FieldValue.serverTimestamp()
   };
   await db.collection('banqueLtd').add(docData);
+
+  // Pont FlashFA (2026-07-17) : le serveur a migré ses logs au format unifié le
+  // 16/07 au soir — le salon « dépenses » dédié (SORTIE D'ARGENT) s'est tu à
+  // 21h24 et ne revient pas, alors que les retraits continuent d'arriver sur le
+  // salon FlashFA (xbankaccount - withdraw). Sans ce pont, plus aucune dépense
+  // n'entre en compta (loyers quotidiens compris). Un retrait du compte
+  // entreprise EST une dépense : on la crée classifiable dans /depenses
+  // (suggestion auto via le mapping fournisseurs, paies auto-typées 'paie',
+  // sinon « a-classifier »). Même mécanisme que chez LTD Little Seoul.
+  if ((p.type || 'add') === 'remove' && p.estLTD) {
+    try {
+      await pontDepuisRetraitBanque(p);
+    } catch (e) {
+      console.error('[onBankAccount] pont dépense FlashFA error', e.message);
+    }
+  }
 
   // Phase 2 — cross-réf : si c'est un removemoney avec un toPropername, on
   // cherche une dépense correspondante dans /depenses (même montant, timestamp
