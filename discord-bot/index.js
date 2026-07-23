@@ -48,10 +48,12 @@ const CHANNEL_MAP = {
     // logType=cancel + category=xbill. Si pas de match, on tombe sur les
     // autres parsers.
     { type: 'factureCancel',  parser: parseFactureCancelEmbed },
-    // Facture payée FlashFA : "xbankaccount - paid"/"paidCash" -> fiche facture
-    // (onFacture). L'argent (addmoney "Paiement facture N°X") reste capté par
-    // bankAccount ci-dessous — pas de double comptage (collections différentes).
-    { type: 'facture',        parser: parseFacturePaidEmbed },
+    // NB (23/07) : parseFacturePaidEmbed (parsers/facturePaid.js) N'EST PAS câblé
+    // ici VOLONTAIREMENT. Vérification faite : les factures Sandy sont déjà
+    // toutes captées via CH_FACTURES (flux #factures actif, 360/360 en base
+    // depuis le 16/07) — le câbler ferait passer chaque facture DEUX FOIS dans
+    // onFacture (doubles alertes hors-service). Il reste en réserve au cas où
+    // le flux #factures serait coupé un jour (le brancher comme chez Little Seoul).
     { type: 'bankAccount',    parser: parseXbankaccountEmbed }, // filtre IBAN LTDSANDY
     { type: 'inventory',      parser: parseInventoryEmbed     }
   ],
