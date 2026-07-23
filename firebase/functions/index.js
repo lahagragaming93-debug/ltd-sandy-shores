@@ -1246,6 +1246,27 @@ async function onRedistribution(p) {
   }, { merge: true });
 }
 
+// Clé déterministe d'un mouvement bancaire (dédup dépenses). Une dépense est
+// définie de façon unique par : compte + solde après + montant + raison. Le
+// solde après est unique par mouvement, la raison lève toute ambiguïté résiduelle.
+function depenseDedupId(compteId, montant, soldeApres, raison) {
+  const rslug = String(raison == null ? '' : raison).toLowerCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+  return ['mv', String(compteId == null ? '0' : compteId), String(soldeApres), String(montant), rslug].join('-').slice(0, 300);
+}
+// Écrit une dépense de façon IDEMPOTENTE. Même mouvement (deux salons FiveM :
+// #depenses + log bancaire, OU rejeu d'anciens logs après redéploiement du bot)
+// => même doc => AUCUN doublon. create() échoue si le doc existe déjà : on
+// ignore silencieusement, sans jamais réécrire/écraser une dépense déjà classée.
+async function addDepenseUnique(data) {
+  const id = depenseDedupId(data.compteId, data.montant, data.soldeApres, data.raison);
+  try { await db.collection('depenses').doc(id).create(data); return true; }
+  catch (e) {
+    if (e && (e.code === 6 || /ALREADY_EXISTS/i.test(String(e.message || '')))) return false;
+    throw e;
+  }
+}
+
 async function onDepense(p) {
   // Fix bug "<@undefined>" : si le bot Discord n'a pas pu résoudre l'utilisateur
   // (cas typique des dépenses automatiques type loyer), on substitue par un libellé clair.
@@ -1279,7 +1300,7 @@ async function onDepense(p) {
   // alors type='paie' pour que la page Comptabilite exclue ces entries de
   // "Charges non deductibles" (sinon doublon avec masse salariale).
   if (/\b(paye|paie|salaire|r[ée]mun[ée]ration)\b/i.test(rawRaison)) {
-    await db.collection('depenses').add({
+    await addDepenseUnique({
       compteId: p.compteId,
       utilisateur,
       montant: Number(p.montant) || 0,
@@ -1380,7 +1401,7 @@ async function onDepense(p) {
     raisonClassification = 'Pas de pattern fournisseur identifié — à classifier manuellement par patron';
   }
 
-  await db.collection('depenses').add({
+  await addDepenseUnique({
     compteId: p.compteId,
     utilisateur,
     montant: Number(p.montant) || 0,
@@ -3240,22 +3261,11 @@ export const traiterNoteFrais = onRequest({
       }
       patch.statut = 'remboursee';
       patch.dateRemboursement = FieldValue.serverTimestamp();
-
-      // Audit comptable : creer une entree dans /depenses (deductible IRS).
-      await db.collection('depenses').add({
-        type: 'note-frais-essence',
-        categorie: 'Carburant vehicule LTD',
-        montant: Number(note.montant || 0),
-        beneficiaire: note.employeNom || '',
-        beneficiaireId: note.employeId || '',
-        description: `Remboursement note de frais essence vehicule LTD${note.description ? ' — ' + note.description : ''}`,
-        screenshotUrl: note.screenshotUrl || '',
-        noteFraisId: noteId,
-        par: traiteeParNom,
-        parUid: decoded.uid,
-        deductible: true,
-        timestamp: FieldValue.serverTimestamp()
-      });
+      // PAS de creation /depenses ici (retire 2026-07-23) : les mouvements
+      // bancaires ne refletent QUE les logs du jeu. Le patron paie en jeu
+      // (souvent une paye globale), le log bancaire remonte, et le cabinet le
+      // classifie (essence / reparation vehicule). La note sert uniquement de
+      // registre "qui rembourser en fin de semaine".
     }
 
     await noteRef.set(patch, { merge: true });
