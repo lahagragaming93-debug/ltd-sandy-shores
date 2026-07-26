@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { key: 'revenus_carburant', href: 'revenus-carburant.html', icon: 'trending-up', label: 'Revenus carburant', group: 'Finance' },
   { key: 'rh',              href: 'rh.html',            icon: 'users',         label: 'Ressources humaines',group: 'Personnel' },
   { key: 'notes_frais',     href: 'notes-frais.html',   icon: 'wallet',        label: 'Notes de frais',     group: 'Personnel' },
+  { key: 'avertissements',  href: 'avertissements.html', icon: 'users',      label: 'Avertissements',     group: 'Personnel' },
   { key: 'admin',           href: 'admin.html',         icon: 'settings',      label: 'Administration',     group: 'Système' },
   { key: 'employee',        href: 'employee.html',      icon: 'circle-user',   label: 'Mon espace',         group: 'Personnel' },
   { key: 'paies',           href: 'paies.html',         icon: 'banknote',      label: 'Mes paies',          group: 'Personnel' },

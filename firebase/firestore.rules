@@ -41,6 +41,14 @@ service cloud.firestore {
     function isSuperAdmin()  { return role() == 'admin-technique'; }
     // Tous droits admin-équivalents : Direction OU super-admin technique
     function canAdmin()      { return isDirection() || isSuperAdmin(); }
+    // Peut poser ou retirer un avertissement (page dédiée, distincte de l'Administration).
+    function canAvertir()    { return canAdmin() || isDRH()
+                                 || role() in ['responsable-vente', 'chef-equipe', 'responsable-pompiste']; }
+    // Cible protégée : direction et DRH ne peuvent pas être avertis par un responsable.
+    function cibleProtegee(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role
+             in ['patron', 'co-patron', 'drh', 'admin-technique'];
+    }
     // Lecteurs compta / banque / RH : Direction + DRH + Chef d'equipe (decision patron
     // 2026-06-21 : le chef d'equipe voit toutes les pages en lecture, edition compta exclue).
     function isComptaViewer(){ return canAdmin() || isDRH() || isChefEquipe(); }
@@ -221,10 +229,16 @@ service cloud.firestore {
     // === Avertissements (3 actifs = compte bloque) ===
     // Direction cree, modifie (retirer = actif:false). Tous les autres lisent
     // pour qu'un employe voie ses propres avertissements en temps reel.
+    // Avertissements. Jusqu'au 2026-07-26, l'ecriture exigeait canAdmin() : la DRH
+    // et les responsables voyaient le bouton mais leur ecriture etait refusee, d'ou
+    // le « pas les acces » remonte par le patron. Desormais la DRH et les
+    // responsables peuvent avertir, mais JAMAIS la direction ni la DRH — un
+    // responsable n'a pas a sanctionner ceux dont il depend.
+    // Miroir front : canAvertir() dans public/js/utils/permissions.js.
     match /avertissements/{id} {
       allow read:   if isAuth() && isActif();
-      allow create: if canAdmin();
-      allow update: if canAdmin();
+      allow create: if canAvertir() && (canAdmin() || isDRH() || !cibleProtegee(request.resource.data.employeId));
+      allow update: if canAvertir() && (canAdmin() || isDRH() || !cibleProtegee(resource.data.employeId));
       allow delete: if false;  // jamais — audit immuable
     }
 

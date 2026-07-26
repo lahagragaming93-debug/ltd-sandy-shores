@@ -88,6 +88,12 @@ export const ACCESS = {
   // Admin : direction + DRH + responsable-pompiste (gere ses pompistes) + super-admin.
   // Responsable-vente et chef-equipe N'ONT PLUS acces (decision patron 2026-07-01).
   admin:             [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
+  // Avertissements : page DEDIEE, volontairement separee de l'Administration.
+  // Le patron avait retire l'Administration au resp. vente et au chef d'equipe le
+  // 2026-07-01 ; leur rouvrir toute la page pour un simple avertissement leur
+  // redonnerait la creation de comptes et les permissions. D'ou une page a part
+  // qui ne fait QUE poser et retirer des avertissements. Demande Blake 2026-07-26.
+  avertissements:    [...DIRECTION, 'drh', 'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
   notes_frais:       [...DIRECTION, 'drh', 'responsable-pompiste', ...SUPER_ADMINS],
   employee:          [...DIRECTION, 'drh', ...VENDEURS, ...LIVREURS, ...POMPISTES,
                       'responsable-vente', CHEF, 'responsable-pompiste', ...SUPER_ADMINS],
@@ -153,6 +159,25 @@ export function compteEnFinance(role) {
 //   Resp Vente    : uniquement vendeur-novice / vendeur-intermediaire / vendeur-experimente
 //   Resp Pompiste : uniquement pompiste-novice / pompiste-intermediaire / pompiste-experimente
 //   Autres rôles  : aucun (les vendeurs/pompistes ne gèrent personne)
+/**
+ * Qui peut poser ou retirer un avertissement, et sur qui.
+ * Direction, DRH et super-admin : sans restriction.
+ * Responsables et chef d'equipe : sur tout employe SAUF la direction et la DRH
+ * (un responsable n'a pas a sanctionner ceux dont il depend). Choix patron 2026-07-26.
+ * ATTENTION : cette regle existe AUSSI dans firestore.rules (canAvertir / cibleProtegee).
+ * Les deux doivent rester alignees — le front n'est qu'un confort d'affichage,
+ * c'est la regle serveur qui protege reellement.
+ */
+const PROTEGES_AVERT = ['patron', 'co-patron', 'drh', 'admin-technique'];
+export function canAvertir(currentRole, targetRole) {
+  if (!currentRole || !targetRole) return false;
+  if (DIRECTION.includes(currentRole) || currentRole === 'drh' || SUPER_ADMINS.includes(currentRole)) return true;
+  if (['responsable-vente', CHEF, 'responsable-pompiste'].includes(currentRole)) {
+    return !PROTEGES_AVERT.includes(targetRole);
+  }
+  return false;
+}
+
 export function canManageUser(currentRole, targetRole) {
   if (!currentRole || !targetRole) return false;
   // Super-admin technique : tous les droits, peut tout gérer (lui-même inclus)

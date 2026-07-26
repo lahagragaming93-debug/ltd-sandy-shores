@@ -1,7 +1,20 @@
 # 📖 Journal de bord — LTD Sandy Shores
 
 > Document de reprise pour les prochaines sessions de travail.
-> Dernière mise à jour : **2026-07-06 (v1.28.4 — correction de stock station : la valeur saisie est bien appliquée)**
+> Dernière mise à jour : **2026-07-26 (v1.29.0 — avertissements ouverts à la DRH et aux responsables, pilotage vendeurs pour le chef d'équipe)**
+
+---
+
+## ✅ 2026-07-26 — v1.29.0 : avertissements ouverts à l'encadrement, pilotage vendeurs pour le chef d'équipe
+
+Demande du patron : que le chef d'équipe accède au pilotage vendeurs, et que l'encadrement puisse poser des avertissements — « actuellement ça leur dit qu'ils n'ont pas les accès ».
+
+**La vraie cause était côté serveur.** La règle Firestore exigeait `canAdmin()` pour créer un avertissement, c'est-à-dire patron ou co-patron uniquement. **Même la DRH**, qui a pourtant accès à la page Administration, voyait le bouton mais son écriture était refusée. Un correctif purement front n'aurait rien changé.
+
+- **Règle serveur** : nouvelle fonction `canAvertir()` — direction, DRH, responsable vente, chef d'équipe et responsable pompiste. Un responsable ne peut **jamais** avertir la direction ni la DRH (`cibleProtegee`) : il n'a pas à sanctionner ceux dont il dépend.
+- **Page dédiée « Avertissements »** plutôt que la réouverture de l'Administration. Le patron avait retiré cette page au responsable vente et au chef d'équipe le 2026-07-01 ; la leur rouvrir pour un simple avertissement leur aurait rendu la création de comptes, les permissions et les salaires. La nouvelle page ne fait que poser et retirer des avertissements, et n'affiche que les employés du périmètre de celui qui la consulte.
+- **Pilotage vendeurs** ouvert au chef d'équipe (page Ventes), au même titre que le responsable vente.
+- Mécanique inchangée : 3 avertissements actifs bloquent le compte, en retirer un débloque immédiatement, et rien n'est jamais supprimé — l'audit est conservé.
 
 ---
 

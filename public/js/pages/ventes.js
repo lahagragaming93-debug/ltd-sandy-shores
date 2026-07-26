@@ -35,8 +35,10 @@ const { profile } = await requireAuth('ventes');
 // Pilotage vendeurs : visible direction + super-admin + responsable vente.
 // Permet au resp. vente de suivre les quotas (CA + fabrication) de ses
 // vendeurs SANS accès RH (qui lui reste bloqué).
+// Le chef d'equipe supervise les vendeurs : il lui faut le meme suivi de quotas
+// que le responsable vente. Ajoute a sa demande via le patron, 2026-07-26.
 const canPilotageVendeurs = isDirection(profile.role) || isSuperAdmin(profile.role)
-  || profile.role === 'responsable-vente';
+  || profile.role === 'responsable-vente' || profile.role === 'chef-equipe';
 
 const html = `
   <div class="kpi-grid" id="kpis-ventes">
