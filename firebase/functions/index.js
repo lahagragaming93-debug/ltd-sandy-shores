@@ -1395,6 +1395,24 @@ async function onDepense(p) {
     categorieSuggeree = 'entretien-vehicules';
     deductibleSuggere = true;
     raisonClassification = 'Détection legacy : raison contient "entretien véhicule"';
+  } else if (/->\s*n[^0-9]{0,2}6087(?!\d)/i.test(rawRaison) && !/amende|contravention|p[eé]nalit/i.test(rawRaison)) {
+    // Virement vers le compte N°6087 : compte de l'État (vérifié sur les quatre dossiers
+    // du cabinet, qui virent tous vers lui). C'est un impôt -> hors assiette. Une AMENDE
+    // part au même compte sans être un impôt : elle reste à classifier à la main.
+    categorieSuggeree = 'impot-paye';
+    deductibleSuggere = false;
+    raisonClassification = "Virement vers le compte de l'État (N°6087) : impôt, hors assiette";
+  } else if (/\bloyer\b/i.test(rawRaison)) {
+    categorieSuggeree = 'loyer';
+    deductibleSuggere = true;
+    raisonClassification = 'Paiement de loyer : charge de location déductible';
+  } else if (/\b(achat\s+d?'?\s*essence|essence|carburant|gasoil|diesel)\b/i.test(rawRaison)) {
+    // « Achat essence » = plein des véhicules de la station, pas un achat de stock :
+    // le ravitaillement destiné à la revente porte un autre libellé. Vérifié sur 158
+    // lignes réelles, dont 149 déjà classées ainsi à la main.
+    categorieSuggeree = 'frais-vehicule';
+    deductibleSuggere = true;
+    raisonClassification = 'Achat de carburant : frais de véhicule déductible';
   } else {
     categorieSuggeree = 'a-classifier';
     deductibleSuggere = false;
