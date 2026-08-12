@@ -5578,7 +5578,7 @@ export const dashboardKeepAlive = onSchedule({
   // (= si la cellule A1 ne contient plus notre signature). En pratique : la
   // lecture A1 est instantanée et gratuite, donc 60 reads/heure c'est rien.
   // Si écrasement → restauration dans la minute. Si tout est bon → zéro action.
-  schedule: 'every 1 minutes',
+  schedule: 'every 10 minutes',
   timeZone: 'Europe/Paris',
   region: 'europe-west1',
   secrets: [DASHBOARD_SA_KEY],
