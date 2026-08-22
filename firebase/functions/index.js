@@ -771,6 +771,37 @@ export const botIngest = onRequest({
   const { type, payload } = req.body || {};
   if (!type || !payload) return res.status(400).send('Missing type/payload');
 
+  // VERROU ANTI-REPETITION (22/08/2026, bascule du bot Railway vers le relais).
+  // Le relais joint a chaque appel l’identifiant du message Discord d’origine
+  // dans `_meta.messageId`. On le reserve ici : si ce message a deja ete traite,
+  // on repond OK sans rien ecrire.
+  //
+  // POURQUOI EN AMONT ET PAS DANS CHAQUE onXxx. Aucun des vingt-et-un
+  // traitements n’est idempotent : `onBankAccount`, `onLogBrut` et `onInventory`
+  // font un `.add(...)` sans aucune garde. Un seul verrou pose ici les couvre
+  // tous. Il utilise `create()`, qui echoue si le document existe deja : deux
+  // appels simultanes ne peuvent donc pas passer ensemble.
+  //
+  // LA RESERVATION EST ANNULEE SI LE TRAITEMENT ECHOUE (voir le catch plus bas),
+  // sinon un incident passager condamnerait le message a n’etre jamais ingere.
+  // stationsDashboard et dossierEmploye sont des messages Discord EDITES en
+  // place : chaque edition arrive avec le MEME messageId et doit reecrire le
+  // document (set merge). Les verrouiller n'aurait laisse passer que la
+  // premiere version — prix du litre et fiches figes en silence.
+  const TYPES_REINGERABLES = { stationsDashboard: true, dossierEmploye: true };
+  const idMessage = (!TYPES_REINGERABLES[type] && payload && payload._meta && payload._meta.messageId) || null;
+  if (idMessage) {
+    try {
+      await db.collection('relaisVus').doc(String(idMessage)).create({
+        type, quand: Timestamp.now()
+      });
+    } catch (e) {
+      const existe = e && (e.code === 6 || /ALREADY_EXISTS/i.test(e.message || ''));
+      if (existe) return res.json({ ok: true, doublon: true });
+      throw e;
+    }
+  }
+
   try {
     switch (type) {
       case 'inventory':       await onInventory(payload); break;
@@ -799,6 +830,13 @@ export const botIngest = onRequest({
     await relayIgLog(type, payload);   // relai vers le salon de logs BLA (audit)
     res.json({ ok: true });
   } catch (err) {
+    // Le traitement a echoue : on rend la reservation pour que le relais puisse
+    // representer ce message. Sans cela, il serait compte comme traite alors
+    // qu’il ne l’a pas ete, et la comptabilite perdrait l’operation.
+    if (idMessage) {
+      try { await db.collection('relaisVus').doc(String(idMessage)).delete(); }
+      catch (e2) { console.error('botIngest : reservation non rendue', idMessage, e2.message); }
+    }
     console.error('botIngest error', err);
     res.status(500).send(err.message || 'Internal error');
   }
@@ -943,16 +981,24 @@ async function onInventory({ type, item, itemNomBrut, count, source, owner, char
     par: properName || name || 'bot'
   }, { merge: true });
 
-  await db.collection('mouvementsStock').add({
-    type, item: itemId, itemNom,
-    quantite: delta,
-    par: properName || name || '',
-    source: source || '',
-    discord: name || '',
-    characterId: characterId || '',
-    owner: owner || '',
-    timestamp: FieldValue.serverTimestamp()
-  });
+  // Non fatal (22/08/2026) : le stock vient d'etre ecrit juste au-dessus. Si
+  // cette trace echouait en laissant remonter l'exception, le verrou serait
+  // rendu et le rejeu re-additionnerait le delta sur un stock qui le contient
+  // deja. Une trace manquante se regenere ; un stock double, non.
+  try {
+    await db.collection('mouvementsStock').add({
+      type, item: itemId, itemNom,
+      quantite: delta,
+      par: properName || name || '',
+      source: source || '',
+      discord: name || '',
+      characterId: characterId || '',
+      owner: owner || '',
+      timestamp: FieldValue.serverTimestamp()
+    });
+  } catch (e) {
+    console.error('[onInventory] trace mouvementsStock non fatale :', e.message, '-', itemId, delta);
+  }
 
   // Quota pompiste : plus de decompte auto depuis logs FiveM depuis 2026-05-12.
   // Le pompiste declare lui-meme via le site (modal /stations bidons +
@@ -1843,6 +1889,14 @@ async function onBankAccount(p) {
   if (!matchRedis) return;
   const fivemPompeId = matchRedis[1];
 
+  // TOUTE CETTE BRANCHE EST NON FATALE (22/08/2026). Elle s'execute APRES
+  // l'ecriture du mouvement dans banqueLtd. Si elle echouait en laissant
+  // l'exception remonter, botIngest rendrait la reservation du verrou et le
+  // relais representerait le message : le MEME mouvement bancaire serait ecrit
+  // une seconde fois. Un stock de station rate se rattrape ; un doublon dans le
+  // journal bancaire d'un client, non. L'echec est journalise et absorbe.
+  try {
+
   // Lookup mapping pompe FiveM → station dans config
   const cfgSnap = await db.collection('config').doc('global').get();
   const cfg = cfgSnap.exists ? cfgSnap.data() : {};
@@ -1892,6 +1946,11 @@ async function onBankAccount(p) {
     source: 'banqueLtd-redistribution',
     timestamp: FieldValue.serverTimestamp()
   });
+
+  } catch (e) {
+    console.error('[onBankAccount] branche redistribution non fatale :', e.message,
+      '- pompe', fivemPompeId, '- montant', p.montant);
+  }
 }
 
 // === Facture annulee IG (xbankaccount - cancel) ===
@@ -4182,6 +4241,26 @@ export const archiveAncienMouvementsBanque = onSchedule({
       archiverCollection('banqueLtd', 'banqueLtdArchive'),
       archiverCollection('depenses', 'depensesArchive')
     ]);
+
+    // Empreintes du verrou anti-repetition de botIngest : deux semaines de
+    // retention suffisent tres largement, le relais ne revient jamais si loin
+    // en arriere. Sans cette purge, la collection grossirait indefiniment.
+    let empreintesPurgees = 0;
+    const limiteEmpreintes = Timestamp.fromMillis(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    while (true) {
+      const snapVus = await db.collection('relaisVus')
+        .where('quand', '<', limiteEmpreintes)
+        .orderBy('quand', 'asc')
+        .limit(BATCH_SIZE)
+        .get();
+      if (snapVus.empty) break;
+      const batchVus = db.batch();
+      for (const d of snapVus.docs) batchVus.delete(d.ref);
+      await batchVus.commit();
+      empreintesPurgees += snapVus.size;
+      if (snapVus.size < BATCH_SIZE) break;
+    }
+    console.log('[archive] empreintes relaisVus purgees : ' + empreintesPurgees);
     const dureeS = Math.round((Date.now() - t0) / 1000);
     console.log(`[archive] cutoff=${cutoff.toDate().toISOString()} (${SEMAINES_RETENTION} sem) — ` +
       `banqueLtd : ${bq.totalArchive} archives — ` +
@@ -5935,3 +6014,12 @@ export const marquerPaieVersee = onRequest({
   }
 });
 
+
+// ============================================================
+// Relais Discord par SONDAGE — remplacant du bot permanent heberge sur
+// Railway. Lit les salons toutes les minutes et applique les memes
+// analyseurs. EN MODE ESSAI : il n'envoie rien tant que le bot tourne
+// (botIngest n'est pas idempotent sur banqueLtd -> doublons garantis).
+// Voir l'en-tete de lib/discord-relay.mjs.
+// ============================================================
+export { relaisDiscord } from './lib/discord-relay.mjs';

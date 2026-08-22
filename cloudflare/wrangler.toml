@@ -1,0 +1,113 @@
+# ============================================================
+# LTD Sandy Shores — Worker Cloudflare
+# ------------------------------------------------------------
+# Execute le code metier existant (firebase/functions, ESM) sans le modifier.
+# Meme architecture que le Worker BLA (BLA-Corporate/cloudflare) : la
+# substitution se fait dans la table [alias], le code metier continue d'ecrire
+# `import ... from 'firebase-admin/firestore'` et ne sait rien de tout ceci.
+#
+# Le shim est REFERENCE PAR CHEMIN RELATIF vers BLA-Corporate/cloudflare/shim/
+# (pas copie) : une seule source de verite, les correctifs profitent aux deux
+# Workers. Les deux dossiers vivent sous BLA-Corporate, le chemin est stable.
+# ============================================================
+
+name = "ltd-sandy-api"
+main = "src/index.js"
+
+# Meme date que le Worker BLA : posterieure au 2024-09-23, donc nodejs_compat
+# en seconde generation (node:crypto complet, Buffer...). Ne pas avancer cette
+# date sans relancer la construction.
+compatibility_date = "2025-07-15"
+compatibility_flags = ["nodejs_compat"]
+
+# ------------------------------------------------------------
+# LA SUBSTITUTION
+# ------------------------------------------------------------
+# Chaque cle est un specificateur REELLEMENT IMPORTE par le code metier LTD
+# (releve sur index.js + lib/*.mjs + parsers/*.js) :
+#   firebase-functions/v2/scheduler   (index.js:10, discord-relay.mjs:38)
+#   firebase-functions/v2/https       (index.js:11)
+#   firebase-functions/v2/firestore   (index.js:12)  -> shim LOCAL (declencheurs inertes)
+#   firebase-admin/app                (index.js:13)
+#   firebase-admin/firestore          (index.js:14, dashboard-core.mjs:12,
+#                                      snapshot-sheet-semaine.mjs:20, discord-relay.mjs:36)
+#   firebase-admin/auth               (index.js:15)  -> enveloppe LOCALE (getAuth)
+#   firebase-functions/params         (index.js:16, discord-relay.mjs:39)
+#   googleapis                        (index.js:5411)
+# `firebase-admin` et `firebase-functions` nus ne sont pas importes par LTD ;
+# les entrees sont posees quand meme, elles coutent zero et protegent un
+# import futur.
+[alias]
+"firebase-admin" = "../../cloudflare/shim/firebase-admin.js"
+"firebase-admin/app" = "../../cloudflare/shim/firebase-admin.js"
+"firebase-admin/firestore" = "../../cloudflare/shim/firebase-admin.js"
+"firebase-admin/auth" = "./shim-local/firebase-admin-auth.js"
+"firebase-functions" = "../../cloudflare/shim/firebase-functions.js"
+"firebase-functions/v2/https" = "../../cloudflare/shim/firebase-functions.js"
+"firebase-functions/v2/scheduler" = "../../cloudflare/shim/firebase-functions.js"
+"firebase-functions/v2/firestore" = "./shim-local/firebase-functions-firestore.js"
+"firebase-functions/params" = "../../cloudflare/shim/firebase-functions.js"
+"firebase-functions/logger" = "../../cloudflare/shim/firebase-functions.js"
+"googleapis" = "../../cloudflare/shim/googleapis.js"
+
+# ------------------------------------------------------------
+# LE DECLENCHEUR PLANIFIE — UN SEUL, ET CE N'EST PAS UN CHOIX
+# ------------------------------------------------------------
+# Le plan Workers Free plafonne a 5 expressions cron PAR COMPTE, et le Worker
+# BLA (bla-corporate-api) en consomme deja 4. Mesure le 22/08/2026 au premier
+# deploiement : l'API repond « This account has reached the Workers Free limit
+# of 5 cron triggers per account » (code 10072) des la deuxieme expression.
+# Il reste donc UNE expression pour LTD : un tic par minute, et c'est
+# src/index.js qui repartit les sept taches, en heure de Paris, a la minute
+# pres (event.scheduledTime, pas l'horloge d'arrivee — un tic peut glisser de
+# quelques secondes).
+#
+# Correspondance avec les declarations onSchedule du depot LTD, et la regle de
+# repartition appliquee par src/index.js :
+#   relaisDiscord                 « every 1 minutes »   chaque tic, SAUF quand une
+#                                                       tache calendaire est due
+#                                                       (le budget de 50 sous-
+#                                                       requetes lui revient ; les
+#                                                       curseurs rattrapent au tic
+#                                                       suivant)
+#   verifierSortiesExpirees       « */5 » Paris         minute % 5 == 2 (dephasee
+#                                                       pour ne jamais partager le
+#                                                       tic des calendaires ni de
+#                                                       dashboardKeepAlive ; la
+#                                                       tache regarde « plus vieux
+#                                                       que 30 min », la phase lui
+#                                                       est indifferente)
+#   dashboardKeepAlive            « every 10 minutes »  minute % 10 == 4 (idem)
+#   clotureHebdo                  « 0 0 * * 1 » Paris   lundi 00h00 Paris
+#   clotureHebdoPaies             « 5 21 * * 2 » Paris  mardi 21h05 Paris
+#   archiveAncienMouvementsBanque « 0 3 * * 0 » Paris   dimanche 03h00 Paris
+#   cronAlertesEngagements        « 0 9 * * * » Paris   tous les jours 09h00 Paris
+#
+# Les quatre calendaires ne coincident jamais entre elles (minutes 0 et 5,
+# horaires distincts) : chaque tic ne lance qu'une tache au plus, le budget de
+# sous-requetes n'est jamais partage avec une tache lourde.
+[triggers]
+crons = ["* * * * *"]
+
+# ------------------------------------------------------------
+# VARIABLES NON SECRETES
+# ------------------------------------------------------------
+# Volontairement vide : le code LTD ne lit AUCUN process.env directement
+# (verifie — zero occurrence), tout passe par defineSecret. Les secrets se
+# posent par `wrangler secret put` :
+#   SERVICE_ACCOUNT_JSON     cle de service ltd-sandy-shores-f3919 (shim Firestore/Auth/Sheets)
+#   LTD_BOT_INGEST_TOKEN     jeton x-bot-token de botIngest
+#   LTD_COMPTA_EXPORT_TOKEN  jeton de comptaExport
+#   LTD_DISCORD_BOT_TOKEN    jeton du bot Discord (relaisDiscord)
+#   LTD_LOG_WEBHOOKS         carte JSON salon -> webhook (serveur BLA)
+#   DASHBOARD_SA_KEY         meme cle de service (JSON.parse dans getSheetsClient)
+#   BLA_LTD_JSON_WEBHOOK     webhook #ltd-sandy (consommateur inerte, pose par avance)
+#   CRON_TOKEN               declenchement manuel /__cron/<tache>
+[vars]
+
+# ------------------------------------------------------------
+# JOURNAUX
+# ------------------------------------------------------------
+[observability]
+enabled = true
+head_sampling_rate = 1

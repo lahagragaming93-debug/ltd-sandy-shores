@@ -40,3 +40,9 @@ build/
 
 # Sauvegardes locales (manuelles, hors release)
 _backups/
+
+# Artefacts de build Cloudflare (regeneres par wrangler)
+cloudflare/dist/
+cloudflare/.wrangler/
+cloudflare/node_modules/
+.dev.vars

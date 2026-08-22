@@ -18,9 +18,12 @@ export { Timestamp, serverTimestamp };
 // (8 sites d'appel avant ce helper).
 // En LOCAL (hostname=localhost/127.0.0.1) : pointe sur l'emulator Firebase
 // Functions (port 5001) pour tester sans deployer.
+// MOTEUR CLOUDFLARE (22/08/2026). L'ancienne adresse Google est morte avec la
+// facturation ; le moteur sert les memes fonctions, memes chemins, meme jeton
+// de connexion. En local, l'emulateur reste inchange.
 export const CF_BASE = (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname))
   ? 'http://localhost:5001/ltd-sandy-shores-f3919/europe-west1'
-  : 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
+  : 'https://ltd-sandy-api.bla-corporate.workers.dev';
 export async function callFunction(name, body = {}) {
   const idToken = await auth.currentUser.getIdToken();
   const resp = await fetch(`${CF_BASE}/${name}`, {
@@ -598,7 +601,7 @@ export async function listPaiesEstimeesSemaine(weekKey) {
 export async function marquerPaieVersee({ snapshotId, paye, paieMatcheeId = null }) {
   const { auth } = await import('./firebase-config.js');
   const idToken = await auth.currentUser.getIdToken();
-  const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/marquerPaieVersee', {
+  const resp = await fetch('https://ltd-sandy-api.bla-corporate.workers.dev/marquerPaieVersee', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
     body: JSON.stringify({ snapshotId, paye, paieMatcheeId })

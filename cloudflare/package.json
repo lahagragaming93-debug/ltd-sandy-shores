@@ -1,0 +1,14 @@
+{
+  "name": "ltd-sandy-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Worker Cloudflare qui execute le code metier LTD Sandy Shores sans le reecrire.",
+  "scripts": {
+    "verifier": "wrangler deploy --dry-run --outdir dist",
+    "local": "wrangler dev",
+    "deployer": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.99.0"
+  }
+}

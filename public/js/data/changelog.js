@@ -8,6 +8,16 @@
 
 export const CHANGELOG = [
   {
+    version: '1.30.0',
+    date: '22/08/2026',
+    title: 'Changement d\u2019h\u00e9bergement du moteur',
+    items: [
+      'Le site s\u2019appuie d\u00e9sormais sur une nouvelle infrastructure, plus robuste que la pr\u00e9c\u00e9dente.',
+      'Aucun changement d\u2019usage : m\u00eames \u00e9crans, m\u00eames comptes, m\u00eames donn\u00e9es.',
+      'Interruption du 22/08 r\u00e9sorb\u00e9e : les op\u00e9rations de la journ\u00e9e sont r\u00e9int\u00e9gr\u00e9es automatiquement.'
+    ]
+  },
+  {
     version: '1.28.6',
     date: '16/07/2026',
     title: "Correction d'affichage du journal",
