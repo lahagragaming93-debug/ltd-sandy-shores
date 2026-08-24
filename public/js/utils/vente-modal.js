@@ -11,7 +11,7 @@ import { toastSuccess, toastError } from './toast.js';
 import { auth } from '../firebase-config.js';
 import { isVendeur, isLivreur } from './permissions.js';
 
-const FUNCTIONS_BASE = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
+const FUNCTIONS_BASE = 'https://ltd-sandy-api.bla-corporate.workers.dev';
 
 const MODAL_HTML = `
   <div id="modal-vente" class="modal-backdrop hidden">

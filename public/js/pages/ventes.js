@@ -17,7 +17,7 @@ import { nomProduit } from '../data/produits.js';
 import { auth } from '../firebase-config.js';
 import { toastSuccess, toastError } from '../utils/toast.js';
 
-const CAT_FN_BASE = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
+const CAT_FN_BASE = 'https://ltd-sandy-api.bla-corporate.workers.dev';
 const CATEGORIES_FISCALES = [
   ['vente', 'Vente'], ['don-recu', 'Don reçu'], ['don-verse', 'Don versé'],
   ['subvention', 'Subvention'], ['autre-entree', 'Autre entrée']

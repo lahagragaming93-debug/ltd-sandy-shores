@@ -716,7 +716,7 @@ function renderUsers() {
       try {
         const { auth } = await import('../firebase-config.js');
         const idToken = await auth.currentUser.getIdToken();
-        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/supprimerEmploye', {
+        const resp = await fetch('https://ltd-sandy-api.bla-corporate.workers.dev/supprimerEmploye', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
           body: JSON.stringify({ targetUid: btn.dataset.delete })
@@ -751,7 +751,7 @@ function renderUsers() {
       try {
         const { auth } = await import('../firebase-config.js');
         const idToken = await auth.currentUser.getIdToken();
-        const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/adminResetPassword', {
+        const resp = await fetch('https://ltd-sandy-api.bla-corporate.workers.dev/adminResetPassword', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
           body: JSON.stringify({ targetUid: uid })
@@ -1000,7 +1000,7 @@ document.getElementById('btn-save-cfg').addEventListener('click', async () => {
 });
 
 // === Export Google Sheets (modale dédiée, direction uniquement) ===
-const COMPTA_EXPORT_URL = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/comptaExport';
+const COMPTA_EXPORT_URL = 'https://ltd-sandy-api.bla-corporate.workers.dev/comptaExport';
 
 const btnExportSheets = document.getElementById('btn-export-sheets');
 if (btnExportSheets) {
@@ -1388,7 +1388,7 @@ chargerFournisseurs();
 // ============================================================
 // ENGAGEMENTS DE REMBOURSEMENT — CRUD direction
 // ============================================================
-const FUNCTIONS_BASE_ADMIN = 'https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net';
+const FUNCTIONS_BASE_ADMIN = 'https://ltd-sandy-api.bla-corporate.workers.dev';
 
 async function callGererEngagement(action, data) {
   const { auth } = await import('../firebase-config.js');

@@ -7,7 +7,7 @@
   <meta name="version" content="1.5.0" />
   <title>LTD Sandy Shores — Connexion</title>
   <link rel="icon" type="image/png" href="img/favicon.png" />
-  <link rel="stylesheet" href="css/western.css?v=178740561892" />
+  <link rel="stylesheet" href="css/western.css?v=178756708957" />
 </head>
 <body>
   <div class="login-screen">
@@ -116,7 +116,7 @@
             // "verify email before change" de Firebase Auth pour le mail
             // synthetique @ltd-sandy-shores.local (qui ne peut etre verifie).
             const idToken = await user.getIdToken();
-            const resp = await fetch('https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/migrateUsername', {
+            const resp = await fetch('https://ltd-sandy-api.bla-corporate.workers.dev/migrateUsername', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
               body: JSON.stringify({ username: cleanUsername })

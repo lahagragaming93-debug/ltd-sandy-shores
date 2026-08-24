@@ -827,7 +827,7 @@ document.getElementById('btn-save-reclasser')?.addEventListener('click', async (
   try {
     const { auth } = await import('../firebase-config.js');
     const idToken = await auth.currentUser.getIdToken();
-    const url = `https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/reclasserDepense`;
+    const url = `https://ltd-sandy-api.bla-corporate.workers.dev/reclasserDepense`;
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
@@ -1328,7 +1328,7 @@ document.getElementById("btn-refresh-dashboard")?.addEventListener("click", asyn
   try {
     const { auth } = await import("../firebase-config.js");
     const idToken = await auth.currentUser.getIdToken();
-    const resp = await fetch("https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/refreshDashboardNow", {
+    const resp = await fetch("https://ltd-sandy-api.bla-corporate.workers.dev/refreshDashboardNow", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
       body: "{}"
@@ -1399,7 +1399,7 @@ document.getElementById("btn-confirm-cloture")?.addEventListener("click", async 
   try {
     const { auth } = await import("../firebase-config.js");
     const idToken = await auth.currentUser.getIdToken();
-    const resp = await fetch("https://europe-west1-ltd-sandy-shores-f3919.cloudfunctions.net/cloturerSemaine", {
+    const resp = await fetch("https://ltd-sandy-api.bla-corporate.workers.dev/cloturerSemaine", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
       body: JSON.stringify({ confirmationIRS, noteCloture })
