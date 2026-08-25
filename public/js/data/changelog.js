@@ -8,6 +8,15 @@
 
 export const CHANGELOG = [
   {
+    version: '1.30.1',
+    date: '25/08/2026',
+    title: 'Correction du total des sorties — Banque',
+    items: [
+      'Les paies de début de semaine (versées lundi/mardi au titre de la semaine précédente) ne gonflent plus le total « Sorties » de la semaine en cours ; elles restent visibles dans la liste, marquées « paie S-1 · hors total ».',
+      'Fin du double-comptage : un paiement inscrit à la fois dans les dépenses et sur le relevé bancaire est désormais rapproché de façon fiable par le solde, même lorsque le relevé arrive avec plusieurs heures de retard.'
+    ]
+  },
+  {
     version: '1.30.0',
     date: '22/08/2026',
     title: 'Changement d\u2019h\u00e9bergement du moteur',

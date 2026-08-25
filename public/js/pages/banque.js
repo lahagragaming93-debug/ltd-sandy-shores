@@ -172,29 +172,59 @@ async function chargerTout() {
     //    /banqueLtd) ET #depenses (→ /depenses). Une seule sortie d'argent
     //    réelle = 2 docs Firestore. Sans dédup, totaux × 2.
     //
-    //    Stratégie : pour chaque dépense (source=depense), on cherche un
-    //    mouvement banqueLtd correspondant (même montant + type=remove +
-    //    timestamp à ±120s) et on le retire. On garde la dépense car elle
-    //    porte des métadonnées plus riches (raison textuelle, utilisateur,
-    //    fournisseur classifié, etc.).
+    //    On retire le doublon banqueLtd, on garde la dépense (métadonnées plus
+    //    riches : raison textuelle, utilisateur, fournisseur classifié, etc.).
     //
-    //    Clé de matching identique à crossRefBanqueDepense() côté Cloud Fn.
+    //    Clé PRIMAIRE = (montant, soldeApres). Le solde APRÈS l'opération est
+    //    identique sur les deux canaux pour une même transaction, et il est
+    //    INDÉPENDANT DU TEMPS. Indispensable ici : les logs banque arrivent en
+    //    LOTS avec du retard (jusqu'à plusieurs heures) → le jumeau #depense
+    //    (posté tout de suite) et le jumeau banque (posté 1-2h plus tard)
+    //    peuvent être très espacés. Une fenêtre temporelle seule les rate et
+    //    double-compte (bug paies « j'en vois trop » du 25/08).
+    //    Clé de SECOURS = (montant, ±120s) pour les rares docs sans soldeApres.
     const DEDUP_WINDOW_MS = 120 * 1000;
+    const idsBanqueADedupliquer = new Set();
+    let nbDoublons = 0;
+
+    // -- Passe 1 : clé forte (montant, soldeApres), robuste au retard des logs --
+    const banqueParSolde = new Map(); // "montant|soldeApres" → [{op, used}]
+    for (const op of banqueOps) {
+      if (op.type !== 'remove' || !(op.soldeApres > 0)) continue;
+      const k = `${op.montant}|${op.soldeApres}`;
+      if (!banqueParSolde.has(k)) banqueParSolde.set(k, []);
+      banqueParSolde.get(k).push({ op, used: false });
+    }
+    const depNonAppariees = [];
+    for (const dep of depOps) {
+      const cands = (dep.soldeApres > 0)
+        ? (banqueParSolde.get(`${dep.montant}|${dep.soldeApres}`) || [])
+        : [];
+      const libre = cands.find(c => !c.used);
+      if (libre) {
+        libre.used = true;
+        idsBanqueADedupliquer.add(libre.op.id);
+        nbDoublons++;
+      } else {
+        depNonAppariees.push(dep);
+      }
+    }
+
+    // -- Passe 2 : secours temporel (montant, ±120s) pour les dépenses restées
+    //    sans jumeau soldeApres (docs anciens/partiels sans solde fiable) --
     const banqueRemovesByMontant = new Map(); // montant → [{ms, op, used}]
     for (const op of banqueOps) {
-      if (op.type !== 'remove') continue;
+      if (op.type !== 'remove' || idsBanqueADedupliquer.has(op.id)) continue;
       const ms = op.timestamp?.toMillis ? op.timestamp.toMillis() : 0;
       if (!ms) continue;
       if (!banqueRemovesByMontant.has(op.montant)) banqueRemovesByMontant.set(op.montant, []);
       banqueRemovesByMontant.get(op.montant).push({ ms, op, used: false });
     }
-    const idsBanqueADedupliquer = new Set();
-    let nbDoublons = 0;
-    for (const dep of depOps) {
+    for (const dep of depNonAppariees) {
       const ms = dep.timestamp?.toMillis ? dep.timestamp.toMillis() : 0;
       if (!ms) continue;
       const candidats = banqueRemovesByMontant.get(dep.montant) || [];
-      // On prend le candidat libre le plus proche temporellement (< 120s)
+      // Candidat libre le plus proche temporellement (< 120s)
       let best = null;
       let bestDelta = Infinity;
       for (const c of candidats) {
@@ -230,14 +260,16 @@ async function chargerTout() {
   }
 }
 
-// Une "paie ponctuelle du lundi" = sortie "Paye ponctuelle de membre" (le libelle
-// IG des salaires) versee un lundi (Paris). Les salaires de la semaine N sont
-// verses le lundi (apres dimanche 23h59) = debut de la semaine N+1. Cote banque,
-// on les SORT du total "Sorties" + "Net" de la semaine affichee (ils relevent de
-// la semaine precedente), tout en les gardant visibles dans la liste (tag "paie S-1").
-// NE matche PAS le transfert d'impot ("Transfert ... (Impot ...)").
+// Une "paie de debut de semaine" = sortie "Paye ponctuelle de membre" (le libelle
+// IG des salaires) versee un LUNDI ou un MARDI (Paris). Les salaires de la semaine N
+// sont verses apres la cloture dominicale (dimanche 23h59) = debut de la semaine N+1,
+// en pratique lundi ET mardi (la cloture des paies tourne le mardi 21h05, cf. regle
+// S-1 weekKeyAttribuee). Cote banque, on les SORT du total "Sorties" + "Net" de la
+// semaine affichee (ils relevent de la semaine precedente = S-1), tout en les gardant
+// visibles dans la liste (tag "paie S-1"). NE matche PAS le transfert d'impot
+// ("Transfert ... (Impot ...)").
 const _wdParis = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', weekday: 'short' });
-function estPaieLundi(m) {
+function estPaieS1(m) {
   if (m.type !== 'remove') return false;
   const r = (m.raison || '').toLowerCase();
   const estPaie = r.includes('paye ponctuelle') || m.typeDepense === 'paie';
@@ -245,7 +277,8 @@ function estPaieLundi(m) {
   const d = m.timestamp?.toDate ? m.timestamp.toDate()
           : (m.timestamp?.toMillis ? new Date(m.timestamp.toMillis()) : null);
   if (!d) return false;
-  return _wdParis.format(d) === 'Mon';
+  const wd = _wdParis.format(d);
+  return wd === 'Mon' || wd === 'Tue';
 }
 
 function rendre() {
@@ -265,10 +298,10 @@ function rendre() {
   // Sorties = mouvements 'remove' SAUF les paies du lundi (= paies S-1, versees
   // apres la cloture, rattachees a la semaine precedente). Elles restent dans la
   // liste mais hors du total Sorties + Net de la semaine en cours.
-  const removes        = mouvements.filter(m => m.type === 'remove' && !estPaieLundi(m));
+  const removes        = mouvements.filter(m => m.type === 'remove' && !estPaieS1(m));
   const nbRemove       = removes.length;
   const totalSorties   = removes.reduce((s, m) => s + m.montant, 0);
-  const paiesLundi     = mouvements.filter(estPaieLundi);
+  const paiesLundi     = mouvements.filter(estPaieS1);
   const totalPaiesLundi = paiesLundi.reduce((s, m) => s + m.montant, 0);
   // Sépare le VRAI CA épicerie (categorieFiscale 'vente') des entrées classées
   // fiscalement (don reçu, subvention, autre entrée) : elles sont bien encaissées
@@ -327,7 +360,7 @@ function rendre() {
 
   tbody.innerHTML = visibles.slice(0, 1000).map(m => {
     const isAdd = m.type === 'add';
-    const isPaieS1 = estPaieLundi(m);
+    const isPaieS1 = estPaieS1(m);
     const badge = isAdd
       ? '<span class="badge ok">Entrée</span>'
       : '<span class="badge danger">Sortie</span>';
